@@ -2623,6 +2623,11 @@ function deleteCycle(state, cycleId) {
     state.suggestionEvents = [];
     state.executionEvents = [];
     state.suggestionHistory = { dayKey: state.appTime?.activeDayKey || nowDayKey(), count: 0, lastSuggestedAtISO: null, lastSuggestedAtISOByGoal: {}, dailyCountByGoal: {}, denials: [] };
+    state.goalExecutionContract = null;
+    state.planDraft = null;
+    state.planPreview = null;
+    state.planCalibration = null;
+    state.activeGoalId = null;
   }
   const cycle = state.cyclesById[cycleId];
   cycle.status = 'deleted';
@@ -2653,6 +2658,11 @@ function hardDeleteCycle(state, cycleId) {
     state.suggestionEvents = [];
     state.executionEvents = [];
     state.suggestionHistory = { dayKey: state.appTime?.activeDayKey || nowDayKey(), count: 0, lastSuggestedAtISO: null, lastSuggestedAtISOByGoal: {}, dailyCountByGoal: {}, denials: [] };
+    state.goalExecutionContract = null;
+    state.planDraft = null;
+    state.planPreview = null;
+    state.planCalibration = null;
+    state.activeGoalId = null;
   }
   delete state.cyclesById[cycleId];
   if (state.deliverablesByCycleId?.[cycleId]) {

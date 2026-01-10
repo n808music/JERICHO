@@ -7,9 +7,9 @@ export function analyzeFailurePatterns(history = [], currentIntegrity) {
   const window = buildWindow(history, currentIntegrity);
   const recentCycles = window.length;
 
-  const avgIntegrity = average(window.map((c) => c.integrity.score || 0));
-  const avgCompletionRate = average(window.map((c) => c.integrity.breakdown.completionRate || 0));
-  const avgOnTimeRate = average(window.map((c) => c.integrity.breakdown.onTimeRate || 0));
+  const avgIntegrity = average(window.map((c) => (c.integrity?.score ?? 0)));
+  const avgCompletionRate = average(window.map((c) => c.integrity?.breakdown?.completionRate || 0));
+  const avgOnTimeRate = average(window.map((c) => c.integrity?.breakdown?.onTimeRate || 0));
 
   const trend = computeTrend(window);
 
@@ -17,7 +17,7 @@ export function analyzeFailurePatterns(history = [], currentIntegrity) {
   const lateRate = window.length
     ? average(
         window.map((c) => {
-          const br = c.integrity.breakdown;
+          const br = c.integrity?.breakdown || {};
           const completed = (br.completedOnTime || 0) + (br.completedLate || 0);
           return completed > 0 ? (br.completedLate || 0) / completed : 0;
         })
@@ -66,7 +66,35 @@ function buildWindow(history, currentIntegrity) {
       changes: []
     });
   }
-  return entries.slice(-WINDOW_SIZE);
+  const normalized = entries
+    .map((entry) => {
+      const integrity = entry?.integrity || currentIntegrity || {
+        score: 0,
+        breakdown: {
+          completedOnTime: 0,
+          completedLate: 0,
+          missed: 0,
+          totalTasks: 0,
+          completionRate: 0,
+          onTimeRate: 0
+        }
+      };
+      const breakdown = integrity.breakdown || {
+        completedOnTime: 0,
+        completedLate: 0,
+        missed: 0,
+        totalTasks: 0,
+        completionRate: 0,
+        onTimeRate: 0
+      };
+      return {
+        ...entry,
+        integrity: { ...integrity, breakdown }
+      };
+    })
+    .filter((entry) => entry.integrity);
+
+  return normalized.slice(-WINDOW_SIZE);
 }
 
 function computeTrend(window) {

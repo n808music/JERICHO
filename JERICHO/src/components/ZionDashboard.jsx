@@ -6,6 +6,7 @@ import Workspace from './zion/Workspace.jsx';
 import { PatternLens } from './zion/Workspace.jsx';
 import IdentityBar from './zion/IdentityBar.jsx';
 import AssistantPanel from './zion/AssistantPanel.jsx';
+import { REDUCE_UI } from '../ui/reduceUIConfig.js';
 import ZionWeekView from './zion/views/ZionWeekView.jsx';
 import ZionMonthView from './zion/views/ZionMonthView.jsx';
 import ZionQuarterView from './zion/views/ZionQuarterView.jsx';
@@ -792,13 +793,15 @@ export default function ZionDashboard({
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                className="text-xs text-muted hover:text-jericho-accent"
-                onClick={() => setAssistantVisible(true)}
-              >
-                Assistant
-              </button>
+                <div className="flex items-center gap-3">
+              {!REDUCE_UI ? (
+                <button
+                  className="text-xs text-muted hover:text-jericho-accent"
+                  onClick={() => setAssistantVisible(true)}
+                >
+                  Assistant
+                </button>
+              ) : null}
               {onBackHome ? (
                 <button className="text-xs text-muted hover:text-jericho-accent" onClick={onBackHome}>
                   Home
@@ -1438,7 +1441,7 @@ export default function ZionDashboard({
                       onClick={() => {
                         if (!activeCycleId) return;
                         if (!window.confirm('Archive the active cycle and move it to review mode?')) return;
-                        emitAction('cycle.archive', { cycleId: activeCycleId }, actions.endCycle);
+                        emitAction('cycle.archive', { cycleId: activeCycleId }, () => actions.endCycle(activeCycleId));
                       }}
                       disabled={!activeCycleId}
                     >
@@ -1449,7 +1452,7 @@ export default function ZionDashboard({
                       onClick={() => {
                         if (!activeCycleId) return;
                         if (!window.confirm('Delete the active cycle and clear the calendar? This cannot be undone.')) return;
-                        emitAction('cycle.delete', { cycleId: activeCycleId }, actions.deleteCycle);
+                        emitAction('cycle.delete', { cycleId: activeCycleId }, () => actions.deleteCycle(activeCycleId));
                       }}
                       disabled={!activeCycleId}
                     >
@@ -1486,14 +1489,14 @@ export default function ZionDashboard({
                               <>
                                 <button
                                   className="rounded-full border border-line/60 px-3 py-1 text-[11px] text-muted hover:text-jericho-accent"
-                                  onClick={() => emitAction('cycle.switch', { cycleId: entry.cycleId }, actions.setActiveCycle)}
+                                  onClick={() => emitAction('cycle.switch', { cycleId: entry.cycleId }, () => actions.setActiveCycle(entry.cycleId))}
                                   disabled={entry.state === 'Deleted'}
                                 >
                                   Switch
                                 </button>
                                 <button
                                   className="rounded-full border border-line/60 px-3 py-1 text-[11px] text-muted hover:text-jericho-accent"
-                                  onClick={() => emitAction('cycle.switch', { cycleId: entry.cycleId }, actions.setActiveCycle)}
+                                  onClick={() => emitAction('cycle.switch', { cycleId: entry.cycleId }, () => actions.setActiveCycle(entry.cycleId))}
                                   disabled={entry.state === 'Deleted'}
                                 >
                                   Review
@@ -1502,7 +1505,7 @@ export default function ZionDashboard({
                             )}
                               <button
                                 className="rounded-full border border-line/60 px-3 py-1 text-[11px] text-muted hover:text-jericho-accent"
-                                onClick={() => emitAction('cycle.delete', { cycleId: entry.cycleId }, actions.deleteCycle)}
+                                onClick={() => emitAction('cycle.delete', { cycleId: entry.cycleId }, () => actions.deleteCycle(entry.cycleId))}
                                 disabled={entry.state !== 'Ended'}
                               >
                                 Delete
@@ -1989,7 +1992,7 @@ export default function ZionDashboard({
           </div>
         ) : null}
 
-        {assistantVisible ? (
+        {!REDUCE_UI && assistantVisible ? (
           <div className="border-l border-line/60 pl-4">
             <AssistantPanel
               isOpen={true}

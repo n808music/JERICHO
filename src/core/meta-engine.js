@@ -22,7 +22,8 @@ export function evaluateSystemHealth({
   return {
     health: { status, reasons },
     drift,
-    governance
+    governance,
+    integritySummary
   };
 }
 

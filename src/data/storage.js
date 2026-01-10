@@ -33,6 +33,22 @@ export async function readState() {
   }
 }
 
+export async function safeReadState() {
+  try {
+    const raw = await fs.readFile(STORE_PATH, 'utf-8');
+    return { ok: true, state: buildState(JSON.parse(raw)) };
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      await writeState(defaultState);
+      return { ok: true, state: defaultState };
+    }
+    if (err instanceof SyntaxError) {
+      return { ok: false, errorCode: 'BAD_STATE', reason: 'State file is not valid JSON.' };
+    }
+    return { ok: false, errorCode: 'BAD_STATE', reason: err.message || 'State read failed.' };
+  }
+}
+
 export async function writeState(state) {
   const next = buildState(state);
   await fs.mkdir(path.dirname(STORE_PATH), { recursive: true });
@@ -55,13 +71,51 @@ export async function updateIdentity(domain, capability, level) {
   return writeState({ ...current, identity });
 }
 
-export async function recordTaskStatus(taskId, status) {
+export async function recordTaskStatus(taskId, status, meta = {}) {
   const current = await readState();
-  const history = [...(current.history || []), { id: taskId, status, at: new Date().toISOString() }];
-  const tasks = (current.tasks || []).map((task) =>
-    task.id === taskId ? { ...task, status } : task
-  );
-  return writeState({ ...current, history, tasks });
+  const nowIso = new Date().toISOString();
+  const defaultBreakdown = {
+    completedOnTime: status === 'completed' ? 1 : 0,
+    completedLate: 0,
+    missed: status === 'missed' ? 1 : 0,
+    totalTasks: 1,
+    completionRate: status === 'completed' ? 1 : 0,
+    onTimeRate: status === 'completed' ? 1 : 0
+  };
+  const historyEntry = {
+    id: taskId,
+    taskId,
+    domain: meta.domain || 'unknown',
+    capability: meta.capability || 'unknown',
+    tier: meta.tier || 'foundation',
+    effortMinutes: meta.effortMinutes ?? 60,
+    goalLink: meta.goalLink || 'goal',
+    status,
+    timestamp: nowIso,
+    integrity: {
+      scoreDelta: 0,
+      breakdown: { ...(meta.integrityBreakdown || {}), ...defaultBreakdown }
+    }
+  };
+  const history = [...(current.history || []), historyEntry];
+  const tasks = Array.isArray(current.tasks)
+    ? current.tasks.map((task) => (task.id === taskId ? { ...task, status } : task))
+    : [];
+  const nextTasks = !tasks.find((t) => t.id === taskId)
+    ? [
+        ...tasks,
+        {
+          id: taskId,
+          status,
+          domain: meta.domain,
+          capability: meta.capability,
+          tier: meta.tier,
+          effortMinutes: meta.effortMinutes,
+          goalLink: meta.goalLink
+        }
+      ]
+    : tasks;
+  return writeState({ ...current, history, tasks: nextTasks });
 }
 
 function buildState(raw) {
