@@ -17,7 +17,6 @@ export default function AddBlockBar({
   onAdd,
   readOnly = false,
   showGoalLink = true,
-  goalLabel = 'Active goal',
   deliverables = [],
   criteriaByDeliverable = {},
   strictMode = false
@@ -133,7 +132,7 @@ export default function AddBlockBar({
             onChange={(e) => setLinkToGoal(e.target.checked)}
             disabled={readOnly}
           />
-          Link to {goalLabel}
+          Link to active goal
         </label>
       ) : null}
       <label className="flex items-center gap-2 text-[11px] text-muted">

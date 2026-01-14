@@ -46,7 +46,9 @@ function completionStats(events: Array<any>) {
 }
 
 export function projectCyclesIndex({ cyclesById = {}, goalWorkById = {}, constraints = {} }: CycleIndexInput): CycleIndexEntry[] {
-  const entries = Object.values(cyclesById || {}).map((cycle: any) => {
+  const entries = Object.values(cyclesById || {})
+    .filter((cycle: any) => cycle?.status !== 'deleted')
+    .map((cycle: any) => {
     const status = cycle?.status === 'deleted' ? 'Deleted' : cycle?.status === 'active' ? 'Active' : 'Ended';
     const cycleId = cycle?.id || '';
     const goalTitle = cycle?.definiteGoal?.outcome || cycle?.contract?.goalText || '—';

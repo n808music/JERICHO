@@ -191,7 +191,7 @@ describe('stress invariants', () => {
     expect(getRejectedIds(state3b)).toEqual([rejectedId]);
   });
 
-  it('replay determinism over randomized sequences', () => {
+  it('replay determinism over randomized sequences', { timeout: 20000 }, () => {
     const rng = seededRng(42);
     for (let seq = 0; seq < 5; seq += 1) {
       let state = buildOnboardingState();

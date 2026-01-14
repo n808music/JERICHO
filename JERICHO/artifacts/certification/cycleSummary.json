@@ -1,0 +1,30 @@
+{
+  "completionCount": 0,
+  "completionRate": 0,
+  "convergenceReport": {
+    "verdict": "INCOMPLETE",
+    "reasons": [
+      "No deliverables defined; goal structure incomplete"
+    ],
+    "P_end": {
+      "requiredUnits": 0,
+      "unitType": "blocks",
+      "deliverables": [],
+      "deadline": "2026-02-08",
+      "deadlineType": "HARD",
+      "computedAt": "2026-01-10T06:22:04.567Z"
+    },
+    "E_end": {
+      "completedUnits": 0,
+      "unitType": "blocks",
+      "deliverables": [],
+      "completionsByDeadline": 0,
+      "completionsAfterDeadline": 0,
+      "unlinkedActivityBlocks": 0,
+      "unlinkedActivityMinutes": 0,
+      "computedAt": "2026-01-10T06:22:04.568Z"
+    },
+    "tolerance": 0,
+    "computedAtISO": "2026-01-08T12:00:00.000Z"
+  }
+}

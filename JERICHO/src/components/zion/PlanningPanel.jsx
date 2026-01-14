@@ -20,7 +20,6 @@ export default function PlanningPanel({
   readOnly = false,
   errorMessage = '',
   timeZone = null,
-  goalLabel = 'Active goal',
   deliverables = [],
   criteriaByDeliverable = {},
   whatMovedToday = null,
@@ -39,7 +38,6 @@ export default function PlanningPanel({
           onAddBlock?.(date, { time, durationMinutes, domain, title, linkToGoal, deliverableId, criterionId })
         }
         readOnly={readOnly}
-        goalLabel={goalLabel}
         deliverables={deliverables}
         criteriaByDeliverable={criteriaByDeliverable}
         strictMode={strictMode}

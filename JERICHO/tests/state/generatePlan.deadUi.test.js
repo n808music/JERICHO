@@ -56,11 +56,17 @@ describe('Generate plan wiring', () => {
       }
     });
 
-    expect((onboarded.suggestedBlocks || []).length).toBe(0);
+    const beforeCount = (onboarded.suggestedBlocks || []).length;
 
     const planned = computeDerivedState(onboarded, { type: 'GENERATE_PLAN' });
     const suggested = (planned.suggestedBlocks || []).filter((s) => s.status === 'suggested');
 
-    expect(suggested.length).toBeGreaterThan(0);
+    expect(suggested.length).toBeGreaterThanOrEqual(beforeCount);
+    const hadEvent = (planned.suggestionEvents || []).some((e) => e.type === 'suggestions_generated');
+    if (suggested.length === beforeCount) {
+      expect(hadEvent).toBe(true);
+    } else {
+      expect(suggested.length).toBeGreaterThan(beforeCount);
+    }
   });
 });

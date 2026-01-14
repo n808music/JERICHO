@@ -1,0 +1,75 @@
+{
+  "version": "0.2",
+  "language": "en,en-US",
+  "words": [
+    "JERICHO",
+    "autoDeliverables",
+    "mechanismClass",
+    "vitest",
+    "vite",
+    "tailwindcss",
+    "postcss",
+    "autoprefixer",
+    "eslint",
+    "prettier",
+    "typescript",
+    "react",
+    "react-dom",
+    "jsx",
+    "tsx",
+    "localStorage",
+    "api",
+    "end-to-end",
+    "onboarding",
+    "backlog",
+    "roadmap",
+    "sprint",
+    "scrum",
+    "agile",
+    "kanban",
+    "gitflow",
+    "ci/cd",
+    "devops",
+    "microservices",
+    "monorepo",
+    "polyrepo",
+    "refactor",
+    "debug",
+    "rollback",
+    "hotfix",
+    "feature-branch",
+    "mainline",
+    "trunk-based",
+    "atomic",
+    "idempotent",
+    "idempotence"
+  ],
+  "ignorePaths": [
+    "node_modules/**",
+    "dist/**",
+    "build/**",
+    ".git/**",
+    "coverage/**",
+    "*.log"
+  ],
+  "dictionaries": ["en", "en_US", "softwareTerms", "typescript", "node", "npm"],
+  "ignoreRegExpList": [
+    "/\\b[A-Z]{2,}\\b/g", // Acronyms
+    "/\\bhttps?:\\/\\/[^\\s]+\\b/g", // URLs
+    "/\\b[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\b/gi" // UUIDs
+  ],
+  "overrides": [
+    {
+      "filename": "**/*.md",
+      "language": "en,en-US"
+    },
+    {
+      "filename": "src/**/*.ts",
+      "language": "en,en-US"
+    },
+    {
+      "filename": "src/**/*.tsx",
+      "language": "en,en-US"
+    }
+  ]
+}

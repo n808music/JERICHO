@@ -1,0 +1,202 @@
+name: Dependency Management
+
+on:
+  schedule:
+    - cron: '0 6 * * 1' # Every Monday at 6 AM UTC
+  workflow_dispatch: # Allow manual triggering
+  push:
+    branches: [main]
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+
+jobs:
+  dependency-update:
+    name: Update Dependencies
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Update dependencies
+        run: |
+          npm update
+          npm audit fix --audit-level=moderate || true
+
+          # Check for major version updates
+          npx npm-check-updates -u --target minor
+          npm install
+
+      - name: Run tests
+        run: npm test
+
+      - name: Check for vulnerabilities
+        run: npm audit --audit-level=moderate
+
+      - name: Build application
+        run: npm run build
+
+      - name: Create dependency update PR
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: '🔧 chore: update dependencies'
+          title: '🔧 Automated Dependency Update'
+          body: |
+            ## Automated Dependency Update
+
+            This PR contains automated dependency updates:
+
+            - Minor and patch version updates
+            - Security vulnerability fixes where possible
+            - All tests passing
+            - Build successful
+
+            ### Changes
+            - Updated `package.json` and `package-lock.json`
+            - All compatibility tested
+
+            Please review and merge if all checks pass.
+          branch: automated-dependency-update
+          delete-branch: true
+          labels: |
+            dependencies
+            automated
+
+  security-audit:
+    name: Security Audit Report
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run comprehensive security audit
+        run: |
+          echo "# Security Audit Report" > security-report.md
+          echo "Generated on: $(date)" >> security-report.md
+          echo "" >> security-report.md
+
+          echo "## npm Audit Results" >> security-report.md
+          npm audit --json > audit-results.json 2>&1 || true
+
+          if [ -f audit-results.json ]; then
+            VULNS=$(node -e "
+              try {
+                const audit = JSON.parse(require('fs').readFileSync('audit-results.json', 'utf8'));
+                const vulnCount = Object.keys(audit.vulnerabilities || {}).length;
+                console.log(\`\${vulnCount} vulnerabilities found\`);
+              } catch (e) {
+                console.log('No vulnerabilities or audit failed');
+              }
+            ")
+            echo "- Vulnerabilities: ${VULNS}" >> security-report.md
+          fi
+
+          echo "" >> security-report.md
+          echo "## Snyk Analysis" >> security-report.md
+
+          if [ "${{ secrets.SNYK_TOKEN }}" != "" ]; then
+            npx snyk test --json > snyk-results.json 2>&1 || true
+            if [ -f snyk-results.json ]; then
+              echo "- Snyk analysis completed" >> security-report.md
+            else
+              echo "- Snyk analysis failed" >> security-report.md
+            fi
+          else
+            echo "- Snyk token not configured" >> security-report.md
+          fi
+
+      - name: Upload security report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit-report
+          path: |
+            security-report.md
+            audit-results.json
+            snyk-results.json
+
+  license-compliance:
+    name: License Compliance Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check license compliance
+        run: |
+          echo "# License Compliance Report" > license-report.md
+          echo "Generated on: $(date)" >> license-report.md
+          echo "" >> license-report.md
+
+          echo "## Allowed Licenses" >> license-report.md
+          echo "- MIT" >> license-report.md
+          echo "- Apache-2.0" >> license-report.md
+          echo "- BSD-2-Clause" >> license-report.md
+          echo "- BSD-3-Clause" >> license-report.md
+          echo "- ISC" >> license-report.md
+          echo "- 0BSD" >> license-report.md
+          echo "" >> license-report.md
+
+          echo "## Dependency Licenses" >> license-report.md
+          npx license-checker --json --excludePrivatePackages > license-info.json || true
+
+          if [ -f license-info.json ]; then
+            node -e "
+              const licenses = JSON.parse(require('fs').readFileSync('license-info.json', 'utf8'));
+              const fs = require('fs');
+              
+              Object.entries(licenses).forEach(([name, info]) => {
+                if (info.licenses && info.licenses !== 'UNLICENSED') {
+                  fs.appendFileSync('license-report.md', \`- **\${name}**: \${info.licenses}\n\`);
+                } else if (info.licenses === 'UNLICENSED') {
+                  fs.appendFileSync('license-report.md', \`- **\${name}**: UNLICENSED ⚠️\n\`);
+                }
+              });
+            "
+          fi
+
+          echo "" >> license-report.md
+          echo "## Compliance Status" >> license-report.md
+          npx license-checker --onlyAllow 'MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD' --excludePrivatePackages > /dev/null 2>&1
+          if [ $? -eq 0 ]; then
+            echo "✅ All dependencies comply with allowed licenses" >> license-report.md
+          else
+            echo "❌ License compliance issues found" >> license-report.md
+          fi
+
+      - name: Upload license report
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-compliance-report
+          path: |
+            license-report.md
+            license-info.json

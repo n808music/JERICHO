@@ -1,0 +1,29 @@
+{
+  "planProof": {
+    "verdict": "FEASIBLE",
+    "requiredMinutesPerDay": 45,
+    "workableDays": 27,
+    "scheduledBlocks": 28,
+    "weeklyMinutes": 300,
+    "constraintsSummary": [
+      "Workable days: 27",
+      "Max daily minutes: 120",
+      "Weekend allowed: yes",
+      "Full-time work schedule applied.",
+      "Weekly rest day honored."
+    ],
+    "failureConditions": [
+      "Miss 2 execution blocks in a week → recompile required."
+    ],
+    "changeList": [],
+    "status": "SUBMITTED"
+  },
+  "P_end": {
+    "requiredUnits": 0,
+    "unitType": "blocks",
+    "deliverables": [],
+    "deadline": "2026-02-08",
+    "deadlineType": "HARD",
+    "computedAt": "2026-01-10T06:22:04.567Z"
+  }
+}

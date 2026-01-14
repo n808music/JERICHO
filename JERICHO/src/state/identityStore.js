@@ -5,6 +5,9 @@ import { canEmitExecutionEvent } from './engine/executionContract.ts';
 import { appendExecutionEvent, buildExecutionEventFromBlock } from './engine/todayAuthority.ts';
 import { addDays, dayKeyFromDate, dayKeyFromISO, nowDayKey } from './time/time.ts';
 import { assertEngineAuthority } from './invariants/engineAuthority.ts';
+import { validateGoalAdmission } from '../domain/goal/GoalAdmissionPolicy.ts';
+import { GoalRejectionCode } from '../domain/goal/GoalRejectionCode.ts';
+import { buildAutoDeliverablesFromGoalContract, detectCompoundGoal } from '../domain/autoStrategy.ts';
 
 const STATE_VERSION = '1.0.0';
 
@@ -287,6 +290,8 @@ function ensureCycleStructures(state) {
   if (!state.history) state.history = { cycles: [] };
   if (!state.cyclesById) state.cyclesById = {};
   if (typeof state.activeCycleId === 'undefined') state.activeCycleId = null;
+  if (!state.cycleOrder) state.cycleOrder = Object.keys(state.cyclesById || {});
+  if (!state.aspirations) state.aspirations = [];
 }
 
 function sanitizeTargets(dailyTargets = []) {
@@ -467,6 +472,11 @@ function identityReducer(state, action) {
     return computeDerivedState(draft, { type: 'NO_OP' });
   }
 
+  if (action.type === 'APPLY_NEXT_STATE') {
+    // Replace state with provided nextState (already derived by pure admission reducer)
+    return computeDerivedState(action.nextState || state, { type: 'NO_OP' });
+  }
+
   return computeDerivedState(state, action);
 }
 
@@ -494,6 +504,7 @@ export function IdentityProvider({ children, initialState }) {
   const applyOnboardingInputs = useCallback((onboarding) => dispatch({ type: 'APPLY_ONBOARDING_INPUTS', onboarding }), []);
   const startNewCycle = useCallback((payload) => dispatch({ type: 'START_NEW_CYCLE', payload }), []);
   const endCycle = useCallback((cycleId) => dispatch({ type: 'END_CYCLE', cycleId }), []);
+  const archiveAndCloneCycle = useCallback((cycleId, overrides = {}) => dispatch({ type: 'ARCHIVE_AND_CLONE_CYCLE', cycleId, overrides }), []);
   const setActiveCycle = useCallback((cycleId) => dispatch({ type: 'SET_ACTIVE_CYCLE', cycleId }), []);
   const deleteCycle = useCallback((cycleId) => dispatch({ type: 'DELETE_CYCLE', cycleId }), []);
   const hardDeleteCycle = useCallback((cycleId) => dispatch({ type: 'HARD_DELETE_CYCLE', cycleId }), []);
@@ -566,6 +577,15 @@ export function IdentityProvider({ children, initialState }) {
   }, []);
   const resetIdentity = useCallback(() => dispatch({ type: 'RESET_IDENTITY' }), []);
 
+  const attemptGoalAdmission = useCallback(
+    (contract) => {
+      const { nextState, result } = attemptGoalAdmissionPure(state, contract);
+      dispatch({ type: 'APPLY_NEXT_STATE', nextState });
+      return result;
+    },
+    [state]
+  );
+
   React.useEffect(() => {
     persistState(state);
   }, [state]);
@@ -626,6 +646,9 @@ export function IdentityProvider({ children, initialState }) {
         setDefiniteGoal,
         setAim,
         setPatternTargets
+        ,
+        attemptGoalAdmission,
+        archiveAndCloneCycle
       }
     },
     children
@@ -749,6 +772,151 @@ function ensureTemplates(state) {
     if (typeof state.appTime.isFollowingNow !== 'boolean') state.appTime.isFollowingNow = true;
   }
   return state;
+}
+
+/**
+ * Pure admission reducer: validates a contract and returns nextState + result
+ * This is intentionally pure so it can be tested without React.
+ */
+export function attemptGoalAdmissionPure(state, contract) {
+  const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
+  ensureCycleStructures(draft);
+  const nowISO = draft.appTime?.nowISO || new Date().toISOString();
+
+  const existingOutcomes = Object.values(draft.cyclesById || {})
+    .map((c) => (c?.goalContract?.terminalOutcome?.text || c?.definiteGoal?.outcome || ''))
+    .filter(Boolean);
+
+  // Check for compound goal (multiple outcomes) - POLICY ENFORCEMENT
+  const compoundCheck = detectCompoundGoal(contract);
+  if (compoundCheck.isCompound) {
+    // Reject compound goals with specific code
+    const validation = {
+      status: 'REJECTED',
+      rejectionCodes: ['MULTIPLE_OUTCOMES_DETECTED']
+    };
+
+    const aspirationId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    const aspiration = {
+      id: aspirationId,
+      createdAtISO: nowISO,
+      contractDraft: structuredClone ? structuredClone(contract) : JSON.parse(JSON.stringify(contract)),
+      rejectionCodes: validation.rejectionCodes || [],
+      rejectionReason: `Goal contains multiple outcomes: ${compoundCheck.outcomes.join('; ')}. Please choose one primary objective for this cycle.`
+    };
+
+    draft.aspirations = draft.aspirations || [];
+    draft.aspirations.push(aspiration);
+
+    if (!draft.aspirationsByCycleId) draft.aspirationsByCycleId = {};
+    const forCycle = draft.activeCycleId || 'global';
+    draft.aspirationsByCycleId[forCycle] = draft.aspirationsByCycleId[forCycle] || [];
+    draft.aspirationsByCycleId[forCycle].push(aspiration);
+
+    const nextState = computeDerivedState(draft, { type: 'NO_OP' });
+    return {
+      nextState,
+      result: { status: 'REJECTED', aspirationId: aspiration.id, rejectionCodes: validation.rejectionCodes, rejectionReason: aspiration.rejectionReason }
+    };
+  }
+
+  const validation = validateGoalAdmission(contract, nowISO, existingOutcomes);
+
+  if (validation.status === 'REJECTED') {
+    const aspirationId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    const aspiration = {
+      id: aspirationId,
+      createdAtISO: nowISO,
+      contractDraft: structuredClone ? structuredClone(contract) : JSON.parse(JSON.stringify(contract)),
+      rejectionCodes: validation.rejectionCodes || []
+    };
+
+    draft.aspirations = draft.aspirations || [];
+    draft.aspirations.push(aspiration);
+
+    // Maintain per-cycle aspirations mapping if available
+    if (!draft.aspirationsByCycleId) draft.aspirationsByCycleId = {};
+    const forCycle = draft.activeCycleId || 'global';
+    draft.aspirationsByCycleId[forCycle] = draft.aspirationsByCycleId[forCycle] || [];
+    draft.aspirationsByCycleId[forCycle].push(aspiration);
+
+    const nextState = computeDerivedState(draft, { type: 'NO_OP' });
+    return {
+      nextState,
+      result: { status: 'REJECTED', aspirationId: aspiration.id, rejectionCodes: validation.rejectionCodes }
+    };
+  }
+
+  // ADMITTED -> create new cycle and set active
+  const newCycleId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+  const newCycle = {
+    id: newCycleId,
+    status: 'Active',
+    createdAtISO: nowISO,
+    endedAtISO: null,
+    goalContract: structuredClone ? structuredClone(contract) : JSON.parse(JSON.stringify(contract)),
+    goalHash: contract?.inscription?.contractHash || null,
+    executionEvents: [],
+    suggestionEvents: [],
+    suggestedBlocks: [],
+    truthEntries: []
+  };
+
+  draft.cyclesById = draft.cyclesById || {};
+  draft.cyclesById[newCycleId] = newCycle;
+  draft.cycleOrder = Array.isArray(draft.cycleOrder) ? [...draft.cycleOrder, newCycleId] : [newCycleId];
+  draft.activeCycleId = newCycleId;
+
+  // STEP 2: Auto-seed deliverables if none exist
+  if (!draft.deliverablesByCycleId) draft.deliverablesByCycleId = {};
+  const cycleDeliverablesEntry = draft.deliverablesByCycleId[newCycleId] || {
+    cycleId: newCycleId,
+    deliverables: [],
+    suggestionLinks: {},
+    lastUpdatedAtISO: nowISO
+  };
+
+  // Only seed if deliverables are empty (don't overwrite user edits)
+  if (!cycleDeliverablesEntry.deliverables || cycleDeliverablesEntry.deliverables.length === 0) {
+    const timeZone = draft.appTime?.timeZone || 'UTC';
+    const nowDayKey = dayKeyFromISO(nowISO, timeZone);
+    const autoResult = buildAutoDeliverablesFromGoalContract(contract, nowDayKey, timeZone);
+
+    cycleDeliverablesEntry.deliverables = autoResult.deliverables || [];
+    cycleDeliverablesEntry.autoGenerated = true;
+    cycleDeliverablesEntry.autoGeneratedAt = nowISO;
+    cycleDeliverablesEntry.autoStrategy = {
+      detectedType: autoResult.detectedType,
+      rationale: autoResult.rationale
+    };
+  }
+
+  draft.deliverablesByCycleId[newCycleId] = cycleDeliverablesEntry;
+
+  // STEP 3: Initialize cycle.strategy with auto-seeded deliverables
+  // This ensures they're visible in cycle.strategy.deliverables immediately after admission
+  const deadline = contract?.deadline?.dayKey || contract?.endDayKey || null;
+  newCycle.strategy = {
+    deadlineISO: deadline ? `${deadline}T23:59:59Z` : null,
+    deliverables: cycleDeliverablesEntry.deliverables || [],
+    constraints: {
+      maxBlocksPerDay: contract?.temporalBinding?.sessionDurationMinutes ? Math.ceil(contract.temporalBinding.sessionDurationMinutes / 120) : 4,
+      maxBlocksPerWeek: contract?.temporalBinding?.daysPerWeek ? contract.temporalBinding.daysPerWeek * 4 : 16,
+      preferredDaysOfWeek: [1, 2, 3, 4, 5], // Mon-Fri (0=Sun, 6=Sat)
+      blackoutDayKeys: [],
+      tz: draft.appTime?.timeZone || 'UTC'
+    },
+    assumptionsHash: null
+  };
+  draft.cyclesById[newCycleId] = newCycle;
+
+  // STEP 5: Auto-run plan generation after admission to populate suggestedBlocks
+  let derivedState = computeDerivedState(draft, { type: 'NO_OP' });
+  
+  // Trigger GENERATE_COLD_PLAN action to automatically generate blocks
+  derivedState = computeDerivedState(derivedState, { type: 'GENERATE_COLD_PLAN' });
+  
+  return { nextState: derivedState, result: { status: 'ADMITTED', cycleId: newCycleId } };
 }
 
 function markCompletedAcrossProjections(state, id) {

@@ -4,8 +4,9 @@ import PlanningPanel from './zion/PlanningPanel.jsx';
 import BlockDetailsPanel from './zion/BlockDetailsPanel.jsx';
 import Workspace from './zion/Workspace.jsx';
 import { PatternLens } from './zion/Workspace.jsx';
-import IdentityBar from './zion/IdentityBar.jsx';
 import AssistantPanel from './zion/AssistantPanel.jsx';
+import MissionSetupFlow from './zion/MissionSetupFlow.jsx';
+import { StructurePageConsolidated } from './zion/StructurePageConsolidated.jsx';
 import { REDUCE_UI } from '../ui/reduceUIConfig.js';
 import ZionWeekView from './zion/views/ZionWeekView.jsx';
 import ZionMonthView from './zion/views/ZionMonthView.jsx';
@@ -52,7 +53,6 @@ const ZION_VIEW_TABS = [
 
 function useZionState() {
   const {
-    vector,
     today,
     currentWeek,
     cycle,
@@ -102,7 +102,6 @@ function useZionState() {
     applyPlan
   } = useIdentityStore();
   return {
-    vector,
     today,
     currentWeek,
     cycle,
@@ -166,7 +165,6 @@ export default function ZionDashboard({
   initialAnchorDayKey = null
 }) {
   const {
-    vector,
     today,
     currentWeek,
     cycle,
@@ -759,55 +757,45 @@ export default function ZionDashboard({
 
   return (
     <div className="space-y-5 relative bg-white text-jericho-text">
-      <IdentityBar
-        day={vector?.day || 1}
-        direction={vector?.direction || '—'}
-        stability={vector?.stability || 'steady'}
-        drift={vector?.drift || 'contained'}
-        momentum={vector?.momentum || 'active'}
-        driftLabel={vector?.driftLabel || vector?.drift}
-        driftHint={vector?.driftHint}
-        trend={cycle?.map((d) => Math.round((d.completionRate || 0) * 100)) || []}
-      />
+      <div className="flex items-center justify-between">
+        <div className="flex gap-2">
+          {TAB_CONFIG.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => changeView(tab.key)}
+              className={`px-3 py-2 rounded-lg border text-left ${
+                view === tab.key
+                  ? 'border-jericho-accent text-jericho-accent font-semibold'
+                  : 'border-line/60 text-muted'
+              }`}
+            >
+              <span className="block">{tab.label}</span>
+              <span className="block text-[11px] text-muted">{tab.tagline}</span>
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          {!REDUCE_UI ? (
+            <button
+              className="text-xs text-muted hover:text-jericho-accent"
+              onClick={() => setAssistantVisible(true)}
+            >
+              Assistant
+            </button>
+          ) : null}
+          {onBackHome ? (
+            <button className="text-xs text-muted hover:text-jericho-accent" onClick={onBackHome}>
+              Home
+            </button>
+          ) : null}
+        </div>
+      </div>
 
       <div className={`mt-2 grid gap-8 ${assistantVisible ? 'grid-cols-[minmax(0,1fr)_340px]' : 'grid-cols-1'}`}>
         <div className="space-y-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-xs uppercase tracking-[0.14em] text-muted">System Loop</span>
-              <p className="text-[11px] text-muted mt-1">Identity → Discipline → Project Management → Data Analysis</p>
-            </div>
-            <div className="flex gap-2">
-              {TAB_CONFIG.map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => changeView(tab.key)}
-                  className={`px-3 py-2 rounded-lg border text-left ${
-                    view === tab.key
-                      ? 'border-jericho-accent text-jericho-accent font-semibold'
-                      : 'border-line/60 text-muted'
-                  }`}
-                >
-                  <span className="block">{tab.label}</span>
-                  <span className="block text-[11px] text-muted">{tab.tagline}</span>
-                </button>
-              ))}
-            </div>
-                <div className="flex items-center gap-3">
-              {!REDUCE_UI ? (
-                <button
-                  className="text-xs text-muted hover:text-jericho-accent"
-                  onClick={() => setAssistantVisible(true)}
-                >
-                  Assistant
-                </button>
-              ) : null}
-              {onBackHome ? (
-                <button className="text-xs text-muted hover:text-jericho-accent" onClick={onBackHome}>
-                  Home
-                </button>
-              ) : null}
-            </div>
+          <div>
+            <span className="text-xs uppercase tracking-[0.14em] text-muted">System Loop</span>
+            <p className="text-[11px] text-muted mt-1">Identity → Discipline → Project Management → Data Analysis</p>
           </div>
 
           {view === 'today' ? (
@@ -840,9 +828,6 @@ export default function ZionDashboard({
                   </p>
                   <p className="text-[11px] uppercase tracking-[0.14em] text-muted">
                     {zionView === 'day' ? 'Today' : zionView}
-                  </p>
-                  <p className="text-[11px] text-muted">
-                    Active goal: {goalExecutionContract?.goalText || '—'}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1100,7 +1085,6 @@ export default function ZionDashboard({
                       onComplete={handleCompleteBlock}
                       onEdit={handleEditBlock}
                       onLinkCriterion={(block) => handleCloseLinkedCriterion(block)}
-                      goalLabel={goalExecutionContract?.goalText || 'goal'}
                       deliverables={deliverables}
                       criteriaByDeliverable={criteriaByDeliverable}
                       whatMovedToday={whatMovedToday}
@@ -1407,367 +1391,7 @@ export default function ZionDashboard({
             </div>
           ) : null}
 
-          {view === 'structure' ? (
-            <div className="space-y-4">
-              <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.14em] text-muted">Active cycle</p>
-                    <p className="text-sm text-jericho-text">
-                      {activeCycle?.definiteGoal?.outcome || '—'}
-                    </p>
-                    <p className="text-[11px] text-muted">
-                      Start {activeCycle?.startedAtDayKey || '—'} · Deadline {activeCycle?.definiteGoal?.deadlineDayKey || '—'} · {cycleMode}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent"
-                      onClick={() =>
-                        emitAction(
-                          'cycle.new',
-                          {
-                            goalText: goalExecutionContract?.goalText || activeCycle?.definiteGoal?.outcome || 'New goal',
-                            deadlineDayKey: goalExecutionContract?.endDayKey || activeCycle?.definiteGoal?.deadlineDayKey
-                          },
-                          actions.startNewCycle
-                        )
-                      }
-                    >
-                      New Cycle
-                    </button>
-                    <button
-                      className="rounded-full border border-amber-600 px-3 py-1 text-xs text-amber-600 hover:bg-amber-600/10"
-                      onClick={() => {
-                        if (!activeCycleId) return;
-                        if (!window.confirm('Archive the active cycle and move it to review mode?')) return;
-                        emitAction('cycle.archive', { cycleId: activeCycleId }, () => actions.endCycle(activeCycleId));
-                      }}
-                      disabled={!activeCycleId}
-                    >
-                      Archive Cycle
-                    </button>
-                    <button
-                      className="rounded-full border border-red-600 px-3 py-1 text-xs text-red-600 hover:bg-red-600/10"
-                      onClick={() => {
-                        if (!activeCycleId) return;
-                        if (!window.confirm('Delete the active cycle and clear the calendar? This cannot be undone.')) return;
-                        emitAction('cycle.delete', { cycleId: activeCycleId }, () => actions.deleteCycle(activeCycleId));
-                      }}
-                      disabled={!activeCycleId}
-                    >
-                      Delete Cycle
-                    </button>
-                    <button
-                      className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent"
-                      onClick={() => setCycleHistoryOpen((prev) => !prev)}
-                    >
-                      {cycleHistoryOpen ? 'Hide history' : 'Cycle history'}
-                    </button>
-                  </div>
-                </div>
-                {cycleHistoryOpen ? (
-                  <div className="space-y-2 text-xs">
-                    {cyclesIndex.length ? (
-                      cyclesIndex.map((entry) => (
-                        <div key={entry.cycleId} className="rounded-md border border-line/60 px-3 py-2">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-jericho-text font-semibold">{entry.goalTitle}</p>
-                              <p className="text-[11px] text-muted">
-                                {formatCycleISO(entry.startISO)} → {entry.endISO ? formatCycleISO(entry.endISO) : '—'} · Deadline {entry.deadlineISO ? formatCycleISO(entry.deadlineISO) : '—'}
-                              </p>
-                            </div>
-                            <span className="rounded-full border border-line/60 px-2 py-0.5 text-[10px] text-muted">{entry.state}</span>
-                          </div>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {entry.state === 'Active' ? (
-                              <button className="rounded-full border border-line/60 px-3 py-1 text-[11px] text-muted" disabled>
-                                Active
-                              </button>
-                            ) : (
-                              <>
-                                <button
-                                  className="rounded-full border border-line/60 px-3 py-1 text-[11px] text-muted hover:text-jericho-accent"
-                                  onClick={() => emitAction('cycle.switch', { cycleId: entry.cycleId }, () => actions.setActiveCycle(entry.cycleId))}
-                                  disabled={entry.state === 'Deleted'}
-                                >
-                                  Switch
-                                </button>
-                                <button
-                                  className="rounded-full border border-line/60 px-3 py-1 text-[11px] text-muted hover:text-jericho-accent"
-                                  onClick={() => emitAction('cycle.switch', { cycleId: entry.cycleId }, () => actions.setActiveCycle(entry.cycleId))}
-                                  disabled={entry.state === 'Deleted'}
-                                >
-                                  Review
-                                </button>
-                              </>
-                            )}
-                              <button
-                                className="rounded-full border border-line/60 px-3 py-1 text-[11px] text-muted hover:text-jericho-accent"
-                                onClick={() => emitAction('cycle.delete', { cycleId: entry.cycleId }, () => actions.deleteCycle(entry.cycleId))}
-                                disabled={entry.state !== 'Ended'}
-                              >
-                                Delete
-                              </button>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-[11px] text-muted">No cycles yet.</p>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-              {isReviewMode ? (
-                <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4 space-y-2">
-                  <p className="text-xs uppercase tracking-[0.14em] text-muted">Cycle summary</p>
-                  <p className="text-[11px] text-muted">Read-only summary for the selected cycle.</p>
-                  {cyclesIndex.find((c) => c.cycleId === activeCycleId) ? (
-                    (() => {
-                      const summary = cyclesIndex.find((c) => c.cycleId === activeCycleId);
-                      const completionRate = summary?.summaryStats?.completionRate || 0;
-                      const probabilityPct = Number.isFinite(summary?.summaryStats?.probabilityAtEnd)
-                        ? Math.round((summary.summaryStats.probabilityAtEnd || 0) * 100)
-                        : null;
-                      return (
-                        <div className="grid sm:grid-cols-2 gap-3 text-xs text-muted">
-                          <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
-                            <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Completion count</p>
-                            <p className="text-sm text-jericho-text">{summary?.summaryStats?.completionCount ?? 0}</p>
-                          </div>
-                          <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
-                            <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Completion rate</p>
-                            <p className="text-sm text-jericho-text">{Math.round(completionRate * 100)}%</p>
-                          </div>
-                          <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
-                            <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Probability at end</p>
-                            <p className="text-sm text-jericho-text">{probabilityPct !== null ? `${probabilityPct}%` : '—'}</p>
-                          </div>
-                          <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
-                            <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Feasibility at end</p>
-                            <p className="text-sm text-jericho-text">{summary?.summaryStats?.feasibilityAtEnd || '—'}</p>
-                          </div>
-                        </div>
-                      );
-                    })()
-                  ) : (
-                    <p className="text-xs text-muted">No summary available.</p>
-                  )}
-                </div>
-              ) : null}
-              <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.14em] text-muted">Deliverables (Active Cycle)</p>
-                    <p className="text-[11px] text-muted">Define outcomes and closure criteria.</p>
-                  </div>
-                  <button
-                    className="rounded-full border border-jericho-accent px-3 py-1 text-xs text-jericho-accent hover:bg-jericho-accent/10"
-                    onClick={() => {
-                      if (isReviewMode) return;
-                      if (!deliverableDraft.title.trim()) return;
-                      emitAction('deliverables.create', {
-                        cycleId: activeCycleId,
-                        domain: deliverableDraft.domain,
-                        title: deliverableDraft.title.trim(),
-                        weight: Number(deliverableDraft.weight) || 1,
-                        dueDayKey: deliverableDraft.dueDayKey || null
-                      }, actions.createDeliverable);
-                      setDeliverableDraft({ domain: deliverableDraft.domain, title: '', weight: 1, dueDayKey: '' });
-                    }}
-                    disabled={isReviewMode}
-                  >
-                    Add deliverable
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2 items-center text-xs">
-                  <select
-                    className="rounded border border-line/60 bg-transparent px-2 py-1"
-                    value={deliverableDraft.domain}
-                    onChange={(e) => setDeliverableDraft((prev) => ({ ...prev, domain: e.target.value }))}
-                    disabled={isReviewMode}
-                  >
-                    {DELIVERABLE_DOMAINS.map((d) => (
-                      <option key={d} value={d}>
-                        {d.charAt(0) + d.slice(1).toLowerCase()}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    className="flex-1 min-w-[160px] rounded border border-line/60 bg-transparent px-2 py-1"
-                    value={deliverableDraft.title}
-                    onChange={(e) => setDeliverableDraft((prev) => ({ ...prev, title: e.target.value }))}
-                    placeholder="Deliverable title"
-                    disabled={isReviewMode}
-                  />
-                  <input
-                    type="number"
-                    className="w-20 rounded border border-line/60 bg-transparent px-2 py-1"
-                    value={deliverableDraft.weight}
-                    min={1}
-                    onChange={(e) => setDeliverableDraft((prev) => ({ ...prev, weight: Number(e.target.value) || 1 }))}
-                    disabled={isReviewMode}
-                  />
-                  <input
-                    type="date"
-                    className="rounded border border-line/60 bg-transparent px-2 py-1"
-                    value={deliverableDraft.dueDayKey}
-                    onChange={(e) => setDeliverableDraft((prev) => ({ ...prev, dueDayKey: e.target.value }))}
-                    disabled={isReviewMode}
-                  />
-                </div>
-                <div className="space-y-3">
-                  {deliverables.length ? (
-                    deliverables.map((d) => {
-                      const criteria = d.criteria || [];
-                      const doneCount = criteria.filter((c) => c.isDone).length;
-                      return (
-                        <div key={d.id} className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2 space-y-2">
-                          <div className="flex flex-wrap items-center gap-2 text-xs">
-                            <input
-                              className="flex-1 min-w-[180px] rounded border border-line/60 bg-transparent px-2 py-1"
-                              value={d.title}
-                              onChange={(e) =>
-                                emitAction('deliverables.update', {
-                                  cycleId: activeCycleId,
-                                  deliverableId: d.id,
-                                  patch: { title: e.target.value }
-                                }, actions.updateDeliverable)
-                              }
-                              disabled={isReviewMode}
-                            />
-                            <select
-                              className="rounded border border-line/60 bg-transparent px-2 py-1"
-                              value={d.domain}
-                              onChange={(e) =>
-                                emitAction('deliverables.update', {
-                                  cycleId: activeCycleId,
-                                  deliverableId: d.id,
-                                  patch: { domain: e.target.value }
-                                }, actions.updateDeliverable)
-                              }
-                              disabled={isReviewMode}
-                            >
-                              {DELIVERABLE_DOMAINS.map((domain) => (
-                                <option key={domain} value={domain}>
-                                  {domain.charAt(0) + domain.slice(1).toLowerCase()}
-                                </option>
-                              ))}
-                            </select>
-                            <input
-                              type="number"
-                              className="w-20 rounded border border-line/60 bg-transparent px-2 py-1"
-                              value={d.weight}
-                              min={1}
-                              onChange={(e) =>
-                                emitAction('deliverables.update', {
-                                  cycleId: activeCycleId,
-                                  deliverableId: d.id,
-                                  patch: { weight: Number(e.target.value) || 1 }
-                                }, actions.updateDeliverable)
-                              }
-                              disabled={isReviewMode}
-                            />
-                            <input
-                              type="date"
-                              className="rounded border border-line/60 bg-transparent px-2 py-1"
-                              value={d.dueDayKey || ''}
-                              onChange={(e) =>
-                                emitAction('deliverables.update', {
-                                  cycleId: activeCycleId,
-                                  deliverableId: d.id,
-                                  patch: { dueDayKey: e.target.value || null }
-                                }, actions.updateDeliverable)
-                              }
-                              disabled={isReviewMode}
-                            />
-                            <button
-                              className="rounded-full border border-line/60 px-3 py-1 text-[11px] text-muted hover:text-jericho-accent"
-                              onClick={() =>
-                                emitAction('deliverables.delete', {
-                                  cycleId: activeCycleId,
-                                  deliverableId: d.id
-                                }, actions.deleteDeliverable)
-                              }
-                              disabled={isReviewMode}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                          <p className="text-[11px] text-muted">Criteria: {doneCount}/{criteria.length}</p>
-                          <div className="space-y-1">
-                            {criteria.map((c) => (
-                              <div key={c.id} className="flex items-center gap-2 text-[11px] text-muted">
-                                <input
-                                  type="checkbox"
-                                  checked={c.isDone}
-                                  onChange={(e) =>
-                                    emitAction('deliverables.toggleCriterion', {
-                                      cycleId: activeCycleId,
-                                      deliverableId: d.id,
-                                      criterionId: c.id,
-                                      isDone: e.target.checked
-                                    }, actions.toggleCriterionDone)
-                                  }
-                                  disabled={isReviewMode}
-                                />
-                                <span className={c.isDone ? 'line-through text-muted' : ''}>{c.text}</span>
-                                <button
-                                  className="ml-auto text-[11px] text-muted hover:text-jericho-accent"
-                                  onClick={() =>
-                                    emitAction('deliverables.deleteCriterion', {
-                                      cycleId: activeCycleId,
-                                      deliverableId: d.id,
-                                      criterionId: c.id
-                                    }, actions.deleteCriterion)
-                                  }
-                                  disabled={isReviewMode}
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            ))}
-                            {!criteria.length ? <p className="text-[11px] text-muted">No criteria yet.</p> : null}
-                          </div>
-                          <div className="flex flex-wrap gap-2 items-center text-[11px]">
-                            <input
-                              className="flex-1 min-w-[200px] rounded border border-line/60 bg-transparent px-2 py-1"
-                              value={criterionDrafts[d.id] || ''}
-                              onChange={(e) =>
-                                setCriterionDrafts((prev) => ({ ...prev, [d.id]: e.target.value }))
-                              }
-                              placeholder="Add criterion"
-                              disabled={isReviewMode}
-                            />
-                            <button
-                              className="rounded-full border border-jericho-accent px-3 py-1 text-jericho-accent hover:bg-jericho-accent/10"
-                              onClick={() => {
-                                const text = (criterionDrafts[d.id] || '').trim();
-                                if (!text) return;
-                                emitAction('deliverables.createCriterion', {
-                                  cycleId: activeCycleId,
-                                  deliverableId: d.id,
-                                  text
-                                }, actions.createCriterion);
-                                setCriterionDrafts((prev) => ({ ...prev, [d.id]: '' }));
-                              }}
-                              disabled={isReviewMode}
-                            >
-                              Add criterion
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <p className="text-[11px] text-muted">No deliverables defined yet.</p>
-                  )}
-                </div>
-              </div>
-              <Workspace modules={['Definite Goal']} />
-            </div>
-          ) : null}
+          {view === 'structure' && <StructurePageConsolidated />}
 
           {view === 'stability' ? (
             <div className="space-y-4">

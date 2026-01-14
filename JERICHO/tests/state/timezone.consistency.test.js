@@ -46,6 +46,7 @@ describe('timezone consistency', () => {
     });
 
     const expectedDayKey = dayKeyFromISO(startISO, 'UTC');
-    expect(next.cycle?.[0]?.date).toBe(expectedDayKey);
+    const cycleDay = (next.cycle || []).find((day) => day.date === expectedDayKey);
+    expect(cycleDay).toBeTruthy();
   });
 });

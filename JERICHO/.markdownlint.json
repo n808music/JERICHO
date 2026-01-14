@@ -1,0 +1,26 @@
+{
+  "default": true,
+  "MD001": true,
+  "MD003": { "style": "atx" },
+  "MD007": { "indent": 2 },
+  "MD013": { "line_length": 120 },
+  "MD022": { "lines_above": 1, "lines_below": 1 },
+  "MD033": {
+    "allowed_elements": ["br", "sub", "sup"],
+    "allowed_attributes": [
+      "class",
+      "id",
+      "target",
+      "href",
+      "title",
+      "alt",
+      "src",
+      "width",
+      "height"
+    ]
+  },
+  "MD034": false,
+  "MD040": true,
+  "MD041": false,
+  "MD046": { "style": "fenced" }
+}

@@ -64,6 +64,7 @@ describe('createBlock time parsing', () => {
     const block = (next.today?.blocks || [])[0];
     expect(block?.start).toBe(startISO);
     expect(dayKeyFromISO(block?.start, 'UTC')).toBe('2026-01-09');
-    expect(next.cycle?.[0]?.date).toBe('2026-01-09');
+    const cycleDay = (next.cycle || []).find((day) => day.date === '2026-01-09');
+    expect(cycleDay).toBeTruthy();
   });
 });

@@ -13,6 +13,7 @@ export type DayWindow = 'MORNING' | 'MIDDAY' | 'AFTERNOON' | 'EVENING';
 
 export type GoalEquationInput = {
   label?: string;
+  sacrifice?: string;
   family: GoalFamily;
   mechanismClass: 'THROUGHPUT' | 'PIPELINE' | 'PROJECT_GRAPH';
   objective: GoalObjective;

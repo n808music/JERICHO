@@ -108,7 +108,6 @@ describe('cycle switching', () => {
     const deleted = computeDerivedState(cycleB, { type: 'DELETE_CYCLE', cycleId: cycleAId });
     const index = projectCyclesIndex({ cyclesById: deleted.cyclesById, goalWorkById: deleted.goalWorkById || {} });
     const deletedEntry = index.find((c) => c.cycleId === cycleAId);
-    expect(deletedEntry?.state).toBe('Deleted');
-    expect(deletedEntry?.summaryStats.completionCount).toBe(0);
+    expect(deletedEntry).toBeUndefined();
   });
 });

@@ -1,0 +1,196 @@
+name: Quality Gates
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  quality-gate:
+    name: Quality Gate Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for analysis
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests with coverage
+        run: npm test -- --coverage --reporter=json --outputFile=test-results.json
+
+      - name: Check test coverage threshold
+        run: |
+          COVERAGE=$(node -e "
+            const results = JSON.parse(require('fs').readFileSync('test-results.json', 'utf8'));
+            const coverage = results.coverageMap || {};
+            let totalLines = 0;
+            let coveredLines = 0;
+            
+            Object.values(coverage).forEach(file => {
+              if (file.l) {
+                Object.values(file.l).forEach(line => {
+                  totalLines++;
+                  if (line > 0) coveredLines++;
+                });
+              }
+            });
+            
+            const percentage = totalLines > 0 ? (coveredLines / totalLines * 100) : 0;
+            console.log(Math.round(percentage));
+          ")
+
+          echo "Current coverage: ${COVERAGE}%"
+          if [ "${COVERAGE}" -lt "90" ]; then
+            echo "❌ Coverage below 90% threshold"
+            exit 1
+          else
+            echo "✅ Coverage meets threshold"
+          fi
+
+      - name: Type checking
+        run: npm run typecheck || npx tsc --noEmit --strict
+
+      - name: Code complexity check
+        run: |
+          npx complexity-report --format json --output complexity.json src/ || true
+
+          # Check for overly complex functions
+          if [ -f complexity.json ]; then
+            HIGH_COMPLEXITY=$(node -e "
+              const report = JSON.parse(require('fs').readFileSync('complexity.json', 'utf8'));
+              const highComplexity = report.reports.filter(r => r.complexity.cyclomatic > 10);
+              console.log(highComplexity.length);
+            ")
+            
+            if [ "${HIGH_COMPLEXITY}" -gt "0" ]; then
+              echo "⚠️ Found ${HIGH_COMPLEXITY} functions with high complexity"
+              # Don't fail, just warn
+            fi
+          fi
+
+      - name: Bundle size check
+        run: |
+          npm run build
+
+          BUNDLE_SIZE=$(du -k dist/ | cut -f1)
+          MAX_SIZE=1024  # 1MB limit
+
+          echo "Bundle size: ${BUNDLE_SIZE}KB"
+          if [ "${BUNDLE_SIZE}" -gt "${MAX_SIZE}" ]; then
+            echo "❌ Bundle size exceeds ${MAX_SIZE}KB limit"
+            exit 1
+          else
+            echo "✅ Bundle size within limits"
+          fi
+
+      - name: Performance regression test
+        run: |
+          npm test -- --grep "performance" --timeout=10000
+
+          # Check if performance tests pass within thresholds
+          if [ $? -ne 0 ]; then
+            echo "❌ Performance regression detected"
+            exit 1
+          fi
+
+      - name: Security vulnerability check
+        run: |
+          npm audit --audit-level=moderate
+
+          if [ $? -ne 0 ]; then
+            echo "⚠️ Security vulnerabilities found - review required"
+            # Don't fail for moderate issues
+          fi
+
+      - name: Code quality score
+        run: |
+          npx eslint . --ext .ts,.tsx,.js,.jsx --format=json --output-file=eslint-report.json || true
+
+          if [ -f eslint-report.json ]; then
+            ERRORS=$(node -e "
+              const report = JSON.parse(require('fs').readFileSync('eslint-report.json', 'utf8'));
+              const errors = report.filter(r => r.errorCount > 0).reduce((sum, r) => sum + r.errorCount, 0);
+              const warnings = report.filter(r => r.warningCount > 0).reduce((sum, r) => sum + r.warningCount, 0);
+              console.log(\`\${errors}|\${warnings}\`);
+            ")
+            
+            ERROR_COUNT=$(echo "${ERRORS}" | cut -d'|' -f1)
+            WARNING_COUNT=$(echo "${ERRORS}" | cut -d'|' -f2)
+            
+            echo "ESLint: ${ERROR_COUNT} errors, ${WARNING_COUNT} warnings"
+            
+            if [ "${ERROR_COUNT}" -gt "0" ]; then
+              echo "❌ ESLint errors found"
+              exit 1
+            fi
+            
+            if [ "${WARNING_COUNT}" -gt "10" ]; then
+              echo "⚠️ High number of warnings (${WARNING_COUNT})"
+            fi
+          fi
+
+      - name: Generate quality report
+        run: |
+          cat << EOF > quality-report.md
+          # Quality Gate Report
+
+          ## Metrics
+          - **Test Coverage**: ${COVERAGE}%
+          - **Bundle Size**: ${BUNDLE_SIZE}KB
+          - **ESLint Errors**: ${ERROR_COUNT:-0}
+          - **ESLint Warnings**: ${WARNING_COUNT:-0}
+          - **Complex Functions**: ${HIGH_COMPLEXITY:-0}
+
+          ## Status
+          $([ "${COVERAGE}" -ge "90"] && echo "✅ Coverage: PASS" || echo "❌ Coverage: FAIL")
+          $([ "${BUNDLE_SIZE}" -le "1024"] && echo "✅ Bundle Size: PASS" || echo "❌ Bundle Size: FAIL")
+          $([ "${ERROR_COUNT}" -eq "0"] && echo "✅ Code Quality: PASS" || echo "❌ Code Quality: FAIL")
+
+          Generated on: $(date)
+          EOF
+
+      - name: Upload quality report
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-report
+          path: |
+            quality-report.md
+            test-results.json
+            eslint-report.json
+            complexity.json
+
+  comment-quality:
+    name: Comment Quality Results
+    runs-on: ubuntu-latest
+    needs: quality-gate
+    if: always() && github.event_name == 'pull_request'
+
+    steps:
+      - name: Download quality report
+        uses: actions/download-artifact@v4
+        with:
+          name: quality-report
+          path: quality-artifacts/
+
+      - name: Comment PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('quality-artifacts/quality-report.md', 'utf8');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🔍 Quality Gate Results\n\n${report}`
+            });

@@ -8,6 +8,10 @@ import { compileGoalEquationPlan } from './goalEquation.ts';
 import { admitGoal, isAdmitted } from './goalAdmission.ts';
 import { compileAutoAsanaPlan } from './engine/autoAsanaPlan.ts';
 import { buildAssumptionsHash, normalizeDeliverables, normalizeRouteOption } from './strategy.ts';
+import { buildAutoDeliverablesFromGoalContract } from '../domain/autoStrategy.ts';
+import { generateAutoDeliverables, debugAutoDeliverablesGeneration } from '../core/autoDeliverables.ts';
+import { getDeadlineDayKey } from '../core/deadline.ts';
+import { generateDeterministicPlan } from '../core/deterministicPlanGenerator.ts';
 import { canEmitExecutionEvent } from './engine/executionContract.ts';
 import { appendExecutionEvent, buildExecutionEventFromBlock, materializeBlocksFromEvents } from './engine/todayAuthority.ts';
 import { derivePlanProof } from './engine/planProof.ts';
@@ -30,7 +34,7 @@ import { computeTerminalConvergence } from './convergenceTerminal.ts';
  */
 
 /**
- * @typedef {{ type: 'BEGIN_BLOCK'; id: string } | { type: 'COMPLETE_BLOCK'; id: string } | { type: 'RESCHEDULE_BLOCK'; id: string; start: string; end: string } | { type: 'APPLY_LENSES'; lenses: Partial<LensesConfig> } | { type: 'SET_VIEW_DATE'; date: string } | { type: 'REBALANCE_TODAY'; mode?: 'CLEAR_AFTERNOON' } | { type: 'COMPLETE_ONBOARDING'; onboarding: any } | { type: 'START_NEW_CYCLE'; payload: any } | { type: 'END_CYCLE'; cycleId: string } | { type: 'SET_ACTIVE_CYCLE'; cycleId: string } | { type: 'DELETE_CYCLE'; cycleId: string } | { type: 'HARD_DELETE_CYCLE'; cycleId: string } | { type: 'ADD_TRUTH_ENTRY'; payload: any } | { type: 'CREATE_BLOCK'; payload: any } | { type: 'UPDATE_BLOCK'; payload: any } | { type: 'DELETE_BLOCK'; id: string } | { type: 'ADD_RECURRING_PATTERN'; pattern: any } | { type: 'SET_PRIMARY_OBJECTIVE'; objectiveId: string | null } | { type: 'SET_CALIBRATION_DAYS'; daysPerWeek: number; uncertain?: boolean } | { type: 'GENERATE_PLAN' } | { type: 'APPLY_PLAN' } | { type: 'ACCEPT_SUGGESTED_BLOCK'; proposalId: string } | { type: 'REJECT_SUGGESTED_BLOCK'; proposalId: string; reason: string } | { type: 'IGNORE_SUGGESTED_BLOCK'; proposalId: string } | { type: 'DISMISS_SUGGESTED_BLOCK'; proposalId: string } | { type: 'CREATE_DELIVERABLE'; payload: any } | { type: 'UPDATE_DELIVERABLE'; payload: any } | { type: 'DELETE_DELIVERABLE'; payload: any } | { type: 'CREATE_CRITERION'; payload: any } | { type: 'TOGGLE_CRITERION_DONE'; payload: any } | { type: 'DELETE_CRITERION'; payload: any } | { type: 'LINK_BLOCK_TO_DELIVERABLE'; payload: any } | { type: 'ASSIGN_SUGGESTION_LINK'; payload: any } | { type: 'SET_STRATEGY'; payload: any } | { type: 'GENERATE_COLD_PLAN'; payload?: any } | { type: 'REBASE_COLD_PLAN'; payload?: any } | { type: 'SET_DEFINITE_GOAL'; outcome: string; deadlineDayKey: string } | { type: 'COMPILE_GOAL_EQUATION'; payload: any }} Action
+ * @typedef {{ type: 'BEGIN_BLOCK'; id: string } | { type: 'COMPLETE_BLOCK'; id: string } | { type: 'RESCHEDULE_BLOCK'; id: string; start: string; end: string } | { type: 'APPLY_LENSES'; lenses: Partial<LensesConfig> } | { type: 'SET_VIEW_DATE'; date: string } | { type: 'REBALANCE_TODAY'; mode?: 'CLEAR_AFTERNOON' } | { type: 'COMPLETE_ONBOARDING'; onboarding: any } | { type: 'START_NEW_CYCLE'; payload: any } | { type: 'END_CYCLE'; cycleId: string } | { type: 'ARCHIVE_AND_CLONE_CYCLE'; cycleId: string; overrides?: any } | { type: 'SET_ACTIVE_CYCLE'; cycleId: string } | { type: 'DELETE_CYCLE'; cycleId: string } | { type: 'HARD_DELETE_CYCLE'; cycleId: string } | { type: 'ADD_TRUTH_ENTRY'; payload: any } | { type: 'CREATE_BLOCK'; payload: any } | { type: 'UPDATE_BLOCK'; payload: any } | { type: 'DELETE_BLOCK'; id: string } | { type: 'ADD_RECURRING_PATTERN'; pattern: any } | { type: 'SET_PRIMARY_OBJECTIVE'; objectiveId: string | null } | { type: 'SET_CALIBRATION_DAYS'; daysPerWeek: number; uncertain?: boolean } | { type: 'GENERATE_PLAN' } | { type: 'APPLY_PLAN' } | { type: 'ACCEPT_SUGGESTED_BLOCK'; proposalId: string } | { type: 'REJECT_SUGGESTED_BLOCK'; proposalId: string; reason: string } | { type: 'IGNORE_SUGGESTED_BLOCK'; proposalId: string } | { type: 'DISMISS_SUGGESTED_BLOCK'; proposalId: string } | { type: 'CREATE_DELIVERABLE'; payload: any } | { type: 'UPDATE_DELIVERABLE'; payload: any } | { type: 'DELETE_DELIVERABLE'; payload: any } | { type: 'CREATE_CRITERION'; payload: any } | { type: 'TOGGLE_CRITERION_DONE'; payload: any } | { type: 'DELETE_CRITERION'; payload: any } | { type: 'LINK_BLOCK_TO_DELIVERABLE'; payload: any } | { type: 'ASSIGN_SUGGESTION_LINK'; payload: any } | { type: 'SET_STRATEGY'; payload: any } | { type: 'GENERATE_COLD_PLAN'; payload?: any } | { type: 'REBASE_COLD_PLAN'; payload?: any } | { type: 'SET_DEFINITE_GOAL'; outcome: string; deadlineDayKey: string } | { type: 'COMPILE_GOAL_EQUATION'; payload: any }} Action
  */
 
 export function computeDerivedState(state, action) {
@@ -111,6 +115,9 @@ export function computeDerivedState(state, action) {
       break;
     case 'END_CYCLE':
       endCycle(next, action.cycleId);
+      break;
+    case 'ARCHIVE_AND_CLONE_CYCLE':
+      archiveAndCloneCycle(next, action.cycleId, action.overrides);
       break;
     case 'SET_ACTIVE_CYCLE':
       setActiveCycle(next, action.cycleId);
@@ -441,20 +448,165 @@ function setStrategy(state, payload = {}) {
   }
 }
 
+/**
+ * Adapter: Convert DeterministicPlanResult to ColdPlanV1 format
+ * Maps ProposedBlock[] into forecastByDayKey structure
+ */
+function adaptDeterministicResultToColdPlan(result, strategy, nowISO) {
+  if (result.status === 'INFEASIBLE') {
+    return {
+      version: 1,
+      generatorVersion: 'deterministicPlan_v1',
+      strategyId: strategy.strategyId,
+      assumptionsHash: strategy.assumptionsHash,
+      createdAtISO: nowISO,
+      forecastByDayKey: {},
+      infeasible: {
+        reason: result.error?.message || 'Plan generation is infeasible',
+        requiredCapacityPerWeek: 0,
+        availableCapacityPerWeek: 0
+      }
+    };
+  }
+
+  // Group proposedBlocks by dayKey to build forecastByDayKey
+  const forecastByDayKey = {};
+  result.proposedBlocks.forEach((block) => {
+    if (!forecastByDayKey[block.dayKey]) {
+      forecastByDayKey[block.dayKey] = {
+        totalBlocks: 0,
+        byDeliverable: {}
+      };
+    }
+    forecastByDayKey[block.dayKey].totalBlocks += 1;
+    
+    if (!forecastByDayKey[block.dayKey].byDeliverable[block.deliverableId]) {
+      forecastByDayKey[block.dayKey].byDeliverable[block.deliverableId] = 0;
+    }
+    forecastByDayKey[block.dayKey].byDeliverable[block.deliverableId] += 1;
+  });
+
+  return {
+    version: 1,
+    generatorVersion: 'deterministicPlan_v1',
+    strategyId: strategy.strategyId,
+    assumptionsHash: strategy.assumptionsHash,
+    createdAtISO: nowISO,
+    forecastByDayKey,
+    infeasible: undefined
+  };
+}
+
 function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
   const cycle = getActiveCycle(state);
-  if (!cycle) return;
-  const timeZone = state.appTime?.timeZone || cycle.strategy?.constraints?.tz;
-  if (!cycle.strategy) {
-    const goalId = cycle.goalContract?.goalId || cycle.contract?.goalId || state.activeGoalId || 'goal';
-    const deadlineISO = cycle.goalContract?.deadlineISO || cycle.definiteGoal?.deadlineDayKey || '';
-    const deliverables = normalizeDeliverables(cycle.strategy?.deliverables || []);
-    cycle.strategy = buildDefaultStrategy({ goalId, deadlineISO, timeZone, deliverables });
+  if (!cycle) {
+    state.lastPlanError = {
+      code: 'NO_ACTIVE_CYCLE',
+      reasons: ['No active cycle found'],
+      timestamp: state.appTime?.nowISO || new Date().toISOString()
+    };
+    return;
   }
+  
+  const timeZone = state.appTime?.timeZone || cycle.strategy?.constraints?.tz;
   const nowISO = state.appTime?.nowISO || '';
   const startDayKey = cycle.startedAtDayKey || dayKeyFromISO(nowISO, timeZone);
+  
+  if (!cycle.strategy) {
+    const goalId = cycle.goalContract?.goalId || cycle.contract?.goalId || state.activeGoalId || 'goal';
+    const deadlineDayKey = getDeadlineDayKey(cycle.goalContract, timeZone);
+    const deliverables = normalizeDeliverables(cycle.strategy?.deliverables || []);
+    cycle.strategy = buildDefaultStrategy({ goalId, deadlineISO: deadlineDayKey ? `${deadlineDayKey}T00:00:00Z` : '', timeZone, deliverables });
+  }
+  
+  // Extract deadline consistently from goalContract using canonical helper
+  const deadlineKey = getDeadlineDayKey(cycle.goalContract, timeZone) || 
+                       cycle.definiteGoal?.deadlineDayKey || 
+                       cycle.strategy?.deadlineISO?.slice(0, 10);
+  
+  // STEP 3: Auto-seed deliverables if they're empty instead of failing
+  let deliverables = normalizeDeliverables(cycle.strategy?.deliverables || []);
+  let totalRequired = deliverables.reduce((sum, d) => sum + d.requiredBlocks, 0);
+  
+  // If no deliverables in strategy, check workspace (set at admission time)
+  if (deliverables.length === 0 || totalRequired === 0) {
+    const workspace = getDeliverableWorkspace(state, cycle.id);
+    if (workspace?.deliverables?.length > 0) {
+      // Use persisted workspace deliverables (already auto-generated at admission)
+      deliverables = normalizeDeliverables(workspace.deliverables);
+      totalRequired = deliverables.reduce((sum, d) => sum + d.requiredBlocks, 0);
+      // Update strategy with workspace deliverables
+      cycle.strategy.deliverables = deliverables;
+      cycle.strategy.assumptionsHash = buildAssumptionsHash(cycle.strategy);
+    } else if (cycle.goalContract && deadlineKey && deadlineKey.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      // Only auto-seed if no workspace exists (shouldn't happen post-admission, but safe fallback)
+      let autoStrategy = null;
+      try {
+        deliverables = generateAutoDeliverables(cycle.goalContract) || [];
+        totalRequired = deliverables.reduce((sum, d) => sum + d.requiredBlocks, 0);
+        autoStrategy = { method: 'mechanism-class', detectedType: 'derived from goal keywords' };
+      } catch (err) {
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn('[PLAN_GEN] mechanism-class generation failed, trying Phase 1 fallback', err?.message);
+        }
+      }
+      
+      // FALLBACK: If mechanism-class didn't work, use Phase 1 approach
+      if (!deliverables || deliverables.length === 0) {
+        const autoResult = buildAutoDeliverablesFromGoalContract(cycle.goalContract, startDayKey, timeZone);
+        deliverables = autoResult.deliverables || [];
+        totalRequired = deliverables.reduce((sum, d) => sum + d.requiredBlocks, 0);
+        autoStrategy = { method: 'phase1-autostrategy', ...autoResult };
+      }
+      
+      // Update strategy with auto-seeded deliverables
+      if (deliverables.length > 0) {
+        cycle.strategy.deliverables = deliverables;
+        cycle.strategy.assumptionsHash = buildAssumptionsHash(cycle.strategy);
+        
+        // Persist to workspace
+        const newWorkspace = getDeliverableWorkspace(state, cycle.id);
+        if (newWorkspace && (!newWorkspace.deliverables || newWorkspace.deliverables.length === 0)) {
+          newWorkspace.deliverables = deliverables;
+          newWorkspace.autoGenerated = true;
+          newWorkspace.autoGeneratedAt = nowISO;
+          newWorkspace.autoStrategy = autoStrategy;
+          state.deliverablesByCycleId[cycle.id] = newWorkspace;
+        }
+      }
+    }
+  }
+  
+  // PHASE 1A: Quick diagnostic checks for common failure modes (post-admission)
+  const diagnosticReasons = [];
+  
+  // Check 1: Deliverables (after auto-seed attempt)
+  if (deliverables.length === 0 || totalRequired === 0) {
+    diagnosticReasons.push('NO_DELIVERABLES: Could not generate deliverables; deadline or execution constraints may be infeasible');
+  }
+  
+  // NOTE: Deadline format validation is ENFORCED AT ADMISSION (Phase 3)
+  // Post-admission, deadlineKey is guaranteed valid YYYY-MM-DD format
+  // Remove this check to prevent false post-admission errors
+  
+  // If we have critical diagnostics, set error and return early
+  if (diagnosticReasons.length > 0) {
+    state.lastPlanError = {
+      code: 'PLAN_PRECONDITIONS_FAILED',
+      reasons: diagnosticReasons,
+      details: {
+        deliverableCount: deliverables.length,
+        totalRequired,
+        startDayKey,
+        deadlineKey,
+        timeZone
+      },
+      timestamp: nowISO || new Date().toISOString()
+    };
+    return;
+  }
+  
   const startISO = buildLocalStartISO(startDayKey, '00:00', timeZone);
-  const deadlineKey = cycle.definiteGoal?.deadlineDayKey || cycle.strategy?.deadlineISO?.slice(0, 10);
   const deadlineISO = cycle.strategy?.deadlineISO || (deadlineKey ? buildLocalStartISO(deadlineKey, '23:59', timeZone).startISO : '');
   const strategy = {
     ...cycle.strategy,
@@ -467,13 +619,43 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
   strategy.assumptionsHash = buildAssumptionsHash(strategy);
   cycle.strategy = strategy;
   const completedCountToDate = countCompletedBlocks(cycle.executionEvents || [], state.today?.date);
-  const nextPlan = generateColdPlan({
-    cycleStartISO: startISO?.startISO || `${startDayKey}T00:00:00.000Z`,
-    nowISO,
-    strategy,
-    completedCountToDate,
-    rebaseMode
-  });
+  
+  // PHASE 3: Use deterministic generator if contract specifies GENERIC_DETERMINISTIC
+  let nextPlan;
+  const mechanismClass = cycle.goalContract?.planGenerationMechanismClass || 'GENERIC_DETERMINISTIC';
+  
+  if (mechanismClass === 'GENERIC_DETERMINISTIC') {
+    // Use Phase 3 deterministic generator
+    const nowDayKey = dayKeyFromISO(nowISO, timeZone);
+    const execMode = rebaseMode === 'REMAINING_FROM_TODAY' ? 'REBASE_FROM_TODAY' : 'REGENERATE';
+    
+    const deterministicResult = generateDeterministicPlan({
+      contractDeadlineDayKey: deadlineKey,
+      contractStartDayKey: startDayKey,
+      nowDayKey,
+      causalChainSteps: cycle.goalContract?.execution?.causalChainSteps,
+      constraints: {
+        maxBlocksPerDay: cycle.strategy?.constraints?.maxBlocksPerDay || 4,
+        maxBlocksPerWeek: cycle.strategy?.constraints?.maxBlocksPerWeek || 16,
+        preferredDaysOfWeek: cycle.strategy?.constraints?.preferredDaysOfWeek,
+        blackoutDayKeys: cycle.strategy?.constraints?.blackoutDayKeys,
+        timezone: timeZone
+      },
+      mode: execMode
+    });
+    
+    nextPlan = adaptDeterministicResultToColdPlan(deterministicResult, strategy, nowISO);
+  } else {
+    // Fall back to v1 generator for non-GENERIC_DETERMINISTIC (placeholder for future)
+    nextPlan = generateColdPlan({
+      cycleStartISO: startISO?.startISO || `${startDayKey}T00:00:00.000Z`,
+      nowISO,
+      strategy,
+      completedCountToDate,
+      rebaseMode
+    });
+  }
+  
   const shouldVersion =
     !cycle.coldPlan ||
     cycle.coldPlan.assumptionsHash !== nextPlan.assumptionsHash ||
@@ -488,6 +670,31 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
       assumptionsHash: nextPlan.assumptionsHash,
       createdAtISO: nextPlan.createdAtISO
     });
+  }
+
+  // FORCED VISIBILITY: Set error if plan produced zero blocks or is infeasible
+  const blockCount = Object.keys(nextPlan.forecastByDayKey || {}).length;
+  if (blockCount === 0 || nextPlan.infeasible) {
+    const reasons = [];
+    if (blockCount === 0) {
+      reasons.push('NO_BLOCKS_GENERATED: Planner could not fit required blocks within constraints');
+    }
+    if (nextPlan.infeasible) {
+      reasons.push(`INFEASIBLE: ${nextPlan.infeasible.reason || 'unknown constraint violation'}`);
+    }
+    state.lastPlanError = {
+      code: blockCount === 0 ? 'NO_BLOCKS_GENERATED' : 'INFEASIBLE',
+      reasons,
+      details: {
+        totalRequired,
+        constraints: cycle.strategy?.constraints,
+        infeasibleDetails: nextPlan.infeasible
+      },
+      timestamp: nowISO || new Date().toISOString()
+    };
+  } else {
+    // Clear error if plan succeeded
+    state.lastPlanError = null;
   }
 
   refreshColdPlanDailyProjection(state);
@@ -1173,6 +1380,9 @@ function durationMinutes(start, end) {
 }
 
 function buildTodayFromPattern(state) {
+  if (!state.today) {
+    state.today = { date: nowDayKey(), blocks: [] };
+  }
   const pattern = getPatternConfig(state);
   const targets = pattern.dailyTargets || [];
   const templateKey = state.today?.blocks?.[0]?.linkedAimId || state.today?.objectiveId || 'default';
@@ -2630,18 +2840,18 @@ function deleteCycle(state, cycleId) {
     state.activeGoalId = null;
   }
   const cycle = state.cyclesById[cycleId];
-  cycle.status = 'deleted';
-  cycle.executionEvents = [];
-  cycle.suggestionEvents = [];
-  cycle.suggestedBlocks = [];
-  cycle.planDraft = null;
-  cycle.planPreview = null;
-  cycle.correctionSignals = null;
-  cycle.truthEntries = [];
-  cycle.suggestionHistory = null;
-  state.cyclesById[cycleId] = cycle;
-  if (state.deliverablesByCycleId?.[cycleId]) {
-    delete state.deliverablesByCycleId[cycleId];
+  const goalId =
+    cycle?.goalContract?.goalId ||
+    cycle?.goalGovernanceContract?.goalId ||
+    cycle?.contract?.goalId ||
+    cycle?.goalPlan?.goalId ||
+    null;
+  delete state.cyclesById[cycleId];
+  if (state.deliverablesByCycleId?.[cycleId]) delete state.deliverablesByCycleId[cycleId];
+  if (state.aspirationsByCycleId?.[cycleId]) delete state.aspirationsByCycleId[cycleId];
+  if (goalId && state.goalAdmissionByGoal?.[goalId]) delete state.goalAdmissionByGoal[goalId];
+  if (state.history?.cycles) {
+    state.history.cycles = state.history.cycles.filter((entry) => entry.id !== cycleId);
   }
 }
 
@@ -2664,10 +2874,17 @@ function hardDeleteCycle(state, cycleId) {
     state.planCalibration = null;
     state.activeGoalId = null;
   }
+  const cycle = state.cyclesById[cycleId];
+  const goalId =
+    cycle?.goalContract?.goalId ||
+    cycle?.goalGovernanceContract?.goalId ||
+    cycle?.contract?.goalId ||
+    cycle?.goalPlan?.goalId ||
+    null;
   delete state.cyclesById[cycleId];
-  if (state.deliverablesByCycleId?.[cycleId]) {
-    delete state.deliverablesByCycleId[cycleId];
-  }
+  if (state.deliverablesByCycleId?.[cycleId]) delete state.deliverablesByCycleId[cycleId];
+  if (state.aspirationsByCycleId?.[cycleId]) delete state.aspirationsByCycleId[cycleId];
+  if (goalId && state.goalAdmissionByGoal?.[goalId]) delete state.goalAdmissionByGoal[goalId];
   if (state.history?.cycles) {
     state.history.cycles = state.history.cycles.filter((c) => c.id !== cycleId);
   }
@@ -2713,6 +2930,66 @@ function endCycle(state, cycleId) {
     state.suggestionEvents = [];
     state.executionEvents = [];
   }
+}
+
+/**
+ * Archive the active cycle and create a new editable draft from its contract.
+ * Used when plan generation fails (e.g., DEADLINE_INVALID) to allow fixing the goal.
+ */
+function archiveAndCloneCycle(state, cycleId, overrides = {}) {
+  ensureCycleStructures(state);
+  const id = cycleId || state.activeCycleId;
+  if (!id || !state.cyclesById?.[id]) return;
+
+  const cycle = state.cyclesById[id];
+  const contractToClone = cycle.goalContract;
+
+  if (!contractToClone) {
+    state.lastPlanError = {
+      code: 'CLONE_FAILED',
+      reasons: ['No goal contract found to clone'],
+      timestamp: state.appTime?.nowISO || new Date().toISOString()
+    };
+    return;
+  }
+
+  // STEP 1: Archive current cycle (mark ended but preserve history)
+  endCycle(state, id);
+
+  // STEP 2: Create new draft with fresh contract (clearing inscription hash for editing)
+  const newContractDraft = {
+    ...structuredClone ? structuredClone(contractToClone) : JSON.parse(JSON.stringify(contractToClone)),
+    admissionStatus: 'PENDING', // Reset to draft status
+    admissionAttemptCount: 0,
+    rejectionCodes: [],
+    ...overrides
+  };
+
+  // Clear inscription to allow editing
+  if (newContractDraft.inscription) {
+    newContractDraft.inscription.contractHash = null;
+    newContractDraft.inscription.inscribedAt = null;
+  }
+
+  // STEP 3: Store as editable draft (not auto-admitted)
+  if (!state.aspirations) state.aspirations = [];
+  const draftId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+  const draftEntry = {
+    id: draftId,
+    createdAtISO: state.appTime?.nowISO || new Date().toISOString(),
+    contractDraft: newContractDraft,
+    source: 'archive-clone',
+    sourceGoalId: contractToClone.goalId,
+    sourceReason: 'User correcting goal after admission'
+  };
+
+  state.aspirations.push(draftEntry);
+
+  // Optional: Mark this as the active draft for display
+  state.activeAspirationId = draftId;
+
+  // Clear the plan error since user is taking action
+  state.lastPlanError = null;
 }
 
 function generatePlan(state) {
@@ -2920,6 +3197,53 @@ function compileGoalEquation(state, payload = {}) {
     outcome: label,
     deadlineDayKey: equation.deadlineDayKey
   };
+  
+  // AUTO-SEED DELIVERABLES AT ADMISSION TIME
+  // This ensures generateColdPlanForCycle can find them in the workspace
+  const workspace = getDeliverableWorkspace(state, cycle.id);
+  if (workspace && (!workspace.deliverables || workspace.deliverables.length === 0)) {
+    let autoDeliverables = [];
+    let autoStrategy = null;
+    
+    // Try mechanism-class first
+    try {
+      autoDeliverables = generateAutoDeliverables(equation) || [];
+      autoStrategy = { method: 'mechanism-class', detectedType: 'derived from goal keywords' };
+    } catch (err) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('[ADMISSION] mechanism-class auto-seed failed, trying Phase 1 fallback', err?.message);
+      }
+    }
+    
+    // FALLBACK: Use Phase 1 approach if mechanism-class didn't work
+    if (!autoDeliverables || autoDeliverables.length === 0) {
+      const autoResult = buildAutoDeliverablesFromGoalContract(equation, nowKey, timeZone);
+      autoDeliverables = autoResult.deliverables || [];
+      autoStrategy = { method: 'phase1-autostrategy', ...autoResult };
+    }
+    
+    // Persist to workspace AND cycle.strategy
+    if (autoDeliverables && autoDeliverables.length > 0) {
+      workspace.deliverables = autoDeliverables;
+      workspace.autoGenerated = true;
+      workspace.autoGeneratedAt = nowISO;
+      workspace.autoStrategy = autoStrategy;
+      state.deliverablesByCycleId[cycle.id] = workspace;
+      
+      // Also update cycle.strategy so they're visible immediately
+      if (!cycle.strategy) {
+        cycle.strategy = buildDefaultStrategy({ 
+          goalId: cycle.goalContract?.goalId || 'goal', 
+          deadlineISO: equation.deadlineDayKey ? `${equation.deadlineDayKey}T23:59:59Z` : '',
+          timeZone,
+          deliverables: autoDeliverables
+        });
+      } else {
+        cycle.strategy.deliverables = autoDeliverables;
+        cycle.strategy.assumptionsHash = buildAssumptionsHash(cycle.strategy);
+      }
+    }
+  }
   if (state.goalExecutionContract) {
     state.goalExecutionContract = {
       ...state.goalExecutionContract,
@@ -3438,6 +3762,7 @@ function createBlock(state, payload = {}) {
   };
 
   const event = buildExecutionEventFromBlock(newBlock, {
+    dateISO: date,
     kind: 'create',
     completed: false,
     cycleId,
