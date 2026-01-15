@@ -71,6 +71,7 @@ function useZionState() {
     goalExecutionContract,
     probabilityByGoal,
     feasibilityByGoal,
+    profileLearning,
     setActiveCycle,
     deleteCycle,
     startNewCycle,
@@ -183,6 +184,7 @@ export default function ZionDashboard({
     goalExecutionContract,
     probabilityByGoal,
     feasibilityByGoal,
+    profileLearning,
     actions
   } = useZionState();
   const activeCycle = activeCycleId && cyclesById ? cyclesById[activeCycleId] : null;
@@ -202,6 +204,8 @@ export default function ZionDashboard({
     fn(payload);
   }
   const cycleMode = activeCycle?.status === 'active' ? 'active' : 'review';
+  const isReviewMode = cycleMode === 'review';
+  const isCycleReadOnly = cycleMode !== 'active';
   const coldPlanForecast = activeCycle?.coldPlan?.forecastByDayKey || {};
   const dailyProjectionForecast = activeCycle?.coldPlan?.dailyProjection?.forecastByDayKey || {};
   const autoAsanaPlan = activeCycle?.autoAsanaPlan || null;
@@ -220,7 +224,6 @@ export default function ZionDashboard({
     });
     return map;
   }, [deliverables]);
-  const isReviewMode = cycleMode === 'review';
   const activeDayKey = appTime?.activeDayKey || today?.date || nowDayKey(appTime?.timeZone);
   const timeZone = appTime?.timeZone;
   const whatMovedToday = useMemo(
@@ -236,6 +239,46 @@ export default function ZionDashboard({
       }),
     [cyclesById, goalWorkById, constraints]
   );
+  const readOnlyCycleEntry = isCycleReadOnly
+    ? cyclesIndex?.find((entry) => entry.state !== 'Active' && entry.cycleId) || null
+    : null;
+  const readOnlyCycle = isCycleReadOnly
+    ? activeCycle || (readOnlyCycleEntry ? cyclesById?.[readOnlyCycleEntry.cycleId] : null)
+    : null;
+  const readOnlySummaryStats =
+    (readOnlyCycle?.summary && {
+      completionCount: readOnlyCycle.summary.completionCount,
+      completionRate: readOnlyCycle.summary.completionRate
+    }) ||
+    readOnlyCycleEntry?.summaryStats ||
+    null;
+  const summaryText = readOnlySummaryStats
+    ? `Completion rate ${Math.round((readOnlySummaryStats.completionRate || 0) * 100)}% · ${readOnlySummaryStats.completionCount || 0} completions`
+    : 'Summary pending';
+  const startDayKey =
+    readOnlyCycle?.startedAtDayKey || (readOnlyCycleEntry?.startISO || '').slice(0, 10) || null;
+  const endDayKey =
+    readOnlyCycle?.endedAtDayKey || (readOnlyCycleEntry?.endISO || '').slice(0, 10) || null;
+  const rangeText = startDayKey
+    ? endDayKey
+      ? `${formatDayKeyLabel(startDayKey)} → ${formatDayKeyLabel(endDayKey)}`
+      : `Started ${formatDayKeyLabel(startDayKey)}`
+    : 'Dates pending';
+  const learningUpdatesCount = profileLearning?.cycleCount ?? 0;
+  const learningUpdatedAt = readOnlyCycle?.convergenceReport?.updatedAtISO || 'Pending';
+  const bannerTitle =
+    readOnlyCycle?.status === 'ended' || readOnlyCycleEntry?.state === 'Ended'
+      ? 'Cycle ended — Read only'
+      : 'Review Mode — Read only';
+  const alternateActiveEntry = cyclesIndex?.find(
+    (entry) => entry.state === 'Active' && entry.cycleId && entry.cycleId !== readOnlyCycle?.id
+  );
+  const canReturnToActive = Boolean(alternateActiveEntry);
+  const cycleLabel =
+    readOnlyCycle?.goalContract?.goalText ||
+    readOnlyCycleEntry?.goalTitle ||
+    (readOnlyCycle && readOnlyCycle.id) ||
+    'Cycle';
   const DEV_TIME_DEBUG =
     typeof localStorage !== 'undefined' &&
     typeof localStorage.getItem === 'function' &&
@@ -342,7 +385,7 @@ export default function ZionDashboard({
     return { progressBlocks, capacityBlocks, total: blocks.length };
   }, [selectedDayBlocks]);
   const showCalibration =
-    !isReviewMode &&
+    !isCycleReadOnly &&
     planDraft &&
     planDraft.status !== 'calibrated' &&
     ((planCalibration?.confidence || 0) < 0.7 ||
@@ -367,7 +410,7 @@ export default function ZionDashboard({
   const [criterionDrafts, setCriterionDrafts] = useState({});
 
   const handleCalibrationSelect = (daysPerWeek, uncertain = false) => {
-    if (isReviewMode) return;
+    if (isCycleReadOnly) return;
     actions.setCalibrationDays?.(daysPerWeek, uncertain);
     setCalibrationBanner(`Rebalanced to ${daysPerWeek} days/week`);
     window.setTimeout(() => setCalibrationBanner(''), 2400);
@@ -376,7 +419,7 @@ export default function ZionDashboard({
     ['CREATION', 'FOCUS', 'RESOURCES'].includes((domain || '').toString().toUpperCase());
 
   const openPlacement = (suggestion) => {
-    if (isReviewMode) return;
+    if (isCycleReadOnly) return;
     if (!suggestion) return;
     const suggestionDayKey = getSuggestionDayKey(suggestion) || activeDayKey;
     const link = getSuggestionLinkForCycle(deliverablesByCycleId, activeCycleId, suggestion.id);
@@ -401,7 +444,7 @@ export default function ZionDashboard({
   }
 
   const confirmPlacement = () => {
-    if (isReviewMode) return;
+    if (isCycleReadOnly) return;
     if (!pendingPlacement?.suggestionId) return;
     if (
       strictProgressMode &&
@@ -559,7 +602,7 @@ export default function ZionDashboard({
 
 
   const handleCreateForDate = (dateKey, { title, domain, durationMinutes, time, linkToGoal, deliverableId, criterionId, isProgress }) => {
-    if (isReviewMode) return;
+    if (isCycleReadOnly) return;
     if (
       strictProgressMode &&
       isProgress &&
@@ -613,7 +656,7 @@ export default function ZionDashboard({
   };
 
   const handleEditBlock = (id, patch) => {
-    if (isReviewMode) return;
+    if (isCycleReadOnly) return;
     traceAction('blocks.edit', { blockId: id, patch });
     const target = (normalizedBlocks || []).find((b) => b.id === id);
     if (target?.lockedUntilDayKey && target?.start) {
@@ -648,7 +691,7 @@ export default function ZionDashboard({
   };
 
   const handleDeleteBlock = (id) => {
-    if (isReviewMode) return;
+    if (isCycleReadOnly) return;
     const target = (normalizedBlocks || []).find((b) => b.id === id);
     if (target?.lockedUntilDayKey && target?.start) {
       const blockDayKey = target.start.slice(0, 10);
@@ -662,7 +705,7 @@ export default function ZionDashboard({
   };
 
   const handleCompleteBlock = (id) => {
-    if (isReviewMode) return;
+    if (isCycleReadOnly) return;
     traceAction('blocks.complete', { blockId: id });
     actions.completeBlock?.(id);
   };
@@ -791,6 +834,56 @@ export default function ZionDashboard({
         </div>
       </div>
 
+      {isCycleReadOnly ? (
+        <div className="rounded-xl border border-amber-200/80 bg-amber-50/70 px-4 py-3 text-sm space-y-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.14em] text-amber-700">{bannerTitle}</p>
+              <p className="text-lg font-semibold text-jericho-text">{cycleLabel}</p>
+              <p className="text-[11px] text-muted">{rangeText}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="rounded-full border border-jericho-accent px-3 py-1 text-xs font-semibold text-jericho-accent hover:bg-jericho-accent/10"
+                onClick={() => actions.startNewCycle?.({})}
+              >
+                Start new cycle
+              </button>
+              {canReturnToActive ? (
+                <button
+                  className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent disabled:opacity-50"
+                  disabled={!alternateActiveEntry}
+                  onClick={() => alternateActiveEntry && actions.setActiveCycle?.(alternateActiveEntry.cycleId)}
+                >
+                  Back to active cycle
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <div className="grid md:grid-cols-3 gap-4 text-xs text-muted">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.14em] text-muted">Cycle Summary</p>
+              <p className="text-sm text-jericho-text">{summaryText}</p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.14em] text-muted">Ended at</p>
+              <p className="text-sm text-jericho-text">
+                {endDayKey ? formatDayKeyLabel(endDayKey) : 'Pending'}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.14em] text-muted">Learning updates</p>
+              <p className="text-sm text-jericho-text">Captured {learningUpdatesCount} update(s)</p>
+              <p className="text-[11px] text-muted">
+                {learningUpdatedAt === 'Pending'
+                  ? 'Pending'
+                  : `Last updated ${new Date(learningUpdatedAt).toLocaleString()}`}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className={`mt-2 grid gap-8 ${assistantVisible ? 'grid-cols-[minmax(0,1fr)_340px]' : 'grid-cols-1'}`}>
         <div className="space-y-5">
           <div>
@@ -864,7 +957,7 @@ export default function ZionDashboard({
                             type="checkbox"
                             checked={strictProgressMode}
                             onChange={(e) => setStrictProgressMode(e.target.checked)}
-                            disabled={isReviewMode}
+                            disabled={isCycleReadOnly}
                           />
                           Strict mode
                         </label>
@@ -885,14 +978,14 @@ export default function ZionDashboard({
                           <button
                             className="rounded-full border border-jericho-accent px-3 py-1 text-jericho-accent hover:bg-jericho-accent/10"
                             onClick={() => emitAction('suggestedPath.generatePlan', { cycleId: activeCycleId }, actions.generatePlan)}
-                            disabled={isReviewMode || !isGoalAdmitted}
+                            disabled={isCycleReadOnly || !isGoalAdmitted}
                           >
                             Generate plan
                           </button>
                           <button
                             className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent disabled:opacity-50"
                             onClick={() => emitAction('suggestedPath.applyPlan', { cycleId: activeCycleId }, actions.applyPlan)}
-                            disabled={isReviewMode || !isGoalAdmitted || !autoAsanaPlan?.horizonBlocks?.length}
+                            disabled={isCycleReadOnly || !isGoalAdmitted || !autoAsanaPlan?.horizonBlocks?.length}
                           >
                             Apply plan
                           </button>
@@ -948,7 +1041,7 @@ export default function ZionDashboard({
                                           criterionId: null
                                         }, actions.assignSuggestionLink)
                                       }
-                                      disabled={isReviewMode}
+                                      disabled={isCycleReadOnly}
                                     >
                                       <option value="">None</option>
                                       {deliverables.map((d) => (
@@ -971,7 +1064,7 @@ export default function ZionDashboard({
                                           criterionId: e.target.value || null
                                         }, actions.assignSuggestionLink)
                                       }
-                                      disabled={isReviewMode || !linkedDeliverableId}
+                                      disabled={isCycleReadOnly || !linkedDeliverableId}
                                     >
                                       <option value="">None</option>
                                       {(criteriaByDeliverable[linkedDeliverableId] || []).map((c) => (
@@ -993,21 +1086,21 @@ export default function ZionDashboard({
                                     traceAction('suggestedPath.accept', { suggestionId: s.id, cycleId: activeCycleId });
                                     openPlacement(s);
                                   }}
-                                  disabled={isReviewMode || (strictProgressMode && isProgressDomain(s.domain) && !linkedCriterionId)}
+                                  disabled={isCycleReadOnly || (strictProgressMode && isProgressDomain(s.domain) && !linkedCriterionId)}
                                 >
                                   Accept
                                 </button>
                                 <button
                                   className="rounded-full border border-line/60 px-3 py-1 text-muted hover:text-jericho-accent"
                                   onClick={() => emitAction('suggestedPath.ignore', { suggestionId: s.id }, actions.ignoreSuggestedBlock)}
-                                  disabled={isReviewMode}
+                                  disabled={isCycleReadOnly}
                                 >
                                   Ignore
                                 </button>
                                 <button
                                   className="rounded-full border border-line/60 px-3 py-1 text-muted hover:text-jericho-accent"
                                   onClick={() => emitAction('suggestedPath.dismiss', { suggestionId: s.id }, actions.dismissSuggestedBlock)}
-                                  disabled={isReviewMode}
+                                  disabled={isCycleReadOnly}
                                 >
                                   Dismiss
                                 </button>
@@ -1023,7 +1116,7 @@ export default function ZionDashboard({
                                     key={reason.id}
                                     className="rounded-full border border-line/60 px-3 py-1 text-muted hover:text-jericho-accent"
                                     onClick={() => actions.rejectSuggestedBlock?.(s.id, reason.id)}
-                                    disabled={isReviewMode}
+                            disabled={isCycleReadOnly}
                                   >
                                     {reason.label}
                                   </button>
@@ -1061,7 +1154,7 @@ export default function ZionDashboard({
                                   title: deliverableTitleById.get(Object.keys(entry.byDeliverable || {})[0]) || 'Route block'
                                 })
                               }
-                              disabled={isReviewMode}
+                              disabled={isCycleReadOnly}
                             >
                               Add block
                             </button>
@@ -1090,7 +1183,7 @@ export default function ZionDashboard({
                       whatMovedToday={whatMovedToday}
                       strictMode={strictProgressMode}
                       criterionLabelById={Object.fromEntries(criterionTextById)}
-                      readOnly={isReviewMode}
+                      readOnly={isCycleReadOnly}
                     />
                   </div>
                 </div>
@@ -1193,7 +1286,7 @@ export default function ZionDashboard({
                       onDelete={handleDeleteBlock}
                       onEdit={handleEditBlock}
                       timeZone={timeZone}
-                      readOnly={isReviewMode}
+                      readOnly={isCycleReadOnly}
                     />
                   ) : null}
                 </div>
@@ -1210,7 +1303,7 @@ export default function ZionDashboard({
               </div>
               {controlPanelsOpen ? (
                 <div className="space-y-3">
-                  {isReviewMode ? (
+                  {isCycleReadOnly ? (
                     <div className="rounded-md border border-line/60 bg-jericho-surface/90 px-3 py-2 text-xs text-muted">
                       Review mode: calibration and corrections are read-only for ended cycles.
                     </div>
