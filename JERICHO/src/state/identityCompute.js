@@ -2,7 +2,7 @@ import structuredClone from '@ungap/structured-clone';
 import { PRACTICE_KEYS } from './metricsPolicy.js';
 import { normalizeDomain } from './domain.js';
 import { normalizeBlocksDomain } from './normalizeBlock.js';
-import { addDays, dayKeyFromDate, dayKeyFromISO, dayKeyFromParts, nowDayKey, buildLocalStartISO, assertValidISO, isValidISO } from './time/time.ts';
+import { addDays, dayKeyFromDate, dayKeyFromISO, dayKeyFromParts, nowDayKey, buildLocalStartISO, assertValidISO, isValidISO, APP_TIME_ZONE } from './time/time.ts';
 import { buildDefaultStrategy, generateColdPlan, generateDailyProjection } from './coldPlan.ts';
 import { compileGoalEquationPlan } from './goalEquation.ts';
 import { admitGoal, isAdmitted } from './goalAdmission.ts';
@@ -25,6 +25,7 @@ import { generateSuggestions } from './suggestions.ts';
 import { summarizeCycle } from './cycleSummary.ts';
 import { computeProfileLearning } from './learning.ts';
 import { computeTerminalConvergence } from './convergenceTerminal.ts';
+import { rolloverAtMidnight, shouldRollover } from '../core/engine/rollover.ts';
 
 /**
  * @typedef {import('./identityTypes.js').IdentityState} IdentityState
@@ -51,8 +52,10 @@ export function computeDerivedState(state, action) {
   ensureAdmissionStores(next);
   ensureDeliverablesStore(next);
   hydrateActiveCycleState(next);
+  const hadCycleRecords = Boolean(next.cyclesById && Object.keys(next.cyclesById).length);
   if (!next.executionEvents) next.executionEvents = [];
   refreshColdPlanDailyProjection(next);
+  const previousTodayBlocks = next.today?.blocks ? [...next.today.blocks] : [];
 
   const prevSuggestion = next.nextSuggestion;
 
@@ -161,6 +164,58 @@ export function computeDerivedState(state, action) {
     case 'CREATE_BLOCK':
       createBlock(next, action.payload);
       break;
+    case 'DRAFT_SCHEDULE_CLEAR':
+      handleDraftScheduleClear(next, action);
+      break;
+    case 'DRAFT_BLOCK_CREATE':
+      handleDraftBlockCreate(next, action);
+      break;
+    case 'TICK_NOW': {
+      const nowISO = action.nowISO || action.atISO || new Date().toISOString();
+      const timezone = action.timeZone || action.timezone || next.appTime?.timeZone || APP_TIME_ZONE;
+      const currentDayKey = dayKeyFromISO(nowISO, timezone);
+
+      const baseBlocks = next.today?.blocks || [];
+      baseBlocks.forEach((block) => {
+        if (!block?.id) return;
+        const existingCreate = (next.executionEvents || []).some((event) => event.blockId === block.id && event.kind === 'create');
+        if (existingCreate) return;
+        const event = buildExecutionEventFromBlock(block, {
+          id: `base-create-${block.id}`,
+          kind: 'create',
+          completed: false,
+          dateISO: dayKeyFromISO(block.start || block.date, timezone) || currentDayKey,
+          startISO: block.start,
+          endISO: block.end,
+          status: block.status || 'in_progress'
+        });
+        if (canEmitExecutionEvent(next.executionEvents || [], event)) {
+          appendExecutionEvent(next, event);
+        }
+      });
+
+      if (shouldRollover({ state: next, nowISO, timezone })) {
+        const { eventsEmitted, lastRolloverDayISO } = rolloverAtMidnight({
+          state: next,
+          nowISO,
+          timezone
+        });
+        if (eventsEmitted?.length) {
+          eventsEmitted.forEach((event) => appendExecutionEvent(next, event));
+        }
+        next.lastRolloverDayISO = lastRolloverDayISO || dayKeyFromISO(nowISO, timezone);
+      }
+
+      next.appTime = {
+        ...next.appTime,
+        nowISO,
+        timeZone: timezone,
+        activeDayKey: currentDayKey || next.appTime?.activeDayKey
+      };
+      if (!next.today) next.today = {};
+      next.today.date = currentDayKey;
+      break;
+    }
     case 'UPDATE_BLOCK':
       updateBlock(next, action.payload);
       break;
@@ -213,6 +268,7 @@ export function computeDerivedState(state, action) {
   }
 
   applyExecutionEvents(next);
+  mergePriorTodayBlocks(next, previousTodayBlocks);
   recomputeSummaries(next);
   next.vector = recalculateIdentityVector(next);
   const allowAdapt =
@@ -243,8 +299,12 @@ export function computeDerivedState(state, action) {
     });
   }
   next.correctionSignals = computeCorrectionSignals(next, 14);
+  mergePriorTodayBlocks(next, previousTodayBlocks);
+  syncPlacementStateFromEvents(next);
   enforceSafeDefaults(next);
+  flagDraftBlocks(next);
   persistActiveCycleState(next);
+  enforceActiveCycleTodayBlocks(next, hadCycleRecords);
   return next;
 }
 
@@ -282,6 +342,39 @@ export function persistActiveCycleState(state) {
   cycle.suggestionHistory = state.suggestionHistory || cycle.suggestionHistory || null;
   state.cyclesById[state.activeCycleId] = cycle;
   return state;
+}
+
+function getActiveCycleId(state) {
+  return (
+    state.activeCycleId ||
+    state.cycles?.activeId ||
+    state.cycle?.id ||
+    state.activeCycle?.id ||
+    null
+  );
+}
+
+function enforceActiveCycleTodayBlocks(state, hadCycleRecords = false) {
+  const activeCycleId = getActiveCycleId(state);
+  const hasCycleRecords = hadCycleRecords || Boolean(state.cyclesById && Object.keys(state.cyclesById).length);
+  if (!state.today) {
+    state.today = { blocks: [] };
+    return;
+  }
+  if (!state.today.blocks) {
+    state.today.blocks = [];
+    if (!activeCycleId && hasCycleRecords) {
+      state.today.blocks = [];
+    }
+    return;
+  }
+  if (!activeCycleId) {
+    if (hasCycleRecords) {
+      state.today.blocks = [];
+    }
+    return;
+  }
+  state.today.blocks = state.today.blocks.filter((block) => block?.cycleId === activeCycleId);
 }
 
 function collectGovernanceContracts(state) {
@@ -412,6 +505,41 @@ function getSuggestionLink(state, cycleId, suggestionId) {
   const workspace = getDeliverableWorkspace(state, cycleId);
   if (!workspace?.suggestionLinks) return null;
   return workspace.suggestionLinks[suggestionId] || null;
+}
+
+function flagDraftBlocks(state) {
+  if (!state.today?.blocks?.length) return;
+  state.today.blocks = state.today.blocks.map((block) => ({
+    ...block,
+    isDraft: block.origin === 'draft' ? true : block.isDraft || false
+  }));
+}
+
+function mergePriorTodayBlocks(state, previousBlocks = []) {
+  if (!previousBlocks.length) return;
+  const existingIds = new Set((state.today?.blocks || []).map((block) => block?.id));
+  const missing = previousBlocks
+    .filter((block) => block?.id && !existingIds.has(block.id))
+    .map((block) => ({
+      ...block,
+      placementState: block.placementState === 'COMMITTED' ? 'in_progress' : block.placementState || 'in_progress'
+    }));
+  if (!missing.length) return;
+  state.today.blocks = [...missing, ...(state.today?.blocks || [])];
+}
+
+function syncPlacementStateFromEvents(state) {
+  if (!state.today?.blocks?.length) return;
+  const placementStateByBlock = new Map();
+  (state.executionEvents || []).forEach((event) => {
+    if (event?.blockId && event.placementState) {
+      placementStateByBlock.set(event.blockId, event.placementState);
+    }
+  });
+  state.today.blocks = state.today.blocks.map((block) => ({
+    ...block,
+    placementState: placementStateByBlock.get(block.id) || block.placementState || 'in_progress'
+  }));
 }
 
 function countCompletedBlocks(events = [], todayISO) {
@@ -3694,6 +3822,98 @@ function normalizeDomainValue(rawDomain) {
   const practiceLabel =
     domain === 'BODY' ? 'Body' : domain === 'CREATION' ? 'Creation' : domain === 'RESOURCES' ? 'Resources' : 'Focus';
   return { domain, practice: practiceLabel };
+}
+
+function ensureDraftEvents(state) {
+  if (!state.draftEvents) state.draftEvents = [];
+  return state.draftEvents;
+}
+
+function recordDraftEvent(state, event) {
+  if (!event) return;
+  ensureDraftEvents(state).push(event);
+}
+
+function generateDraftBlockId(state, action = {}) {
+  const cycleId = action.cycleId || state.activeCycleId || 'draft';
+  const key = `${cycleId}:${action.blockId || action.startISO || action.endISO || 'new'}`;
+  state._draftIdSequence = state._draftIdSequence || {};
+  const seq = (state._draftIdSequence[key] || 0) + 1;
+  state._draftIdSequence[key] = seq;
+  return action.blockId || `draft:${cycleId}:${seq}`;
+}
+
+function handleDraftScheduleClear(state, action = {}) {
+  const cycleId = action.cycleId || state.activeCycleId || 'draft';
+  const nowISO = state.appTime?.nowISO || new Date().toISOString();
+  (state.today?.blocks || []).forEach((block) => {
+    const event = buildExecutionEventFromBlock(block, {
+      kind: 'create',
+      cycleId,
+      completed: false,
+      origin: 'draft',
+      status: block?.status || 'in_progress'
+    });
+    if (canEmitExecutionEvent(state.executionEvents || [], event)) {
+      appendExecutionEvent(state, event);
+    }
+  });
+  recordDraftEvent(state, {
+    id: `draft-schedule-clear:${cycleId}:${nowISO}`,
+    type: 'DRAFT_SCHEDULE_CLEAR',
+    cycleId,
+    atISO: nowISO
+  });
+  state._draftIdSequence = state._draftIdSequence || {};
+  state._draftIdSequence[cycleId] = 0;
+}
+
+function handleDraftBlockCreate(state, action = {}) {
+  const startISO = action.startISO || action.start;
+  const endISO = action.endISO || action.end;
+  if (!startISO || !endISO || !isValidISO(startISO) || !isValidISO(endISO)) return;
+  const startDate = new Date(startISO);
+  const endDate = new Date(endISO);
+  if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime())) return;
+  const minutes = clampDurationMinutes((endDate.getTime() - startDate.getTime()) / 60000);
+  const cycleId = action.cycleId || state.activeCycleId || null;
+  const blockId = generateDraftBlockId(state, { ...action, cycleId });
+  const { domain, practice } = normalizeDomainValue(action.domain || action.practice);
+  const rawLabel = action.label || action.title || practice || domain || 'Draft Block';
+  const status = action.status || 'in_progress';
+  const dateISO = dayKeyFromISO(startISO, state.appTime?.timeZone) || dayKeyFromDate(startDate);
+  const event = {
+    id: `draft-create-${blockId}-${Date.now()}`,
+    blockId,
+    dateISO,
+    minutes,
+    rawLabel,
+    domain,
+    cycleId,
+    goalId: action.goalId || null,
+    origin: 'draft',
+    deliverableId: action.deliverableId ?? null,
+    criterionId: action.criterionId ?? null,
+    lockedUntilDayKey: action.lockedUntilDayKey ?? null,
+    completed: false,
+    kind: 'create',
+    startISO,
+    endISO,
+    status
+  };
+  if (canEmitExecutionEvent(state.executionEvents || [], event)) {
+    appendExecutionEvent(state, event);
+  }
+  recordDraftEvent(state, {
+    id: `draft-block-${blockId}-${Date.now()}`,
+    type: 'DRAFT_BLOCK_CREATE',
+    blockId,
+    cycleId,
+    startISO,
+    endISO,
+    status,
+    createdAtISO: state.appTime?.nowISO || new Date().toISOString()
+  });
 }
 
 function clampDurationMinutes(rawMinutes) {
