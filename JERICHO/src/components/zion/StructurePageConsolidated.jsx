@@ -17,6 +17,73 @@ import React, { useState } from 'react';
 import { useIdentityStore } from '../../state/identityStore';
 import GoalAdmissionPage from '../../ui/goalAdmission/GoalAdmissionPage';
 
+const formatDate = (iso) => {
+  if (!iso) return '';
+  try {
+    const normalized = new Date(iso);
+    if (Number.isNaN(normalized.getTime())) return iso;
+    return normalized.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+  } catch {
+    return iso;
+  }
+};
+
+function buildDefiniteGoalView(activeCycle) {
+  if (!activeCycle) {
+    return {
+      title: 'Untitled',
+      deadlineISO: '',
+      startISO: '',
+      outcome: '',
+      cost: '',
+      targetCount: null,
+      targetUnit: '',
+      definitionOfDone: '',
+      daysPerWeek: null,
+      minutesPerDay: null,
+      hasGoalContract: false
+    };
+  }
+  const contract = activeCycle.goalContract;
+  const legacyGoal = activeCycle.definiteGoal || {};
+  const title =
+    (contract?.goalLabel || contract?.label || legacyGoal?.outcome || activeCycle?.direction || 'Untitled')
+      .trim() || 'Untitled';
+  const startISO = contract?.startDateISO || contract?.startISO || '';
+  const deadlineISO =
+    contract?.deadlineISO ||
+    contract?.deadline?.iso ||
+    contract?.deadline?.dayKey ||
+    legacyGoal?.deadlineDayKey ||
+    '';
+  const outcome =
+    contract?.terminalOutcome?.verificationCriteria ||
+    contract?.terminalOutcome?.text ||
+    legacyGoal?.outcome ||
+    '';
+  const cost =
+    contract?.sacrifice?.whatIsGivenUp ||
+    legacyGoal?.cost ||
+    '';
+  return {
+    title,
+    startISO,
+    deadlineISO,
+    outcome,
+    cost,
+    targetCount: contract?.target?.count ?? null,
+    targetUnit: contract?.target?.unit || '',
+    definitionOfDone: contract?.target?.definitionOfDone || '',
+    daysPerWeek: contract?.capacity?.daysPerWeek ?? null,
+    minutesPerDay: contract?.capacity?.minutesPerDay ?? null,
+    hasGoalContract: Boolean(contract)
+  };
+}
+
 export function StructurePageConsolidated() {
   const store = useIdentityStore();
   const {
@@ -34,6 +101,7 @@ export function StructurePageConsolidated() {
   } = store;
   const activeCycle = activeCycleId ? cyclesById[activeCycleId] : null;
   const hasAdmittedGoal = Boolean(activeCycle?.goalContract);
+  const definiteGoalView = buildDefiniteGoalView(activeCycle);
 
   // Local state for Commit Schedule UI
   const [commitError, setCommitError] = useState(null);
@@ -186,24 +254,45 @@ export function StructurePageConsolidated() {
         </div>
       </div>
       {/* Goal Banner (Canonical, Read-Only) */}
-      {activeCycle && activeCycle.goalContract && (
+      {activeCycle && (
         <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4">
           <div className="text-xs uppercase tracking-[0.14em] text-muted mb-2">
             Definite Goal
           </div>
           <div className="space-y-2">
-            <div className="text-sm font-semibold text-jericho-text">
-              {activeCycle.goalContract.terminalOutcome?.text || 'Untitled'}
-            </div>
+            <div className="text-sm font-semibold text-jericho-text">{definiteGoalView.title}</div>
             <div className="text-xs text-muted space-y-1">
+              {definiteGoalView.startISO && definiteGoalView.deadlineISO ? (
+                <div>
+                  <span className="font-semibold">Plan window:</span>{' '}
+                  {formatDate(definiteGoalView.startISO)} → {formatDate(definiteGoalView.deadlineISO)}
+                </div>
+              ) : definiteGoalView.deadlineISO ? (
+                <div>
+                  <span className="font-semibold">Deadline:</span> {formatDate(definiteGoalView.deadlineISO)}
+                </div>
+              ) : (
+                <div>
+                  <span className="font-semibold">Deadline:</span> N/A
+                </div>
+              )}
+              {definiteGoalView.targetCount != null && definiteGoalView.targetUnit ? (
+                <div>
+                  <span className="font-semibold">Target:</span>{' '}
+                  {definiteGoalView.targetCount} {definiteGoalView.targetUnit}
+                </div>
+              ) : null}
+              {definiteGoalView.daysPerWeek && definiteGoalView.minutesPerDay ? (
+                <div>
+                  <span className="font-semibold">Capacity:</span>{' '}
+                  {definiteGoalView.daysPerWeek} days/week · {definiteGoalView.minutesPerDay} min/day
+                </div>
+              ) : null}
               <div>
-                <span className="font-semibold">Deadline:</span> {activeCycle.goalContract.deadline?.dayKey || 'N/A'}
+                <span className="font-semibold">Outcome:</span> {definiteGoalView.outcome || '—'}
               </div>
               <div>
-                <span className="font-semibold">Outcome:</span> {activeCycle.goalContract.terminalOutcome?.verificationCriteria || 'N/A'}
-              </div>
-              <div>
-                <span className="font-semibold">Cost:</span> {activeCycle.goalContract.sacrifice?.whatIsGivenUp || 'N/A'}
+                <span className="font-semibold">Cost:</span> {definiteGoalView.cost || '—'}
               </div>
             </div>
           </div>
