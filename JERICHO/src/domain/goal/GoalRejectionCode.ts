@@ -44,6 +44,7 @@ export enum GoalRejectionCode {
   // Meta violations
   ASPIRATIONAL_ONLY = 'ASPIRATIONAL_ONLY', // User marks as aspiration, cannot admit
   DUPLICATE_ACTIVE = 'DUPLICATE_ACTIVE', // Same outcome already active
+  REJECT_DISCLOSURE_REQUIRED = 'REJECT_DISCLOSURE_REQUIRED', // Commitment disclosure not accepted
 }
 
 /**
@@ -87,4 +88,6 @@ export const GOAL_REJECTION_MESSAGES: Record<GoalRejectionCode, string> = {
 
   [GoalRejectionCode.ASPIRATIONAL_ONLY]: 'Goal marked as aspiration; cannot admit to calendar.',
   [GoalRejectionCode.DUPLICATE_ACTIVE]: 'Same outcome already active; archive or complete first.',
+  [GoalRejectionCode.REJECT_DISCLOSURE_REQUIRED]:
+    'You must accept the immutable goal commitment disclosure before admitting.',
 };

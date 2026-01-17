@@ -22,6 +22,11 @@ import { projectSuggestionHistory } from '../state/suggestionHistory.js';
 import { projectCyclesIndex } from '../state/engine/cycleIndex.ts';
 import { DELIVERABLE_DOMAINS, getDeliverablesForCycle, getSuggestionLinkForCycle } from '../state/deliverables.ts';
 import { deriveWhatMovedToday } from '../state/whatMovedToday.ts';
+import {
+  getContractStartDayKey,
+  getContractDeadlineDayKey,
+  selectVisibleDraftItems
+} from '../state/suggestionFilters.js';
 import { traceAction, traceNoop } from '../dev/uiWiringTrace.ts';
 import {
   buildWindowSpec,
@@ -33,6 +38,7 @@ import {
   shiftAnchorDayKey
 } from '../state/time/window.ts';
 import { getDayStats, getMonthStats, getQuarterStats } from '../state/time/viewAggregates.ts';
+import { buildDraftScheduleItems, filterDraftItemsByDay } from '../state/draftSchedule.js';
 
 const DOMAINS = ['Body', 'Resources', 'Creation', 'Focus'];
 const DOMAIN_ENUM = ['BODY', 'RESOURCES', 'CREATION', 'FOCUS'];
@@ -61,6 +67,7 @@ function useZionState() {
     correctionSignals,
     suggestionEvents,
     suggestedBlocks,
+    draftScheduleAppliedAtISO,
     deliverablesByCycleId,
     goalAdmissionByGoal,
     appTime,
@@ -71,6 +78,7 @@ function useZionState() {
     goalExecutionContract,
     probabilityByGoal,
     feasibilityByGoal,
+    profileLearning,
     setActiveCycle,
     deleteCycle,
     startNewCycle,
@@ -117,9 +125,9 @@ function useZionState() {
     constraints,
     cyclesById,
     activeCycleId,
-    goalExecutionContract,
     probabilityByGoal,
     feasibilityByGoal,
+    draftScheduleAppliedAtISO,
     actions: {
       completeBlock,
       setDefiniteGoal,
@@ -149,6 +157,7 @@ function useZionState() {
       linkBlockToDeliverable,
       assignSuggestionLink,
       generatePlan,
+      commitPreviewItems,
       applyPlan
     }
   };
@@ -183,6 +192,8 @@ export default function ZionDashboard({
     goalExecutionContract,
     probabilityByGoal,
     feasibilityByGoal,
+    profileLearning,
+    draftScheduleAppliedAtISO,
     actions
   } = useZionState();
   const activeCycle = activeCycleId && cyclesById ? cyclesById[activeCycleId] : null;
@@ -202,6 +213,8 @@ export default function ZionDashboard({
     fn(payload);
   }
   const cycleMode = activeCycle?.status === 'active' ? 'active' : 'review';
+  const isReviewMode = cycleMode === 'review';
+  const isCycleReadOnly = cycleMode !== 'active';
   const coldPlanForecast = activeCycle?.coldPlan?.forecastByDayKey || {};
   const dailyProjectionForecast = activeCycle?.coldPlan?.dailyProjection?.forecastByDayKey || {};
   const autoAsanaPlan = activeCycle?.autoAsanaPlan || null;
@@ -220,7 +233,6 @@ export default function ZionDashboard({
     });
     return map;
   }, [deliverables]);
-  const isReviewMode = cycleMode === 'review';
   const activeDayKey = appTime?.activeDayKey || today?.date || nowDayKey(appTime?.timeZone);
   const timeZone = appTime?.timeZone;
   const whatMovedToday = useMemo(
@@ -236,6 +248,46 @@ export default function ZionDashboard({
       }),
     [cyclesById, goalWorkById, constraints]
   );
+  const readOnlyCycleEntry = isCycleReadOnly
+    ? cyclesIndex?.find((entry) => entry.state !== 'Active' && entry.cycleId) || null
+    : null;
+  const readOnlyCycle = isCycleReadOnly
+    ? activeCycle || (readOnlyCycleEntry ? cyclesById?.[readOnlyCycleEntry.cycleId] : null)
+    : null;
+  const readOnlySummaryStats =
+    (readOnlyCycle?.summary && {
+      completionCount: readOnlyCycle.summary.completionCount,
+      completionRate: readOnlyCycle.summary.completionRate
+    }) ||
+    readOnlyCycleEntry?.summaryStats ||
+    null;
+  const summaryText = readOnlySummaryStats
+    ? `Completion rate ${Math.round((readOnlySummaryStats.completionRate || 0) * 100)}% · ${readOnlySummaryStats.completionCount || 0} completions`
+    : 'Summary pending';
+  const startDayKey =
+    readOnlyCycle?.startedAtDayKey || (readOnlyCycleEntry?.startISO || '').slice(0, 10) || null;
+  const endDayKey =
+    readOnlyCycle?.endedAtDayKey || (readOnlyCycleEntry?.endISO || '').slice(0, 10) || null;
+  const rangeText = startDayKey
+    ? endDayKey
+      ? `${formatDayKeyLabel(startDayKey)} → ${formatDayKeyLabel(endDayKey)}`
+      : `Started ${formatDayKeyLabel(startDayKey)}`
+    : 'Dates pending';
+  const learningUpdatesCount = profileLearning?.cycleCount ?? 0;
+  const learningUpdatedAt = readOnlyCycle?.convergenceReport?.updatedAtISO || 'Pending';
+  const bannerTitle =
+    readOnlyCycle?.status === 'ended' || readOnlyCycleEntry?.state === 'Ended'
+      ? 'Cycle ended — Read only'
+      : 'Review Mode — Read only';
+  const alternateActiveEntry = cyclesIndex?.find(
+    (entry) => entry.state === 'Active' && entry.cycleId && entry.cycleId !== readOnlyCycle?.id
+  );
+  const canReturnToActive = Boolean(alternateActiveEntry);
+  const cycleLabel =
+    readOnlyCycle?.goalContract?.goalText ||
+    readOnlyCycleEntry?.goalTitle ||
+    (readOnlyCycle && readOnlyCycle.id) ||
+    'Cycle';
   const DEV_TIME_DEBUG =
     typeof localStorage !== 'undefined' &&
     typeof localStorage.getItem === 'function' &&
@@ -266,6 +318,24 @@ export default function ZionDashboard({
   useEffect(() => {
     if (zionView === 'day') setAnchorDayKey(activeDayKey);
   }, [activeDayKey, zionView]);
+  const normalizeDayKeyValue = (value) => {
+    if (!value) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    return dayKeyFromISO(value, timeZone);
+  };
+  const viewDayKey = zionView === 'day' ? anchorDayKey : null;
+  const contractStartDateValue =
+    activeCycle?.goalContract?.startDateISO ||
+    activeCycle?.goalContract?.startDate ||
+    activeCycle?.goalContract?.temporalBinding?.startDayKey ||
+    goalExecutionContract?.startDateISO ||
+    goalExecutionContract?.startDate ||
+    goalExecutionContract?.temporalBinding?.startDayKey ||
+    null;
+  const contractStartDayKey = normalizeDayKeyValue(contractStartDateValue);
+  const suppressSuggestionsForPreStartDay =
+    Boolean(contractStartDayKey && viewDayKey && viewDayKey < contractStartDayKey);
+  const suppressDrafts = suppressSuggestionsForPreStartDay;
   const normalizedBlocks = useMemo(() => normalizeBlocks(getAllBlocks({ today, currentWeek, cycle })), [today, currentWeek, cycle]);
   const dayBlocksMap = useMemo(() => {
     const map = new Map();
@@ -335,6 +405,39 @@ export default function ZionDashboard({
       })
       .filter((entry) => entry.totalBlocks > 0);
   }, [routeSuggestionDays, coldPlanForecast, dailyProjectionForecast]);
+  const contract = activeCycle?.goalContract || goalExecutionContract || null;
+  const deadlineDayKey = getContractDeadlineDayKey(contract);
+  const rawDraftScheduleItems = useMemo(
+    () =>
+      buildDraftScheduleItems({
+        suggestedBlocks: suggestedActive,
+        routeSuggestions,
+        contract,
+        timeZone,
+        contractStartDayKey,
+        defaults: {
+          todayKey: activeDayKey,
+          primaryDomain: contract?.primaryDomain || 'FOCUS'
+        }
+      }),
+    [suggestedActive, routeSuggestions, contract, timeZone, activeDayKey, contractStartDayKey]
+  );
+  const draftScheduleItems = useMemo(
+    () =>
+      selectVisibleDraftItems({
+        cycle: { goalContract: contract },
+        draftItems: rawDraftScheduleItems,
+        timeZone,
+        deadlineDayKey
+      }),
+    [rawDraftScheduleItems, contract, timeZone, deadlineDayKey]
+  );
+  const draftsForViewDay = useMemo(
+    () => filterDraftItemsByDay(draftScheduleItems, viewDayKey),
+    [draftScheduleItems, viewDayKey]
+  );
+  const hideDraftsAfterApply = Boolean(draftScheduleAppliedAtISO);
+  const draftsToRender = hideDraftsAfterApply ? [] : draftsForViewDay;
   const progressStats = useMemo(() => {
     const blocks = selectedDayBlocks || [];
     const progressBlocks = blocks.filter((b) => b?.deliverableId).length;
@@ -342,7 +445,7 @@ export default function ZionDashboard({
     return { progressBlocks, capacityBlocks, total: blocks.length };
   }, [selectedDayBlocks]);
   const showCalibration =
-    !isReviewMode &&
+    !isCycleReadOnly &&
     planDraft &&
     planDraft.status !== 'calibrated' &&
     ((planCalibration?.confidence || 0) < 0.7 ||
@@ -367,7 +470,7 @@ export default function ZionDashboard({
   const [criterionDrafts, setCriterionDrafts] = useState({});
 
   const handleCalibrationSelect = (daysPerWeek, uncertain = false) => {
-    if (isReviewMode) return;
+    if (isCycleReadOnly) return;
     actions.setCalibrationDays?.(daysPerWeek, uncertain);
     setCalibrationBanner(`Rebalanced to ${daysPerWeek} days/week`);
     window.setTimeout(() => setCalibrationBanner(''), 2400);
@@ -376,7 +479,7 @@ export default function ZionDashboard({
     ['CREATION', 'FOCUS', 'RESOURCES'].includes((domain || '').toString().toUpperCase());
 
   const openPlacement = (suggestion) => {
-    if (isReviewMode) return;
+    if (isCycleReadOnly) return;
     if (!suggestion) return;
     const suggestionDayKey = getSuggestionDayKey(suggestion) || activeDayKey;
     const link = getSuggestionLinkForCycle(deliverablesByCycleId, activeCycleId, suggestion.id);
@@ -401,7 +504,7 @@ export default function ZionDashboard({
   }
 
   const confirmPlacement = () => {
-    if (isReviewMode) return;
+    if (isCycleReadOnly) return;
     if (!pendingPlacement?.suggestionId) return;
     if (
       strictProgressMode &&
@@ -559,7 +662,7 @@ export default function ZionDashboard({
 
 
   const handleCreateForDate = (dateKey, { title, domain, durationMinutes, time, linkToGoal, deliverableId, criterionId, isProgress }) => {
-    if (isReviewMode) return;
+    if (isCycleReadOnly) return;
     if (
       strictProgressMode &&
       isProgress &&
@@ -613,7 +716,7 @@ export default function ZionDashboard({
   };
 
   const handleEditBlock = (id, patch) => {
-    if (isReviewMode) return;
+    if (isCycleReadOnly) return;
     traceAction('blocks.edit', { blockId: id, patch });
     const target = (normalizedBlocks || []).find((b) => b.id === id);
     if (target?.lockedUntilDayKey && target?.start) {
@@ -648,7 +751,7 @@ export default function ZionDashboard({
   };
 
   const handleDeleteBlock = (id) => {
-    if (isReviewMode) return;
+    if (isCycleReadOnly) return;
     const target = (normalizedBlocks || []).find((b) => b.id === id);
     if (target?.lockedUntilDayKey && target?.start) {
       const blockDayKey = target.start.slice(0, 10);
@@ -662,7 +765,7 @@ export default function ZionDashboard({
   };
 
   const handleCompleteBlock = (id) => {
-    if (isReviewMode) return;
+    if (isCycleReadOnly) return;
     traceAction('blocks.complete', { blockId: id });
     actions.completeBlock?.(id);
   };
@@ -791,6 +894,56 @@ export default function ZionDashboard({
         </div>
       </div>
 
+      {isCycleReadOnly ? (
+        <div className="rounded-xl border border-amber-200/80 bg-amber-50/70 px-4 py-3 text-sm space-y-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.14em] text-amber-700">{bannerTitle}</p>
+              <p className="text-lg font-semibold text-jericho-text">{cycleLabel}</p>
+              <p className="text-[11px] text-muted">{rangeText}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="rounded-full border border-jericho-accent px-3 py-1 text-xs font-semibold text-jericho-accent hover:bg-jericho-accent/10"
+                onClick={() => actions.startNewCycle?.({})}
+              >
+                Start new cycle
+              </button>
+              {canReturnToActive ? (
+                <button
+                  className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent disabled:opacity-50"
+                  disabled={!alternateActiveEntry}
+                  onClick={() => alternateActiveEntry && actions.setActiveCycle?.(alternateActiveEntry.cycleId)}
+                >
+                  Back to active cycle
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <div className="grid md:grid-cols-3 gap-4 text-xs text-muted">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.14em] text-muted">Cycle Summary</p>
+              <p className="text-sm text-jericho-text">{summaryText}</p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.14em] text-muted">Ended at</p>
+              <p className="text-sm text-jericho-text">
+                {endDayKey ? formatDayKeyLabel(endDayKey) : 'Pending'}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.14em] text-muted">Learning updates</p>
+              <p className="text-sm text-jericho-text">Captured {learningUpdatesCount} update(s)</p>
+              <p className="text-[11px] text-muted">
+                {learningUpdatedAt === 'Pending'
+                  ? 'Pending'
+                  : `Last updated ${new Date(learningUpdatedAt).toLocaleString()}`}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className={`mt-2 grid gap-8 ${assistantVisible ? 'grid-cols-[minmax(0,1fr)_340px]' : 'grid-cols-1'}`}>
         <div className="space-y-5">
           <div>
@@ -852,223 +1005,68 @@ export default function ZionDashboard({
                     <BlockColumn
                       dateLabel={activeDayKey}
                       blocks={selectedDayBlocks}
+                      drafts={draftsToRender}
                       primaryObjectiveId={primaryObjectiveId}
                       chainTaskId={primaryObjectiveId}
                       onBlockClick={(id) => setSelectedBlockId(id)}
                     />
-                    <div className="rounded-md border border-line/60 bg-jericho-surface/90 px-3 py-2 text-xs space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="font-medium text-jericho-text">Progress discipline</p>
-                        <label className="flex items-center gap-2 text-[11px] text-muted">
-                          <input
-                            type="checkbox"
-                            checked={strictProgressMode}
-                            onChange={(e) => setStrictProgressMode(e.target.checked)}
-                            disabled={isReviewMode}
-                          />
-                          Strict mode
-                        </label>
+                    <div className="rounded-md border border-line/60 bg-jericho-surface/90 px-3 py-3 text-xs space-y-3">
+                      <div className="flex flex-col gap-1">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-muted">Draft schedule</p>
+                        <p className="text-[11px] text-muted">
+                          Preview only. Nothing is scheduled until you apply to the control room.
+                        </p>
                       </div>
-                      <div className="text-[11px] text-muted">
-                        Progress blocks: {progressStats.progressBlocks} · Capacity blocks: {progressStats.capacityBlocks} · Criteria closed: {whatMovedToday.criteriaClosed?.length || 0}
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          className="rounded-full border border-jericho-accent px-3 py-1 text-jericho-accent hover:bg-jericho-accent/10"
+                          onClick={() => emitAction('suggestedPath.generatePlan', { cycleId: activeCycleId }, actions.generatePlan)}
+                          disabled={isCycleReadOnly || !isGoalAdmitted || suppressDrafts}
+                        >
+                          Generate schedule
+                        </button>
+                        <button
+                          className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent"
+                          onClick={() =>
+                            emitAction(
+                              'draftSchedule.commit',
+                              { cycleId: activeCycleId, items: draftScheduleItems },
+                              actions.commitPreviewItems
+                            )
+                          }
+                          disabled={isCycleReadOnly || !isGoalAdmitted || draftsToRender.length === 0 || suppressDrafts}
+                        >
+                          Apply schedule
+                        </button>
                       </div>
-                      {progressStats.capacityBlocks > 0 ? (
-                        <div className="text-[11px] text-muted">
-                          Unlinked blocks: {progressStats.capacityBlocks} (capacity, not progress)
-                        </div>
-                      ) : null}
-                    </div>
-                    <div className="rounded-md border border-line/60 bg-jericho-surface/90 px-3 py-2 text-xs space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="font-medium text-jericho-text">Suggested Path</p>
-                        <div className="flex items-center gap-2">
-                          <button
-                            className="rounded-full border border-jericho-accent px-3 py-1 text-jericho-accent hover:bg-jericho-accent/10"
-                            onClick={() => emitAction('suggestedPath.generatePlan', { cycleId: activeCycleId }, actions.generatePlan)}
-                            disabled={isReviewMode || !isGoalAdmitted}
+                      {suppressDrafts && contractStartDayKey ? (
+                        <p className="text-[11px] text-amber-600">
+                          Drafts begin on {formatDayKeyLabel(contractStartDayKey)}. Nothing before that date.
+                        </p>
+                      ) : draftsToRender.length ? (
+                        draftsToRender.map((item) => (
+                          <div
+                            key={item.id}
+                            className="rounded-md border border-line/40 bg-jericho-bg px-3 py-2 text-[11px] space-y-1"
                           >
-                            Generate plan
-                          </button>
-                          <button
-                            className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent disabled:opacity-50"
-                            onClick={() => emitAction('suggestedPath.applyPlan', { cycleId: activeCycleId }, actions.applyPlan)}
-                            disabled={isReviewMode || !isGoalAdmitted || !autoAsanaPlan?.horizonBlocks?.length}
-                          >
-                            Apply plan
-                          </button>
-                        </div>
-                      </div>
-                      {autoAsanaPlan ? (
-                        <div className="text-[11px] text-muted">
-                          Horizon: {autoAsanaPlan.horizon?.startDayKey} → {autoAsanaPlan.horizon?.endDayKey} · Blocks: {autoAsanaPlan.horizonBlocks?.length || 0}
-                          {autoAsanaPlan.conflicts?.length ? ` · Conflicts: ${autoAsanaPlan.conflicts.length}` : ''}
-                        </div>
-                      ) : null}
-                      {!isGoalAdmitted && admissionReason ? (
-                        <div className="text-[11px] text-amber-600">Goal not admitted: {admissionReason}</div>
-                      ) : null}
-                      {!suggestedActive.length ? (
-                        <p className="text-[11px] text-muted">No active suggestions yet.</p>
-                      ) : (
-                        suggestedActive.slice(0, 6).map((s) => {
-                          const dayKey = getSuggestionDayKey(s);
-                          const link = getSuggestionLinkForCycle(deliverablesByCycleId, activeCycleId, s.id);
-                          const linkedDeliverableId = link?.deliverableId || s.deliverableId || '';
-                          const linkedCriterionId = link?.criterionId || s.criterionId || '';
-                          return (
-                            <div
-                              key={s.id}
-                              className={`rounded-md border border-line/40 p-2 space-y-1 ${highlightSuggestionId === s.id ? 'border-jericho-accent/70' : ''}`}
-                            >
-                              <p className="text-jericho-text">
-                                {s.title} · {s.domain} · {s.durationMinutes}m
-                              </p>
-                              <p className="text-[11px] text-muted">
-                                {dayKey || '—'} · {formatTime(s.startISO)}–{formatTime(s.endISO)}
-                              </p>
-                              <p className="text-[11px] text-muted">
-                                {linkedDeliverableId
-                                  ? `Advances: ${deliverableTitleById.get(linkedDeliverableId) || linkedDeliverableId}${
-                                      linkedCriterionId ? ` / ${criterionTextById.get(linkedCriterionId) || linkedCriterionId}` : ''
-                                    }`
-                                  : 'Unmapped (capacity or undefined)'}
-                              </p>
-                              {deliverables.length ? (
-                                <div className="flex flex-wrap gap-2 text-[11px] text-muted">
-                                  <label className="flex items-center gap-2">
-                                    <span>Deliverable</span>
-                                    <select
-                                      className="rounded border border-line/60 bg-transparent px-2 py-1"
-                                      value={linkedDeliverableId}
-                                      onChange={(e) =>
-                                        emitAction('suggestedPath.assignDeliverable', {
-                                          cycleId: activeCycleId,
-                                          suggestionId: s.id,
-                                          deliverableId: e.target.value || null,
-                                          criterionId: null
-                                        }, actions.assignSuggestionLink)
-                                      }
-                                      disabled={isReviewMode}
-                                    >
-                                      <option value="">None</option>
-                                      {deliverables.map((d) => (
-                                        <option key={d.id} value={d.id}>
-                                          {d.title || d.id}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </label>
-                                  <label className="flex items-center gap-2">
-                                    <span>Criterion</span>
-                                    <select
-                                      className="rounded border border-line/60 bg-transparent px-2 py-1"
-                                      value={linkedCriterionId}
-                                      onChange={(e) =>
-                                        emitAction('suggestedPath.assignCriterion', {
-                                          cycleId: activeCycleId,
-                                          suggestionId: s.id,
-                                          deliverableId: linkedDeliverableId || null,
-                                          criterionId: e.target.value || null
-                                        }, actions.assignSuggestionLink)
-                                      }
-                                      disabled={isReviewMode || !linkedDeliverableId}
-                                    >
-                                      <option value="">None</option>
-                                      {(criteriaByDeliverable[linkedDeliverableId] || []).map((c) => (
-                                        <option key={c.id} value={c.id}>
-                                          {c.text || c.id}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </label>
-                                </div>
-                              ) : null}
-                              <div className="flex flex-wrap gap-2 text-[11px]">
-                                {strictProgressMode && isProgressDomain(s.domain) && !linkedCriterionId ? (
-                                  <span className="text-amber-600">Assign criterion to accept in Strict Mode.</span>
-                                ) : null}
-                                <button
-                                  className="rounded-full border border-jericho-accent px-3 py-1 text-jericho-accent hover:bg-jericho-accent/10"
-                                  onClick={() => {
-                                    traceAction('suggestedPath.accept', { suggestionId: s.id, cycleId: activeCycleId });
-                                    openPlacement(s);
-                                  }}
-                                  disabled={isReviewMode || (strictProgressMode && isProgressDomain(s.domain) && !linkedCriterionId)}
-                                >
-                                  Accept
-                                </button>
-                                <button
-                                  className="rounded-full border border-line/60 px-3 py-1 text-muted hover:text-jericho-accent"
-                                  onClick={() => emitAction('suggestedPath.ignore', { suggestionId: s.id }, actions.ignoreSuggestedBlock)}
-                                  disabled={isReviewMode}
-                                >
-                                  Ignore
-                                </button>
-                                <button
-                                  className="rounded-full border border-line/60 px-3 py-1 text-muted hover:text-jericho-accent"
-                                  onClick={() => emitAction('suggestedPath.dismiss', { suggestionId: s.id }, actions.dismissSuggestedBlock)}
-                                  disabled={isReviewMode}
-                                >
-                                  Dismiss
-                                </button>
-                                {[
-                                  { id: 'TOO_LONG', label: 'Too long' },
-                                  { id: 'WRONG_TIME', label: 'Wrong time' },
-                                  { id: 'LOW_ENERGY', label: 'Low energy' },
-                                  { id: 'NOT_RELEVANT', label: 'Not relevant' },
-                                  { id: 'MISSING_PREREQ', label: 'Missing prereq' },
-                                  { id: 'OVERCOMMITTED', label: 'Overcommitted' }
-                                ].map((reason) => (
-                                  <button
-                                    key={reason.id}
-                                    className="rounded-full border border-line/60 px-3 py-1 text-muted hover:text-jericho-accent"
-                                    onClick={() => actions.rejectSuggestedBlock?.(s.id, reason.id)}
-                                    disabled={isReviewMode}
-                                  >
-                                    {reason.label}
-                                  </button>
-                                ))}
-                              </div>
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium text-jericho-text">{item.title}</span>
+                              <span className="text-muted">
+                                {item.minutes}m · {item.reason}
+                              </span>
                             </div>
-                          );
-                        })
+                            <p className="text-[11px] text-muted">
+                              {formatTime(item.startISO)} · {item.domainKey}
+                            </p>
+                            <p className="text-[11px] text-muted">
+                              Source: {item.source === 'coldPlan' ? 'Forecast' : 'Suggested'}
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-[11px] text-muted">No draft items yet. Generate the schedule to preview.</p>
                       )}
                     </div>
-                    {routeSuggestions.length ? (
-                      <div className="rounded-md border border-line/60 bg-jericho-surface/90 px-3 py-2 text-xs space-y-2">
-                        <p className="font-medium text-jericho-text">Route suggestions (Cold Plan)</p>
-                        <p className="text-[11px] text-muted">Forecast-only. Promote into schedule if useful.</p>
-                        {routeSuggestions.map((entry) => (
-                          <div key={entry.dayKey} className="rounded-md border border-line/40 p-2 space-y-1">
-                            <p className="text-jericho-text">
-                              {formatDayKeyLabel(entry.dayKey)} · {entry.totalBlocks} blocks
-                            </p>
-                            <div className="space-y-1 text-[11px] text-muted">
-                              {Object.entries(entry.byDeliverable || {}).map(([deliverableId, count]) => (
-                                <div key={deliverableId} className="flex items-center justify-between">
-                                  <span>{deliverableTitleById.get(deliverableId) || deliverableId}</span>
-                                  <span>{count}</span>
-                                </div>
-                              ))}
-                            </div>
-                            <button
-                              className="rounded-full border border-jericho-accent px-3 py-1 text-jericho-accent hover:bg-jericho-accent/10"
-                              onClick={() =>
-                                handleCreateForDate(entry.dayKey, {
-                                  time: '09:00',
-                                  durationMinutes: 30,
-                                  domain: planDraft?.primaryDomain || 'FOCUS',
-                                  title: deliverableTitleById.get(Object.keys(entry.byDeliverable || {})[0]) || 'Route block'
-                                })
-                              }
-                              disabled={isReviewMode}
-                            >
-                              Add block
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
                   </div>
                   <div className="space-y-3">
                     <PlanningPanel
@@ -1090,7 +1088,7 @@ export default function ZionDashboard({
                       whatMovedToday={whatMovedToday}
                       strictMode={strictProgressMode}
                       criterionLabelById={Object.fromEntries(criterionTextById)}
-                      readOnly={isReviewMode}
+                      readOnly={isCycleReadOnly}
                     />
                   </div>
                 </div>
@@ -1193,7 +1191,7 @@ export default function ZionDashboard({
                       onDelete={handleDeleteBlock}
                       onEdit={handleEditBlock}
                       timeZone={timeZone}
-                      readOnly={isReviewMode}
+                      readOnly={isCycleReadOnly}
                     />
                   ) : null}
                 </div>
@@ -1210,7 +1208,7 @@ export default function ZionDashboard({
               </div>
               {controlPanelsOpen ? (
                 <div className="space-y-3">
-                  {isReviewMode ? (
+                  {isCycleReadOnly ? (
                     <div className="rounded-md border border-line/60 bg-jericho-surface/90 px-3 py-2 text-xs text-muted">
                       Review mode: calibration and corrections are read-only for ended cycles.
                     </div>

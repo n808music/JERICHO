@@ -13,9 +13,79 @@
  * - Commit Schedule atomic with explicit success/error (no silent failures)
  */
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useIdentityStore } from '../../state/identityStore';
 import GoalAdmissionPage from '../../ui/goalAdmission/GoalAdmissionPage';
+import { getActiveGoalOutcomes } from '../../state/cycleSelectors.js';
+import { buildDraftScheduleItems } from '../../state/draftSchedule.js';
+import { selectVisiblePreviewItems, getContractStartDayKey, getContractDeadlineDayKey } from '../../state/suggestionFilters.js';
+
+const formatDate = (iso) => {
+  if (!iso) return '';
+  try {
+    const normalized = new Date(iso);
+    if (Number.isNaN(normalized.getTime())) return iso;
+    return normalized.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+  } catch {
+    return iso;
+  }
+};
+
+function buildDefiniteGoalView(activeCycle) {
+  if (!activeCycle) {
+    return {
+      title: 'Untitled',
+      deadlineISO: '',
+      startISO: '',
+      outcome: '',
+      cost: '',
+      targetCount: null,
+      targetUnit: '',
+      definitionOfDone: '',
+      daysPerWeek: null,
+      minutesPerDay: null,
+      hasGoalContract: false
+    };
+  }
+  const contract = activeCycle.goalContract;
+  const legacyGoal = activeCycle.definiteGoal || {};
+  const title =
+    (contract?.goalLabel || contract?.label || legacyGoal?.outcome || activeCycle?.direction || 'Untitled')
+      .trim() || 'Untitled';
+  const startISO = contract?.startDateISO || contract?.startISO || '';
+  const deadlineISO =
+    contract?.deadlineISO ||
+    contract?.deadline?.iso ||
+    contract?.deadline?.dayKey ||
+    legacyGoal?.deadlineDayKey ||
+    '';
+  const outcome =
+    contract?.terminalOutcome?.verificationCriteria ||
+    contract?.terminalOutcome?.text ||
+    legacyGoal?.outcome ||
+    '';
+  const cost =
+    contract?.sacrifice?.whatIsGivenUp ||
+    legacyGoal?.cost ||
+    '';
+  return {
+    title,
+    startISO,
+    deadlineISO,
+    outcome,
+    cost,
+    targetCount: contract?.target?.count ?? null,
+    targetUnit: contract?.target?.unit || '',
+    definitionOfDone: contract?.target?.definitionOfDone || '',
+    daysPerWeek: contract?.capacity?.daysPerWeek ?? null,
+    minutesPerDay: contract?.capacity?.minutesPerDay ?? null,
+    hasGoalContract: Boolean(contract)
+  };
+}
 
 export function StructurePageConsolidated() {
   const store = useIdentityStore();
@@ -34,6 +104,48 @@ export function StructurePageConsolidated() {
   } = store;
   const activeCycle = activeCycleId ? cyclesById[activeCycleId] : null;
   const hasAdmittedGoal = Boolean(activeCycle?.goalContract);
+  const timeZone = appTime?.timeZone || 'UTC';
+  const routeForecast = useMemo(() => {
+    const forecast = activeCycle?.coldPlan?.forecastByDayKey || {};
+    return Object.keys(forecast || {})
+      .map((dayKey) => ({
+        dayKey,
+        totalBlocks: forecast[dayKey].totalBlocks || 0,
+        byDeliverable: forecast[dayKey].byDeliverable || {},
+        summary: forecast[dayKey].summary || ''
+      }))
+      .filter((entry) => entry.totalBlocks > 0);
+  }, [activeCycle?.coldPlan]);
+  const contract = activeCycle?.goalContract || null;
+  const rawDraftItems = useMemo(
+    () =>
+      buildDraftScheduleItems({
+        suggestedBlocks: suggestedBlocks || [],
+        routeSuggestions: routeForecast,
+        contract,
+        timeZone,
+        contractStartDayKey: getContractStartDayKey(contract, timeZone),
+        defaults: {
+          todayKey: appTime?.activeDayKey || new Date().toISOString().split('T')[0],
+          primaryDomain: contract?.primaryDomain || 'FOCUS',
+          routeMinutes: planDraft?.routeMinutes || 30
+        }
+      }),
+    [suggestedBlocks, routeForecast, contract, timeZone, appTime?.activeDayKey, planDraft?.routeMinutes]
+  );
+  const visiblePreviewItems = useMemo(
+    () =>
+      selectVisiblePreviewItems({
+        cycle: activeCycle,
+        draftItems: rawDraftItems,
+        timeZone,
+        deadlineDayKey: getContractDeadlineDayKey(contract)
+      }),
+    [activeCycle, rawDraftItems, timeZone, contract]
+  );
+  const previewCount = visiblePreviewItems.length;
+  const definiteGoalView = buildDefiniteGoalView(activeCycle);
+  const existingGoalOutcomes = useMemo(() => getActiveGoalOutcomes(cyclesById), [cyclesById]);
 
   // Local state for Commit Schedule UI
   const [commitError, setCommitError] = useState(null);
@@ -136,7 +248,8 @@ export function StructurePageConsolidated() {
           onAspire={(notes) => {
             console.log('Aspirational notes:', notes);
           }}
-          appTimeISO={appTime}
+          existingGoalOutcomes={existingGoalOutcomes}
+          appTimeISO={appTime?.nowISO || new Date().toISOString()}
         />
 
         {/* Rejected Aspirations Display */}
@@ -186,24 +299,45 @@ export function StructurePageConsolidated() {
         </div>
       </div>
       {/* Goal Banner (Canonical, Read-Only) */}
-      {activeCycle && activeCycle.goalContract && (
+      {activeCycle && (
         <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4">
           <div className="text-xs uppercase tracking-[0.14em] text-muted mb-2">
             Definite Goal
           </div>
           <div className="space-y-2">
-            <div className="text-sm font-semibold text-jericho-text">
-              {activeCycle.goalContract.terminalOutcome?.text || 'Untitled'}
-            </div>
+            <div className="text-sm font-semibold text-jericho-text">{definiteGoalView.title}</div>
             <div className="text-xs text-muted space-y-1">
+              {definiteGoalView.startISO && definiteGoalView.deadlineISO ? (
+                <div>
+                  <span className="font-semibold">Plan window:</span>{' '}
+                  {formatDate(definiteGoalView.startISO)} → {formatDate(definiteGoalView.deadlineISO)}
+                </div>
+              ) : definiteGoalView.deadlineISO ? (
+                <div>
+                  <span className="font-semibold">Deadline:</span> {formatDate(definiteGoalView.deadlineISO)}
+                </div>
+              ) : (
+                <div>
+                  <span className="font-semibold">Deadline:</span> N/A
+                </div>
+              )}
+              {definiteGoalView.targetCount != null && definiteGoalView.targetUnit ? (
+                <div>
+                  <span className="font-semibold">Target:</span>{' '}
+                  {definiteGoalView.targetCount} {definiteGoalView.targetUnit}
+                </div>
+              ) : null}
+              {definiteGoalView.daysPerWeek && definiteGoalView.minutesPerDay ? (
+                <div>
+                  <span className="font-semibold">Capacity:</span>{' '}
+                  {definiteGoalView.daysPerWeek} days/week · {definiteGoalView.minutesPerDay} min/day
+                </div>
+              ) : null}
               <div>
-                <span className="font-semibold">Deadline:</span> {activeCycle.goalContract.deadline?.dayKey || 'N/A'}
+                <span className="font-semibold">Outcome:</span> {definiteGoalView.outcome || '—'}
               </div>
               <div>
-                <span className="font-semibold">Outcome:</span> {activeCycle.goalContract.terminalOutcome?.verificationCriteria || 'N/A'}
-              </div>
-              <div>
-                <span className="font-semibold">Cost:</span> {activeCycle.goalContract.sacrifice?.whatIsGivenUp || 'N/A'}
+                <span className="font-semibold">Cost:</span> {definiteGoalView.cost || '—'}
               </div>
             </div>
           </div>
@@ -419,39 +553,28 @@ export function StructurePageConsolidated() {
 
         {/* Status / guidance */}
         {!commitError && !lastPlanError && !commitLoading && (
-          <div className="text-xs text-muted/70">{(suggestedBlocks || []).length} proposed blocks available to commit.</div>
+          <div className="text-xs text-muted/70">{previewCount} proposed block{previewCount === 1 ? '' : 's'} available to commit.</div>
         )}
 
         <div className="flex items-center gap-2">
           <button
-            onClick={async () => {
+            onClick={() => {
               setCommitLoading(true);
               setCommitError(null);
-              try {
-                const count = (suggestedBlocks || []).length;
-                if (!count) {
-                  setCommitError('NO_PROPOSED_BLOCKS');
-                  setCommitLoading(false);
-                  return;
-                }
-                // Apply generated plan (atomic in reducer)
-                applyPlan && applyPlan();
-                // wait a tick for derived state to settle
-                await new Promise((r) => setTimeout(r, 200));
-                if (lastPlanError) {
-                  setCommitError(lastPlanError.reason || lastPlanError.code || 'PLAN_APPLY_FAILED');
-                  setCommitLoading(false);
-                  return;
-                }
-                setCommitLoading(false);
-                // show success confirmation
-                window.alert(`Committed ${count} blocks to calendar.`);
-              } catch (err) {
-                setCommitError(err?.message || 'Failed to commit schedule.');
-                setCommitLoading(false);
+              store.commitPreviewItems({ cycleId: activeCycleId, items: visiblePreviewItems });
+              setCommitLoading(false);
+              if (store.lastPlanError) {
+                setCommitError(store.lastPlanError.reason || store.lastPlanError.code);
+              } else {
+                window.alert(`Committed ${previewCount} block${previewCount === 1 ? '' : 's'} to calendar.`);
               }
             }}
-            disabled={commitLoading}
+            disabled={
+              commitLoading ||
+              isCycleReadOnly ||
+              visiblePreviewItems.length === 0 ||
+              suppressDrafts
+            }
             className="rounded-full border border-line/60 px-3 py-1.5 text-xs text-muted hover:text-jericho-accent disabled:opacity-50"
           >
             {commitLoading ? 'Committing...' : 'Apply Schedule to Calendar'}

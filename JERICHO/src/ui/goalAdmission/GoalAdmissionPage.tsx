@@ -44,6 +44,7 @@ export default function GoalAdmissionPage({
 }: GoalAdmissionPageProps) {
   const [showRejectionDetail, setShowRejectionDetail] = useState(false);
   const [aspirationNotes, setAspirationNotes] = useState('');
+  const disclosureAccepted = contract.commitmentDisclosureAccepted ?? false;
 
   // Phase 3: Mechanism class always defaults to GENERIC_DETERMINISTIC (v1 only)
   const mechanismClass = contract.planGenerationMechanismClass || 'GENERIC_DETERMINISTIC';
@@ -297,12 +298,36 @@ export default function GoalAdmissionPage({
         />
       </div>
 
+      <div className="flex items-start gap-3 text-xs text-muted/90 border rounded-lg border-line/60 bg-jericho-surface/90 p-3">
+        <label className="flex items-start gap-2">
+          <input
+            type="checkbox"
+            checked={disclosureAccepted}
+            onChange={(e) => {
+              onContractChange({
+                ...contract,
+                commitmentDisclosureAccepted: e.target.checked,
+                commitmentDisclosureAcceptedAtISO: e.target.checked ? new Date().toISOString() : undefined,
+              });
+            }}
+          />
+        </label>
+        <p>
+          I understand this goal equation is immutable once admitted. I may only change start date or deadline. Any other change requires starting a new cycle.
+        </p>
+      </div>
+
       {/* Action buttons */}
       <div className="flex gap-2 pt-4 border-t border-line/60">
+        <div className="text-[11px] text-muted/80">
+          {disclosureAccepted ? 'Disclosure accepted' : 'Disclosure required before admission'}
+        </div>
+        <div className="flex-1" />
         {isAdmissible ? (
           <button
-            className="flex-1 rounded-lg border border-green-600 bg-green-600 text-white px-4 py-2 text-sm font-semibold hover:bg-green-700"
+            className="flex-1 rounded-lg border border-green-600 bg-green-600 text-white px-4 py-2 text-sm font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={() => onAdmit(validationResult)}
+            disabled={!disclosureAccepted}
           >
             Admit Goal to Calendar
           </button>

@@ -27,12 +27,12 @@ function buildInitialIdentityState() {
     return hydrated;
   }
 
-  const todayDate = '2025-12-09';
   const deviceTimeZone =
     typeof Intl !== 'undefined' && Intl.DateTimeFormat().resolvedOptions
       ? Intl.DateTimeFormat().resolvedOptions().timeZone
       : 'UTC';
   const nowISO = new Date().toISOString();
+  const todayDate = dayKeyFromISO(nowISO, deviceTimeZone);
   const activeDayKey = dayKeyFromISO(nowISO, deviceTimeZone);
   const blocks = [
     {
@@ -523,7 +523,9 @@ export function IdentityProvider({ children, initialState }) {
     []
   );
   const generatePlan = useCallback(() => dispatch({ type: 'GENERATE_PLAN' }), []);
+  const commitPreviewItems = useCallback((payload) => dispatch({ type: 'COMMIT_PREVIEW_ITEMS', payload }), []);
   const applyPlan = useCallback(() => dispatch({ type: 'APPLY_PLAN' }), []);
+  const applyDraftSchedule = useCallback(() => dispatch({ type: 'APPLY_DRAFT_SCHEDULE' }), []);
   const setStrategy = useCallback((payload) => dispatch({ type: 'SET_STRATEGY', payload }), []);
   const generateColdPlan = useCallback(() => dispatch({ type: 'GENERATE_COLD_PLAN' }), []);
   const rebaseColdPlan = useCallback(() => dispatch({ type: 'REBASE_COLD_PLAN' }), []);
@@ -624,7 +626,9 @@ export function IdentityProvider({ children, initialState }) {
         applyNextSuggestion,
         setCalibrationDays,
         generatePlan,
+        commitPreviewItems,
         applyPlan,
+        applyDraftSchedule,
         setStrategy,
         generateColdPlan,
         rebaseColdPlan,
@@ -648,7 +652,8 @@ export function IdentityProvider({ children, initialState }) {
         setPatternTargets
         ,
         attemptGoalAdmission,
-        archiveAndCloneCycle
+        archiveAndCloneCycle,
+        commitPreviewItems
       }
     },
     children
@@ -783,8 +788,12 @@ export function attemptGoalAdmissionPure(state, contract) {
   ensureCycleStructures(draft);
   const nowISO = draft.appTime?.nowISO || new Date().toISOString();
 
-  const existingOutcomes = Object.values(draft.cyclesById || {})
+  const activeCycles = Object.values(draft.cyclesById || {}).filter((cycle) => cycle?.status === 'Active');
+  const existingOutcomes = activeCycles
     .map((c) => (c?.goalContract?.terminalOutcome?.text || c?.definiteGoal?.outcome || ''))
+    .filter(Boolean);
+  const activeGoalSignatures = activeCycles
+    .map((c) => c?.goalHash || c?.goalContract?.inscription?.contractHash)
     .filter(Boolean);
 
   // Check for compound goal (multiple outcomes) - POLICY ENFORCEMENT
@@ -820,7 +829,7 @@ export function attemptGoalAdmissionPure(state, contract) {
     };
   }
 
-  const validation = validateGoalAdmission(contract, nowISO, existingOutcomes);
+  const validation = validateGoalAdmission(contract, nowISO, existingOutcomes, activeGoalSignatures);
 
   if (validation.status === 'REJECTED') {
     const aspirationId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;

@@ -36,9 +36,13 @@ import { computeInscriptionHash } from '../../utils/inscriptionHash';
 export function validateGoalAdmission(
   contract: GoalExecutionContract,
   nowISO: string,
-  existingGoalOutcomes?: string[]
+  existingGoalOutcomes?: string[],
+  activeGoalSignatures: string[] = []
 ): GoalAdmissionResult {
   const rejectionCodes: GoalRejectionCode[] = [];
+  const candidateHash = computeContractHash(contract);
+  const isDuplicateInActiveScope = () =>
+    activeGoalSignatures.some((signature) => signature === candidateHash);
 
   // Phase 0: Plan generation mechanism (Phase 3 requirement)
   // Phase 3 v1 only supports GENERIC_DETERMINISTIC
@@ -47,6 +51,10 @@ export function validateGoalAdmission(
   } else if (contract.planGenerationMechanismClass !== 'GENERIC_DETERMINISTIC') {
     // Phase 3 v1: only GENERIC_DETERMINISTIC is implemented
     rejectionCodes.push(GoalRejectionCode.PLAN_GENERATION_MECHANISM_UNSUPPORTED);
+  }
+
+  if (!contract.commitmentDisclosureAccepted) {
+    rejectionCodes.push(GoalRejectionCode.REJECT_DISCLOSURE_REQUIRED);
   }
 
   // Phase 1: Inscription integrity (immutability)
@@ -183,6 +191,10 @@ export function validateGoalAdmission(
     if (existingGoalOutcomes.some((existing) => existing.toLowerCase() === outcomeText)) {
       rejectionCodes.push(GoalRejectionCode.DUPLICATE_ACTIVE);
     }
+  }
+
+  if (isDuplicateInActiveScope()) {
+    rejectionCodes.push(GoalRejectionCode.DUPLICATE_ACTIVE);
   }
 
   // Build result
