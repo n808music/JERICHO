@@ -41,5 +41,19 @@ export function checkInvariants(state) {
     });
   }
 
+  // INV-003: No Orphaned References
+  const goals = state.goals || [];
+  const goalStrings = goals.map(g => typeof g === 'string' ? g : g?.raw || g?.text || '');
+
+  for (const task of tasks) {
+    if (task.goalLink && !goalStrings.includes(task.goalLink)) {
+      violations.push({
+        invariant: 'INV-003',
+        message: `Task "${task.id}" references non-existent goal "${task.goalLink}"`,
+        context: { taskId: task.id, goalLink: task.goalLink, availableGoals: goalStrings }
+      });
+    }
+  }
+
   return { valid: violations.length === 0, violations };
 }

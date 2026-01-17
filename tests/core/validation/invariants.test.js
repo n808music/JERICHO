@@ -56,3 +56,27 @@ describe('INV-002: Integrity count coherence', () => {
     expect(result.violations.some(v => v.invariant === 'INV-002')).toBe(true);
   });
 });
+
+describe('INV-003: No orphaned references', () => {
+  it('passes when task.goalLink references existing goal', () => {
+    const state = {
+      tasks: [{ id: 'task-1', status: 'pending', goalLink: 'Test goal' }],
+      history: [],
+      goals: ['Test goal'],
+      integrity: { score: 0, completedCount: 0, pendingCount: 1 }
+    };
+    const result = checkInvariants(state);
+    expect(result.violations.filter(v => v.invariant === 'INV-003')).toEqual([]);
+  });
+
+  it('fails when task.goalLink references non-existent goal', () => {
+    const state = {
+      tasks: [{ id: 'task-1', status: 'pending', goalLink: 'Non-existent goal' }],
+      history: [],
+      goals: ['Different goal'],
+      integrity: { score: 0, completedCount: 0, pendingCount: 1 }
+    };
+    const result = checkInvariants(state);
+    expect(result.violations.some(v => v.invariant === 'INV-003')).toBe(true);
+  });
+});
