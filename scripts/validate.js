@@ -2,6 +2,13 @@
 import { safeReadState } from '../src/data/storage.js';
 import { aggregateHealthCheck } from '../src/core/validation/health.js';
 
+/**
+ * Runs validation checks against the persisted application state and prints a health report.
+ *
+ * Reads the stored state, computes aggregate health, logs overall status, timestamp,
+ * schema validation results, and invariant violations, then exits the process:
+ * exit code 0 when health.status === 'healthy', otherwise exit code 1.
+ */
 async function main() {
   console.log('Running validation checks...\n');
 
