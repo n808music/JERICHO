@@ -1,5 +1,29 @@
 import { getConfig } from './config.js';
 
+const VALID_TASK_STATUSES = ['pending', 'completed', 'missed'];
+
+export function validateTask(task) {
+  const errors = [];
+
+  if (!task || typeof task !== 'object') {
+    return { ok: false, errors: ['task_invalid'] };
+  }
+
+  if (!task.id || typeof task.id !== 'string') {
+    errors.push('task_missing_id');
+  }
+  if (!task.domain || typeof task.domain !== 'string') {
+    errors.push('task_missing_domain');
+  }
+  if (!task.status) {
+    errors.push('task_missing_status');
+  } else if (!VALID_TASK_STATUSES.includes(task.status)) {
+    errors.push('task_invalid_status');
+  }
+
+  return { ok: errors.length === 0, errors };
+}
+
 export function validateState(state) {
   const errors = [];
   const cfg = getConfig().integrity;
