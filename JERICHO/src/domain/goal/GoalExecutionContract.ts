@@ -140,6 +140,10 @@ export interface GoalExecutionContract {
   // Immutability
   inscription: Inscription;
   
+  // Commitment disclosure
+  commitmentDisclosureAccepted?: boolean;
+  commitmentDisclosureAcceptedAtISO?: string;
+  
   // Meta
   admissionStatus: 'PENDING' | 'ADMITTED' | 'ASPIRED' | 'REJECTED' | 'ENDED';
   admissionAttemptCount: number;

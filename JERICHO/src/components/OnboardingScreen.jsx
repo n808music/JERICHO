@@ -27,7 +27,7 @@ const formatShortDate = (date) => {
   if (!date) return '—';
   const iso = new Date(`${date}T00:00:00`);
   if (Number.isNaN(iso.getTime())) return 'Invalid date';
-  return iso.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return iso.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
 const computeDaysUntil = (date) => {
@@ -64,39 +64,9 @@ export default function OnboardingScreen({ onComplete }) {
   const targetNumber = Number(targetCount);
   const daysNumber = Number(daysPerWeek);
   const minutesNumber = Number(minutesPerDay);
+  const trimmedTargetUnit = (targetUnit || '').trim();
+  const trimmedDefinition = (definitionOfDone || '').trim();
 
-  const statusItems = useMemo(() => {
-    const objectiveDefined = Boolean(objectiveType);
-    const startSet = Boolean(startDate);
-    const deadlineSet = Boolean(deadline);
-    const capacity = Boolean(daysNumber >= 1 && minutesNumber >= 1);
-    const primarySet = Boolean(primaryDomain);
-    const workModeSet = Boolean(workMode);
-    const targetCountSet = Boolean(targetCount && targetNumber > 0);
-    const targetUnitSet = Boolean(targetUnit);
-    return [
-      { label: 'Objective defined', summary: 'Objective', satisfied: objectiveDefined },
-      { label: 'Start date set', summary: 'Start date', satisfied: startSet },
-      { label: 'Deadline set', summary: 'Deadline', satisfied: deadlineSet },
-      { label: 'Capacity set', summary: 'Capacity', satisfied: capacity },
-      { label: 'Primary domain selected', summary: 'Primary domain', satisfied: primarySet },
-      { label: 'Work mode selected', summary: 'Work mode', satisfied: workModeSet },
-      { label: 'Target count set', summary: 'Target count', satisfied: targetCountSet },
-      { label: 'Target unit selected', summary: 'Target unit', satisfied: targetUnitSet }
-    ];
-  }, [
-    objectiveType,
-    startDate,
-    deadline,
-    daysNumber,
-    minutesNumber,
-    primaryDomain,
-    workMode,
-    targetCount,
-    targetUnit
-  ]);
-
-  const missingFields = statusItems.filter((item) => !item.satisfied).map((item) => item.summary || item.label);
   const startDateObj = startDate ? new Date(`${startDate}T00:00:00`) : null;
   const deadlineObj = deadline ? new Date(`${deadline}T00:00:00`) : null;
   const windowDays =
@@ -105,19 +75,47 @@ export default function OnboardingScreen({ onComplete }) {
       : null;
   const invalidWindow = startDateObj && deadlineObj && deadlineObj < startDateObj;
   const minutesPerWeek = daysNumber * minutesNumber;
-  const planWindowMessage = (() => {
-    if (startDate && deadline && windowDays !== null) {
-      return `Plan window: ${formatShortDate(startDate)} → ${formatShortDate(deadline)} (${windowDays} days)`;
-    }
-    if (startDate) return 'Plan window: Start date set — pick a deadline';
-    if (deadline) return 'Plan window: Deadline set — pick a start date';
-    return 'Plan window: Not set';
-  })();
-  const planWindowSecondary = windowDays ? `About ${Math.round(windowDays / 7)} weeks.` : null;
+  const targetLine =
+    targetNumber > 0 && trimmedTargetUnit ? `Target: ${targetNumber} ${trimmedTargetUnit}` : 'Target: Not set';
+  const planWindowLine =
+    startDate && deadline && windowDays !== null
+      ? `Plan window: ${formatShortDate(startDate)} → ${formatShortDate(deadline)} (${windowDays} days)`
+      : 'Plan window: Not set';
+  const minutesLine = `Weekly time: ${minutesPerWeek} minutes`;
+
+  const requirementChecks = useMemo(
+    () => [
+      { label: 'Objective', satisfied: Boolean(objectiveType) },
+      { label: 'Start date', satisfied: Boolean(startDate) },
+      { label: 'Deadline', satisfied: Boolean(deadline) },
+      { label: 'Capacity', satisfied: daysNumber >= 1 && minutesNumber >= 1 },
+      { label: 'Primary domain', satisfied: Boolean(primaryDomain) },
+      { label: 'Work mode', satisfied: Boolean(workMode) },
+      { label: 'Target count', satisfied: targetNumber > 0 },
+      { label: 'Target unit', satisfied: Boolean(trimmedTargetUnit) },
+      { label: 'Definition of done', satisfied: Boolean(trimmedDefinition) }
+    ],
+    [
+      objectiveType,
+      startDate,
+      deadline,
+      daysNumber,
+      minutesNumber,
+      primaryDomain,
+      workMode,
+      targetNumber,
+      trimmedTargetUnit,
+      trimmedDefinition
+    ]
+  );
+  const missingFields = requirementChecks.filter((item) => !item.satisfied).map((item) => item.label);
   const contractValid = missingFields.length === 0 && !invalidWindow;
   const showStartError = attemptedSubmit && !startDate;
   const showDeadlineError = attemptedSubmit && !deadline;
   const showWindowError = attemptedSubmit && invalidWindow;
+  const showTargetCountError = attemptedSubmit && !(targetNumber > 0);
+  const showTargetUnitError = attemptedSubmit && !trimmedTargetUnit;
+  const showDefinitionError = attemptedSubmit && !trimmedDefinition;
 
   const handleObjectiveTypeChange = (value) => {
     setObjectiveType(value);
@@ -132,14 +130,14 @@ export default function OnboardingScreen({ onComplete }) {
     const directionLabel = OBJECTIVE_TYPES.find((option) => option.value === objectiveType)?.label || 'Goal';
     const direction = (goalLabel || directionLabel).trim();
     const goalText = direction;
-    const successDefinition = direction || `${targetNumber || 0} ${targetUnit}`.trim();
+    const successDefinition = direction || `${targetNumber || 0} ${trimmedTargetUnit}`.trim();
     const contract = {
       label: goalLabel.trim(),
       objectiveType,
       target: {
         count: targetNumber,
-        unit: targetUnit,
-        definitionOfDone: definitionOfDone.trim()
+        unit: trimmedTargetUnit,
+        definitionOfDone: trimmedDefinition
       },
       deadlineISO: deadline ? `${deadline}T23:59:59.000Z` : undefined,
       startDateISO: startDate ? `${startDate}T00:00:00.000Z` : undefined,
@@ -252,8 +250,10 @@ export default function OnboardingScreen({ onComplete }) {
                 onChange={(e) => setTargetCount(e.target.value)}
                 placeholder="e.g., 6"
               />
-              <p className="text-[11px] text-muted">How many you want by the deadline. Example: 6.</p>
-              {attemptedSubmit && !targetCount ? (
+              <p className="text-[11px] text-muted">
+                How many units you’re aiming to complete. Example: 6.
+              </p>
+              {showTargetCountError ? (
                 <span className="text-[11px] text-amber-600">Target count is required.</span>
               ) : null}
             </label>
@@ -276,12 +276,12 @@ export default function OnboardingScreen({ onComplete }) {
               <p className="text-[11px] text-muted">
                 What the number counts. Example: songs recorded (rough takes).
               </p>
-              {attemptedSubmit && !targetUnit ? (
+              {showTargetUnitError ? (
                 <span className="text-[11px] text-amber-600">Target unit is required.</span>
               ) : null}
             </label>
             <label className="block space-y-1 text-sm">
-              <span className="text-muted">Definition of done (optional)</span>
+              <span className="text-muted">Definition of done</span>
               <textarea
                 rows={2}
                 className="w-full rounded-lg border border-line/60 bg-jericho-bg px-3 py-2"
@@ -290,8 +290,11 @@ export default function OnboardingScreen({ onComplete }) {
                 placeholder="Count it when..."
               />
               <p className="text-[11px] text-muted">
-                When should one unit count as done? Example: rough vocal take + bounce exported.
+                What “done” means in plain terms. Example: 6 songs written + rough recorded.
               </p>
+              {showDefinitionError ? (
+                <span className="text-[11px] text-amber-600">Definition of done is required.</span>
+              ) : null}
             </label>
           </div>
           <div className="grid gap-4 sm:grid-cols-1">
@@ -425,17 +428,14 @@ export default function OnboardingScreen({ onComplete }) {
           <div className="rounded-lg border border-line/60 bg-jericho-bg px-4 py-3 text-xs space-y-2">
             <p className="text-[11px] uppercase tracking-[0.18em] text-muted">Plan preview</p>
             <p>We will generate work sessions based on your available time.</p>
-            <p className="text-muted">
-              Target: {targetCount && targetUnit ? `${targetCount} ${targetUnit}` : 'Not set'}
-            </p>
-            <p className="text-muted">Weekly time: {minutesPerWeek} minutes</p>
-            <p className="text-muted">{planWindowMessage}</p>
-            {planWindowSecondary ? <p className="text-muted">{planWindowSecondary}</p> : null}
+            <p className="text-muted">{targetLine}</p>
+            <p className="text-muted">{minutesLine}</p>
+            <p className="text-muted">{planWindowLine}</p>
           </div>
           <div className="rounded-lg border border-amber-200/70 bg-amber-50/60 px-4 py-3 text-xs space-y-2">
             <p className="text-[11px] uppercase tracking-[0.18em] text-muted">Contract status</p>
             <div className="grid gap-2">
-              {statusItems.map((item) => (
+              {requirementChecks.map((item) => (
                 <div key={item.label} className="flex items-center gap-2">
                   <span aria-hidden="true">{item.satisfied ? '✅' : '⚠'}</span>
                   <span className={`${item.satisfied ? 'text-jericho-text' : 'text-muted'}`}>{item.label}</span>
@@ -443,10 +443,8 @@ export default function OnboardingScreen({ onComplete }) {
               ))}
             </div>
           </div>
-          {!contractValid ? (
-            <p className="text-xs text-amber-600">
-              Missing: {missingFields.join(', ')}
-            </p>
+          {missingFields.length > 0 ? (
+            <p className="text-xs text-amber-600">Missing: {missingFields.join(', ')}</p>
           ) : null}
           <div className="flex justify-end">
             <button

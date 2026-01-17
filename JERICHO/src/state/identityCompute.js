@@ -26,6 +26,7 @@ import { summarizeCycle } from './cycleSummary.ts';
 import { computeProfileLearning } from './learning.ts';
 import { computeTerminalConvergence } from './convergenceTerminal.ts';
 import { rolloverAtMidnight, shouldRollover } from '../core/engine/rollover.ts';
+import { buildDraftScheduleItems } from './draftSchedule.js';
 
 /**
  * @typedef {import('./identityTypes.js').IdentityState} IdentityState
@@ -240,7 +241,57 @@ export function computeDerivedState(state, action) {
     case 'APPLY_PLAN':
       applyGeneratedPlan(next);
       break;
-    case 'SET_STRATEGY':
+    case 'APPLY_DRAFT_SCHEDULE':
+      applyDraftSchedule(next);
+      break;
+    case 'COMMIT_PREVIEW_ITEMS': {
+      const payload = action.payload || {};
+      const cycleId = payload.cycleId || next.activeCycleId;
+      const items = Array.isArray(payload.items) ? payload.items : [];
+      const cycle = cycleId ? next.cyclesById?.[cycleId] : null;
+      if (!cycle) {
+        next.lastPlanError = {
+          code: 'CYCLE_NOT_FOUND',
+          reason: 'Active cycle missing for commit.'
+        };
+        break;
+      }
+      if (items.length === 0) {
+        next.lastPlanError = {
+          code: 'NO_PROPOSED_BLOCKS',
+          reason: 'No preview items to commit.'
+        };
+        break;
+      }
+      const goalId = cycle.goalContract?.goalId || next.goalExecutionContract?.goalId;
+      items.forEach((item, index) => {
+        const startISO = item.startISO || (item.dayKey ? `${item.dayKey}T09:00:00.000Z` : null);
+        const minutes = Number.isFinite(item.minutes) ? item.minutes : Number.isFinite(item.durationMin) ? item.durationMin : 30;
+        const title = item.title?.trim() ? item.title.trim() : `Planned work ${index + 1}`;
+        if (!startISO || !title) {
+          next.lastPlanError = {
+            code: 'INVALID_PREVIEW_ITEM',
+            reason: `Preview item ${index + 1} missing required metadata.`
+          };
+          return;
+        }
+        createBlock(next, {
+          cycleId,
+          goalId,
+          startISO,
+          durationMinutes: minutes,
+          domain: item.domainKey || 'FOCUS',
+          title,
+          origin: 'preview_commit',
+          surface: 'today'
+        });
+      });
+      if (!next.lastPlanError || next.lastPlanError.code !== 'INVALID_PREVIEW_ITEM') {
+        next.lastPlanError = null;
+      }
+      break;
+    }
+  case 'SET_STRATEGY':
       setStrategy(next, action.payload);
       break;
     case 'GENERATE_COLD_PLAN':
@@ -3122,6 +3173,7 @@ function archiveAndCloneCycle(state, cycleId, overrides = {}) {
 
 function generatePlan(state) {
   const contract = state.goalExecutionContract;
+  state.draftScheduleAppliedAtISO = null;
   const plan = state.planDraft;
   const cycle = getActiveCycle(state);
   if (!cycle || !contract) return;
@@ -3251,6 +3303,62 @@ function applyGeneratedPlan(state) {
   });
   cycle.lastPlanAppliedAtISO = nowISO;
   state.cyclesById[cycle.id] = cycle;
+}
+
+function applyDraftSchedule(state) {
+  const cycle = getActiveCycle(state);
+  const contract = cycle?.goalContract || state.goalExecutionContract;
+  if (!cycle || !contract) return;
+  const suggestedBlocks = state.suggestedBlocks || [];
+  const forecastByDay = (cycle?.coldPlan?.forecastByDayKey || {}) || {};
+  const routeSuggestions = Object.keys(forecastByDay || {})
+    .map((dayKey) => {
+      const entry = forecastByDay[dayKey] || {};
+      return {
+        dayKey,
+        totalBlocks: entry.totalBlocks || 0,
+        summary: entry.summary || '',
+        byDeliverable: entry.byDeliverable || {}
+      };
+    })
+    .filter((entry) => entry.totalBlocks > 0);
+  const timeZone = state.appTime?.timeZone || 'UTC';
+  const draftItems = buildDraftScheduleItems({
+    suggestedBlocks,
+    routeSuggestions,
+    contract,
+    timeZone,
+    defaults: {
+      todayKey: state.appTime?.activeDayKey || state.today?.date || nowDayKey(timeZone),
+      primaryDomain: contract?.primaryDomain || 'FOCUS',
+      routeMinutes: state.planDraft?.routeMinutes || 30
+    }
+  });
+  draftItems.forEach((item) => {
+    if (!item.startISO) return;
+    const duration = Number.isFinite(item.minutes) ? item.minutes : 30;
+    const startDate = new Date(item.startISO);
+    if (!Number.isFinite(startDate.getTime())) return;
+    const endDate = new Date(startDate.getTime() + duration * 60000);
+    handleDraftBlockCreate(state, {
+      startISO: item.startISO,
+      endISO: endDate.toISOString(),
+      domain: item.domainKey,
+      title: item.title,
+      cycleId: cycle.id,
+      goalId: contract.goalId,
+      minutes: duration,
+      deliverableId: item.payload?.deliverableId,
+      criterionId: item.payload?.criterionId
+    });
+  });
+  state.draftScheduleAppliedAtISO = state.appTime?.nowISO || new Date().toISOString();
+  state.suggestedBlocks = [];
+  state.suggestionEvents = [];
+  state.planDraft = null;
+  state.planPreview = null;
+  cycle.autoAsanaPlan = null;
+  cycle.coldPlan = { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } };
 }
 
 function setDefiniteGoal(state, payload = {}) {

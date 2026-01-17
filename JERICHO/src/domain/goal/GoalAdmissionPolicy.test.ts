@@ -10,93 +10,9 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  GoalExecutionContract,
-  TerminalOutcome,
-  SacrificeDeclaration,
-  TemporalBinding,
-  CausalChain,
-  ReinforcementDisclosure,
-  Inscription,
-} from './GoalExecutionContract';
-import {
-  validateGoalAdmission,
-  verifyContractIntegrity,
-  hashField,
-  computeContractHash,
-} from './GoalAdmissionPolicy';
+import { validateGoalAdmission, verifyContractIntegrity } from './GoalAdmissionPolicy';
 import { GoalRejectionCode } from './GoalRejectionCode';
-
-const NOW_ISO = '2026-01-10T12:00:00.000Z';
-const DEADLINE_VALID = '2026-02-15'; // 36 days away
-
-// Helper: create a minimal valid contract
-function createValidContract(overrides: Partial<GoalExecutionContract> = {}): GoalExecutionContract {
-  const base: GoalExecutionContract = {
-    goalId: 'goal-1',
-    cycleId: 'cycle-1',
-    planGenerationMechanismClass: 'GENERIC_DETERMINISTIC',
-    terminalOutcome: {
-      text: 'Complete the JERICHO implementation',
-      hash: hashField('Complete the JERICHO implementation'),
-      verificationCriteria: 'All modules deployed and tested in production',
-      isConcrete: true,
-    },
-    deadline: {
-      dayKey: DEADLINE_VALID,
-      isHardDeadline: true,
-    },
-    sacrifice: {
-      whatIsGivenUp: 'Free time on weekends',
-      duration: 'Until February 15',
-      quantifiedImpact: '8 hours/week',
-      rationale: 'Weekend time needed for focused development',
-      hash: hashField('Free time on weekends'),
-    },
-    temporalBinding: {
-      daysPerWeek: 5,
-      activationTime: '09:00',
-      sessionDurationMinutes: 120,
-      weeklyMinutes: 600,
-      startDayKey: '2026-01-10',
-    },
-    causalChain: {
-      steps: [
-        { sequence: 1, description: 'Design API schema', approximateDayOffset: 7 },
-        { sequence: 2, description: 'Implement core services', approximateDayOffset: 14 },
-        { sequence: 3, description: 'Build UI components', approximateDayOffset: 21 },
-        { sequence: 4, description: 'Deploy to production', approximateDayOffset: 35 },
-      ],
-      hash: hashField('design-implement-build-deploy'),
-    },
-    reinforcement: {
-      dailyExposureEnabled: true,
-      dailyMechanism: 'Calendar block title + dashboard banner',
-      checkInFrequency: 'DAILY',
-      triggerDescription: 'Every morning at 6 AM',
-    },
-    inscription: {
-      contractHash: 'abc123def456',
-      inscribedAtISO: NOW_ISO,
-      acknowledgment: 'I understand this is binding',
-      acknowledgmentHash: hashField('I understand this is binding'),
-      isCompromised: false,
-    },
-    admissionStatus: 'PENDING',
-    admissionAttemptCount: 0,
-    rejectionCodes: [],
-    createdAtISO: NOW_ISO,
-    isAspirational: false,
-  };
-  const contract = {
-    ...base,
-    ...overrides,
-  } as GoalExecutionContract;
-  if (contract.inscription) {
-    contract.inscription.contractHash = computeContractHash(contract);
-  }
-  return contract;
-}
+import { buildValidGoalContract } from './testHelpers';
 
 describe('GoalAdmissionPolicy', () => {
   describe('validateGoalAdmission', () => {
@@ -263,6 +179,20 @@ describe('GoalAdmissionPolicy', () => {
 
       expect(result.status).toBe('REJECTED');
       expect(result.rejectionCodes).toContain(GoalRejectionCode.ASPIRATIONAL_ONLY);
+    });
+
+    it('requires commitment disclosure before admission', () => {
+      const contract = createValidContract();
+      contract.commitmentDisclosureAccepted = false;
+      const rejected = validateGoalAdmission(contract, NOW_ISO);
+      expect(rejected.status).toBe('REJECTED');
+      expect(rejected.rejectionCodes).toContain(GoalRejectionCode.REJECT_DISCLOSURE_REQUIRED);
+
+      const accepted = createValidContract();
+      accepted.commitmentDisclosureAccepted = true;
+      accepted.commitmentDisclosureAcceptedAtISO = NOW_ISO;
+      const result = validateGoalAdmission(accepted, NOW_ISO);
+      expect(result.status).toBe('ADMITTED');
     });
 
     it('rejects duplicate active goals', () => {

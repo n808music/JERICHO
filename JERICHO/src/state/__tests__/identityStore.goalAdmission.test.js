@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { attemptGoalAdmissionPure } from '../identityStore.js';
 import { computeContractHash } from '../../domain/goal/GoalAdmissionPolicy.ts';
+import { GoalRejectionCode } from '../../domain/goal/GoalRejectionCode.ts';
 
 const NOW_ISO = '2026-01-10T12:00:00.000Z';
 
@@ -16,7 +17,7 @@ function buildMinimalState() {
   };
 }
 
-function createValidContract() {
+function createValidContract(overrides = {}) {
   const contract = {
     planGenerationMechanismClass: 'GENERIC_DETERMINISTIC',
     terminalOutcome: { text: 'Ship MVP feature X', hash: '', verificationCriteria: 'Feature is live', isConcrete: true },
@@ -29,6 +30,10 @@ function createValidContract() {
     isAspirational: false
   };
   // compute and populate hashes
+  Object.assign(contract.terminalOutcome, overrides.terminalOutcome || {});
+  Object.assign(contract.sacrifice, overrides.sacrifice || {});
+  Object.assign(contract.causalChain, overrides.causalChain || {});
+  Object.assign(contract.temporalBinding, overrides.temporalBinding || {});
   contract.inscription.contractHash = computeContractHash(contract);
   contract.terminalOutcome.hash = contract.inscription.contractHash.slice(0, 16);
   contract.sacrifice.hash = contract.inscription.contractHash.slice(16, 32);
@@ -85,5 +90,68 @@ describe('identityStore.attemptGoalAdmissionPure', () => {
     expect(nextState.aspirations.length).toBe(0);
     // stored goal hash must match inscription.contractHash
     expect(nextState.cyclesById[result.cycleId].goalHash).toBe(goodContract.inscription.contractHash);
+  });
+
+  it('rejects a duplicate goal in the same active cycle', () => {
+    const state = buildMinimalState();
+    const contract = createValidContract();
+
+    const first = attemptGoalAdmissionPure(state, contract);
+    expect(first.result.status).toBe('ADMITTED');
+    const second = attemptGoalAdmissionPure(first.nextState, contract);
+    expect(second.result.status).toBe('REJECTED');
+    expect(second.result.rejectionCodes).toContain(GoalRejectionCode.DUPLICATE_ACTIVE);
+    expect(second.nextState.activeCycleId).toBe(first.result.cycleId);
+  });
+
+  it('allows the same goal to be admitted in a new cycle after ending the previous one', () => {
+    const state = buildMinimalState();
+    const contract = createValidContract();
+
+    const first = attemptGoalAdmissionPure(state, contract);
+    expect(first.result.status).toBe('ADMITTED');
+
+    const blankCycleId = 'cycle-blank';
+    const newState = JSON.parse(JSON.stringify(first.nextState));
+    newState.cyclesById[first.result.cycleId].status = 'Ended';
+    newState.cyclesById[blankCycleId] = {
+      id: blankCycleId,
+      status: 'Active',
+      createdAtISO: '2026-01-10T00:00:00.000Z',
+      goalContract: null,
+      goalHash: null,
+      executionEvents: [],
+      suggestionEvents: [],
+      suggestedBlocks: [],
+      truthEntries: []
+    };
+    newState.activeCycleId = blankCycleId;
+
+    const second = attemptGoalAdmissionPure(newState, contract);
+    expect(second.result.status).toBe('ADMITTED');
+    expect(second.nextState.activeCycleId).toBe(second.result.cycleId);
+    expect(second.nextState.cyclesById[second.result.cycleId].goalHash).toBe(contract.inscription.contractHash);
+    expect(second.nextState.cyclesById[first.result.cycleId].status).toBe('Ended');
+  });
+
+  it('rejects duplicates when multiple active cycles share the same signature', () => {
+    const state = buildMinimalState();
+    const contract = createValidContract({ terminalOutcome: { text: 'Duplicate goal' } });
+    // create two active cycles with same terminal outcome
+    state.cyclesById['cycle-1'] = {
+      id: 'cycle-1',
+      status: 'Active',
+      goalContract: { terminalOutcome: { text: 'Duplicate goal' } }
+    };
+    state.cyclesById['cycle-2'] = {
+      id: 'cycle-2',
+      status: 'Active',
+      goalContract: { terminalOutcome: { text: 'Duplicate goal' } }
+    };
+    state.activeCycleId = 'cycle-1';
+
+    const result = attemptGoalAdmissionPure(state, contract);
+    expect(result.result.status).toBe('REJECTED');
+    expect(result.result.rejectionCodes).toContain(GoalRejectionCode.DUPLICATE_ACTIVE);
   });
 });

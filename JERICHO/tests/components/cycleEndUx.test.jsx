@@ -91,7 +91,7 @@ describe('Cycle end UX polish', () => {
 
     expect(screen.getByText(/Cycle ended — Read only/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: /Start new cycle/i })).toBeTruthy();
-    const addBlockButton = screen.getByRole('button', { name: /Add block/i });
+    const addBlockButton = screen.getByRole('button', { name: /^Add$/i });
     expect(addBlockButton).toBeDisabled();
     expect(screen.getByText(/Completion rate/)).toBeTruthy();
     expect(screen.getByText(/Captured 0 update\(s\)/i)).toBeTruthy();
