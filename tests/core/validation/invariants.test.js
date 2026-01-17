@@ -80,3 +80,34 @@ describe('INV-003: No orphaned references', () => {
     expect(result.violations.some(v => v.invariant === 'INV-003')).toBe(true);
   });
 });
+
+describe('INV-004: Identity level bounds', () => {
+  it('passes when all levels are 1-5', () => {
+    const state = {
+      tasks: [],
+      history: [],
+      goals: [],
+      identity: {
+        focus: { 'deep-work': { level: 3 } },
+        health: { 'movement': { level: 5 } }
+      },
+      integrity: { score: 0, completedCount: 0, pendingCount: 0 }
+    };
+    const result = checkInvariants(state);
+    expect(result.violations.filter(v => v.invariant === 'INV-004')).toEqual([]);
+  });
+
+  it('fails when level is out of bounds', () => {
+    const state = {
+      tasks: [],
+      history: [],
+      goals: [],
+      identity: {
+        focus: { 'deep-work': { level: 10 } }
+      },
+      integrity: { score: 0, completedCount: 0, pendingCount: 0 }
+    };
+    const result = checkInvariants(state);
+    expect(result.violations.some(v => v.invariant === 'INV-004')).toBe(true);
+  });
+});

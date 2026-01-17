@@ -55,5 +55,21 @@ export function checkInvariants(state) {
     }
   }
 
+  // INV-004: Identity Level Bounds
+  const identity = state.identity || {};
+  for (const [domain, capabilities] of Object.entries(identity)) {
+    if (typeof capabilities !== 'object' || capabilities === null) continue;
+    for (const [capability, data] of Object.entries(capabilities)) {
+      const level = data?.level;
+      if (level !== undefined && (typeof level !== 'number' || level < 1 || level > 5 || !Number.isInteger(level))) {
+        violations.push({
+          invariant: 'INV-004',
+          message: `Identity level for ${domain}.${capability} is out of bounds: ${level}`,
+          context: { domain, capability, level }
+        });
+      }
+    }
+  }
+
   return { valid: violations.length === 0, violations };
 }
