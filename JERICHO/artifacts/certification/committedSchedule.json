@@ -1,0 +1,149 @@
+{
+  "dayKey": "2026-01-08",
+  "blocks": [
+    {
+      "id": "blk-auto-cycle-2026-01-10-1-2026-01-08-0",
+      "dayKey": "2026-01-08",
+      "startISO": "2026-01-08T06:00:00.000Z",
+      "durationMinutes": 0,
+      "goalId": "goal-2026-01-10-1",
+      "deliverableId": null,
+      "criterionId": null
+    },
+    {
+      "id": "blk-auto-cycle-2026-01-10-1-2026-01-09-0",
+      "dayKey": "2026-01-08",
+      "startISO": "2026-01-08T06:00:00.000Z",
+      "durationMinutes": 0,
+      "goalId": "goal-2026-01-10-1",
+      "deliverableId": null,
+      "criterionId": null
+    },
+    {
+      "id": "blk-auto-cycle-2026-01-10-1-2026-01-10-0",
+      "dayKey": "2026-01-08",
+      "startISO": "2026-01-08T06:00:00.000Z",
+      "durationMinutes": 0,
+      "goalId": "goal-2026-01-10-1",
+      "deliverableId": null,
+      "criterionId": null
+    },
+    {
+      "id": "blk-auto-cycle-2026-01-10-1-2026-01-11-0",
+      "dayKey": "2026-01-08",
+      "startISO": "2026-01-08T06:00:00.000Z",
+      "durationMinutes": 0,
+      "goalId": "goal-2026-01-10-1",
+      "deliverableId": null,
+      "criterionId": null
+    },
+    {
+      "id": "blk-auto-cycle-2026-01-10-1-2026-01-12-0",
+      "dayKey": "2026-01-08",
+      "startISO": "2026-01-08T06:00:00.000Z",
+      "durationMinutes": 0,
+      "goalId": "goal-2026-01-10-1",
+      "deliverableId": null,
+      "criterionId": null
+    },
+    {
+      "id": "blk-auto-cycle-2026-01-10-1-2026-01-13-0",
+      "dayKey": "2026-01-08",
+      "startISO": "2026-01-08T06:00:00.000Z",
+      "durationMinutes": 0,
+      "goalId": "goal-2026-01-10-1",
+      "deliverableId": null,
+      "criterionId": null
+    },
+    {
+      "id": "blk-auto-cycle-2026-01-10-1-2026-01-14-0",
+      "dayKey": "2026-01-08",
+      "startISO": "2026-01-08T06:00:00.000Z",
+      "durationMinutes": 0,
+      "goalId": "goal-2026-01-10-1",
+      "deliverableId": null,
+      "criterionId": null
+    },
+    {
+      "id": "blk-auto-cycle-2026-01-10-1-2026-01-15-0",
+      "dayKey": "2026-01-08",
+      "startISO": "2026-01-08T06:00:00.000Z",
+      "durationMinutes": 0,
+      "goalId": "goal-2026-01-10-1",
+      "deliverableId": null,
+      "criterionId": null
+    },
+    {
+      "id": "blk-auto-cycle-2026-01-10-1-2026-01-16-0",
+      "dayKey": "2026-01-08",
+      "startISO": "2026-01-08T06:00:00.000Z",
+      "durationMinutes": 0,
+      "goalId": "goal-2026-01-10-1",
+      "deliverableId": null,
+      "criterionId": null
+    },
+    {
+      "id": "blk-auto-cycle-2026-01-10-1-2026-01-17-0",
+      "dayKey": "2026-01-08",
+      "startISO": "2026-01-08T06:00:00.000Z",
+      "durationMinutes": 0,
+      "goalId": "goal-2026-01-10-1",
+      "deliverableId": null,
+      "criterionId": null
+    },
+    {
+      "id": "blk-auto-cycle-2026-01-10-1-2026-01-18-0",
+      "dayKey": "2026-01-08",
+      "startISO": "2026-01-08T06:00:00.000Z",
+      "durationMinutes": 0,
+      "goalId": "goal-2026-01-10-1",
+      "deliverableId": null,
+      "criterionId": null
+    },
+    {
+      "id": "blk-auto-cycle-2026-01-10-1-2026-01-19-0",
+      "dayKey": "2026-01-08",
+      "startISO": "2026-01-08T06:00:00.000Z",
+      "durationMinutes": 0,
+      "goalId": "goal-2026-01-10-1",
+      "deliverableId": null,
+      "criterionId": null
+    },
+    {
+      "id": "blk-auto-cycle-2026-01-10-1-2026-01-20-0",
+      "dayKey": "2026-01-08",
+      "startISO": "2026-01-08T06:00:00.000Z",
+      "durationMinutes": 0,
+      "goalId": "goal-2026-01-10-1",
+      "deliverableId": null,
+      "criterionId": null
+    },
+    {
+      "id": "blk-auto-cycle-2026-01-10-1-2026-01-21-0",
+      "dayKey": "2026-01-08",
+      "startISO": "2026-01-08T06:00:00.000Z",
+      "durationMinutes": 0,
+      "goalId": "goal-2026-01-10-1",
+      "deliverableId": null,
+      "criterionId": null
+    },
+    {
+      "id": "blk-cold-cycle-2026-01-10-1-2026-01-08-0",
+      "dayKey": "2026-01-08",
+      "startISO": "2026-01-08T13:30:00.000Z",
+      "durationMinutes": 0,
+      "goalId": "goal-2026-01-10-1",
+      "deliverableId": null,
+      "criterionId": null
+    },
+    {
+      "id": "blk-cold-cycle-2026-01-10-1-2026-01-08-28",
+      "dayKey": "2026-01-08",
+      "startISO": "2026-01-08T13:30:00.000Z",
+      "durationMinutes": 0,
+      "goalId": "goal-2026-01-10-1",
+      "deliverableId": null,
+      "criterionId": null
+    }
+  ]
+}

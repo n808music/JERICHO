@@ -18,6 +18,8 @@ import { analyzeIntegrityDeviations } from './integrity-deviation-engine.js';
 import { analyzeTeamIdentity } from './team-identity-engine.js';
 import evaluateTeamGovernance from './team-governance-engine.js';
 import compileTeamNarrative from './team-narrative-engine.js';
+import { normalizeGoalInput } from './goal-domain.js';
+import { selectPacingMode } from './behavioral-control-engine.js';
 
 /**
  * Run the closed-loop pipeline once for the provided goal input and identity state.
@@ -61,9 +63,11 @@ export function runPipeline(goalInput, identity, history = [], tasks = [], team 
   }
 
   const goal = validation.goal;
+
   const requirements = deriveIdentityRequirements(goal);
   const gapsBefore = computeCapabilityGaps(identityState, requirements);
   const rankedGapsBefore = rankCapabilityGaps(gapsBefore);
+  const goalMeta = normalizeGoalInput(goal.raw);
 
   const integritySummary = computeIntegrityScore(tasks);
   const integrityExplanation = explainIntegrityScore(tasks);
@@ -77,13 +81,54 @@ export function runPipeline(goalInput, identity, history = [], tasks = [], team 
 
   const gapsAfter = computeCapabilityGaps(updatedIdentity, requirements);
   const rankedGapsAfter = rankCapabilityGaps(gapsAfter);
+  const averagePressure =
+    rankedGapsAfter && rankedGapsAfter.length
+      ? rankedGapsAfter.reduce((acc, g) => acc + Math.max(0, g.weightedGap ?? 0), 0) /
+        rankedGapsAfter.length
+      : 0;
+  const recentCompletionRate =
+    integritySummary.completedCount + integritySummary.missedCount > 0
+      ? integritySummary.completedCount /
+        (integritySummary.completedCount + integritySummary.missedCount)
+      : 0;
+  const pacing = selectPacingMode({
+    integrity: integritySummary.score,
+    averagePressure,
+    recentCompletionRate
+  });
 
-  const nextCycleTasks = generateTasksForCycle(goal, rankedGapsAfter, { maxTasks: 5, cycleDays: 7 }).map(
+  const withFallbackGaps =
+    rankedGapsAfter && rankedGapsAfter.length
+      ? rankedGapsAfter
+      : [
+          {
+            requirementId: goalMeta.domain,
+            domain: goalMeta.domain,
+            capability: goalMeta.capability,
+            targetLevel: 5,
+            currentLevel: 0,
+            weight: 0.5,
+            weightedGap: 1
+          }
+        ];
+
+  const nextCycleTasks = generateTasksForCycle(goal, withFallbackGaps, {
+    maxTasks: 4 + (pacing.maxTasksDelta ?? 0),
+    cycleDays: 7,
+    domainHint: goalMeta.domain,
+    capabilityHint: goalMeta.capability,
+    integrityScore: integritySummary.score,
+    goalLink: goal.raw || goal.outcome || 'goal',
+    difficultyBias: pacing.difficultyBias
+  }).map(
     (task, idx) => ({
       ...task,
-      id: `task-${rankedGapsAfter[idx]?.capability || task.capability || 'cap'}-${idx}`
+      id: `task-${withFallbackGaps[idx]?.capability || task.capability || 'cap'}-${idx}`
     })
   );
+  if (nextCycleTasks.length === 0) {
+    nextCycleTasks.push(buildFallbackTask(goal, goalMeta));
+  }
 
   const now = new Date();
   const nowIso = now.toISOString();
@@ -98,6 +143,7 @@ export function runPipeline(goalInput, identity, history = [], tasks = [], team 
     daySlots,
     integritySummary
   );
+  const finalToday = todayPriorityTaskId || nextCycleTasks[0]?.id || null;
 
   const historyEntry = {
     timestamp: nowIso,
@@ -167,6 +213,9 @@ export function runPipeline(goalInput, identity, history = [], tasks = [], team 
     compressedPlan,
     portfolioAnalysis: portfolio
   });
+  // Behavior sim note: across burnout/steady profiles the governance mode often stayed reset_identity
+  // with allowedTasks=2 even as integrity climbed into the 60–70s; revisit thresholds if we want T2/T3
+  // to arrive faster once integrity rebounds.
   const teamGovernance = evaluateTeamGovernance(team || {}, goalInput?.goals || [], identityState, nextCycleTasks);
   const integrityDeviations = analyzeIntegrityDeviations(updatedHistory, integritySummary, teamGovernance);
   const teamIdentity = analyzeTeamIdentity({
@@ -260,7 +309,7 @@ export function runPipeline(goalInput, identity, history = [], tasks = [], team 
     schedule: {
       daySlots: scheduledDaySlots,
       overflowTasks,
-      todayPriorityTaskId,
+      todayPriorityTaskId: finalToday,
       cycleStart: cycleStartIso,
       cycleEnd: cycleEndIso
     },
@@ -395,4 +444,23 @@ function clamp(val, min, max) {
   const num = Number(val);
   if (Number.isNaN(num)) return min;
   return Math.min(Math.max(num, min), max);
+}
+
+function buildFallbackTask(goal, goalMeta) {
+  const createdAt = new Date();
+  const dueDate = new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+  return {
+    id: `task-${goalMeta.capability || 'generic'}-direct`,
+    requirementId: `fallback-${goalMeta.capability || 'generic'}`,
+    domain: goalMeta.domain || 'execution',
+    capability: goalMeta.capability || 'execution',
+    title: `First move: ${goalMeta.capability || 'execute'}`,
+    description: `Take a concrete step toward: ${goal.outcome || goal.raw || 'your goal'}.`,
+    difficulty: 2,
+    estimatedImpact: 0.6,
+    dueDate: dueDate.toISOString(),
+    status: 'pending',
+    createdAt: createdAt.toISOString(),
+    ladderIndex: 0
+  };
 }

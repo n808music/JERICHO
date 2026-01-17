@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { explainReasonCode, explainTaskReasons } from '../../src/core/explanations.js';
 
 describe('explanations', () => {
@@ -45,4 +46,3 @@ describe('explanations', () => {
     expect(explanation.details[0]).toMatch(/Deferred/);
   });
 });
-

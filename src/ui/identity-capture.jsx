@@ -5,29 +5,41 @@ export default function IdentityCapture({ requirements, onAddGoal, onUpdateIdent
     domain: 'focus',
     capability: '',
     targetLevel: 3,
-    rationale: ''
+    rationale: '',
+    customDomain: ''
   });
+  const [goalError, setGoalError] = useState(null);
   const [identityForm, setIdentityForm] = useState({
     domain: '',
     capability: '',
     level: 3
   });
 
-  const domains = useMemo(
-    () => Array.from(new Set((requirements || []).map((req) => req.domain))),
-    [requirements]
-  );
+  const domains = useMemo(() => {
+    const fromRequirements = Array.from(new Set((requirements || []).map((req) => req.domain))).filter(Boolean);
+    const defaults = ['execution', 'focus', 'discipline', 'planning'];
+    return fromRequirements.length ? fromRequirements : defaults;
+  }, [requirements]);
 
   function submitGoal(e) {
     e.preventDefault();
-    if (!goalForm.capability) return;
+    const chosenDomain = goalForm.domain === 'custom' ? goalForm.customDomain.trim() : goalForm.domain;
+    if (!goalForm.capability) {
+      setGoalError('Capability is required.');
+      return;
+    }
+    if (!chosenDomain) {
+      setGoalError('Select or enter a domain to continue.');
+      return;
+    }
+    setGoalError(null);
     onAddGoal({
-      domain: goalForm.domain,
+      domain: chosenDomain,
       capability: goalForm.capability,
       targetLevel: Number(goalForm.targetLevel),
       rationale: goalForm.rationale || 'User submitted'
     });
-    setGoalForm({ domain: goalForm.domain, capability: '', targetLevel: 3, rationale: '' });
+    setGoalForm({ domain: chosenDomain, capability: '', targetLevel: 3, rationale: '', customDomain: '' });
   }
 
   function submitIdentity(e) {
@@ -80,10 +92,23 @@ export default function IdentityCapture({ requirements, onAddGoal, onUpdateIdent
                 onChange={(e) => setGoalForm((f) => ({ ...f, domain: e.target.value }))}
               >
                 {domains.map((domain) => (
-                  <option key={domain}>{domain}</option>
+                  <option key={domain} value={domain}>
+                    {domain}
+                  </option>
                 ))}
+                <option value="custom">+ New domain</option>
               </select>
             </label>
+            {goalForm.domain === 'custom' && (
+              <label>
+                Custom domain
+                <input
+                  value={goalForm.customDomain}
+                  placeholder="e.g., execution"
+                  onChange={(e) => setGoalForm((f) => ({ ...f, customDomain: e.target.value }))}
+                />
+              </label>
+            )}
             <label>
               Capability
               <input
@@ -111,6 +136,7 @@ export default function IdentityCapture({ requirements, onAddGoal, onUpdateIdent
               />
             </label>
           </div>
+          {goalError && <div className="form-error">{goalError}</div>}
           <button type="submit" className="cta">
             Add to pipeline
           </button>

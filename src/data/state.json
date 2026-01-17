@@ -1,0 +1,54 @@
+{
+  "goals": [
+    "I will improve deep work capacity by 2026-03-01",
+    "I will increase daily movement by 2026-06-01",
+    "I will run 50 sessions by 2025-12-31"
+  ],
+  "identity": {
+    "health": {
+      "daily-movement": {
+        "level": 3
+      }
+    },
+    "focus": {
+      "deep-work": {
+        "level": 2
+      }
+    }
+  },
+  "history": [],
+  "tasks": [],
+  "integrity": {
+    "score": 0,
+    "completedCount": 0,
+    "pendingCount": 0,
+    "lastRun": null
+  },
+  "team": {
+    "users": [
+      {
+        "id": "user-1",
+        "name": "Primary User",
+        "email": null,
+        "roles": [
+          "individual"
+        ],
+        "active": true
+      }
+    ],
+    "teams": [
+      {
+        "id": "team-1",
+        "name": "Default Team",
+        "memberIds": [
+          "user-1"
+        ],
+        "sharedGoalIds": [],
+        "active": true
+      }
+    ],
+    "roles": {},
+    "goalsById": {},
+    "teamCycles": {}
+  }
+}

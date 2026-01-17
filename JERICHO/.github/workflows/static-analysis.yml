@@ -1,0 +1,85 @@
+name: Static Code Analysis
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  code-quality:
+    name: Code Quality & Security
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full git history for better analysis
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type checking
+        run: npm run typecheck || npx tsc --noEmit --strict
+
+      - name: ESLint analysis
+        run: |
+          npx eslint@latest . --ext .ts,.tsx,.js,.jsx \
+            --format=json \
+            --output-file=eslint-report.json \
+            || true  # Don't fail the build, just report
+
+      - name: Prettier formatting check
+        run: |
+          npx prettier@latest --check . \
+            --ignore-unknown \
+            --log-level=error
+
+      - name: npm audit security check
+        run: npm audit --audit-level=moderate
+
+      - name: Dependency check (Snyk)
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+
+      - name: Bundle size analysis
+        run: |
+          npm run build
+          npx bundlesize
+
+      - name: Code complexity analysis
+        uses: codacy/code-analysis@v2
+        continue-on-error: true
+        with:
+          analyze: true
+          output: reports/
+          tool: nodejs
+
+      - name: Upload ESLint report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eslint-report-node-${{ matrix.node-version }}
+          path: eslint-report.json
+
+      - name: Upload code analysis report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: code-analysis-report-node-${{ matrix.node-version }}
+          path: reports/

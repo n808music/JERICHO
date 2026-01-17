@@ -5,11 +5,22 @@ async function request(path, options = {}) {
     headers: { 'Content-Type': 'application/json' },
     ...options
   });
-  if (!res.ok) {
-    const error = await res.text();
-    throw new Error(error || 'Request failed');
+  let data = null;
+  try {
+    data = await res.json();
+  } catch (err) {
+    data = null;
   }
-  return res.json();
+
+  const hasOk = data && Object.prototype.hasOwnProperty.call(data, 'ok');
+  if (!res.ok || (hasOk && data.ok === false)) {
+    const err = new Error(data?.reason || data?.error || res.statusText || 'Request failed');
+    err.code = data?.errorCode;
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data ?? {};
 }
 
 export function fetchPipeline() {
@@ -28,10 +39,22 @@ export function postIdentity(payload) {
   return request('/identity', { method: 'POST', body: JSON.stringify(payload) });
 }
 
+export function patchIdentity(updates) {
+  return request('/identity', { method: 'PATCH', body: JSON.stringify({ updates }) });
+}
+
 export function postTaskStatus(payload) {
-  return request('/tasks', { method: 'POST', body: JSON.stringify(payload) });
+  return request('/task-status', { method: 'POST', body: JSON.stringify(payload) });
 }
 
 export function resetState() {
   return request('/reset', { method: 'POST' });
+}
+
+export function runCycleNext() {
+  return request('/cycle/next', { method: 'POST' });
+}
+
+export function fetchDiagnostics() {
+  return request('/internal/diagnostics');
 }

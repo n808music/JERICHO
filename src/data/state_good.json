@@ -1,0 +1,190 @@
+{
+  "goals": [
+    "Grow revenue to $10k/month by 2026-07-06"
+  ],
+  "identity": {},
+  "history": [
+    {
+      "timestamp": "2025-11-30T19:07:46.355Z",
+      "goalId": "Grow revenue to $10k/month by 2026-07-06",
+      "integrity": {
+        "score": 0,
+        "completedCount": 0,
+        "missedCount": 0,
+        "pendingCount": 0,
+        "rawTotal": 0,
+        "maxPossible": 0,
+        "breakdown": {
+          "completedOnTime": 0,
+          "completedLate": 0,
+          "missed": 0,
+          "totalTasks": 0,
+          "completionRate": 0,
+          "onTimeRate": 0
+        }
+      },
+      "identityBefore": [
+        {
+          "id": "health-daily-movement",
+          "domain": "health",
+          "capability": "daily-movement",
+          "level": 3
+        },
+        {
+          "id": "focus-deep-work",
+          "domain": "focus",
+          "capability": "deep-work",
+          "level": 2
+        }
+      ],
+      "identityAfter": [
+        {
+          "id": "health-daily-movement",
+          "domain": "health",
+          "capability": "daily-movement",
+          "level": 3
+        },
+        {
+          "id": "focus-deep-work",
+          "domain": "focus",
+          "capability": "deep-work",
+          "level": 2
+        }
+      ],
+      "changes": []
+    },
+    {
+      "id": "task-consistency-0",
+      "taskId": "task-consistency-0",
+      "domain": "Execution",
+      "capability": "discipline",
+      "tier": "T1",
+      "effortMinutes": 60,
+      "goalLink": "Grow revenue to $10k/month by 2026-07-06",
+      "status": "completed",
+      "timestamp": "2025-11-30T19:07:46.366Z",
+      "integrity": {
+        "score": 0,
+        "breakdown": {}
+      }
+    },
+    {
+      "timestamp": "2025-11-30T19:07:46.370Z",
+      "goalId": "Grow revenue to $10k/month by 2026-07-06",
+      "integrity": {
+        "score": 46,
+        "completedCount": 1,
+        "missedCount": 0,
+        "pendingCount": 1,
+        "rawTotal": 0.6,
+        "maxPossible": 1.2999999999999998,
+        "breakdown": {
+          "completedOnTime": 0,
+          "completedLate": 0,
+          "missed": 0,
+          "totalTasks": 2,
+          "completionRate": 0.5,
+          "onTimeRate": 0
+        }
+      },
+      "identityBefore": [
+        {
+          "id": "health-daily-movement",
+          "domain": "health",
+          "capability": "daily-movement",
+          "level": 3
+        },
+        {
+          "id": "focus-deep-work",
+          "domain": "focus",
+          "capability": "deep-work",
+          "level": 2
+        }
+      ],
+      "identityAfter": [
+        {
+          "id": "health-daily-movement",
+          "domain": "health",
+          "capability": "daily-movement",
+          "level": 3
+        },
+        {
+          "id": "focus-deep-work",
+          "domain": "focus",
+          "capability": "deep-work",
+          "level": 2
+        }
+      ],
+      "changes": []
+    }
+  ],
+  "tasks": [
+    {
+      "title": "Honor a fixed work block",
+      "description": "Commit to a single uninterrupted block for: Grow revenue to $10k/month by 2026-07-06.",
+      "difficulty": 2,
+      "estimatedImpact": 0.6,
+      "effortMinutes": 60,
+      "tier": "T1",
+      "goalLink": "Grow revenue to $10k/month by 2026-07-06",
+      "cycleMode": "normal",
+      "dueDate": "2025-12-07T19:07:46.370Z",
+      "createdAt": "2025-11-30T19:07:46.370Z",
+      "id": "task-consistency-0",
+      "requirementId": "8546deb7-958d-4351-827e-cde387a7b0a5",
+      "domain": "Execution",
+      "capability": "discipline",
+      "status": "pending"
+    },
+    {
+      "title": "Plan tomorrow’s first block",
+      "description": "Pick tomorrow’s first 60-minute block and protect it.",
+      "difficulty": 1,
+      "estimatedImpact": 0.5,
+      "effortMinutes": 20,
+      "tier": "T2",
+      "goalLink": "Grow revenue to $10k/month by 2026-07-06",
+      "cycleMode": "normal",
+      "dueDate": "2025-12-07T19:07:46.370Z",
+      "createdAt": "2025-11-30T19:07:46.370Z",
+      "id": "task-discipline-1",
+      "requirementId": "8546deb7-958d-4351-827e-cde387a7b0a5",
+      "domain": "Execution",
+      "capability": "discipline",
+      "status": "pending"
+    }
+  ],
+  "integrity": {
+    "score": 46,
+    "completedCount": 1,
+    "pendingCount": 1,
+    "lastRun": "2025-11-30T19:07:46.370Z"
+  },
+  "team": {
+    "users": [
+      {
+        "id": "user-1",
+        "name": "Primary User",
+        "email": null,
+        "roles": [
+          "individual"
+        ],
+        "active": true
+      }
+    ],
+    "teams": [
+      {
+        "id": "team-1",
+        "name": "Default Team",
+        "memberIds": [
+          "user-1"
+        ],
+        "sharedGoalIds": [],
+        "active": true
+      }
+    ],
+    "roles": {},
+    "goalsById": {},
+    "teamCycles": {}
+  }
+}

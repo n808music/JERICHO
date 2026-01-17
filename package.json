@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run dev:api\" \"npm run dev:client\"",
-    "dev:api": "node src/api/server.js",
+    "dev:api": "STATE_PATH=src/data/state_good.json node src/api/server.js",
+    "dev:api:watch": "STATE_PATH=src/data/state_good.json nodemon src/api/server.js",
     "dev:client": "vite dev",
     "build": "npm run lint && npm test && vite build",
     "preview": "vite preview",
