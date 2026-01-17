@@ -1,6 +1,7 @@
 import { getConfig } from './config.js';
 
 const VALID_TASK_STATUSES = ['pending', 'completed', 'missed'];
+const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
 
 export function validateTask(task) {
   const errors = [];
@@ -19,6 +20,32 @@ export function validateTask(task) {
     errors.push('task_missing_status');
   } else if (!VALID_TASK_STATUSES.includes(task.status)) {
     errors.push('task_invalid_status');
+  }
+
+  return { ok: errors.length === 0, errors };
+}
+
+export function validateHistoryEntry(entry) {
+  const errors = [];
+
+  if (!entry || typeof entry !== 'object') {
+    return { ok: false, errors: ['history_invalid'] };
+  }
+
+  if (!entry.timestamp || typeof entry.timestamp !== 'string') {
+    errors.push('history_missing_timestamp');
+  } else if (!ISO_DATE_REGEX.test(entry.timestamp)) {
+    errors.push('history_invalid_timestamp_format');
+  }
+
+  // Detect entry type: task record has taskId, cycle snapshot has goalId
+  const isTaskRecord = 'taskId' in entry || 'id' in entry;
+  const isCycleSnapshot = 'goalId' in entry;
+
+  if (isTaskRecord && !isCycleSnapshot) {
+    if (!entry.status || !VALID_TASK_STATUSES.includes(entry.status)) {
+      errors.push('history_invalid_status');
+    }
   }
 
   return { ok: errors.length === 0, errors };

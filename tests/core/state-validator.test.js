@@ -57,3 +57,57 @@ describe('validateTask', () => {
     expect(result.errors).toContain('task_invalid_status');
   });
 });
+
+describe('validateHistoryEntry', () => {
+  it('accepts a valid task record entry', () => {
+    const entry = {
+      id: 'task-1',
+      taskId: 'task-1',
+      domain: 'focus',
+      capability: 'deep-work',
+      status: 'completed',
+      timestamp: '2026-01-17T12:00:00.000Z'
+    };
+    const result = validateHistoryEntry(entry);
+    expect(result.ok).toBe(true);
+  });
+
+  it('accepts a valid cycle snapshot entry', () => {
+    const entry = {
+      timestamp: '2026-01-17T12:00:00.000Z',
+      goalId: 'goal-1',
+      integrity: { score: 50 },
+      identityBefore: [],
+      identityAfter: [],
+      changes: []
+    };
+    const result = validateHistoryEntry(entry);
+    expect(result.ok).toBe(true);
+  });
+
+  it('rejects entry missing timestamp', () => {
+    const entry = { id: 'task-1', status: 'completed' };
+    const result = validateHistoryEntry(entry);
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain('history_missing_timestamp');
+  });
+
+  it('rejects entry with invalid timestamp format', () => {
+    const entry = { id: 'task-1', status: 'completed', timestamp: 'not-iso-format' };
+    const result = validateHistoryEntry(entry);
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain('history_invalid_timestamp_format');
+  });
+
+  it('rejects task record with invalid status enum', () => {
+    const entry = {
+      id: 'task-1',
+      taskId: 'task-1',
+      timestamp: '2026-01-17T12:00:00.000Z',
+      status: 'invalid-status'
+    };
+    const result = validateHistoryEntry(entry);
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain('history_invalid_status');
+  });
+});
