@@ -18,7 +18,7 @@ export function validateTask(task) {
   }
   if (!task.status) {
     errors.push('task_missing_status');
-  } else if (!VALID_TASK_STATUSES.includes(task.status)) {
+  } else if (typeof task.status !== 'string' || !VALID_TASK_STATUSES.includes(task.status)) {
     errors.push('task_invalid_status');
   }
 
