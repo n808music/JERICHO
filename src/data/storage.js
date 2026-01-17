@@ -2,8 +2,9 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { mockGoals, mockIdentity } from './mock-data.js';
 import { EMPTY_TEAM_STATE, normalizeTeam } from '../core/team-model.js';
+import { checkInvariants } from '../core/validation/invariants.js';
 
-const STORE_PATH =
+const getStorePath = () =>
   process.env.STATE_PATH || path.join(process.cwd(), 'src', 'data', 'state.json');
 
 const defaultState = buildState({
@@ -22,7 +23,7 @@ const defaultState = buildState({
 
 export async function readState() {
   try {
-    const raw = await fs.readFile(STORE_PATH, 'utf-8');
+    const raw = await fs.readFile(getStorePath(), 'utf-8');
     return buildState(JSON.parse(raw));
   } catch (err) {
     if (err.code === 'ENOENT') {
@@ -33,14 +34,22 @@ export async function readState() {
   }
 }
 
-export async function safeReadState() {
+export async function safeReadState(options = {}) {
   try {
-    const raw = await fs.readFile(STORE_PATH, 'utf-8');
-    return { ok: true, state: buildState(JSON.parse(raw)) };
+    const raw = await fs.readFile(getStorePath(), 'utf-8');
+    const state = buildState(JSON.parse(raw));
+
+    if (options.validate) {
+      const validation = checkInvariants(state);
+      return { ok: true, state, validation };
+    }
+
+    return { ok: true, state };
   } catch (err) {
     if (err.code === 'ENOENT') {
       await writeState(defaultState);
-      return { ok: true, state: defaultState };
+      const validation = options.validate ? checkInvariants(defaultState) : undefined;
+      return { ok: true, state: defaultState, validation };
     }
     if (err instanceof SyntaxError) {
       return { ok: false, errorCode: 'BAD_STATE', reason: 'State file is not valid JSON.' };
@@ -51,8 +60,8 @@ export async function safeReadState() {
 
 export async function writeState(state) {
   const next = buildState(state);
-  await fs.mkdir(path.dirname(STORE_PATH), { recursive: true });
-  await fs.writeFile(STORE_PATH, JSON.stringify(next, null, 2));
+  await fs.mkdir(path.dirname(getStorePath()), { recursive: true });
+  await fs.writeFile(getStorePath(), JSON.stringify(next, null, 2));
   return next;
 }
 

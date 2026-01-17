@@ -11,7 +11,8 @@
     "build": "npm run lint && npm test && vite build",
     "preview": "vite preview",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
-    "lint": "eslint src tests"
+    "lint": "eslint src tests",
+    "validate": "node scripts/validate.js"
   },
   "keywords": [
     "jericho",

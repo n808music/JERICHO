@@ -30,6 +30,7 @@ import { planCapabilityArcs } from '../core/capability-arc-planner.js';
 import { auditCoherence } from '../core/coherence-auditor.js';
 import { computeAdvisoryDiagnostics } from '../advisory/diagnosticsAggregator.js';
 import { setLatestDiagnostics, getLatestDiagnostics } from '../services/diagnosticsStore.js';
+import { aggregateHealthCheck } from '../core/validation/health.js';
 import commandsSpec from '../ai/commands-spec.json' with { type: 'json' };
 
 const port = 3000;
@@ -54,9 +55,18 @@ const server = http.createServer(async (req, res) => {
           '/goals',
           '/identity',
           '/tasks',
-          '/internal/diagnostics'
+          '/internal/diagnostics',
+          '/api/health'
         ]
       });
+      return;
+    }
+
+    if (req.method === 'GET' && req.url === '/api/health') {
+      const state = await getStateOrError(res);
+      if (!state) return;
+      const health = aggregateHealthCheck(state);
+      respondOk(res, health);
       return;
     }
 
