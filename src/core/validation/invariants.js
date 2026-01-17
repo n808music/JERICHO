@@ -71,5 +71,19 @@ export function checkInvariants(state) {
     }
   }
 
+  // INV-006: No Duplicate IDs
+  const taskIds = tasks.map(t => t.id).filter(Boolean);
+  const seenTaskIds = new Set();
+  for (const id of taskIds) {
+    if (seenTaskIds.has(id)) {
+      violations.push({
+        invariant: 'INV-006',
+        message: `Duplicate task ID: "${id}"`,
+        context: { id }
+      });
+    }
+    seenTaskIds.add(id);
+  }
+
   return { valid: violations.length === 0, violations };
 }

@@ -111,3 +111,33 @@ describe('INV-004: Identity level bounds', () => {
     expect(result.violations.some(v => v.invariant === 'INV-004')).toBe(true);
   });
 });
+
+describe('INV-006: No duplicate IDs', () => {
+  it('passes when all task IDs are unique', () => {
+    const state = {
+      tasks: [
+        { id: 'task-1', status: 'pending' },
+        { id: 'task-2', status: 'pending' }
+      ],
+      history: [],
+      goals: [],
+      integrity: { score: 0, completedCount: 0, pendingCount: 2 }
+    };
+    const result = checkInvariants(state);
+    expect(result.violations.filter(v => v.invariant === 'INV-006')).toEqual([]);
+  });
+
+  it('fails when duplicate task IDs exist', () => {
+    const state = {
+      tasks: [
+        { id: 'task-1', status: 'pending' },
+        { id: 'task-1', status: 'completed' }
+      ],
+      history: [{ taskId: 'task-1', status: 'completed', timestamp: '2026-01-17T00:00:00Z' }],
+      goals: [],
+      integrity: { score: 0, completedCount: 1, pendingCount: 1 }
+    };
+    const result = checkInvariants(state);
+    expect(result.violations.some(v => v.invariant === 'INV-006')).toBe(true);
+  });
+});
