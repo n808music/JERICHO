@@ -19,5 +19,27 @@ export function checkInvariants(state) {
     }
   }
 
+  // INV-002: Integrity Count Coherence
+  const tasks = state.tasks || [];
+  const actualCompleted = tasks.filter(t => t.status === 'completed').length;
+  const actualPending = tasks.filter(t => t.status === 'pending').length;
+  const integrity = state.integrity || {};
+
+  if (integrity.completedCount !== undefined && integrity.completedCount !== actualCompleted) {
+    violations.push({
+      invariant: 'INV-002',
+      message: `completedCount (${integrity.completedCount}) does not match actual completed tasks (${actualCompleted})`,
+      context: { expected: actualCompleted, actual: integrity.completedCount }
+    });
+  }
+
+  if (integrity.pendingCount !== undefined && integrity.pendingCount !== actualPending) {
+    violations.push({
+      invariant: 'INV-002',
+      message: `pendingCount (${integrity.pendingCount}) does not match actual pending tasks (${actualPending})`,
+      context: { expected: actualPending, actual: integrity.pendingCount }
+    });
+  }
+
   return { valid: violations.length === 0, violations };
 }
