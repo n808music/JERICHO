@@ -134,10 +134,13 @@ export function buildPolicyAndQualityDiagnostics({
   contract = null,
   timeZone = 'UTC',
   policyState = null,
+  historyProfile = null,
 }) {
   const suggestedAssignments = toAssignments(suggestedBlocks, timeZone);
   const qualityPolicyIdRequested = planDraft?.qualityPolicyId || 'BALANCED';
   const minPolicyHoldDays = Number.isFinite(planDraft?.minPolicyHoldDays) ? planDraft.minPolicyHoldDays : 7;
+  const historyWindowCycles = Number.isFinite(planDraft?.historyWindowCycles) ? Number(planDraft.historyWindowCycles) : 5;
+  const historyInfluenceStrength = planDraft?.historyInfluenceStrength || 'standard';
   const milestones = Array.isArray(planDraft?.milestones) ? planDraft.milestones : [];
   const baseActions = Array.isArray(planDraft?.actions) ? planDraft.actions : [];
   const executionHorizonDays = Number(planDraft?.executionHorizonDays || contract?.horizonDays || planDraft?.horizonDays || 30);
@@ -221,6 +224,9 @@ export function buildPolicyAndQualityDiagnostics({
           priorPolicyAgeDays: policyState?.policyAgeDays,
           minPolicyHoldDays,
           priorSignalsSnapshot: policyState?.priorSignalsSnapshot,
+          historyProfile,
+          enableHistoryInfluence: planDraft?.enableHistoryPolicySelection === true,
+          historyInfluenceStrength,
         })
       : {
           selectedPolicyId: qualityPolicyIdRequested,
@@ -299,6 +305,21 @@ export function buildPolicyAndQualityDiagnostics({
     policySelectionDecision,
     policySelectionReasonCodes: [...(policySelectionDecision.reasonCodes || [])],
     policySelectionSignalsSnapshot: selectionSignals,
+    historyProfileSnapshotUsed:
+      planDraft?.enableHistoryPolicySelection === true && historyProfile
+        ? {
+            cycleCount: Number(historyProfile.window?.cycleCount || 0),
+            avgCompletionRate: Number(historyProfile.aggregates?.avgCompletionRate || 0),
+            avgChurnIndex: Number(historyProfile.aggregates?.avgChurnIndex || 0),
+            avgVelocityMinPerDay: Number(historyProfile.aggregates?.avgVelocityMinPerDay || 0),
+            minEndDayKey: historyProfile.window?.minEndDayKey || '',
+            maxEndDayKey: historyProfile.window?.maxEndDayKey || '',
+            usedCycleIds: [...(historyProfile.window?.usedCycleIds || [])],
+            historyWindowCycles,
+            historyInfluenceStrength,
+          }
+        : null,
+    historyReasonCodes: (policySelectionDecision.reasonCodes || []).filter((code) => code.startsWith('HISTORY_')),
     qualityScoreBaseline: scoreBaseline.total,
     qualityScoreBaselineByComponent: { ...scoreBaseline.components },
     qualityScoreOptimized: scoreOptimized.total,

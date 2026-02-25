@@ -27,6 +27,7 @@ import { computeProfileLearning } from './learning.ts';
 import { computeTerminalConvergence } from './convergenceTerminal.ts';
 import { rolloverAtMidnight, shouldRollover } from '../core/engine/rollover.ts';
 import { buildDraftScheduleItems, buildPolicyAndQualityDiagnostics } from './draftSchedule.js';
+import { buildHistoryProfile, deriveCycleHistorySignals } from '../planner/scoring/historySignals.ts';
 
 /**
  * @typedef {import('./identityTypes.js').IdentityState} IdentityState
@@ -348,6 +349,7 @@ export function computeDerivedState(state, action) {
       planDraft: next.planDraft,
       contract: next.goalExecutionContract,
       policyState: getCurrentPolicyState(next),
+      historyProfile: buildHistoryProfileForDraft(next, next.planDraft),
       timeZone: next.appTime?.timeZone || APP_TIME_ZONE,
     });
   }
@@ -502,6 +504,8 @@ function applyExecutionEvents(state) {
 function ensureCycleStructures(state) {
   if (!state.history) state.history = { cycles: [] };
   if (!state.cyclesById) state.cyclesById = {};
+  if (!state.historySignalsByCycleId) state.historySignalsByCycleId = {};
+  if (!state.historyProfile) state.historyProfile = null;
   if (typeof state.activeCycleId === 'undefined') state.activeCycleId = null;
 }
 
@@ -958,6 +962,9 @@ function enforceSafeDefaults(state) {
     if (typeof state.planDraft.enableQualityOptimizer !== 'boolean') state.planDraft.enableQualityOptimizer = false;
     if (typeof state.planDraft.enableMilestonePacing !== 'boolean') state.planDraft.enableMilestonePacing = false;
     if (!state.planDraft.pacingCadenceMode) state.planDraft.pacingCadenceMode = 'adaptive';
+    if (typeof state.planDraft.enableHistoryPolicySelection !== 'boolean') state.planDraft.enableHistoryPolicySelection = false;
+    if (!Number.isFinite(state.planDraft.historyWindowCycles)) state.planDraft.historyWindowCycles = 5;
+    if (!state.planDraft.historyInfluenceStrength) state.planDraft.historyInfluenceStrength = 'standard';
   }
   if (!state.planCalibration) state.planCalibration = { confidence: 0, assumptions: [], missingInfo: [] };
   if (!('planPreview' in state)) state.planPreview = null;
@@ -2384,7 +2391,37 @@ function buildSuggestedBlocks({
   });
 }
 
-function computePlanPreview({ suggestedBlocks = [], planDraft = null, contract = null, policyState = null, timeZone = 'UTC' } = {}) {
+function getSortedEndedHistorySignals(state, windowCycles = 5) {
+  const allSignals = Object.values(state.historySignalsByCycleId || {}).filter((entry) => entry && entry.endDayKey);
+  const sorted = allSignals.sort((a, b) => {
+    if (a.endDayKey !== b.endDayKey) return a.endDayKey.localeCompare(b.endDayKey);
+    return (a.cycleId || '').localeCompare(b.cycleId || '');
+  });
+  const count = Number.isFinite(windowCycles) ? Math.max(1, Number(windowCycles)) : 5;
+  return sorted.slice(-count);
+}
+
+function rebuildHistoryProfile(state, windowCycles = 5) {
+  const endedSignals = getSortedEndedHistorySignals(state, windowCycles);
+  state.historyProfile = buildHistoryProfile(endedSignals, { windowCycles });
+  return state.historyProfile;
+}
+
+function buildHistoryProfileForDraft(state, planDraft = null) {
+  if (!planDraft || planDraft.enableHistoryPolicySelection !== true) return null;
+  const windowCycles = Number.isFinite(planDraft.historyWindowCycles) ? Number(planDraft.historyWindowCycles) : 5;
+  const endedSignals = getSortedEndedHistorySignals(state, windowCycles);
+  return buildHistoryProfile(endedSignals, { windowCycles });
+}
+
+function computePlanPreview({
+  suggestedBlocks = [],
+  planDraft = null,
+  contract = null,
+  policyState = null,
+  historyProfile = null,
+  timeZone = 'UTC'
+} = {}) {
   const onlySuggested = (suggestedBlocks || []).filter((s) => s && s.status === 'suggested');
   const totalBlocks = onlySuggested.length;
   const totalMinutes = onlySuggested.reduce((sum, s) => sum + (s.durationMinutes || 0), 0);
@@ -2393,6 +2430,7 @@ function computePlanPreview({ suggestedBlocks = [], planDraft = null, contract =
     planDraft,
     contract,
     policyState,
+    historyProfile,
     timeZone,
   });
   return {
@@ -2411,6 +2449,8 @@ function computePlanPreview({ suggestedBlocks = [], planDraft = null, contract =
     qualityScoreOptimizedByComponent: quality.qualityScoreOptimizedByComponent,
     qualityImprovementDelta: quality.qualityImprovementDelta,
     optimizerRejectedCandidatesSummary: quality.optimizerRejectedCandidatesSummary,
+    historyProfileSnapshotUsed: quality.historyProfileSnapshotUsed,
+    historyReasonCodes: quality.historyReasonCodes,
   };
 }
 
@@ -2719,6 +2759,9 @@ function applyOnboardingInputs(state, onboarding = {}) {
     enableQualityOptimizer: false,
     enableMilestonePacing: false,
     pacingCadenceMode: 'adaptive',
+    enableHistoryPolicySelection: false,
+    historyWindowCycles: 5,
+    historyInfluenceStrength: 'standard',
   };
 
   const suggested = buildSuggestedBlocks({
@@ -2754,6 +2797,7 @@ function applyOnboardingInputs(state, onboarding = {}) {
     planDraft: state.planDraft,
     contract: state.goalExecutionContract,
     policyState: getCurrentPolicyState(state),
+    historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
     timeZone: state.appTime?.timeZone || APP_TIME_ZONE,
   });
   state.suggestionHistory = {
@@ -2960,6 +3004,9 @@ function startNewCycle(state, payload = {}) {
     enableQualityOptimizer: false,
     enableMilestonePacing: false,
     pacingCadenceMode: 'adaptive',
+    enableHistoryPolicySelection: false,
+    historyWindowCycles: 5,
+    historyInfluenceStrength: 'standard',
   };
 
   const suggested = buildSuggestedBlocks({
@@ -2995,6 +3042,7 @@ function startNewCycle(state, payload = {}) {
     planDraft: state.planDraft,
     contract: state.goalExecutionContract,
     policyState: getCurrentPolicyState(state),
+    historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
     timeZone: state.appTime?.timeZone || APP_TIME_ZONE,
   });
 
@@ -3047,6 +3095,20 @@ function setActiveCycle(state, cycleId) {
   hydrateActiveCycleState(state);
 }
 
+function collectCycleHistorySignals(state, cycle) {
+  if (!cycle?.id) return null;
+  const cycleEvents = (cycle.executionEvents || []).filter((event) => (event?.cycleId || cycle.id) === cycle.id);
+  const materialized = materializeBlocksFromEvents(cycleEvents, { todayISO: cycle.endedAtDayKey || state.today?.date });
+  const materializedBlocks = (materialized.days || []).flatMap((day) => day.blocks || []);
+  return deriveCycleHistorySignals(cycle, materializedBlocks, cycleEvents, {
+    depTightCount: cycle?.planPreview?.policySelectionSignalsSnapshot?.depTightCount,
+    milestoneAtRiskCount: cycle?.planPreview?.policySelectionSignalsSnapshot?.milestoneAtRiskCount,
+    placementAnchoringMissCount: cycle?.planPreview?.pacingAnchoringMissCount,
+    outsideExecutionHorizonMinutes: cycle?.planPreview?.policySelectionSignalsSnapshot?.outsideExecutionHorizonEstimateMinTotal,
+    unplacedEstimateMinTotal: cycle?.planPreview?.policySelectionSignalsSnapshot?.unplacedEstimateMinTotal,
+  });
+}
+
 function deleteCycle(state, cycleId) {
   ensureCycleStructures(state);
   if (!cycleId || !state.cyclesById?.[cycleId]) return;
@@ -3080,6 +3142,10 @@ function deleteCycle(state, cycleId) {
   if (goalId && state.goalAdmissionByGoal?.[goalId]) delete state.goalAdmissionByGoal[goalId];
   if (state.history?.cycles) {
     state.history.cycles = state.history.cycles.filter((entry) => entry.id !== cycleId);
+  }
+  if (state.historySignalsByCycleId?.[cycleId]) {
+    delete state.historySignalsByCycleId[cycleId];
+    rebuildHistoryProfile(state);
   }
 }
 
@@ -3116,6 +3182,10 @@ function hardDeleteCycle(state, cycleId) {
   if (state.history?.cycles) {
     state.history.cycles = state.history.cycles.filter((c) => c.id !== cycleId);
   }
+  if (state.historySignalsByCycleId?.[cycleId]) {
+    delete state.historySignalsByCycleId[cycleId];
+    rebuildHistoryProfile(state);
+  }
 }
 
 function endCycle(state, cycleId) {
@@ -3147,6 +3217,11 @@ function endCycle(state, cycleId) {
   cycle.convergenceReport = convergenceReport;
   
   cycle.summary = summarizeCycle(cycle);
+  const historySignals = collectCycleHistorySignals(state, cycle);
+  if (historySignals) {
+    state.historySignalsByCycleId[cycle.id] = historySignals;
+    rebuildHistoryProfile(state);
+  }
   state.cyclesById[id] = cycle;
   // Archive behavior: remove from active execution and clear active UI projections
   if (state.activeCycleId === id) {
@@ -3295,6 +3370,7 @@ function generatePlan(state) {
     planDraft: state.planDraft,
     contract: state.goalExecutionContract,
     policyState: getCurrentPolicyState(state),
+    historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
     timeZone: state.appTime?.timeZone || APP_TIME_ZONE,
   });
   state.cyclesById[cycle.id] = cycle;
@@ -3381,6 +3457,7 @@ function applyDraftSchedule(state) {
     planDraft: state.planDraft,
     contract: state.goalExecutionContract,
     policyState: cycle.policyState || null,
+    historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
     timeZone,
   });
   const draftItems = buildDraftScheduleItems({
@@ -3428,6 +3505,8 @@ function applyDraftSchedule(state) {
   state.qualityScoreAppliedByComponent = appliedPreview.qualityScoreBaselineByComponent || null;
   state.policySelectionDecisionApplied = appliedPreview.policySelectionDecision || null;
   state.policySelectionReasonCodesApplied = [...(appliedPreview.policySelectionReasonCodes || [])];
+  state.historyProfileSnapshotUsedApplied = appliedPreview.historyProfileSnapshotUsed || null;
+  state.historyReasonCodesApplied = [...(appliedPreview.historyReasonCodes || [])];
   state.pacingInjectedCheckpointCountApplied = appliedPreview.pacingInjectedCheckpointCount || 0;
   state.pacingInjectedByMilestoneApplied = appliedPreview.pacingInjectedByMilestone || {};
   const previewPolicyId = state.planPreview?.qualityPolicyIdUsed || null;
@@ -3457,6 +3536,7 @@ function applyDraftSchedule(state) {
     policySelectionParity: state.policySelectionParity,
     scoreParity: state.scoreParity,
     pacingParity: state.pacingParity,
+    historyProfileSnapshotUsed: appliedPreview.historyProfileSnapshotUsed || null,
     reasonCodes: appliedPreview.policySelectionReasonCodes || [],
     atISO: state.appTime?.nowISO || new Date().toISOString(),
   });
@@ -3684,6 +3764,7 @@ function acceptSuggestedBlock(state, proposalId) {
     planDraft: state.planDraft,
     contract: state.goalExecutionContract,
     policyState: getCurrentPolicyState(state),
+    historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
     timeZone: state.appTime?.timeZone || APP_TIME_ZONE,
   });
 }
@@ -3755,6 +3836,7 @@ function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
     planDraft: state.planDraft,
     contract: state.goalExecutionContract,
     policyState: getCurrentPolicyState(state),
+    historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
     timeZone: state.appTime?.timeZone || APP_TIME_ZONE,
   });
 
@@ -3797,6 +3879,7 @@ function rejectSuggestedBlock(state, proposalId, reason) {
     planDraft: state.planDraft,
     contract: state.goalExecutionContract,
     policyState: getCurrentPolicyState(state),
+    historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
     timeZone: state.appTime?.timeZone || APP_TIME_ZONE,
   });
 }
@@ -3822,6 +3905,7 @@ function ignoreSuggestedBlock(state, proposalId) {
     planDraft: state.planDraft,
     contract: state.goalExecutionContract,
     policyState: getCurrentPolicyState(state),
+    historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
     timeZone: state.appTime?.timeZone || APP_TIME_ZONE,
   });
 }
@@ -3847,6 +3931,7 @@ function dismissSuggestedBlock(state, proposalId) {
     planDraft: state.planDraft,
     contract: state.goalExecutionContract,
     policyState: getCurrentPolicyState(state),
+    historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
     timeZone: state.appTime?.timeZone || APP_TIME_ZONE,
   });
 }

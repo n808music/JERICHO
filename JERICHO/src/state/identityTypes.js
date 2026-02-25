@@ -355,6 +355,9 @@
  *   daysPerWeek: number;
  *   qualityPolicyId?: string;
  *   autoPolicySelection?: boolean;
+ *   enableHistoryPolicySelection?: boolean;
+ *   historyWindowCycles?: number;
+ *   historyInfluenceStrength?: 'light'|'standard'|'strong';
  *   minPolicyHoldDays?: number;
  *   enableQualityOptimizer?: boolean;
  *   optimizerMaxIterations?: number;
@@ -454,6 +457,8 @@
  *   policySelectionDecision?: any;
  *   policySelectionReasonCodes?: string[];
  *   policySelectionSignalsSnapshot?: any;
+ *   historyProfileSnapshotUsed?: any;
+ *   historyReasonCodes?: string[];
  *   qualityScoreBaseline?: number;
  *   qualityScoreBaselineByComponent?: Record<string, number>;
  *   qualityScoreOptimized?: number;
