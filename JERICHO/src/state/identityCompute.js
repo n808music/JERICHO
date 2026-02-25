@@ -509,6 +509,12 @@ function ensureCycleStructures(state) {
   if (typeof state.activeCycleId === 'undefined') state.activeCycleId = null;
 }
 
+function nextDeterministicId(state, prefix = 'id') {
+  if (!Number.isFinite(state._deterministicIdSeq)) state._deterministicIdSeq = 0;
+  state._deterministicIdSeq += 1;
+  return `${prefix}-${String(state._deterministicIdSeq).padStart(8, '0')}`;
+}
+
 function ensureAdmissionStores(state) {
   if (!state.goalAdmissionByGoal) state.goalAdmissionByGoal = {};
   if (!state.aspirationsByCycleId) state.aspirationsByCycleId = {};
@@ -3276,7 +3282,7 @@ function archiveAndCloneCycle(state, cycleId, overrides = {}) {
 
   // STEP 3: Store as editable draft (not auto-admitted)
   if (!state.aspirations) state.aspirations = [];
-  const draftId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+  const draftId = nextDeterministicId(state, 'asp-draft');
   const draftEntry = {
     id: draftId,
     createdAtISO: state.appTime?.nowISO || new Date().toISOString(),
@@ -3359,7 +3365,7 @@ function generatePlan(state) {
   state.suggestedBlocks = [...preserved, ...suggestions];
   state.suggestionEvents = state.suggestionEvents || [];
   state.suggestionEvents.push({
-    id: `sev-suggestions-${contract.goalId}-${Date.now()}`,
+    id: nextDeterministicId(state, `sev-suggestions-${contract.goalId}`),
     type: 'suggestions_generated',
     proposalIds: suggestions.map((s) => s.id),
     goalId: contract.goalId,
@@ -3421,7 +3427,7 @@ function applyGeneratedPlan(state) {
   });
   state.planEvents = state.planEvents || [];
   state.planEvents.push({
-    id: `plan-applied-${cycle.id}-${Date.now()}`,
+    id: nextDeterministicId(state, `plan-applied-${cycle.id}`),
     type: 'PLAN_APPLIED',
     cycleId: cycle.id,
     goalId: contract.goalId,
@@ -3525,7 +3531,7 @@ function applyDraftSchedule(state) {
   );
   state.planEvents = state.planEvents || [];
   state.planEvents.push({
-    id: `draft-policy-applied-${cycle.id}-${Date.now()}`,
+    id: nextDeterministicId(state, `draft-policy-applied-${cycle.id}`),
     type: 'DRAFT_POLICY_APPLIED',
     cycleId: cycle.id,
     goalId: contract.goalId,
@@ -3598,7 +3604,7 @@ function compileGoalEquation(state, payload = {}) {
   }
   if (!isAdmitted(admission)) {
     const aspiration = {
-      aspirationId: `asp-${cycle.id}-${Date.now()}`,
+      aspirationId: nextDeterministicId(state, `asp-${cycle.id}`),
       cycleId: cycle.id,
       createdAtISO: nowISO,
       draft: equation,
@@ -3823,7 +3829,7 @@ function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
   const nowISO = new Date().toISOString();
   state.suggestionEvents = state.suggestionEvents || [];
   state.suggestionEvents.push({
-    id: `sev-recompute-${contract.goalId}-${Date.now()}`,
+    id: nextDeterministicId(state, `sev-recompute-${contract.goalId}`),
     type: 'suggestions_recomputed',
     reason: 'capacity_calibration',
     prevSuggestionIds,
@@ -3842,7 +3848,7 @@ function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
 
   state.calibrationEvents = state.calibrationEvents || [];
   state.calibrationEvents.push({
-    id: `cal-${contract.goalId}-${Date.now()}`,
+    id: nextDeterministicId(state, `cal-${contract.goalId}`),
     type: 'calibration_days_per_week_set',
     daysPerWeek: parsed,
     dayKey: nowDayKey(state.appTime?.timeZone),
@@ -4196,7 +4202,7 @@ function handleDraftBlockCreate(state, action = {}) {
   const status = action.status || 'in_progress';
   const dateISO = dayKeyFromISO(startISO, state.appTime?.timeZone) || dayKeyFromDate(startDate);
   const event = {
-    id: `draft-create-${blockId}-${Date.now()}`,
+    id: nextDeterministicId(state, `draft-create-${blockId}`),
     blockId,
     dateISO,
     minutes,
@@ -4218,7 +4224,7 @@ function handleDraftBlockCreate(state, action = {}) {
     appendExecutionEvent(state, event);
   }
   recordDraftEvent(state, {
-    id: `draft-block-${blockId}-${Date.now()}`,
+    id: nextDeterministicId(state, `draft-block-${blockId}`),
     type: 'DRAFT_BLOCK_CREATE',
     blockId,
     cycleId,
@@ -4276,7 +4282,7 @@ function createBlock(state, payload = {}) {
   const lockedUntilDayKey = payload.lockedUntilDayKey ?? null;
 
   const newBlock = {
-    id: payload.id || `blk-${Date.now()}`,
+    id: payload.id || nextDeterministicId(state, 'blk'),
     cycleId,
     goalId,
     origin,

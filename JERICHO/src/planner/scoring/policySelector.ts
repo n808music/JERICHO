@@ -54,6 +54,11 @@ function mergeThresholds(overrides?: Partial<PolicySelectorThresholds>): PolicyS
   };
 }
 
+function round6(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.round(value * 1_000_000) / 1_000_000;
+}
+
 function chooseByRules(signals: PolicySelectionSignals, t: PolicySelectorThresholds): { policy: QualityPolicyId; reason: string } {
   if (signals.hasMilestones && (signals.milestoneAtRiskCount > 0 || signals.milestoneRisk >= t.milestoneRiskHigh)) {
     return { policy: 'DEADLINE_FIRST', reason: 'MILESTONE_AT_RISK' };
@@ -158,11 +163,15 @@ function deltaSatisfied(
   const dMilestone = Math.abs(current.milestoneRisk - Number(prior.milestoneRisk || 0));
   const dDependency = Math.abs(current.dependencyRisk - Number(prior.dependencyRisk || 0));
   const dContext = Math.abs(current.contextSwitchCount - Number(prior.contextSwitchCount || 0));
+  const rdDeadline = round6(dDeadline);
+  const rdMilestone = round6(dMilestone);
+  const rdDependency = round6(dDependency);
+  const rdContext = round6(dContext);
   return (
-    dDeadline >= t.switchDeltaDeadlineRisk ||
-    dMilestone >= t.switchDeltaMilestoneRisk ||
-    dDependency >= t.switchDeltaDependencyRisk ||
-    dContext >= t.switchDeltaContext
+    rdDeadline >= t.switchDeltaDeadlineRisk ||
+    rdMilestone >= t.switchDeltaMilestoneRisk ||
+    rdDependency >= t.switchDeltaDependencyRisk ||
+    rdContext >= t.switchDeltaContext
   );
 }
 

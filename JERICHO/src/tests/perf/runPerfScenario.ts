@@ -55,6 +55,33 @@ function buildSeededState(config: ScaleScenarioConfig) {
     suggestedBlocks: [],
     suggestionEvents: [],
     planPreview: null,
+    historySignalsByCycleId:
+      scenario.planDraft.enableHistoryPolicySelection === true
+        ? {
+            h1: {
+              cycleId: 'h1',
+              startDayKey: '2025-08-01',
+              endDayKey: '2025-09-01',
+              scheduledMinutesTotal: 1000,
+              completedMinutesTotal: 420,
+              completionRate: 0.42,
+              completionVelocityMinPerDay: 38,
+              movedMinutesTotal: 60,
+              droppedMinutesTotal: 20,
+              churnIndex: 18,
+              rescheduleCount: 4,
+              overCapDaysCount: 0,
+              avgDailyScheduledMin: 96,
+              maxDailyScheduledMin: 180,
+              depTightCount: 2,
+              depWindowBlockedCount: 0,
+              milestoneAtRiskCount: 0,
+              placementAnchoringMissCount: 1,
+              outsideExecutionHorizonMinutes: 200,
+              unplacedEstimateMinTotal: 80,
+            },
+          }
+        : {},
     cyclesById: {
       ...onboarded.cyclesById,
       [cycleId]: {

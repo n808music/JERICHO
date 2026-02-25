@@ -51,7 +51,8 @@ function toAssignments(suggestedBlocks = [], timeZone = 'UTC') {
 
 function clampRatio(num, den) {
   if (!Number.isFinite(num) || !Number.isFinite(den) || den <= 0) return 0;
-  return Math.max(0, Math.min(1, num / den));
+  const ratio = Math.max(0, Math.min(1, num / den));
+  return Math.round(ratio * 1_000_000) / 1_000_000;
 }
 
 function daysBetween(start, end) {
@@ -114,7 +115,7 @@ function buildPacingDiagnostics({ milestones = [], injected = null, constraints 
         pacingSegmentCount,
         pacingRequiredCriticalMinutes: requiredCriticalMinutes,
         pacingAvailableWindowMinutes: availableWindowMinutes,
-        pacingSlackRatio: Math.round(pacingSlackRatio * 1000) / 1000,
+        pacingSlackRatio: Math.round(pacingSlackRatio * 1_000_000) / 1_000_000,
         checkpointCount,
         anchoringMisses: misses,
       };
@@ -124,7 +125,7 @@ function buildPacingDiagnostics({ milestones = [], injected = null, constraints 
     pacingByMilestone: byMilestone,
     pacingInfeasibleMilestonesCount: infeasible,
     pacingAnchoringMissCount: anchoringMisses,
-    milestonePlacedRatioAvg: Math.round((placedRatioSum / milestoneCount) * 1000) / 1000,
+    milestonePlacedRatioAvg: Math.round((placedRatioSum / milestoneCount) * 1_000_000) / 1_000_000,
   };
 }
 
@@ -337,9 +338,11 @@ export function buildPolicyAndQualityDiagnostics({
       (sum, m) => sum + (m.pacingAvailableWindowMinutes || 0),
       0
     ),
-    pacingSlackRatio:
-      Object.values(pacing.pacingByMilestone).reduce((sum, m) => sum + (Number(m.pacingSlackRatio) || 0), 0) /
-      Math.max(1, milestones.length),
+    pacingSlackRatio: Math.round(
+      (Object.values(pacing.pacingByMilestone).reduce((sum, m) => sum + (Number(m.pacingSlackRatio) || 0), 0) /
+        Math.max(1, milestones.length)) *
+        1_000_000
+    ) / 1_000_000,
     pacingInfeasibleMilestonesCount: pacing.pacingInfeasibleMilestonesCount,
     pacingByMilestone: pacing.pacingByMilestone,
     pacingAnchoringMissCount: pacing.pacingAnchoringMissCount,

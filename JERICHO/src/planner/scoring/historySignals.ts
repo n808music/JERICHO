@@ -54,9 +54,9 @@ function toInt(value: unknown): number {
   return Number.isFinite(n) ? Math.round(n) : 0;
 }
 
-function round3(value: number): number {
+function round6(value: number): number {
   if (!Number.isFinite(value)) return 0;
-  return Math.round(value * 1000) / 1000;
+  return Math.round(value * 1_000_000) / 1_000_000;
 }
 
 function dayKeyToMs(dayKey: string): number {
@@ -132,9 +132,9 @@ export function deriveCycleHistorySignals(
     return sum + duration;
   }, 0);
 
-  const completionRate = scheduledMinutesTotal > 0 ? round3(completedMinutesTotal / scheduledMinutesTotal) : 0;
+  const completionRate = scheduledMinutesTotal > 0 ? round6(completedMinutesTotal / scheduledMinutesTotal) : 0;
   const activeDays = Math.max(1, dayLoads.size || dayDiffInclusive(startDayKey, endDayKey));
-  const completionVelocityMinPerDay = round3(completedMinutesTotal / activeDays);
+  const completionVelocityMinPerDay = round6(completedMinutesTotal / activeDays);
 
   let movedMinutesTotal = 0;
   let droppedMinutesTotal = 0;
@@ -151,11 +151,11 @@ export function deriveCycleHistorySignals(
     }
   });
 
-  const churnIndex = scheduledMinutesTotal > 0 ? round3(((movedMinutesTotal + droppedMinutesTotal) / scheduledMinutesTotal) * 100) : 0;
+  const churnIndex = scheduledMinutesTotal > 0 ? round6(((movedMinutesTotal + droppedMinutesTotal) / scheduledMinutesTotal) * 100) : 0;
   const dayCaps = toInt(cycle?.planDraft?.maxScheduledMinutesPerDay) || 1440;
   const dailyLoads = [...dayLoads.values()];
   const overCapDaysCount = dailyLoads.filter((minutes) => minutes > dayCaps).length;
-  const avgDailyScheduledMin = round3(safeAvg(dailyLoads));
+  const avgDailyScheduledMin = round6(safeAvg(dailyLoads));
   const maxDailyScheduledMin = dailyLoads.length ? Math.max(...dailyLoads) : 0;
 
   const depTightCount = toInt(diagnostics?.depTightCount ?? cycle?.planPreview?.policySelectionSignalsSnapshot?.depTightCount);
@@ -241,13 +241,13 @@ export function buildHistoryProfile(
       maxEndDayKey: used[used.length - 1].endDayKey,
     },
     aggregates: {
-      avgCompletionRate: round3(safeAvg(completionRates)),
-      avgVelocityMinPerDay: round3(safeAvg(used.map((entry) => entry.completionVelocityMinPerDay))),
-      avgChurnIndex: round3(safeAvg(churnValues)),
-      avgDepTightCount: round3(safeAvg(used.map((entry) => entry.depTightCount))),
-      avgMilestoneAtRiskCount: round3(safeAvg(used.map((entry) => entry.milestoneAtRiskCount))),
-      avgAnchoringMissCount: round3(safeAvg(used.map((entry) => entry.placementAnchoringMissCount))),
-      avgDeferralMinutes: round3(safeAvg(deferralValues)),
+      avgCompletionRate: round6(safeAvg(completionRates)),
+      avgVelocityMinPerDay: round6(safeAvg(used.map((entry) => entry.completionVelocityMinPerDay))),
+      avgChurnIndex: round6(safeAvg(churnValues)),
+      avgDepTightCount: round6(safeAvg(used.map((entry) => entry.depTightCount))),
+      avgMilestoneAtRiskCount: round6(safeAvg(used.map((entry) => entry.milestoneAtRiskCount))),
+      avgAnchoringMissCount: round6(safeAvg(used.map((entry) => entry.placementAnchoringMissCount))),
+      avgDeferralMinutes: round6(safeAvg(deferralValues)),
     },
     trends: {
       completionRateTrend: trendOf(completionRates, 0.03),

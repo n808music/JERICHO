@@ -24,6 +24,10 @@ export type ScaleScenarioConfig = {
   optimizerMode?: 'off' | 'on';
   qualityPolicyId?: string;
   autoPolicySelection?: boolean;
+  enableMilestonePacing?: boolean;
+  enableHistoryPolicySelection?: boolean;
+  historyWindowCycles?: number;
+  historyInfluenceStrength?: 'light' | 'standard' | 'strong';
 };
 
 function actionId(i: number) {
@@ -100,10 +104,13 @@ export function buildScaleScenario(config: ScaleScenarioConfig) {
       daysPerWeek: 7,
       qualityPolicyId: config.qualityPolicyId || 'BALANCED',
       autoPolicySelection: config.autoPolicySelection === true,
+      enableHistoryPolicySelection: config.enableHistoryPolicySelection === true,
+      historyWindowCycles: Number.isFinite(config.historyWindowCycles) ? config.historyWindowCycles : 5,
+      historyInfluenceStrength: config.historyInfluenceStrength || 'standard',
       enableQualityOptimizer: config.optimizerMode === 'on',
       optimizerMaxIterations: 2,
       optimizerMaxCandidates: 30,
-      enableMilestonePacing: false,
+      enableMilestonePacing: config.enableMilestonePacing === true,
       pacingCadenceMode: 'adaptive',
       actions,
       milestones,

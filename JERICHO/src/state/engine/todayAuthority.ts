@@ -53,8 +53,11 @@ export function buildExecutionEventFromBlock(block: any, overrides: Partial<Exec
   const status = overrides.status || block?.status;
   const lockedUntilDayKey = overrides.lockedUntilDayKey || block?.lockedUntilDayKey || null;
 
+  const deterministicId =
+    overrides.id ||
+    `evt:${overrides.kind || 'update'}:${overrides.blockId || block?.id || 'unknown'}:${dateISO}:${Math.max(0, Math.round(minutes))}`;
   return {
-    id: overrides.id || (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random()}`),
+    id: deterministicId,
     blockId: overrides.blockId || block?.id,
     dateISO,
     minutes: Math.max(0, Math.round(minutes)),
