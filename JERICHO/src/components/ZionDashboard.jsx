@@ -821,6 +821,12 @@ export default function ZionDashboard({
     scoringWindowDays: probability?.scoringSummary?.K
   });
   const probabilityWindowLabel = formatProbabilityWindowLabel(probabilityWindowSpec);
+  const cycleMetrics = activeCycle?.metrics || {};
+  const posScore = Number.isFinite(cycleMetrics.posScore) ? Number(cycleMetrics.posScore) : null;
+  const feasibilityScore =
+    Number.isFinite(cycleMetrics.feasibilityScore) ? Number(cycleMetrics.feasibilityScore) : null;
+  const integrityScoreCycle =
+    Number.isFinite(cycleMetrics.integrityScore) ? Number(cycleMetrics.integrityScore) : null;
   const safeStability = stabilityView || {};
   const stabilityScoreRaw = Math.min(
     Number.isFinite(safeStability.completionRate) ? safeStability.completionRate : 0,
@@ -830,8 +836,7 @@ export default function ZionDashboard({
   );
   const stabilityScore = Math.max(0, Math.min(100, Math.round(stabilityScoreRaw * 100)));
   const stabilityBand = stabilityScore >= 80 ? 'High' : stabilityScore >= 50 ? 'Moderate' : 'Low';
-  const probabilityValue =
-    probability && Number.isFinite(probability.value) ? Math.round(probability.value * 100) : null;
+  const posValue = posScore !== null ? Math.round(posScore * 100) : null;
   const probabilityStatusLabel = (() => {
     if (probability?.status === 'INFEASIBLE' || feasibility?.status === 'INFEASIBLE') return 'Infeasible';
     if (probability?.status === 'UNSCHEDULABLE') return 'Unschedulable';
@@ -1412,7 +1417,7 @@ export default function ZionDashboard({
                 <div className="flex items-end gap-4">
                   <div>
                     <p className="text-3xl font-semibold text-jericho-text">
-                      {probabilityValue !== null ? `${probabilityValue}%` : '—'}
+                      {posValue !== null ? `${posValue}%` : '—'}
                     </p>
                     <p className="text-xs text-muted">Status: {probabilityStatusLabel}</p>
                   </div>
@@ -1421,6 +1426,12 @@ export default function ZionDashboard({
                   </div>
                 </div>
                 <div className="grid md:grid-cols-3 gap-3 text-xs text-muted">
+                  <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
+                    <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Feasibility score</p>
+                    <p className="text-sm text-jericho-text">
+                      {feasibilityScore !== null ? `${Math.round(feasibilityScore * 100)}%` : '—'}
+                    </p>
+                  </div>
                   <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
                     <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Workable days remaining</p>
                     <p className="text-sm text-jericho-text">
@@ -1467,8 +1478,10 @@ export default function ZionDashboard({
                 </div>
                 <div className="grid md:grid-cols-2 gap-3 text-xs text-muted">
                   <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
-                    <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Completion rate</p>
-                    <p className="text-sm text-jericho-text">{Math.round((safeStability.completionRate || 0) * 100)}%</p>
+                    <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Integrity rate</p>
+                    <p className="text-sm text-jericho-text">
+                      {Math.round(((integrityScoreCycle ?? safeStability.completionRate ?? 0) || 0) * 100)}%
+                    </p>
                   </div>
                   <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
                     <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Mix drift</p>

@@ -28,6 +28,7 @@ import { computeTerminalConvergence } from './convergenceTerminal.ts';
 import { rolloverAtMidnight, shouldRollover } from '../core/engine/rollover.ts';
 import { buildDraftScheduleItems, buildPolicyAndQualityDiagnostics } from './draftSchedule.js';
 import { buildHistoryProfile, deriveCycleHistorySignals } from '../planner/scoring/historySignals.ts';
+import { computeCycleIntegrityScore, computeCyclePOS } from '../domain/scoring/cycleScoring.ts';
 
 /**
  * @typedef {import('./identityTypes.js').IdentityState} IdentityState
@@ -353,6 +354,7 @@ export function computeDerivedState(state, action) {
       timeZone: next.appTime?.timeZone || APP_TIME_ZONE,
     });
   }
+  applyCycleScoring(next);
   next.correctionSignals = computeCorrectionSignals(next, 14);
   mergePriorTodayBlocks(next, previousTodayBlocks);
   syncPlacementStateFromEvents(next);
@@ -1170,6 +1172,55 @@ function applyFeasibility(state) {
     feasibilityByGoal[goalId] = computeFeasibility({ goalId, deadlineISO }, state, constraints, nowISO);
   });
   state.feasibilityByGoal = feasibilityByGoal;
+}
+
+function applyCycleScoring(state) {
+  const cycleId = state?.activeCycleId || null;
+  if (!cycleId) return;
+  const cycle = state?.cyclesById?.[cycleId];
+  if (!cycle) return;
+
+  const activeDayKey = state?.appTime?.activeDayKey || state?.today?.date || nowDayKey();
+  const nowISO = state?.appTime?.nowISO || `${activeDayKey}T12:00:00.000Z`;
+  const blocks = getAllBlocks(state);
+
+  const integrity = computeCycleIntegrityScore({
+    cycleId,
+    nowISO,
+    blocks,
+  });
+
+  const previewFeasibility = Number(cycle?.planPreview?.feasibilityConfidence);
+  const rootFeasibility = Number(state?.planPreview?.feasibilityConfidence);
+  const feasibilityScore = Number.isFinite(previewFeasibility)
+    ? previewFeasibility
+    : Number.isFinite(rootFeasibility)
+    ? rootFeasibility
+    : null;
+
+  const metrics = {
+    ...(cycle.metrics || {}),
+    integrityScore: integrity.integrityScore,
+    integrityMinutesTotal: integrity.minutesTotal,
+    integrityMinutesCounted: integrity.minutesCounted,
+    feasibilityScore,
+    posScore: null,
+  };
+
+  if (Number.isFinite(feasibilityScore)) {
+    const pos = computeCyclePOS({
+      cycleId,
+      nowISO,
+      feasibilityScore,
+      blocks,
+    });
+    metrics.posScore = pos.pos;
+    metrics.feasibilityScore = pos.feasibility;
+    metrics.integrityScore = pos.integrity;
+  }
+
+  cycle.metrics = metrics;
+  state.cyclesById[cycleId] = cycle;
 }
 
 function applyProgressCredit(state) {
