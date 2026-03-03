@@ -29,6 +29,7 @@ import { rolloverAtMidnight, shouldRollover } from '../core/engine/rollover.ts';
 import { buildDraftScheduleItems, buildPolicyAndQualityDiagnostics } from './draftSchedule.js';
 import { buildHistoryProfile, deriveCycleHistorySignals } from '../planner/scoring/historySignals.ts';
 import { computeCycleIntegrityScore, computeCyclePOS } from '../domain/scoring/cycleScoring.ts';
+import { aggregateCycleOutcomes, buildPosExplanation } from '../domain/scoring/posExplanation.ts';
 
 /**
  * @typedef {import('./identityTypes.js').IdentityState} IdentityState
@@ -1217,6 +1218,50 @@ function applyCycleScoring(state) {
     metrics.posScore = pos.pos;
     metrics.feasibilityScore = pos.feasibility;
     metrics.integrityScore = pos.integrity;
+  }
+
+  const outcomeAggNow = aggregateCycleOutcomes({
+    cycleId,
+    nowISO,
+    blocks,
+  });
+
+  const previousSnapshot = cycle.metrics?.posSnapshot || null;
+  const conflictCodes = new Set();
+  if (state?.lastPlanError?.code) {
+    conflictCodes.add(String(state.lastPlanError.code).trim().toUpperCase());
+  }
+  if (Array.isArray(state?.lastPlanError?.reasonCodes)) {
+    state.lastPlanError.reasonCodes.forEach((code) => {
+      const normalized = String(code || '').trim().toUpperCase();
+      if (normalized) conflictCodes.add(normalized);
+    });
+  }
+  const conflictsNow = Array.from(conflictCodes).sort((a, b) => a.localeCompare(b));
+
+  const explanation = buildPosExplanation({
+    cycleId,
+    nowISO,
+    posPrev: previousSnapshot?.posScore ?? null,
+    posNow: metrics.posScore,
+    feasibilityPrev: previousSnapshot?.feasibilityScore ?? null,
+    feasibilityNow: metrics.feasibilityScore,
+    integrityPrev: previousSnapshot?.integrityScore ?? null,
+    integrityNow: metrics.integrityScore,
+    conflictsNow,
+    outcomeAggPrev: previousSnapshot?.outcomeAgg || null,
+    outcomeAggNow,
+  });
+  metrics.posExplanation = explanation;
+
+  if (Number.isFinite(metrics.posScore)) {
+    metrics.posSnapshotAtISO = nowISO;
+    metrics.posSnapshot = {
+      feasibilityScore: metrics.feasibilityScore,
+      integrityScore: metrics.integrityScore,
+      posScore: metrics.posScore,
+      outcomeAgg: outcomeAggNow,
+    };
   }
 
   cycle.metrics = metrics;

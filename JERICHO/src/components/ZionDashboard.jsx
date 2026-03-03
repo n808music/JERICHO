@@ -55,6 +55,19 @@ const ZION_VIEW_TABS = [
   { key: 'quarter', label: 'Quarter' },
   { key: 'year', label: 'Year' }
 ];
+
+const POS_REASON_LABELS = {
+  POS_NO_PLAN: 'No plan available',
+  POS_UNSCHEDULABLE: 'Unschedulable',
+  POS_DOWN_MISSED_WORK: 'Missed work increased',
+  POS_DOWN_LATE_COMPLETION: 'Late completions increased',
+  POS_UP_ON_TIME_COMPLETION: 'On-time completions increased',
+  POS_UP_EARLY_RESCHEDULE: 'Early reschedules increased',
+  POS_DOWN_LATE_RESCHEDULE: 'Late reschedules increased',
+  POS_NEUTRAL_CANCELLATION: 'Cancellations recorded',
+  POS_DOWN_FEASIBILITY_DECREASE: 'Feasibility decreased',
+  POS_UP_FEASIBILITY_INCREASE: 'Feasibility increased',
+};
 // Dev note: activeDayKey is the only anchor for UI dates; avoid new Date/Date.now for display-critical state.
 
 function useZionState() {
@@ -837,6 +850,16 @@ export default function ZionDashboard({
   const stabilityScore = Math.max(0, Math.min(100, Math.round(stabilityScoreRaw * 100)));
   const stabilityBand = stabilityScore >= 80 ? 'High' : stabilityScore >= 50 ? 'Moderate' : 'Low';
   const posValue = posScore !== null ? Math.round(posScore * 100) : null;
+  const posExplanation = cycleMetrics?.posExplanation || null;
+  const posReasons = Array.isArray(posExplanation?.reasons) ? posExplanation.reasons : [];
+  const hasNoPlanReason = posReasons.some((reason) => reason?.code === 'POS_NO_PLAN');
+  const hasUnschedulableReason = posReasons.some((reason) => reason?.code === 'POS_UNSCHEDULABLE');
+  const unschedulableConflicts = Array.isArray(posExplanation?.conflicts)
+    ? posExplanation.conflicts.slice(0, 2)
+    : [];
+  const shouldRenderWhyChanged =
+    Boolean(posExplanation) &&
+    (posExplanation?.delta !== null || hasNoPlanReason || hasUnschedulableReason || posReasons.length > 0);
   const probabilityStatusLabel = (() => {
     if (probability?.status === 'INFEASIBLE' || feasibility?.status === 'INFEASIBLE') return 'Infeasible';
     if (probability?.status === 'UNSCHEDULABLE') return 'Unschedulable';
@@ -1451,6 +1474,36 @@ export default function ZionDashboard({
                     </p>
                   </div>
                 </div>
+                {shouldRenderWhyChanged ? (
+                  <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2 space-y-2 text-xs text-muted">
+                    <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Why it changed</p>
+                    {hasNoPlanReason ? (
+                      <p>Generate a plan to see P.O.S.</p>
+                    ) : hasUnschedulableReason ? (
+                      <div className="space-y-1">
+                        <p>Unschedulable under current windows.</p>
+                        {unschedulableConflicts.length > 0 ? (
+                          <p>Conflicts: {unschedulableConflicts.join(', ')}</p>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        {posReasons.slice(0, 3).map((reason, idx) => {
+                          const code = String(reason?.code || '');
+                          const label = POS_REASON_LABELS[code] || code;
+                          const direction = String(reason?.direction || 'NEUTRAL');
+                          const evidence = String(reason?.evidence || '').trim();
+                          return (
+                            <p key={`pos-reason-${idx}-${code}`}>
+                              {label} · {direction}
+                              {evidence ? ` · ${evidence}` : ''}
+                            </p>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
                 <div className="text-[11px] text-muted">
                   {probabilityWindowLabel}
                   {cycleEndKey ? ` · Deadline in ${daysToDeadline ?? '—'} days (${cycleEndKey})` : ''}

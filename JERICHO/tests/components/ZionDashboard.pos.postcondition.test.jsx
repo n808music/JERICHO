@@ -12,7 +12,7 @@ vi.mock('../../src/state/identityStore', () => ({
   useIdentityStore: () => mockStore,
 }));
 
-function buildStore({ withPlan = true } = {}) {
+function buildStore({ withPlan = true, explanationMode = 'none' } = {}) {
   const dayKey = '2026-03-10';
   const cycleId = 'cycle-1';
   const goalId = 'goal-1';
@@ -47,11 +47,43 @@ function buildStore({ withPlan = true } = {}) {
               posScore: 0.62,
               feasibilityScore: 0.8,
               integrityScore: 0.7,
+              posExplanation:
+                explanationMode === 'delta'
+                  ? {
+                      delta: -0.1,
+                      reasons: [
+                        {
+                          code: 'POS_DOWN_MISSED_WORK',
+                          direction: 'DOWN',
+                          magnitude: 0.2,
+                          evidence: 'missed 60m',
+                        },
+                      ],
+                      conflicts: [],
+                      generatedAtISO: `${dayKey}T12:00:00.000Z`,
+                    }
+                  : explanationMode === 'unschedulable'
+                  ? {
+                      delta: -0.62,
+                      reasons: [{ code: 'POS_UNSCHEDULABLE', direction: 'DOWN', magnitude: 0.62 }],
+                      conflicts: ['UNSCHEDULABLE', 'NO_ALLOWED_WINDOWS'],
+                      generatedAtISO: `${dayKey}T12:00:00.000Z`,
+                    }
+                  : null,
             }
           : {
               posScore: null,
               feasibilityScore: null,
               integrityScore: 1,
+              posExplanation:
+                explanationMode === 'no-plan'
+                  ? {
+                      delta: null,
+                      reasons: [{ code: 'POS_NO_PLAN', direction: 'NEUTRAL', magnitude: 1 }],
+                      conflicts: [],
+                      generatedAtISO: `${dayKey}T12:00:00.000Z`,
+                    }
+                  : null,
             },
       },
     },
@@ -137,5 +169,31 @@ describe('ZionDashboard POS postcondition', () => {
     const headline = posCard.querySelector('p.text-3xl');
     expect(headline).toBeTruthy();
     expect(headline.textContent).toBe('—');
+  });
+
+  it('renders deterministic explanation rows when delta reasons exist', () => {
+    mockStore = buildStore({ withPlan: true, explanationMode: 'delta' });
+    const { container } = render(<ZionDashboard initialView="stability" />);
+    const posCard = within(container).getByText(/Probability of Success/i).closest('.rounded-xl');
+    expect(posCard).toBeTruthy();
+    expect(within(posCard).getByText(/Why it changed/i)).toBeInTheDocument();
+    expect(within(posCard).getByText(/Missed work increased · DOWN · missed 60m/i)).toBeInTheDocument();
+  });
+
+  it('renders no-plan POS explanation when no plan exists', () => {
+    mockStore = buildStore({ withPlan: false, explanationMode: 'no-plan' });
+    const { container } = render(<ZionDashboard initialView="stability" />);
+    const posCard = within(container).getByText(/Probability of Success/i).closest('.rounded-xl');
+    expect(posCard).toBeTruthy();
+    expect(within(posCard).getByText(/Generate a plan to see P\.O\.S\./i)).toBeInTheDocument();
+  });
+
+  it('renders unschedulable POS explanation with conflict codes', () => {
+    mockStore = buildStore({ withPlan: true, explanationMode: 'unschedulable' });
+    const { container } = render(<ZionDashboard initialView="stability" />);
+    const posCard = within(container).getByText(/Probability of Success/i).closest('.rounded-xl');
+    expect(posCard).toBeTruthy();
+    expect(within(posCard).getByText(/Unschedulable under current windows\./i)).toBeInTheDocument();
+    expect(within(posCard).getByText(/Conflicts: UNSCHEDULABLE, NO_ALLOWED_WINDOWS/i)).toBeInTheDocument();
   });
 });
