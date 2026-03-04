@@ -24,8 +24,7 @@ import { DELIVERABLE_DOMAINS, getDeliverablesForCycle, getSuggestionLinkForCycle
 import { deriveWhatMovedToday } from '../state/whatMovedToday.ts';
 import {
   getContractStartDayKey,
-  getContractDeadlineDayKey,
-  selectVisibleDraftItems
+  getContractDeadlineDayKey
 } from '../state/suggestionFilters.js';
 import { traceAction, traceNoop } from '../dev/uiWiringTrace.ts';
 import {
@@ -38,7 +37,6 @@ import {
   shiftAnchorDayKey
 } from '../state/time/window.ts';
 import { getDayStats, getMonthStats, getQuarterStats } from '../state/time/viewAggregates.ts';
-import { buildDraftScheduleItems, filterDraftItemsByDay } from '../state/draftSchedule.js';
 
 const DOMAINS = ['Body', 'Resources', 'Creation', 'Focus'];
 const DOMAIN_ENUM = ['BODY', 'RESOURCES', 'CREATION', 'FOCUS'];
@@ -80,7 +78,6 @@ function useZionState() {
     correctionSignals,
     suggestionEvents,
     suggestedBlocks,
-    draftScheduleAppliedAtISO,
     deliverablesByCycleId,
     goalAdmissionByGoal,
     appTime,
@@ -141,7 +138,6 @@ function useZionState() {
     activeCycleId,
     probabilityByGoal,
     feasibilityByGoal,
-    draftScheduleAppliedAtISO,
     actions: {
       completeBlock,
       setDefiniteGoal,
@@ -207,7 +203,6 @@ export default function ZionDashboard({
     probabilityByGoal,
     feasibilityByGoal,
     profileLearning,
-    draftScheduleAppliedAtISO,
     actions
   } = useZionState();
   const activeCycle = activeCycleId && cyclesById ? cyclesById[activeCycleId] : null;
@@ -398,60 +393,22 @@ export default function ZionDashboard({
     });
     return map;
   }, [deliverables]);
-  const routeSuggestionDays = useMemo(() => {
-    const days = [];
-    let cursor = activeDayKey;
-    for (let i = 0; i < 7; i += 1) {
-      if (!cursor) break;
-      days.push(cursor);
-      cursor = addDays(cursor, 1, timeZone);
-    }
-    return days;
-  }, [activeDayKey, timeZone]);
-  const routeSuggestions = useMemo(() => {
-    const source = Object.keys(dailyProjectionForecast || {}).length ? dailyProjectionForecast : coldPlanForecast;
-    return routeSuggestionDays
-      .map((dayKey) => {
-        const entry = source?.[dayKey];
-        return entry
-          ? { dayKey, totalBlocks: entry.totalBlocks || 0, byDeliverable: entry.byDeliverable || {} }
-          : { dayKey, totalBlocks: 0, byDeliverable: {} };
-      })
-      .filter((entry) => entry.totalBlocks > 0);
-  }, [routeSuggestionDays, coldPlanForecast, dailyProjectionForecast]);
   const contract = activeCycle?.goalContract || goalExecutionContract || null;
   const deadlineDayKey = getContractDeadlineDayKey(contract);
-  const rawDraftScheduleItems = useMemo(
-    () =>
-      buildDraftScheduleItems({
-        suggestedBlocks: suggestedActive,
-        routeSuggestions,
-        contract,
-        timeZone,
-        contractStartDayKey,
-        defaults: {
-          todayKey: activeDayKey,
-          primaryDomain: contract?.primaryDomain || 'FOCUS'
-        }
-      }),
-    [suggestedActive, routeSuggestions, contract, timeZone, activeDayKey, contractStartDayKey]
-  );
-  const draftScheduleItems = useMemo(
-    () =>
-      selectVisibleDraftItems({
-        cycle: { goalContract: contract },
-        draftItems: rawDraftScheduleItems,
-        timeZone,
-        deadlineDayKey
-      }),
-    [rawDraftScheduleItems, contract, timeZone, deadlineDayKey]
-  );
-  const draftsForViewDay = useMemo(
-    () => filterDraftItemsByDay(draftScheduleItems, viewDayKey),
-    [draftScheduleItems, viewDayKey]
-  );
-  const hideDraftsAfterApply = Boolean(draftScheduleAppliedAtISO);
-  const draftsToRender = hideDraftsAfterApply ? [] : draftsForViewDay;
+  const proposedScheduleItems = useMemo(() => {
+    const items = (suggestedActive || []).filter((item) => {
+      const dayKey = item?.dayKey || dayKeyFromISO(item?.startISO || '', timeZone);
+      if (!dayKey) return false;
+      if (contractStartDayKey && dayKey < contractStartDayKey) return false;
+      if (deadlineDayKey && dayKey > deadlineDayKey) return false;
+      return true;
+    });
+    if (!viewDayKey) return items;
+    return items.filter((item) => {
+      const dayKey = item?.dayKey || dayKeyFromISO(item?.startISO || '', timeZone);
+      return dayKey === viewDayKey;
+    });
+  }, [suggestedActive, contractStartDayKey, deadlineDayKey, viewDayKey, timeZone]);
   const progressStats = useMemo(() => {
     const blocks = selectedDayBlocks || [];
     const progressBlocks = blocks.filter((b) => b?.deliverableId).length;
@@ -849,7 +806,15 @@ export default function ZionDashboard({
   );
   const stabilityScore = Math.max(0, Math.min(100, Math.round(stabilityScoreRaw * 100)));
   const stabilityBand = stabilityScore >= 80 ? 'High' : stabilityScore >= 50 ? 'Moderate' : 'Low';
-  const posValue = posScore !== null ? Math.round(posScore * 100) : null;
+  const posValue =
+    posScore !== null
+      ? Math.round(posScore * 100)
+      : feasibilityScore !== null
+      ? Math.round(Math.max(0, Math.min(1, feasibilityScore)) * 100)
+      : null;
+  const shouldShowPosDash = posScore === null && feasibilityScore === null;
+  const posFallbackZero = posScore === null && feasibilityScore === 0;
+  const missingPosWithFeasibility = posScore === null && feasibilityScore !== null && feasibilityScore !== 0;
   const posExplanation = cycleMetrics?.posExplanation || null;
   const posReasons = Array.isArray(posExplanation?.reasons) ? posExplanation.reasons : [];
   const hasNoPlanReason = posReasons.some((reason) => reason?.code === 'POS_NO_PLAN');
@@ -1034,7 +999,7 @@ export default function ZionDashboard({
                     <BlockColumn
                       dateLabel={activeDayKey}
                       blocks={selectedDayBlocks}
-                      drafts={draftsToRender}
+                      drafts={[]}
                       primaryObjectiveId={primaryObjectiveId}
                       chainTaskId={primaryObjectiveId}
                       onBlockClick={(id) => setSelectedBlockId(id)}
@@ -1059,21 +1024,34 @@ export default function ZionDashboard({
                           onClick={() =>
                             emitAction(
                               'draftSchedule.commit',
-                              { cycleId: activeCycleId, items: draftScheduleItems },
+                              {
+                                cycleId: activeCycleId,
+                                items: proposedScheduleItems.map((item) => ({
+                                  id: item.id,
+                                  dayKey: item.dayKey || dayKeyFromISO(item.startISO || '', timeZone),
+                                  startISO: item.startISO,
+                                  minutes: item.durationMinutes,
+                                  title: item.title,
+                                  domainKey: item.domain
+                                }))
+                              },
                               actions.commitPreviewItems
                             )
                           }
-                          disabled={isCycleReadOnly || !isGoalAdmitted || draftsToRender.length === 0 || suppressDrafts}
+                          disabled={isCycleReadOnly || !isGoalAdmitted || proposedScheduleItems.length === 0 || suppressDrafts}
                         >
                           Apply schedule
                         </button>
                       </div>
+                      {isCycleReadOnly ? (
+                        <p className="text-[11px] text-amber-600">Cycle ended/read-only. Generate and apply are disabled.</p>
+                      ) : null}
                       {suppressDrafts && contractStartDayKey ? (
                         <p className="text-[11px] text-amber-600">
                           Drafts begin on {formatDayKeyLabel(contractStartDayKey)}. Nothing before that date.
                         </p>
-                      ) : draftsToRender.length ? (
-                        draftsToRender.map((item) => (
+                      ) : proposedScheduleItems.length ? (
+                        proposedScheduleItems.map((item) => (
                           <div
                             key={item.id}
                             className="rounded-md border border-line/40 bg-jericho-bg px-3 py-2 text-[11px] space-y-1"
@@ -1081,19 +1059,16 @@ export default function ZionDashboard({
                             <div className="flex items-center justify-between">
                               <span className="font-medium text-jericho-text">{item.title}</span>
                               <span className="text-muted">
-                                {item.minutes}m · {item.reason}
+                                {item.durationMinutes || 30}m
                               </span>
                             </div>
                             <p className="text-[11px] text-muted">
-                              {formatTime(item.startISO)} · {item.domainKey}
-                            </p>
-                            <p className="text-[11px] text-muted">
-                              Source: {item.source === 'coldPlan' ? 'Forecast' : 'Suggested'}
+                              {formatTime(item.startISO)} · {item.domain}
                             </p>
                           </div>
                         ))
                       ) : (
-                        <p className="text-[11px] text-muted">No draft items yet. Generate the schedule to preview.</p>
+                        <p className="text-[11px] text-muted">No proposed schedule blocks yet. Generate schedule first.</p>
                       )}
                     </div>
                   </div>
@@ -1440,9 +1415,12 @@ export default function ZionDashboard({
                 <div className="flex items-end gap-4">
                   <div>
                     <p className="text-3xl font-semibold text-jericho-text">
-                      {posValue !== null ? `${posValue}%` : '—'}
+                      {posValue !== null ? `${posValue}%` : posFallbackZero ? '0%' : shouldShowPosDash ? '—' : '—'}
                     </p>
                     <p className="text-xs text-muted">Status: {probabilityStatusLabel}</p>
+                    {missingPosWithFeasibility ? (
+                      <p className="text-[11px] text-amber-600">FEASIBILITY_MISSING_FOR_PLAN</p>
+                    ) : null}
                   </div>
                   <div className="text-xs text-muted">
                     {probabilityExplanation}

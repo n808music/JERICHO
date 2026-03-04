@@ -17,8 +17,7 @@ import React, { useMemo, useState } from 'react';
 import { useIdentityStore } from '../../state/identityStore';
 import GoalAdmissionPage from '../../ui/goalAdmission/GoalAdmissionPage';
 import { getActiveGoalOutcomes } from '../../state/cycleSelectors.js';
-import { buildDraftScheduleItems } from '../../state/draftSchedule.js';
-import { selectVisibleDraftItems, getContractStartDayKey, getContractDeadlineDayKey } from '../../state/suggestionFilters.js';
+import { getContractStartDayKey, getContractDeadlineDayKey } from '../../state/suggestionFilters.js';
 
 const formatDate = (iso) => {
   if (!iso) return '';
@@ -94,11 +93,14 @@ export function StructurePageConsolidated() {
     cyclesById,
     aspirations,
     appTime,
+    constraints,
+    availabilityPolicy,
     suggestedBlocks,
     lastPlanError,
     generateColdPlan,
     rebaseColdPlan,
     applyPlan,
+    setSchedulingConstraints,
     attemptGoalAdmission,
     archiveAndCloneCycle
   } = store;
@@ -114,43 +116,30 @@ export function StructurePageConsolidated() {
   const contractStartDayKey = getContractStartDayKey(activeCycle?.goalContract, timeZone);
   const activeDayKey = appTime?.activeDayKey || null;
   const suppressDrafts = Boolean(contractStartDayKey && activeDayKey && activeDayKey < contractStartDayKey);
-  const routeForecast = useMemo(() => {
-    const forecast = activeCycle?.coldPlan?.forecastByDayKey || {};
-    return Object.keys(forecast || {})
-      .map((dayKey) => ({
-        dayKey,
-        totalBlocks: forecast[dayKey].totalBlocks || 0,
-        byDeliverable: forecast[dayKey].byDeliverable || {},
-        summary: forecast[dayKey].summary || ''
-      }))
-      .filter((entry) => entry.totalBlocks > 0);
-  }, [activeCycle?.coldPlan]);
   const contract = activeCycle?.goalContract || null;
-  const rawDraftItems = useMemo(
-    () =>
-      buildDraftScheduleItems({
-        suggestedBlocks: suggestedBlocks || [],
-        routeSuggestions: routeForecast,
-        contract,
-        timeZone,
-        contractStartDayKey,
-        defaults: {
-          todayKey: appTime?.activeDayKey || new Date().toISOString().split('T')[0],
-          primaryDomain: contract?.primaryDomain || 'FOCUS',
-          routeMinutes: planDraft?.routeMinutes || 30
-        }
-      }),
-    [suggestedBlocks, routeForecast, contract, timeZone, appTime?.activeDayKey, planDraft?.routeMinutes]
-  );
   const visiblePreviewItems = useMemo(
-    () =>
-      selectVisibleDraftItems({
-        cycle: activeCycle,
-        draftItems: rawDraftItems,
-        timeZone,
-        deadlineDayKey: getContractDeadlineDayKey(contract)
-      }),
-    [activeCycle, rawDraftItems, timeZone, contract]
+    () => {
+      const deadlineDayKey = getContractDeadlineDayKey(contract);
+      return (suggestedBlocks || [])
+        .filter((item) => item?.status === 'suggested')
+        .filter((item) => {
+          const dayKey = item?.dayKey || (item?.startISO ? item.startISO.slice(0, 10) : '');
+          if (!dayKey) return false;
+          if (contractStartDayKey && dayKey < contractStartDayKey) return false;
+          if (deadlineDayKey && dayKey > deadlineDayKey) return false;
+          return true;
+        })
+        .map((item) => ({
+          id: item.id,
+          dayKey: item.dayKey || (item.startISO ? item.startISO.slice(0, 10) : ''),
+          startISO: item.startISO,
+          minutes: Number.isFinite(item.durationMinutes) ? Number(item.durationMinutes) : 30,
+          title: item.title || 'Scheduled action',
+          domainKey: item.domain || 'FOCUS',
+          reason: 'action_graph'
+        }));
+    },
+    [suggestedBlocks, contract, contractStartDayKey]
   );
   const previewCount = visiblePreviewItems.length;
   const definiteGoalView = buildDefiniteGoalView(activeCycle);
@@ -160,6 +149,37 @@ export function StructurePageConsolidated() {
   const [commitError, setCommitError] = useState(null);
   const [commitLoading, setCommitLoading] = useState(false);
   const [expandPlanErrorDetails, setExpandPlanErrorDetails] = useState(false);
+  const weekdayRows = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+  const weeklyWindows = availabilityPolicy?.weeklyWindows || constraints?.weeklyWindows || {};
+  const dayEndAtHHMM = availabilityPolicy?.dayEndAtHHMM || constraints?.dayEndAtHHMM || '23:59';
+
+  const updateWeeklyWindows = (nextWeeklyWindows) => {
+    setSchedulingConstraints?.({
+      availabilityPolicy: {
+        ...(availabilityPolicy || {}),
+        weeklyWindows: nextWeeklyWindows,
+        dayEndAtHHMM,
+      },
+      constraints: {
+        weeklyWindows: nextWeeklyWindows,
+        dayEndAtHHMM,
+      },
+    });
+  };
+
+  const updateDayEnd = (nextDayEndAtHHMM) => {
+    setSchedulingConstraints?.({
+      availabilityPolicy: {
+        ...(availabilityPolicy || {}),
+        weeklyWindows,
+        dayEndAtHHMM: nextDayEndAtHHMM,
+      },
+      constraints: {
+        weeklyWindows,
+        dayEndAtHHMM: nextDayEndAtHHMM,
+      },
+    });
+  };
 
   // Local state for goal admission form
   const appNow = new Date();
@@ -438,6 +458,84 @@ export function StructurePageConsolidated() {
                   <span>{day}</span>
                 </label>
               ))}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="block text-muted/80">Work windows:</label>
+            <div className="space-y-2">
+              {weekdayRows.map((dayCode) => {
+                const windows = Array.isArray(weeklyWindows?.[dayCode]) ? weeklyWindows[dayCode] : [];
+                return (
+                  <div key={dayCode} className="rounded border border-line/40 bg-jericho-surface px-2 py-2 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{dayCode}</span>
+                      <button
+                        type="button"
+                        className="rounded border border-line/40 px-2 py-0.5 text-[11px] text-muted"
+                        onClick={() => {
+                          const next = {
+                            ...weeklyWindows,
+                            [dayCode]: [...windows, { startHHMM: '09:00', endHHMM: '10:00' }],
+                          };
+                          updateWeeklyWindows(next);
+                        }}
+                      >
+                        Add window
+                      </button>
+                    </div>
+                    {windows.length ? (
+                      windows.map((window, index) => (
+                        <div key={`${dayCode}-${index}`} className="flex items-center gap-2">
+                          <input
+                            type="time"
+                            className="rounded border border-line/40 bg-jericho-surface px-1 py-1 text-xs text-jericho-text"
+                            value={window.startHHMM || '09:00'}
+                            onChange={(event) => {
+                              const nextWindows = windows.map((entry, entryIndex) =>
+                                entryIndex === index ? { ...entry, startHHMM: event.target.value } : entry
+                              );
+                              updateWeeklyWindows({ ...weeklyWindows, [dayCode]: nextWindows });
+                            }}
+                          />
+                          <span className="text-muted">to</span>
+                          <input
+                            type="time"
+                            className="rounded border border-line/40 bg-jericho-surface px-1 py-1 text-xs text-jericho-text"
+                            value={window.endHHMM || '10:00'}
+                            onChange={(event) => {
+                              const nextWindows = windows.map((entry, entryIndex) =>
+                                entryIndex === index ? { ...entry, endHHMM: event.target.value } : entry
+                              );
+                              updateWeeklyWindows({ ...weeklyWindows, [dayCode]: nextWindows });
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="rounded border border-line/40 px-2 py-0.5 text-[11px] text-muted"
+                            onClick={() => {
+                              const nextWindows = windows.filter((_, entryIndex) => entryIndex !== index);
+                              updateWeeklyWindows({ ...weeklyWindows, [dayCode]: nextWindows });
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-[11px] text-muted">No windows saved.</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-muted">Day end:</span>
+              <input
+                type="time"
+                className="rounded border border-line/40 bg-jericho-surface px-2 py-1 text-xs text-jericho-text"
+                value={dayEndAtHHMM}
+                onChange={(event) => updateDayEnd(event.target.value)}
+              />
             </div>
           </div>
           <div>

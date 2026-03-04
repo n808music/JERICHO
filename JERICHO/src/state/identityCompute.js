@@ -26,7 +26,7 @@ import { summarizeCycle } from './cycleSummary.ts';
 import { computeProfileLearning } from './learning.ts';
 import { computeTerminalConvergence } from './convergenceTerminal.ts';
 import { rolloverAtMidnight, shouldRollover } from '../core/engine/rollover.ts';
-import { buildDraftScheduleItems, buildPolicyAndQualityDiagnostics } from './draftSchedule.js';
+import { buildPolicyAndQualityDiagnostics } from './draftSchedule.js';
 import { buildHistoryProfile, deriveCycleHistorySignals } from '../planner/scoring/historySignals.ts';
 import { computeCycleIntegrityScore, computeCyclePOS } from '../domain/scoring/cycleScoring.ts';
 import { aggregateCycleOutcomes, buildPosExplanation } from '../domain/scoring/posExplanation.ts';
@@ -239,14 +239,29 @@ export function computeDerivedState(state, action) {
       applyCalibrationDays(next, action.daysPerWeek, action.uncertain);
       break;
     case 'GENERATE_PLAN':
-      generatePlan(next);
+      generatePlan(next, action.payload || {});
       break;
     case 'APPLY_PLAN':
       applyGeneratedPlan(next);
       break;
     case 'APPLY_DRAFT_SCHEDULE':
-      applyDraftSchedule(next);
+      applyDraftSchedule(next, action.payload || {});
       break;
+    case 'SET_SCHEDULING_CONSTRAINTS': {
+      const payload = action.payload || {};
+      const nextConstraints = payload.constraints || {};
+      next.constraints = {
+        ...(next.constraints || {}),
+        ...nextConstraints
+      };
+      if (payload.availabilityPolicy) {
+        next.availabilityPolicy = {
+          ...(next.availabilityPolicy || {}),
+          ...payload.availabilityPolicy
+        };
+      }
+      break;
+    }
     case 'COMMIT_PREVIEW_ITEMS': {
       const payload = action.payload || {};
       const cycleId = payload.cycleId || next.activeCycleId;
@@ -381,6 +396,7 @@ export function hydrateActiveCycleState(state) {
   state.activeGoalId = cycle.goalGovernanceContract?.goalId || state.activeGoalId || null;
   state.truthEntries = cycle.truthEntries || state.truthEntries || [];
   state.suggestionHistory = cycle.suggestionHistory || state.suggestionHistory || null;
+  state.lastPlanError = null;
   return state;
 }
 
@@ -530,6 +546,52 @@ function ensureDeliverablesStore(state) {
 
 function getActiveCycle(state) {
   return state.activeCycleId ? state.cyclesById?.[state.activeCycleId] : null;
+}
+
+function getTargetCycle(state, cycleId) {
+  if (cycleId && state?.cyclesById?.[cycleId]) return state.cyclesById[cycleId];
+  return getActiveCycle(state);
+}
+
+function isCycleReadOnly(cycle) {
+  if (!cycle) return true;
+  return (
+    cycle.status === 'Ended' ||
+    cycle.status === 'Archived' ||
+    cycle.state === 'Ended' ||
+    cycle.state === 'Archived'
+  );
+}
+
+function maxDayKey(a, b) {
+  if (!a) return b || null;
+  if (!b) return a || null;
+  return a >= b ? a : b;
+}
+
+function clearCycleTransientState(state) {
+  state.suggestedBlocks = [];
+  state.suggestionEvents = [];
+  state.lastPlanError = null;
+  state.draftScheduleAppliedAtISO = null;
+  state.overdueBlockIds = [];
+  state.blockLifecycleById = {};
+  state.executionEvents = [];
+  state.truthEntries = [];
+  state.planPreview = null;
+  state.planDraft = null;
+  state.planCalibration = null;
+  state.correctionSignals = null;
+  const cycle = getActiveCycle(state);
+  if (cycle?.metrics) {
+    cycle.metrics = {
+      ...cycle.metrics,
+      posSnapshot: null,
+      posSnapshotAtISO: null,
+      posExplanation: null,
+    };
+    state.cyclesById[cycle.id] = cycle;
+  }
 }
 
 function getDeliverableWorkspace(state, cycleId) {
@@ -1218,6 +1280,13 @@ function applyCycleScoring(state) {
     metrics.posScore = pos.pos;
     metrics.feasibilityScore = pos.feasibility;
     metrics.integrityScore = pos.integrity;
+  } else if (cycle?.planPreview) {
+    state.lastPlanError = {
+      ...(state.lastPlanError || {}),
+      code: 'FEASIBILITY_MISSING_FOR_PLAN',
+      reason: 'Plan preview exists but feasibility confidence is unavailable.',
+      cycleId
+    };
   }
 
   const outcomeAggNow = aggregateCycleOutcomes({
@@ -2808,6 +2877,7 @@ function applyOnboardingInputs(state, onboarding = {}) {
   };
   state.activeCycleId = newCycleId;
   state.activeGoalId = goalId;
+  clearCycleTransientState(state);
 
   if (!state.goalWorkById) state.goalWorkById = {};
   if (!state.goalWorkById[goalId]) {
@@ -2866,27 +2936,8 @@ function applyOnboardingInputs(state, onboarding = {}) {
     historyInfluenceStrength: 'standard',
   };
 
-  const suggested = buildSuggestedBlocks({
-    goalId,
-    startDayKey,
-    blocksPerWeek,
-    templates,
-    daysPerWeek,
-    goalText,
-    primaryDomain,
-    timeZone: state.appTime?.timeZone
-  });
-  state.suggestedBlocks = suggested;
-  state.suggestionEvents = state.suggestionEvents || [];
-  suggested.forEach((s) => {
-    state.suggestionEvents.push({
-      id: `sev-${s.id}`,
-      type: 'suggested_block_created',
-      proposalId: s.id,
-      goalId,
-      atISO: s.createdAtISO
-    });
-  });
+  state.suggestedBlocks = [];
+  state.suggestionEvents = [];
 
   state.planCalibration = {
     confidence: parseMinimumDays(onboarding.minimumDaysPerWeek) ? 0.45 : 0.3,
@@ -3060,6 +3111,7 @@ function startNewCycle(state, payload = {}) {
   if (state.appTime?.isFollowingNow) {
     state.appTime.activeDayKey = startDayKey;
   }
+  clearCycleTransientState(state);
 
   if (!state.goalWorkById) state.goalWorkById = {};
   if (!state.goalWorkById[goalId]) {
@@ -3111,27 +3163,8 @@ function startNewCycle(state, payload = {}) {
     historyInfluenceStrength: 'standard',
   };
 
-  const suggested = buildSuggestedBlocks({
-    goalId,
-    startDayKey,
-    blocksPerWeek,
-    templates,
-    daysPerWeek,
-    goalText,
-    primaryDomain,
-    timeZone: state.appTime?.timeZone
-  });
-  state.suggestedBlocks = suggested;
+  state.suggestedBlocks = [];
   state.suggestionEvents = [];
-  suggested.forEach((s) => {
-    state.suggestionEvents.push({
-      id: `sev-${s.id}`,
-      type: 'suggested_block_created',
-      proposalId: s.id,
-      goalId,
-      atISO: s.createdAtISO
-    });
-  });
 
   state.planCalibration = {
     confidence: 0.3,
@@ -3397,12 +3430,20 @@ function archiveAndCloneCycle(state, cycleId, overrides = {}) {
   state.lastPlanError = null;
 }
 
-function generatePlan(state) {
-  const contract = state.goalExecutionContract;
+function generatePlan(state, payload = {}) {
+  const targetCycleId = payload?.cycleId || state.activeCycleId || null;
+  const cycle = getTargetCycle(state, targetCycleId);
+  const contract = cycle?.goalContract || cycle?.contract || state.goalExecutionContract;
   state.draftScheduleAppliedAtISO = null;
-  const plan = state.planDraft;
-  const cycle = getActiveCycle(state);
   if (!cycle || !contract) return;
+  if (isCycleReadOnly(cycle)) {
+    state.lastPlanError = {
+      code: 'CYCLE_READ_ONLY',
+      reason: 'Cannot generate schedule for an ended or archived cycle.',
+      cycleId: cycle.id || targetCycleId
+    };
+    return;
+  }
   const admission = state.goalAdmissionByGoal?.[contract.goalId] || cycle.goalAdmission;
   if (admission && admission.status !== 'ADMITTED') {
     state.lastPlanError = {
@@ -3413,52 +3454,71 @@ function generatePlan(state) {
     };
     return;
   }
-  const startDayKey = contract.startDayKey || state.appTime?.activeDayKey || nowDayKey();
-  const preserved = (state.suggestedBlocks || []).filter((s) => s && s.status !== 'suggested');
-  const reservedIds = new Set(preserved.map((s) => s.id));
   const timeZone = state.appTime?.timeZone || 'UTC';
   const nowISO = state.appTime?.nowISO || new Date().toISOString();
+  const todayDayKey = dayKeyFromISO(nowISO, timeZone) || state.appTime?.activeDayKey || nowDayKey(timeZone);
+  const contractStartDayKey = contract.startDayKey || dayKeyFromISO(contract.startDateISO || '', timeZone) || null;
+  const contractEndDayKey = contract.endDayKey || dayKeyFromISO(contract.endDateISO || '', timeZone) || null;
+  const anchorDayKey = maxDayKey(todayDayKey, contractStartDayKey) || todayDayKey;
+  const anchorNowISO = `${anchorDayKey}T12:00:00.000Z`;
+  const plan = state.planDraft || cycle.planDraft;
   const planProof =
     cycle.planProof ||
-    (cycle.goalEquation ? derivePlanProof(cycle.goalEquation, { nowDayKey: startDayKey, timeZone }) : null);
-  if (planProof) {
-    cycle.planProof = planProof;
-    const constraints = {
-      timezone: timeZone,
-      maxBlocksPerDay: state?.constraints?.maxBlocksPerDay,
-      maxBlocksPerWeek: state?.constraints?.maxBlocksPerWeek,
-      workableDayPolicy: state?.constraints?.workableDayPolicy,
-      blackoutDates: state?.constraints?.blackoutDates,
-      calendarCommittedBlocksByDate: state?.constraints?.calendarCommittedBlocksByDate
-    };
-    const horizonEnd = addDays(startDayKey, 13, timeZone);
-    const { days } = materializeBlocksFromEvents(state.executionEvents || [], { todayISO: state.today?.date });
-    const acceptedBlocks = (days || [])
-      .filter((d) => d?.date && d.date >= startDayKey && d.date <= horizonEnd)
-      .flatMap((d) => (d.blocks || []).filter((b) => b?.cycleId === cycle.id));
-    cycle.autoAsanaPlan = compileAutoAsanaPlan({
-      goalId: contract.goalId,
+    (cycle.goalEquation ? derivePlanProof(cycle.goalEquation, { nowDayKey: anchorDayKey, timeZone }) : null);
+  if (!planProof) {
+    cycle.autoAsanaPlan = null;
+    state.suggestedBlocks = [];
+    state.lastPlanError = {
+      code: 'NO_ACTION_GRAPH',
+      reason: 'Action graph was not available for scheduling.',
       cycleId: cycle.id,
-      planProof,
-      constraints,
-      nowISO,
-      horizonDays: 14,
-      acceptedBlocks
-    });
+      goalId: contract.goalId
+    };
+    state.cyclesById[cycle.id] = cycle;
+    return;
   }
 
-  const suggestions = buildSuggestedBlocks({
+  cycle.planProof = planProof;
+  const constraints = {
+    timezone: timeZone,
+    maxBlocksPerDay: state?.constraints?.maxBlocksPerDay,
+    maxBlocksPerWeek: state?.constraints?.maxBlocksPerWeek,
+    workableDayPolicy: state?.constraints?.workableDayPolicy,
+    blackoutDates: state?.constraints?.blackoutDates,
+    calendarCommittedBlocksByDate: state?.constraints?.calendarCommittedBlocksByDate,
+    weeklyWindows: state?.constraints?.weeklyWindows || state?.availabilityPolicy?.weeklyWindows,
+    dayEndAtHHMM: state?.constraints?.dayEndAtHHMM || state?.availabilityPolicy?.dayEndAtHHMM,
+    cycleStartDayKey: contractStartDayKey,
+    cycleEndDayKey: contractEndDayKey,
+  };
+  const horizonEnd = addDays(anchorDayKey, 13, timeZone);
+  const { days } = materializeBlocksFromEvents(state.executionEvents || [], { todayISO: state.today?.date });
+  const acceptedBlocks = (days || [])
+    .filter((d) => d?.date && d.date >= anchorDayKey && d.date <= horizonEnd)
+    .flatMap((d) => (d.blocks || []).filter((b) => b?.cycleId === cycle.id));
+  cycle.autoAsanaPlan = compileAutoAsanaPlan({
     goalId: contract.goalId,
-    startDayKey,
-    blocksPerWeek: plan?.blocksPerWeek || 6,
-    templates: plan?.templates || [],
-    daysPerWeek: plan?.daysPerWeek || 4,
-    goalText: contract.goalText,
-    primaryDomain: plan?.primaryDomain || 'FOCUS',
-    reservedIds,
-    timeZone
+    cycleId: cycle.id,
+    planProof,
+    constraints,
+    nowISO: anchorNowISO,
+    horizonDays: 14,
+    acceptedBlocks
   });
-  state.suggestedBlocks = [...preserved, ...suggestions];
+  const suggestions = (cycle.autoAsanaPlan?.horizonBlocks || []).map((block, index) => ({
+    id: block.id || `suggested:auto:${cycle.id}:${index}`,
+    goalId: contract.goalId,
+    cycleId: cycle.id,
+    status: 'suggested',
+    title: block.title || 'Scheduled action',
+    domain: plan?.primaryDomain || 'FOCUS',
+    durationMinutes: Number(block.durationMinutes) || 30,
+    createdAtISO: nowISO,
+    startISO: block.startISO,
+    dayKey: block.dayKey,
+    source: 'action_graph'
+  }));
+  state.suggestedBlocks = suggestions;
   state.suggestionEvents = state.suggestionEvents || [];
   state.suggestionEvents.push({
     id: nextDeterministicId(state, `sev-suggestions-${contract.goalId}`),
@@ -3475,6 +3535,21 @@ function generatePlan(state) {
     historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
     timeZone: state.appTime?.timeZone || APP_TIME_ZONE,
   });
+  const suggestedCount = (state.suggestedBlocks || []).filter((item) => item?.status === 'suggested').length;
+  if (suggestedCount === 0) {
+    const reasonCodes = Array.from(
+      new Set((cycle.autoAsanaPlan?.conflicts || []).map((conflict) => String(conflict?.code || '').trim()).filter(Boolean))
+    );
+    state.lastPlanError = {
+      code: reasonCodes.length ? 'UNSCHEDULABLE' : 'NO_ACTION_GRAPH',
+      reason: reasonCodes.length
+        ? 'No proposed blocks could be scheduled under current constraints.'
+        : 'Action graph produced no schedulable nodes.',
+      reasonCodes
+    };
+  } else if (!state.lastPlanError || state.lastPlanError.code === 'NO_PROPOSED_BLOCKS') {
+    state.lastPlanError = null;
+  }
   state.cyclesById[cycle.id] = cycle;
 }
 
@@ -3534,25 +3609,22 @@ function applyGeneratedPlan(state) {
   state.cyclesById[cycle.id] = cycle;
 }
 
-function applyDraftSchedule(state) {
-  const cycle = getActiveCycle(state);
+function applyDraftSchedule(state, payload = {}) {
+  const targetCycleId = payload?.cycleId || state.activeCycleId || null;
+  const cycle = getTargetCycle(state, targetCycleId);
   const contract = cycle?.goalContract || state.goalExecutionContract;
   if (!cycle || !contract) return;
+  if (isCycleReadOnly(cycle)) {
+    state.lastPlanError = {
+      code: 'CYCLE_READ_ONLY',
+      reason: 'Cannot apply schedule for an ended or archived cycle.',
+      cycleId: cycle.id || targetCycleId
+    };
+    return;
+  }
   const nowDay = state.appTime?.activeDayKey || state.today?.date || nowDayKey(state.appTime?.timeZone || APP_TIME_ZONE);
   const previewDecisionBeforeApply = state.planPreview?.policySelectionDecision || null;
-  const suggestedBlocks = state.suggestedBlocks || [];
-  const forecastByDay = (cycle?.coldPlan?.forecastByDayKey || {}) || {};
-  const routeSuggestions = Object.keys(forecastByDay || {})
-    .map((dayKey) => {
-      const entry = forecastByDay[dayKey] || {};
-      return {
-        dayKey,
-        totalBlocks: entry.totalBlocks || 0,
-        summary: entry.summary || '',
-        byDeliverable: entry.byDeliverable || {}
-      };
-    })
-    .filter((entry) => entry.totalBlocks > 0);
+  const suggestedBlocks = (state.suggestedBlocks || []).filter((block) => block?.cycleId === cycle.id);
   const timeZone = state.appTime?.timeZone || 'UTC';
   const appliedPreview = computePlanPreview({
     suggestedBlocks,
@@ -3562,33 +3634,53 @@ function applyDraftSchedule(state) {
     historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
     timeZone,
   });
-  const draftItems = buildDraftScheduleItems({
-    suggestedBlocks,
-    routeSuggestions,
-    contract,
-    timeZone,
-    defaults: {
-      todayKey: state.appTime?.activeDayKey || state.today?.date || nowDayKey(timeZone),
-      primaryDomain: contract?.primaryDomain || 'FOCUS',
-      routeMinutes: state.planDraft?.routeMinutes || 30
-    }
-  });
-  draftItems.forEach((item) => {
-    if (!item.startISO) return;
-    const duration = Number.isFinite(item.minutes) ? item.minutes : 30;
+  const proposedItems = (suggestedBlocks || []).filter((item) => item?.status === 'suggested');
+  if (!proposedItems.length) {
+    state.lastPlanError = {
+      code: 'NO_PROPOSED_BLOCKS',
+      reason: 'No preview items to apply.',
+      cycleId: cycle.id
+    };
+    return;
+  }
+  proposedItems.forEach((item) => {
+    if (!item?.startISO) return;
+    const duration = Number.isFinite(item.durationMinutes) ? Number(item.durationMinutes) : 30;
     const startDate = new Date(item.startISO);
     if (!Number.isFinite(startDate.getTime())) return;
-    const endDate = new Date(startDate.getTime() + duration * 60000);
-    handleDraftBlockCreate(state, {
-      startISO: item.startISO,
-      endISO: endDate.toISOString(),
-      domain: item.domainKey,
-      title: item.title,
+    createBlock(state, {
       cycleId: cycle.id,
       goalId: contract.goalId,
-      minutes: duration,
-      deliverableId: item.payload?.deliverableId,
-      criterionId: item.payload?.criterionId
+      startISO: item.startISO,
+      durationMinutes: duration,
+      domain: item.domain || item.domainKey || state.planDraft?.primaryDomain || 'FOCUS',
+      title: item.title || 'Scheduled action',
+      origin: 'suggested_apply',
+      surface: 'today',
+      suggestionId: item.id,
+      deliverableId: item.payload?.deliverableId ?? null,
+      criterionId: item.payload?.criterionId ?? null,
+      timeZone,
+    });
+  });
+  const acceptedSuggestionIds = new Set(proposedItems.map((item) => item.id));
+  state.suggestedBlocks = (state.suggestedBlocks || []).map((item) => {
+    if (!acceptedSuggestionIds.has(item?.id)) return item;
+    return {
+      ...item,
+      status: 'accepted',
+      acceptedAtISO: state.appTime?.nowISO || new Date().toISOString(),
+    };
+  });
+  state.suggestionEvents = state.suggestionEvents || [];
+  proposedItems.forEach((item) => {
+    state.suggestionEvents.push({
+      id: nextDeterministicId(state, `sev-accept-${item.id}`),
+      type: 'accepted',
+      proposalId: item.id,
+      cycleId: cycle.id,
+      goalId: contract.goalId,
+      atISO: state.appTime?.nowISO || new Date().toISOString(),
     });
   });
   const appliedPolicyId = appliedPreview.qualityPolicyIdUsed || 'BALANCED';
@@ -3643,8 +3735,6 @@ function applyDraftSchedule(state) {
     atISO: state.appTime?.nowISO || new Date().toISOString(),
   });
   state.draftScheduleAppliedAtISO = state.appTime?.nowISO || new Date().toISOString();
-  state.suggestedBlocks = [];
-  state.suggestionEvents = [];
   state.planDraft = null;
   state.planPreview = null;
   cycle.autoAsanaPlan = null;

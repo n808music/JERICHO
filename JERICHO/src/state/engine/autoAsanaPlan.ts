@@ -9,6 +9,10 @@ type Constraints = {
   forbiddenTimeWindows?: TimeWindow[];
   forbiddenDayKeys?: string[];
   workableDayPolicy?: { weekdays?: Array<number | string> };
+  weeklyWindows?: Partial<Record<string, Array<{ startHHMM: string; endHHMM: string }>>>;
+  dayEndAtHHMM?: string;
+  cycleStartDayKey?: string;
+  cycleEndDayKey?: string;
   blackoutDates?: string[];
   calendarCommittedBlocksByDate?: Record<string, number>;
 };
@@ -51,6 +55,7 @@ const WEEKDAY_MAP: Record<string, number> = {
   fri: 5,
   sat: 6
 };
+const DAY_CODE_BY_INDEX = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
 export function compileAutoAsanaPlan({
   goalId,
@@ -70,7 +75,11 @@ export function compileAutoAsanaPlan({
   acceptedBlocks?: Array<{ id: string; startISO: string; durationMinutes: number }>;
 }): AutoAsanaPlan {
   const timeZone = constraints?.timezone || 'UTC';
-  const startDayKey = dayKeyFromISO(nowISO, timeZone) || nowDayKey(timeZone);
+  const nowDay = dayKeyFromISO(nowISO, timeZone) || nowDayKey(timeZone);
+  const startDayKey =
+    constraints?.cycleStartDayKey && constraints.cycleStartDayKey > nowDay
+      ? constraints.cycleStartDayKey
+      : nowDay;
   const endDayKey = addDays(startDayKey, Math.max(0, horizonDays - 1), timeZone);
   const dayKeys = collectHorizonDays(startDayKey, endDayKey, constraints, timeZone);
 
@@ -89,6 +98,13 @@ export function compileAutoAsanaPlan({
 
   const conflicts: AutoAsanaPlan['conflicts'] = schedule.conflicts;
   const recoveryOptions: AutoAsanaPlan['recoveryOptions'] = schedule.recoveryOptions;
+  const clamped = clampPlacedBlocksToCycleWindow({
+    placed: schedule.placed,
+    conflicts,
+    constraints,
+    timeZone
+  });
+
   if (maxPerDay && requiredPerDay > maxPerDay) {
     conflicts.push({
       kind: 'UNSCHEDULABLE',
@@ -129,7 +145,7 @@ export function compileAutoAsanaPlan({
       endDayKey,
       daysCount: dayKeys.length
     },
-    horizonBlocks: schedule.placed,
+    horizonBlocks: clamped.placed,
     conflicts,
     recoveryOptions,
     audit: {
@@ -181,6 +197,11 @@ function isWorkableDate(dateKey: string, constraints: Constraints, timeZone: str
   if (!dateKey) return false;
   const blackout = new Set([...(constraints?.blackoutDates || []), ...(constraints?.forbiddenDayKeys || [])]);
   if (blackout.has(dateKey)) return false;
+  if (hasExplicitWeeklyWindows(constraints)) {
+    const dayCode = dayCodeFromDayKey(dateKey, timeZone);
+    const dayWindows = constraints?.weeklyWindows?.[dayCode];
+    return Array.isArray(dayWindows) && dayWindows.length > 0;
+  }
   const weekdays = normalizeWeekdays(constraints?.workableDayPolicy?.weekdays);
   if (!weekdays) return true;
   const weekday = weekdayIndex(dateKey, timeZone);
@@ -335,9 +356,16 @@ function findSlotForDraft({
   const step = 15;
   let foundAnyWindows = false;
   let overlapOnly = true;
+  const explicitWeeklyWindows = hasExplicitWeeklyWindows(constraints);
+  const dayEndAtMin = parseHHMMToMinutes(constraints?.dayEndAtHHMM || '23:59');
 
   for (const dayKey of dayKeys) {
-    const allowed = subtractWindows(allowedBase, forbidden);
+    const allowed = explicitWeeklyWindows
+      ? subtractWindows(
+          normalizeHHMMWindows(constraints?.weeklyWindows?.[dayCodeFromDayKey(dayKey, timeZone)] || [], dayEndAtMin),
+          forbidden
+        )
+      : subtractWindows(allowedBase, forbidden);
     if (!allowed.length) continue;
     foundAnyWindows = true;
     const dayBusy = [
@@ -402,6 +430,101 @@ function normalizeWindows(windows: TimeWindow[]) {
     }
   });
   return merged;
+}
+
+function normalizeHHMMWindows(windows: Array<{ startHHMM: string; endHHMM: string }>, dayEndAtMin: number) {
+  return normalizeWindows(
+    (windows || []).map((window) => {
+      const startMin = parseHHMMToMinutes(window?.startHHMM);
+      const endMinRaw = parseHHMMToMinutes(window?.endHHMM);
+      const endMin = Math.min(endMinRaw, dayEndAtMin);
+      return { startMin, endMin };
+    })
+  );
+}
+
+function parseHHMMToMinutes(value?: string) {
+  const text = String(value || '').trim();
+  const match = /^(\d{1,2}):(\d{2})$/.exec(text);
+  if (!match) return 0;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return 0;
+  return Math.max(0, Math.min(24 * 60, hours * 60 + minutes));
+}
+
+function hasExplicitWeeklyWindows(constraints: Constraints) {
+  const weekly = constraints?.weeklyWindows || {};
+  return Object.values(weekly).some((entry) => Array.isArray(entry) && entry.length > 0);
+}
+
+function dayCodeFromDayKey(dayKey: string, timeZone: string) {
+  return DAY_CODE_BY_INDEX[weekdayIndex(dayKey, timeZone)] || 'MON';
+}
+
+function clampPlacedBlocksToCycleWindow({
+  placed,
+  conflicts,
+  constraints,
+  timeZone
+}: {
+  placed: Array<{ id: string; dayKey: string; startISO: string; durationMinutes: number; kind: string; title: string }>;
+  conflicts: AutoAsanaPlan['conflicts'];
+  constraints: Constraints;
+  timeZone: string;
+}) {
+  const startDayKey = constraints?.cycleStartDayKey || null;
+  const endDayKey = constraints?.cycleEndDayKey || null;
+  const dayEndAtMin = parseHHMMToMinutes(constraints?.dayEndAtHHMM || '23:59');
+  if (!startDayKey && !endDayKey) return { placed };
+
+  const filtered: typeof placed = [];
+  const droppedIds: string[] = [];
+
+  placed.forEach((block) => {
+    const blockDayKey = block.dayKey;
+    if (startDayKey && blockDayKey < startDayKey) {
+      droppedIds.push(block.id);
+      return;
+    }
+    if (endDayKey && blockDayKey > endDayKey) {
+      droppedIds.push(block.id);
+      return;
+    }
+    if (endDayKey && blockDayKey === endDayKey) {
+      const startMin = minutesFromISO(block.startISO, timeZone);
+      const endMin = startMin + (block.durationMinutes || 0);
+      if (endMin > dayEndAtMin) {
+        droppedIds.push(block.id);
+        return;
+      }
+    }
+    filtered.push(block);
+  });
+
+  if (droppedIds.length > 0) {
+    conflicts.push({
+      kind: 'UNSCHEDULABLE',
+      code: 'OUT_OF_CYCLE_RANGE',
+      detail: { droppedCount: droppedIds.length, sampleBlockIds: droppedIds.slice(0, 5) },
+      candidateResolutions: ['ADJUST_CYCLE_WINDOW', 'REDUCE_SCOPE']
+    });
+    conflicts.push({
+      kind: 'UNSCHEDULABLE',
+      code: 'FILTERED_OUT_OF_RANGE',
+      detail: { droppedCount: droppedIds.length, sampleBlockIds: droppedIds.slice(0, 5) },
+      candidateResolutions: ['ADJUST_CYCLE_WINDOW', 'REDUCE_SCOPE']
+    });
+    if (filtered.length === 0) {
+      conflicts.push({
+        kind: 'UNSCHEDULABLE',
+        code: 'UNSCHEDULABLE',
+        detail: 'All candidate blocks were outside cycle date window.',
+        candidateResolutions: ['ADJUST_CYCLE_WINDOW', 'REDUCE_SCOPE']
+      });
+    }
+  }
+  return { placed: filtered };
 }
 
 function subtractWindows(allowed: TimeWindow[], forbidden: TimeWindow[]) {

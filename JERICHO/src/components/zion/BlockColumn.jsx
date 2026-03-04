@@ -5,6 +5,12 @@ const MIN_BLOCK_HEIGHT_PX = 16;
 const PX_PER_MINUTE = DAY_COLUMN_HEIGHT_PX / 1440;
 
 export default function BlockColumn({ dateLabel = 'Today', blocks = [], drafts = [], onBlockClick }) {
+  const visibleDrafts = (drafts || []).filter((draft) => {
+    if (!draft?.startISO) return false;
+    const date = new Date(draft.startISO);
+    return Number.isFinite(date.getTime());
+  });
+
   return (
     <div className="p-3 flex flex-col rounded-xl border border-line/60 bg-jericho-surface/90">
       <div className="flex items-center justify-between mb-2">
@@ -59,7 +65,7 @@ export default function BlockColumn({ dateLabel = 'Today', blocks = [], drafts =
             </button>
           );
         })}
-        {(drafts || []).map((draft) => {
+        {visibleDrafts.map((draft) => {
           const draftDate = draft?.startISO ? new Date(draft.startISO) : null;
           const startMin = draftDate ? draftDate.getHours() * 60 + draftDate.getMinutes() : 0;
           const durationMinutes = Number.isFinite(draft?.minutes) ? draft.minutes : 30;

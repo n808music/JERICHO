@@ -522,10 +522,28 @@ export function IdentityProvider({ children, initialState }) {
     (daysPerWeek, uncertain = false) => dispatch({ type: 'SET_CALIBRATION_DAYS', daysPerWeek, uncertain }),
     []
   );
-  const generatePlan = useCallback(() => dispatch({ type: 'GENERATE_PLAN' }), []);
+  const generatePlan = useCallback(
+    (payload = {}) =>
+      dispatch({
+        type: 'GENERATE_PLAN',
+        payload: { ...(payload || {}), cycleId: payload?.cycleId || state.activeCycleId || null }
+      }),
+    [state.activeCycleId]
+  );
   const commitPreviewItems = useCallback((payload) => dispatch({ type: 'COMMIT_PREVIEW_ITEMS', payload }), []);
   const applyPlan = useCallback(() => dispatch({ type: 'APPLY_PLAN' }), []);
-  const applyDraftSchedule = useCallback(() => dispatch({ type: 'APPLY_DRAFT_SCHEDULE' }), []);
+  const applyDraftSchedule = useCallback(
+    (payload = {}) =>
+      dispatch({
+        type: 'APPLY_DRAFT_SCHEDULE',
+        payload: { ...(payload || {}), cycleId: payload?.cycleId || state.activeCycleId || null }
+      }),
+    [state.activeCycleId]
+  );
+  const setSchedulingConstraints = useCallback(
+    (payload = {}) => dispatch({ type: 'SET_SCHEDULING_CONSTRAINTS', payload }),
+    []
+  );
   const setStrategy = useCallback((payload) => dispatch({ type: 'SET_STRATEGY', payload }), []);
   const generateColdPlan = useCallback(() => dispatch({ type: 'GENERATE_COLD_PLAN' }), []);
   const rebaseColdPlan = useCallback(() => dispatch({ type: 'REBASE_COLD_PLAN' }), []);
@@ -629,6 +647,7 @@ export function IdentityProvider({ children, initialState }) {
         commitPreviewItems,
         applyPlan,
         applyDraftSchedule,
+        setSchedulingConstraints,
         setStrategy,
         generateColdPlan,
         rebaseColdPlan,
