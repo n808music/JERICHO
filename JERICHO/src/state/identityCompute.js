@@ -39,7 +39,7 @@ import { aggregateCycleOutcomes, buildPosExplanation } from '../domain/scoring/p
  */
 
 /**
- * @typedef {{ type: 'BEGIN_BLOCK'; id: string } | { type: 'COMPLETE_BLOCK'; id: string } | { type: 'RESCHEDULE_BLOCK'; id: string; start: string; end: string } | { type: 'APPLY_LENSES'; lenses: Partial<LensesConfig> } | { type: 'SET_VIEW_DATE'; date: string } | { type: 'REBALANCE_TODAY'; mode?: 'CLEAR_AFTERNOON' } | { type: 'COMPLETE_ONBOARDING'; onboarding: any } | { type: 'START_NEW_CYCLE'; payload: any } | { type: 'END_CYCLE'; cycleId: string } | { type: 'ARCHIVE_AND_CLONE_CYCLE'; cycleId: string; overrides?: any } | { type: 'SET_ACTIVE_CYCLE'; cycleId: string } | { type: 'DELETE_CYCLE'; cycleId: string } | { type: 'HARD_DELETE_CYCLE'; cycleId: string } | { type: 'ADD_TRUTH_ENTRY'; payload: any } | { type: 'CREATE_BLOCK'; payload: any } | { type: 'UPDATE_BLOCK'; payload: any } | { type: 'DELETE_BLOCK'; id: string } | { type: 'ADD_RECURRING_PATTERN'; pattern: any } | { type: 'SET_PRIMARY_OBJECTIVE'; objectiveId: string | null } | { type: 'SET_CALIBRATION_DAYS'; daysPerWeek: number; uncertain?: boolean } | { type: 'GENERATE_PLAN' } | { type: 'APPLY_PLAN' } | { type: 'ACCEPT_SUGGESTED_BLOCK'; proposalId: string } | { type: 'REJECT_SUGGESTED_BLOCK'; proposalId: string; reason: string } | { type: 'IGNORE_SUGGESTED_BLOCK'; proposalId: string } | { type: 'DISMISS_SUGGESTED_BLOCK'; proposalId: string } | { type: 'CREATE_DELIVERABLE'; payload: any } | { type: 'UPDATE_DELIVERABLE'; payload: any } | { type: 'DELETE_DELIVERABLE'; payload: any } | { type: 'CREATE_CRITERION'; payload: any } | { type: 'TOGGLE_CRITERION_DONE'; payload: any } | { type: 'DELETE_CRITERION'; payload: any } | { type: 'LINK_BLOCK_TO_DELIVERABLE'; payload: any } | { type: 'ASSIGN_SUGGESTION_LINK'; payload: any } | { type: 'SET_STRATEGY'; payload: any } | { type: 'GENERATE_COLD_PLAN'; payload?: any } | { type: 'REBASE_COLD_PLAN'; payload?: any } | { type: 'SET_DEFINITE_GOAL'; outcome: string; deadlineDayKey: string } | { type: 'COMPILE_GOAL_EQUATION'; payload: any }} Action
+ * @typedef {{ type: 'BEGIN_BLOCK'; id: string } | { type: 'COMPLETE_BLOCK'; id: string } | { type: 'RESCHEDULE_BLOCK'; id: string; start: string; end: string } | { type: 'APPLY_LENSES'; lenses: Partial<LensesConfig> } | { type: 'SET_VIEW_DATE'; date: string } | { type: 'REBALANCE_TODAY'; mode?: 'CLEAR_AFTERNOON' } | { type: 'COMPLETE_ONBOARDING'; onboarding: any } | { type: 'START_NEW_CYCLE'; payload: any } | { type: 'START_NEW_CYCLE_WITH_DECISION'; payload: { mode: 'archive' | 'delete' } } | { type: 'END_CYCLE'; cycleId: string } | { type: 'ARCHIVE_AND_CLONE_CYCLE'; cycleId: string; overrides?: any } | { type: 'SET_ACTIVE_CYCLE'; cycleId: string } | { type: 'DELETE_CYCLE'; cycleId: string } | { type: 'HARD_DELETE_CYCLE'; cycleId: string } | { type: 'ADD_TRUTH_ENTRY'; payload: any } | { type: 'CREATE_BLOCK'; payload: any } | { type: 'UPDATE_BLOCK'; payload: any } | { type: 'DELETE_BLOCK'; id: string } | { type: 'ADD_RECURRING_PATTERN'; pattern: any } | { type: 'SET_PRIMARY_OBJECTIVE'; objectiveId: string | null } | { type: 'SET_CALIBRATION_DAYS'; daysPerWeek: number; uncertain?: boolean } | { type: 'GENERATE_PLAN' } | { type: 'APPLY_PLAN' } | { type: 'ACCEPT_SUGGESTED_BLOCK'; proposalId: string } | { type: 'REJECT_SUGGESTED_BLOCK'; proposalId: string; reason: string } | { type: 'IGNORE_SUGGESTED_BLOCK'; proposalId: string } | { type: 'DISMISS_SUGGESTED_BLOCK'; proposalId: string } | { type: 'CREATE_DELIVERABLE'; payload: any } | { type: 'UPDATE_DELIVERABLE'; payload: any } | { type: 'DELETE_DELIVERABLE'; payload: any } | { type: 'CREATE_CRITERION'; payload: any } | { type: 'TOGGLE_CRITERION_DONE'; payload: any } | { type: 'DELETE_CRITERION'; payload: any } | { type: 'LINK_BLOCK_TO_DELIVERABLE'; payload: any } | { type: 'ASSIGN_SUGGESTION_LINK'; payload: any } | { type: 'SET_STRATEGY'; payload: any } | { type: 'GENERATE_COLD_PLAN'; payload?: any } | { type: 'REBASE_COLD_PLAN'; payload?: any } | { type: 'SET_DEFINITE_GOAL'; outcome: string; deadlineDayKey: string } | { type: 'COMPILE_GOAL_EQUATION'; payload: any }} Action
  */
 
 export function computeDerivedState(state, action) {
@@ -119,6 +119,9 @@ export function computeDerivedState(state, action) {
       break;
     case 'START_NEW_CYCLE':
       startNewCycle(next, action.payload);
+      break;
+    case 'START_NEW_CYCLE_WITH_DECISION':
+      startNewCycleWithDecision(next, action.payload || {});
       break;
     case 'END_CYCLE':
       endCycle(next, action.cycleId);
@@ -375,6 +378,7 @@ export function computeDerivedState(state, action) {
   mergePriorTodayBlocks(next, previousTodayBlocks);
   syncPlacementStateFromEvents(next);
   enforceSafeDefaults(next);
+  syncProposedBlocksFromSuggested(next);
   flagDraftBlocks(next);
   persistActiveCycleState(next);
   enforceActiveCycleTodayBlocks(next, hadCycleRecords);
@@ -387,7 +391,12 @@ export function hydrateActiveCycleState(state) {
   if (!cycle) return state;
   state.executionEvents = cycle.executionEvents || [];
   state.suggestionEvents = cycle.suggestionEvents || [];
-  state.suggestedBlocks = cycle.suggestedBlocks || [];
+  state.proposedBlocks = cycle.proposedBlocks || cycle.suggestedBlocks || [];
+  if (!state.proposedBlocksByCycleId || typeof state.proposedBlocksByCycleId !== 'object') {
+    state.proposedBlocksByCycleId = {};
+  }
+  state.proposedBlocksByCycleId[cycle.id] = state.proposedBlocks;
+  state.suggestedBlocks = state.proposedBlocks;
   state.planDraft = cycle.planDraft || null;
   state.planCalibration = cycle.calibration || state.planCalibration || { confidence: 0, assumptions: [], missingInfo: [] };
   state.planPreview = cycle.planPreview || null;
@@ -406,7 +415,8 @@ export function persistActiveCycleState(state) {
   if (!cycle) return state;
   cycle.executionEvents = state.executionEvents || [];
   cycle.suggestionEvents = state.suggestionEvents || [];
-  cycle.suggestedBlocks = state.suggestedBlocks || [];
+  cycle.proposedBlocks = state.proposedBlocks || state.suggestedBlocks || [];
+  cycle.suggestedBlocks = cycle.proposedBlocks;
   cycle.planDraft = state.planDraft || null;
   cycle.calibration = state.planCalibration || null;
   cycle.planPreview = state.planPreview || null;
@@ -538,6 +548,12 @@ function ensureAdmissionStores(state) {
   if (!state.goalAdmissionByGoal) state.goalAdmissionByGoal = {};
   if (!state.aspirationsByCycleId) state.aspirationsByCycleId = {};
   if (!('lastPlanError' in state)) state.lastPlanError = null;
+  if (!state.debug || typeof state.debug !== 'object') state.debug = {};
+  if (!state.debug.lastGenerateClickAtISO) state.debug.lastGenerateClickAtISO = null;
+  if (!state.debug.lastGenerateClickCycleId) state.debug.lastGenerateClickCycleId = null;
+  if (!state.debug.lastGenerateResult || typeof state.debug.lastGenerateResult !== 'object') {
+    state.debug.lastGenerateResult = { proposedBlocksCount: 0, lastPlanErrorCode: null };
+  }
 }
 
 function ensureDeliverablesStore(state) {
@@ -555,12 +571,53 @@ function getTargetCycle(state, cycleId) {
 
 function isCycleReadOnly(cycle) {
   if (!cycle) return true;
-  return (
-    cycle.status === 'Ended' ||
-    cycle.status === 'Archived' ||
-    cycle.state === 'Ended' ||
-    cycle.state === 'Archived'
-  );
+  const normalizedStatus = String(cycle.status || cycle.state || '')
+    .trim()
+    .toLowerCase();
+  return normalizedStatus === 'ended' || normalizedStatus === 'archived';
+}
+
+function setGenerateHeartbeat(state, cycleId, proposedBlocksCount, lastPlanErrorCode) {
+  state.debug = state.debug && typeof state.debug === 'object' ? state.debug : {};
+  state.debug.lastGenerateClickAtISO = state.appTime?.nowISO || null;
+  state.debug.lastGenerateClickCycleId = cycleId || null;
+  state.debug.lastGenerateResult = {
+    proposedBlocksCount: Number.isFinite(proposedBlocksCount) ? proposedBlocksCount : 0,
+    lastPlanErrorCode: lastPlanErrorCode || null
+  };
+}
+
+function isActiveCycleStatus(status) {
+  const normalized = String(status || '')
+    .trim()
+    .toUpperCase();
+  return normalized === 'ACTIVE';
+}
+
+export function assertActiveCycleInvariant(state) {
+  const active = getActiveCycle(state);
+  if (!active || !isActiveCycleStatus(active.status || active.state)) {
+    throw new Error('ACTIVE_CYCLE_INVALID');
+  }
+}
+
+function archivePreviousCycle(state, previousCycleId) {
+  if (!previousCycleId || !state.cyclesById?.[previousCycleId]) return;
+  const previous = state.cyclesById[previousCycleId];
+  if (!isActiveCycleStatus(previous.status)) return;
+  endCycle(state, previousCycleId);
+  const ended = state.cyclesById[previousCycleId];
+  state.history = state.history || { cycles: [] };
+  state.history.cycles.push({
+    id: ended.id,
+    status: ended.status,
+    startedAtDayKey: ended.startedAtDayKey,
+    endedAtDayKey: ended.endedAtDayKey,
+    definiteGoal: ended.definiteGoal,
+    pattern: ended.pattern,
+    aim: ended.aim,
+    flow: ended.flow
+  });
 }
 
 function maxDayKey(a, b) {
@@ -570,6 +627,13 @@ function maxDayKey(a, b) {
 }
 
 function clearCycleTransientState(state) {
+  state.proposedBlocks = [];
+  if (!state.proposedBlocksByCycleId || typeof state.proposedBlocksByCycleId !== 'object') {
+    state.proposedBlocksByCycleId = {};
+  }
+  if (state.activeCycleId) {
+    state.proposedBlocksByCycleId[state.activeCycleId] = [];
+  }
   state.suggestedBlocks = [];
   state.suggestionEvents = [];
   state.lastPlanError = null;
@@ -592,6 +656,87 @@ function clearCycleTransientState(state) {
     };
     state.cyclesById[cycle.id] = cycle;
   }
+}
+
+export function resetCycleToGoalEntryReady(state, cycleId) {
+  const targetCycleId = cycleId || state.activeCycleId || null;
+  if (!targetCycleId || !state.cyclesById?.[targetCycleId]) return;
+
+  const cycle = state.cyclesById[targetCycleId];
+  cycle.goalContract = null;
+  cycle.goalGovernanceContract = null;
+  cycle.contract = null;
+  cycle.planDraft = null;
+  cycle.planPreview = null;
+  cycle.calibration = null;
+  cycle.proposedBlocks = [];
+  cycle.suggestedBlocks = [];
+  cycle.suggestionEvents = [];
+  cycle.executionEvents = [];
+  cycle.truthEntries = [];
+  if (cycle.metrics) {
+    cycle.metrics = {
+      ...cycle.metrics,
+      posSnapshot: null,
+      posSnapshotAtISO: null,
+      posExplanation: null,
+      posScore: null,
+      feasibilityScore: null,
+      integrityScore: null,
+    };
+  }
+  state.cyclesById[targetCycleId] = cycle;
+
+  state.goalExecutionContract = null;
+  state.proposedBlocks = [];
+  if (!state.proposedBlocksByCycleId || typeof state.proposedBlocksByCycleId !== 'object') {
+    state.proposedBlocksByCycleId = {};
+  }
+  state.proposedBlocksByCycleId[targetCycleId] = [];
+  state.planDraft = null;
+  state.planPreview = null;
+  state.planCalibration = null;
+  state.suggestedBlocks = [];
+  state.suggestionEvents = [];
+  state.executionEvents = [];
+  state.lastPlanError = null;
+  state.activeGoalId = null;
+  state.blockLifecycleById = {};
+  state.overdueBlockIds = [];
+  state.cycle = [];
+  state.today = { ...(state.today || {}), blocks: [] };
+  state.currentWeek = { ...(state.currentWeek || {}), days: [] };
+  state.draftScheduleAppliedAtISO = null;
+  clearCycleTransientState(state);
+}
+
+function setCycleProposedBlocks(state, cycleId, proposals = []) {
+  const normalized = Array.isArray(proposals) ? proposals : [];
+  state.proposedBlocks = normalized;
+  if (!state.proposedBlocksByCycleId || typeof state.proposedBlocksByCycleId !== 'object') {
+    state.proposedBlocksByCycleId = {};
+  }
+  if (cycleId) {
+    state.proposedBlocksByCycleId[cycleId] = normalized;
+  }
+  // Temporary compatibility mirror for 1.0.x.
+  state.suggestedBlocks = normalized;
+  if (cycleId && state.cyclesById?.[cycleId]) {
+    state.cyclesById[cycleId].proposedBlocks = normalized;
+    state.cyclesById[cycleId].suggestedBlocks = normalized;
+  }
+}
+
+function syncProposedBlocksFromSuggested(state) {
+  state.proposedBlocks = Array.isArray(state.suggestedBlocks) ? state.suggestedBlocks : [];
+  if (!state.proposedBlocksByCycleId || typeof state.proposedBlocksByCycleId !== 'object') {
+    state.proposedBlocksByCycleId = {};
+  }
+  const activeCycleId = state.activeCycleId || null;
+  if (!activeCycleId) return;
+  state.proposedBlocksByCycleId[activeCycleId] = Array.isArray(state.proposedBlocks)
+    ? state.proposedBlocks
+    : [];
 }
 
 function getDeliverableWorkspace(state, cycleId) {
@@ -1040,6 +1185,10 @@ function enforceSafeDefaults(state) {
   if (!state.planCalibration) state.planCalibration = { confidence: 0, assumptions: [], missingInfo: [] };
   if (!('planPreview' in state)) state.planPreview = null;
   if (!('correctionSignals' in state)) state.correctionSignals = null;
+  if (!state.proposedBlocks) state.proposedBlocks = [];
+  if (!state.proposedBlocksByCycleId || typeof state.proposedBlocksByCycleId !== 'object') {
+    state.proposedBlocksByCycleId = {};
+  }
   if (!state.suggestedBlocks) state.suggestedBlocks = [];
   if (!state.suggestionEvents) state.suggestionEvents = [];
   if (!state.deliverablesByCycleId) state.deliverablesByCycleId = {};
@@ -3011,21 +3160,7 @@ function startNewCycle(state, payload = {}) {
     deliverables
   });
 
-  if (current && current.status === 'active') {
-    endCycle(state, current.id);
-    const ended = state.cyclesById[current.id];
-    state.history = state.history || { cycles: [] };
-    state.history.cycles.push({
-      id: ended.id,
-      status: ended.status,
-      startedAtDayKey: ended.startedAtDayKey,
-      endedAtDayKey: ended.endedAtDayKey,
-      definiteGoal: ended.definiteGoal,
-      pattern: ended.pattern,
-      aim: ended.aim,
-      flow: ended.flow
-    });
-  }
+  archivePreviousCycle(state, current?.id || null);
 
   const goalContract = {
     goalId,
@@ -3205,6 +3340,7 @@ function startNewCycle(state, payload = {}) {
   state.cyclesById[newCycleId].suggestionHistory = state.suggestionHistory;
 
   generateColdPlanForCycle(state, { rebaseMode: 'NONE' });
+  assertActiveCycleInvariant(state);
 }
 
 function addTruthEntry(state, payload = {}) {
@@ -3247,8 +3383,9 @@ function collectCycleHistorySignals(state, cycle) {
 function deleteCycle(state, cycleId) {
   ensureCycleStructures(state);
   if (!cycleId || !state.cyclesById?.[cycleId]) return;
+  const deletingActiveCycle = state.activeCycleId === cycleId;
   // Allow deleting active cycle: clear active UI state and unset activeCycleId
-  if (state.activeCycleId === cycleId) {
+  if (deletingActiveCycle) {
     state.activeCycleId = null;
     // Clear active projections shown in UI
     state.today = { ...(state.today || {}), blocks: [] };
@@ -3282,6 +3419,66 @@ function deleteCycle(state, cycleId) {
     delete state.historySignalsByCycleId[cycleId];
     rebuildHistoryProfile(state);
   }
+  if (deletingActiveCycle) {
+    startNewCycle(state, {
+      goalText: ' ',
+      narrative: '',
+      successDefinition: '',
+      minimumDaysPerWeek: 4
+    });
+    resetCycleToGoalEntryReady(state, state.activeCycleId);
+    state.meta = {
+      ...(state.meta || {}),
+      goalEntryRequestedAtISO: state.appTime?.nowISO || null
+    };
+    assertActiveCycleInvariant(state);
+  }
+}
+
+function startNewCycleWithDecision(state, payload = {}) {
+  ensureCycleStructures(state);
+  const mode = payload?.mode === 'delete' ? 'delete' : 'archive';
+  const previousActiveCycleId = state.activeCycleId || null;
+  if (!previousActiveCycleId || !state.cyclesById?.[previousActiveCycleId]) {
+    startNewCycle(state, {
+      goalText: ' ',
+      narrative: '',
+      successDefinition: '',
+      minimumDaysPerWeek: 4
+    });
+    resetCycleToGoalEntryReady(state, state.activeCycleId);
+    state.meta = {
+      ...(state.meta || {}),
+      goalEntryRequestedAtISO: state.appTime?.nowISO || null
+    };
+    assertActiveCycleInvariant(state);
+    return;
+  }
+
+  if (mode === 'delete') {
+    deleteCycle(state, previousActiveCycleId);
+    resetCycleToGoalEntryReady(state, state.activeCycleId);
+  } else {
+    startNewCycle(state, {
+      goalText: ' ',
+      narrative: '',
+      successDefinition: '',
+      minimumDaysPerWeek: 4
+    });
+    resetCycleToGoalEntryReady(state, state.activeCycleId);
+  }
+
+  const activeCycle = state.activeCycleId ? state.cyclesById?.[state.activeCycleId] : null;
+  const startDayKey = activeCycle?.startedAtDayKey || state.appTime?.activeDayKey || nowDayKey(state.appTime?.timeZone);
+  state.viewDate = startDayKey;
+  if (state.appTime) {
+    state.appTime.activeDayKey = startDayKey;
+  }
+  state.meta = {
+    ...(state.meta || {}),
+    goalEntryRequestedAtISO: state.appTime?.nowISO || null
+  };
+  assertActiveCycleInvariant(state);
 }
 
 function hardDeleteCycle(state, cycleId) {
@@ -3431,17 +3628,54 @@ function archiveAndCloneCycle(state, cycleId, overrides = {}) {
 }
 
 function generatePlan(state, payload = {}) {
-  const targetCycleId = payload?.cycleId || state.activeCycleId || null;
-  const cycle = getTargetCycle(state, targetCycleId);
+  const explicitCycleId = payload?.cycleId || null;
+  const targetCycleId = explicitCycleId || state.activeCycleId || null;
+  const cycle = explicitCycleId ? state?.cyclesById?.[explicitCycleId] || null : getTargetCycle(state, targetCycleId);
   const contract = cycle?.goalContract || cycle?.contract || state.goalExecutionContract;
   state.draftScheduleAppliedAtISO = null;
-  if (!cycle || !contract) return;
+  if (!cycle) {
+    state.lastPlanError = {
+      code: 'CYCLE_TARGET_INVALID',
+      reason: 'Target cycle is missing or unavailable.',
+      cycleId: targetCycleId || null
+    };
+    setGenerateHeartbeat(state, targetCycleId, 0, 'CYCLE_TARGET_INVALID');
+    return;
+  }
   if (isCycleReadOnly(cycle)) {
     state.lastPlanError = {
       code: 'CYCLE_READ_ONLY',
       reason: 'Cannot generate schedule for an ended or archived cycle.',
-      cycleId: cycle.id || targetCycleId
+      cycleId: cycle.id || targetCycleId,
+      details: {
+        status: cycle.status || cycle.state || null
+      }
     };
+    setGenerateHeartbeat(state, cycle.id || targetCycleId, 0, 'CYCLE_READ_ONLY');
+    return;
+  }
+  const weeklyWindows = state?.constraints?.weeklyWindows || state?.availabilityPolicy?.weeklyWindows || {};
+  const hasExplicitWeeklyWindows = Object.keys(weeklyWindows || {}).length > 0;
+  const windowsMode = hasExplicitWeeklyWindows ? 'explicit_windows' : 'legacy_days_allowed';
+  const dayEndAtHHMM = state?.constraints?.dayEndAtHHMM || state?.availabilityPolicy?.dayEndAtHHMM || '23:59';
+  const baseErrorMeta = {
+    cycleId: cycle.id || targetCycleId,
+    startISO: contract?.startDateISO || (contract?.startDayKey ? `${contract.startDayKey}T00:00:00.000Z` : null),
+    endISO: contract?.endDateISO || (contract?.endDayKey ? `${contract.endDayKey}T23:59:59.000Z` : null),
+    windowsMode,
+    dayEndAtHHMM
+  };
+  if (!contract) {
+    setCycleProposedBlocks(state, cycle.id || targetCycleId, []);
+    state.lastPlanError = {
+      code: 'NO_ACTION_GRAPH',
+      reason: 'No admitted goal contract is available for schedule generation.',
+      cycleId: cycle.id || targetCycleId,
+      reasonCodes: ['NO_ACTION_GRAPH'],
+      conflicts: [],
+      meta: baseErrorMeta
+    };
+    setGenerateHeartbeat(state, cycle.id || targetCycleId, 0, 'NO_ACTION_GRAPH');
     return;
   }
   const admission = state.goalAdmissionByGoal?.[contract.goalId] || cycle.goalAdmission;
@@ -3452,6 +3686,7 @@ function generatePlan(state, payload = {}) {
       cycleId: cycle.id,
       goalId: contract.goalId
     };
+    setGenerateHeartbeat(state, cycle.id, 0, 'GOAL_NOT_ADMITTED');
     return;
   }
   const timeZone = state.appTime?.timeZone || 'UTC';
@@ -3467,13 +3702,17 @@ function generatePlan(state, payload = {}) {
     (cycle.goalEquation ? derivePlanProof(cycle.goalEquation, { nowDayKey: anchorDayKey, timeZone }) : null);
   if (!planProof) {
     cycle.autoAsanaPlan = null;
-    state.suggestedBlocks = [];
+    setCycleProposedBlocks(state, cycle.id, []);
     state.lastPlanError = {
       code: 'NO_ACTION_GRAPH',
       reason: 'Action graph was not available for scheduling.',
       cycleId: cycle.id,
-      goalId: contract.goalId
+      goalId: contract.goalId,
+      reasonCodes: ['NO_ACTION_GRAPH'],
+      conflicts: [],
+      meta: baseErrorMeta
     };
+    setGenerateHeartbeat(state, cycle.id, 0, 'NO_ACTION_GRAPH');
     state.cyclesById[cycle.id] = cycle;
     return;
   }
@@ -3518,7 +3757,7 @@ function generatePlan(state, payload = {}) {
     dayKey: block.dayKey,
     source: 'action_graph'
   }));
-  state.suggestedBlocks = suggestions;
+  setCycleProposedBlocks(state, cycle.id, suggestions);
   state.suggestionEvents = state.suggestionEvents || [];
   state.suggestionEvents.push({
     id: nextDeterministicId(state, `sev-suggestions-${contract.goalId}`),
@@ -3528,27 +3767,61 @@ function generatePlan(state, payload = {}) {
     atISO: nowISO
   });
   state.planPreview = computePlanPreview({
-    suggestedBlocks: state.suggestedBlocks,
+    suggestedBlocks: state.proposedBlocks || state.suggestedBlocks,
     planDraft: state.planDraft,
     contract: state.goalExecutionContract,
     policyState: getCurrentPolicyState(state),
     historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
     timeZone: state.appTime?.timeZone || APP_TIME_ZONE,
   });
-  const suggestedCount = (state.suggestedBlocks || []).filter((item) => item?.status === 'suggested').length;
+  const suggestedCount = (state.proposedBlocks || []).filter((item) => item?.status === 'suggested').length;
   if (suggestedCount === 0) {
-    const reasonCodes = Array.from(
-      new Set((cycle.autoAsanaPlan?.conflicts || []).map((conflict) => String(conflict?.code || '').trim()).filter(Boolean))
+    const conflictCodes = Array.from(new Set(
+      (cycle.autoAsanaPlan?.conflicts || []).map((conflict) => String(conflict?.code || conflict?.kind || '').trim()).filter(Boolean)
+    ));
+    const normalizedConflicts = conflictCodes
+      .map((code) => code.toUpperCase())
+      .filter(Boolean)
+      .sort()
+      .slice(0, 5);
+    const reasonCodes = [];
+    const hasWindowsConfigured = hasExplicitWeeklyWindows;
+    const hasAnyWindowRange = Object.values(weeklyWindows || {}).some((rows) =>
+      Array.isArray(rows) && rows.some((row) => row?.startHHMM && row?.endHHMM && row.startHHMM < row.endHHMM)
     );
+    if (normalizedConflicts.includes('NO_ALLOWED_WINDOWS') || (hasWindowsConfigured && !hasAnyWindowRange)) {
+      reasonCodes.push('NO_ALLOWED_WINDOWS');
+    }
+    if (
+      normalizedConflicts.includes('OUT_OF_CYCLE_RANGE') ||
+      normalizedConflicts.includes('FILTERED_OUT_OF_RANGE')
+    ) {
+      reasonCodes.push('OUT_OF_CYCLE_RANGE');
+    }
+    if (normalizedConflicts.includes('OVERLAP_ALL_SLOTS')) {
+      reasonCodes.push('OVERLAP_ALL_SLOTS');
+    }
+    if (normalizedConflicts.includes('CLAMP_FILTERED_ALL')) {
+      reasonCodes.push('CLAMP_FILTERED_ALL');
+    }
+    if (!reasonCodes.length || normalizedConflicts.includes('UNSCHEDULABLE')) {
+      reasonCodes.push('UNSCHEDULABLE');
+    }
+    const stableReasonOrder = ['NO_ALLOWED_WINDOWS', 'OUT_OF_CYCLE_RANGE', 'OVERLAP_ALL_SLOTS', 'CLAMP_FILTERED_ALL', 'UNSCHEDULABLE'];
+    const orderedReasonCodes = stableReasonOrder.filter((code) => reasonCodes.includes(code));
     state.lastPlanError = {
-      code: reasonCodes.length ? 'UNSCHEDULABLE' : 'NO_ACTION_GRAPH',
-      reason: reasonCodes.length
-        ? 'No proposed blocks could be scheduled under current constraints.'
-        : 'Action graph produced no schedulable nodes.',
-      reasonCodes
+      code: 'NO_PROPOSED_BLOCKS',
+      reason: 'No proposed blocks could be scheduled under current constraints.',
+      reasonCodes: orderedReasonCodes,
+      conflicts: normalizedConflicts,
+      meta: baseErrorMeta
     };
+    setGenerateHeartbeat(state, cycle.id, 0, 'NO_PROPOSED_BLOCKS');
   } else if (!state.lastPlanError || state.lastPlanError.code === 'NO_PROPOSED_BLOCKS') {
     state.lastPlanError = null;
+    setGenerateHeartbeat(state, cycle.id, suggestedCount, null);
+  } else {
+    setGenerateHeartbeat(state, cycle.id, suggestedCount, state.lastPlanError?.code || null);
   }
   state.cyclesById[cycle.id] = cycle;
 }
@@ -3624,7 +3897,7 @@ function applyDraftSchedule(state, payload = {}) {
   }
   const nowDay = state.appTime?.activeDayKey || state.today?.date || nowDayKey(state.appTime?.timeZone || APP_TIME_ZONE);
   const previewDecisionBeforeApply = state.planPreview?.policySelectionDecision || null;
-  const suggestedBlocks = (state.suggestedBlocks || []).filter((block) => block?.cycleId === cycle.id);
+  const suggestedBlocks = (state.proposedBlocks || state.suggestedBlocks || []).filter((block) => block?.cycleId === cycle.id);
   const timeZone = state.appTime?.timeZone || 'UTC';
   const appliedPreview = computePlanPreview({
     suggestedBlocks,
@@ -3664,7 +3937,7 @@ function applyDraftSchedule(state, payload = {}) {
     });
   });
   const acceptedSuggestionIds = new Set(proposedItems.map((item) => item.id));
-  state.suggestedBlocks = (state.suggestedBlocks || []).map((item) => {
+  const nextSuggestions = (state.proposedBlocks || state.suggestedBlocks || []).map((item) => {
     if (!acceptedSuggestionIds.has(item?.id)) return item;
     return {
       ...item,
@@ -3672,6 +3945,7 @@ function applyDraftSchedule(state, payload = {}) {
       acceptedAtISO: state.appTime?.nowISO || new Date().toISOString(),
     };
   });
+  setCycleProposedBlocks(state, cycle.id, nextSuggestions);
   state.suggestionEvents = state.suggestionEvents || [];
   proposedItems.forEach((item) => {
     state.suggestionEvents.push({

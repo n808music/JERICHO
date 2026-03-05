@@ -7,6 +7,7 @@ import { PatternLens } from './zion/Workspace.jsx';
 import AssistantPanel from './zion/AssistantPanel.jsx';
 import MissionSetupFlow from './zion/MissionSetupFlow.jsx';
 import { StructurePageConsolidated } from './zion/StructurePageConsolidated.jsx';
+import CycleTransitionModal from './zion/CycleTransitionModal.jsx';
 import { REDUCE_UI } from '../ui/reduceUIConfig.js';
 import ZionWeekView from './zion/views/ZionWeekView.jsx';
 import ZionMonthView from './zion/views/ZionMonthView.jsx';
@@ -77,6 +78,7 @@ function useZionState() {
     planCalibration,
     correctionSignals,
     suggestionEvents,
+    proposedBlocks,
     suggestedBlocks,
     deliverablesByCycleId,
     goalAdmissionByGoal,
@@ -92,6 +94,8 @@ function useZionState() {
     setActiveCycle,
     deleteCycle,
     startNewCycle,
+    startNewCycleWithDecision,
+    generateScheduleForActiveCycle,
     completeBlock,
     setDefiniteGoal,
     setPatternTargets,
@@ -128,6 +132,7 @@ function useZionState() {
     planCalibration,
     correctionSignals,
     suggestionEvents,
+    proposedBlocks,
     suggestedBlocks,
     deliverablesByCycleId,
     goalAdmissionByGoal,
@@ -158,6 +163,8 @@ function useZionState() {
       setActiveCycle,
       deleteCycle,
       startNewCycle,
+      startNewCycleWithDecision,
+      generateScheduleForActiveCycle,
       createDeliverable,
       updateDeliverable,
       deleteDeliverable,
@@ -191,6 +198,7 @@ export default function ZionDashboard({
     planCalibration,
     correctionSignals,
     suggestionEvents,
+    proposedBlocks,
     suggestedBlocks,
     deliverablesByCycleId,
     goalAdmissionByGoal,
@@ -209,6 +217,7 @@ export default function ZionDashboard({
   const goalId = goalExecutionContract?.goalId || activeCycle?.goalContract?.goalId || null;
   const admissionRecord = goalId ? goalAdmissionByGoal?.[goalId] || activeCycle?.goalAdmission : activeCycle?.goalAdmission;
   const isGoalAdmitted = !admissionRecord || admissionRecord.status === 'ADMITTED';
+  const hasAdmittedGoal = Boolean(activeCycle?.goalContract);
   const admissionReason = admissionRecord && admissionRecord.status !== 'ADMITTED'
     ? (admissionRecord.reasonCodes || []).join(', ') || admissionRecord.status
     : '';
@@ -221,7 +230,10 @@ export default function ZionDashboard({
     traceAction(name, payload);
     fn(payload);
   }
-  const cycleMode = activeCycle?.status === 'active' ? 'active' : 'review';
+  const normalizedCycleStatus = String(activeCycle?.status || activeCycle?.state || '')
+    .trim()
+    .toLowerCase();
+  const cycleMode = normalizedCycleStatus === 'active' ? 'active' : 'review';
   const isReviewMode = cycleMode === 'review';
   const isCycleReadOnly = cycleMode !== 'active';
   const coldPlanForecast = activeCycle?.coldPlan?.forecastByDayKey || {};
@@ -312,6 +324,7 @@ export default function ZionDashboard({
     }
   }, [activeCycleId]);
   const [assistantVisible, setAssistantVisible] = useState(assistantOpen);
+  const [isCycleTransitionModalOpen, setCycleTransitionModalOpen] = useState(false);
   const [selectedBlockId, setSelectedBlockId] = useState(null);
   const [zionView, setZionView] = useState(() => initialZionView || 'day');
   const [anchorDayKey, setAnchorDayKey] = useState(() => initialAnchorDayKey || activeDayKey);
@@ -373,9 +386,10 @@ export default function ZionDashboard({
     if (iso) return dayKeyFromISO(iso, timeZone);
     return '';
   };
+  const scheduleSource = proposedBlocks || suggestedBlocks || [];
   const suggestedActive = useMemo(
-    () => (suggestedBlocks || []).filter((s) => s && s.status === 'suggested'),
-    [suggestedBlocks]
+    () => (scheduleSource || []).filter((s) => s && s.status === 'suggested'),
+    [scheduleSource]
   );
   const deliverableTitleById = useMemo(() => {
     const map = new Map();
@@ -815,6 +829,7 @@ export default function ZionDashboard({
   const shouldShowPosDash = posScore === null && feasibilityScore === null;
   const posFallbackZero = posScore === null && feasibilityScore === 0;
   const missingPosWithFeasibility = posScore === null && feasibilityScore !== null && feasibilityScore !== 0;
+  const shouldRenderFeasibilityWarning = hasAdmittedGoal && missingPosWithFeasibility;
   const posExplanation = cycleMetrics?.posExplanation || null;
   const posReasons = Array.isArray(posExplanation?.reasons) ? posExplanation.reasons : [];
   const hasNoPlanReason = posReasons.some((reason) => reason?.code === 'POS_NO_PLAN');
@@ -899,7 +914,9 @@ export default function ZionDashboard({
             <div className="flex flex-wrap gap-2">
               <button
                 className="rounded-full border border-jericho-accent px-3 py-1 text-xs font-semibold text-jericho-accent hover:bg-jericho-accent/10"
-                onClick={() => actions.startNewCycle?.({})}
+                onClick={() => {
+                  setCycleTransitionModalOpen(true);
+                }}
               >
                 Start new cycle
               </button>
@@ -1014,7 +1031,7 @@ export default function ZionDashboard({
                       <div className="flex flex-wrap gap-2">
                         <button
                           className="rounded-full border border-jericho-accent px-3 py-1 text-jericho-accent hover:bg-jericho-accent/10"
-                          onClick={() => emitAction('suggestedPath.generatePlan', { cycleId: activeCycleId }, actions.generatePlan)}
+                          onClick={() => emitAction('suggestedPath.generatePlan', { cycleId: activeCycleId }, actions.generateScheduleForActiveCycle)}
                           disabled={isCycleReadOnly || !isGoalAdmitted || suppressDrafts}
                         >
                           Generate schedule
@@ -1393,7 +1410,9 @@ export default function ZionDashboard({
             </div>
           ) : null}
 
-          {view === 'structure' && <StructurePageConsolidated />}
+          {view === 'structure' && (
+            <StructurePageConsolidated onStartNewCycleRequest={() => setCycleTransitionModalOpen(true)} />
+          )}
 
           {view === 'stability' ? (
             <div className="space-y-4">
@@ -1418,7 +1437,7 @@ export default function ZionDashboard({
                       {posValue !== null ? `${posValue}%` : posFallbackZero ? '0%' : shouldShowPosDash ? '—' : '—'}
                     </p>
                     <p className="text-xs text-muted">Status: {probabilityStatusLabel}</p>
-                    {missingPosWithFeasibility ? (
+                    {shouldRenderFeasibilityWarning ? (
                       <p className="text-[11px] text-amber-600">FEASIBILITY_MISSING_FOR_PLAN</p>
                     ) : null}
                   </div>
@@ -1658,6 +1677,23 @@ export default function ZionDashboard({
             </div>
           </div>
         ) : null}
+
+        <CycleTransitionModal
+          open={isCycleTransitionModalOpen}
+          onArchive={() => {
+            actions.startNewCycleWithDecision?.({ mode: 'archive' });
+            setCycleTransitionModalOpen(false);
+            setView('structure');
+            setZionView('day');
+          }}
+          onDelete={() => {
+            actions.startNewCycleWithDecision?.({ mode: 'delete' });
+            setCycleTransitionModalOpen(false);
+            setView('structure');
+            setZionView('day');
+          }}
+          onCancel={() => setCycleTransitionModalOpen(false)}
+        />
 
         {!REDUCE_UI && assistantVisible ? (
           <div className="border-l border-line/60 pl-4">

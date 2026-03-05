@@ -22,6 +22,7 @@ export default function MissionSetupFlow({
   probabilityByGoal,
   appTime,
   goalExecutionContract,
+  proposedBlocks,
   suggestedBlocks,
   actions,
   emitAction
@@ -38,7 +39,8 @@ export default function MissionSetupFlow({
   const feasibility = goalId ? feasibilityByGoal?.[goalId] : null;
   const probability = goalId ? probabilityByGoal?.[goalId] : null;
   const autoAsanaPlan = activeCycle?.autoAsanaPlan || null;
-  const proposedBlockCount = (suggestedBlocks || []).filter((s) => s && s.status === 'suggested').length;
+  const scheduleSource = proposedBlocks || suggestedBlocks || [];
+  const proposedBlockCount = (scheduleSource || []).filter((s) => s && s.status === 'suggested').length;
   
   // Determine stage gating
   const hasCompiledGoal = definiteGoal?.outcome && definiteGoal?.deadlineDayKey;
@@ -133,9 +135,9 @@ export default function MissionSetupFlow({
             <button
               className="rounded-full border border-jericho-accent px-4 py-2 text-xs text-jericho-accent hover:bg-jericho-accent/10 font-semibold"
               onClick={() =>
-                emitAction('plan.generate', { cycleId: activeCycleId }, actions.generatePlan)
+                emitAction('plan.generate', { cycleId: activeCycleId }, actions.generateScheduleForActiveCycle || actions.generatePlan)
               }
-              disabled={!actions.generatePlan}
+              disabled={!actions.generateScheduleForActiveCycle && !actions.generatePlan}
             >
               Generate Cold Plan
             </button>

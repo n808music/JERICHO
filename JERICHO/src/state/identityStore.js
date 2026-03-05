@@ -204,6 +204,7 @@ function buildInitialIdentityState() {
         flow: lenses.flow,
         executionEvents: [],
         suggestionEvents: [],
+        proposedBlocks: [],
         suggestedBlocks: [],
         truthEntries: [],
         suggestionHistory: {
@@ -227,6 +228,8 @@ function buildInitialIdentityState() {
     goalAdmissionByGoal: {},
     aspirationsByCycleId: { 'cycle-1': [] },
     lastPlanError: null,
+    proposedBlocks: [],
+    proposedBlocksByCycleId: { 'cycle-1': [] },
     history: { cycles: [] },
     today,
     currentWeek: { weekStart: '2025-12-08', days: weekDays },
@@ -503,6 +506,10 @@ export function IdentityProvider({ children, initialState }) {
   const completeOnboarding = useCallback((onboarding) => dispatch({ type: 'COMPLETE_ONBOARDING', onboarding }), []);
   const applyOnboardingInputs = useCallback((onboarding) => dispatch({ type: 'APPLY_ONBOARDING_INPUTS', onboarding }), []);
   const startNewCycle = useCallback((payload) => dispatch({ type: 'START_NEW_CYCLE', payload }), []);
+  const startNewCycleWithDecision = useCallback(
+    (payload) => dispatch({ type: 'START_NEW_CYCLE_WITH_DECISION', payload }),
+    []
+  );
   const endCycle = useCallback((cycleId) => dispatch({ type: 'END_CYCLE', cycleId }), []);
   const archiveAndCloneCycle = useCallback((cycleId, overrides = {}) => dispatch({ type: 'ARCHIVE_AND_CLONE_CYCLE', cycleId, overrides }), []);
   const setActiveCycle = useCallback((cycleId) => dispatch({ type: 'SET_ACTIVE_CYCLE', cycleId }), []);
@@ -527,6 +534,22 @@ export function IdentityProvider({ children, initialState }) {
       dispatch({
         type: 'GENERATE_PLAN',
         payload: { ...(payload || {}), cycleId: payload?.cycleId || state.activeCycleId || null }
+      }),
+    [state.activeCycleId]
+  );
+  const generatePlanForCycle = useCallback(
+    (cycleId) =>
+      dispatch({
+        type: 'GENERATE_PLAN',
+        payload: { cycleId: cycleId || state.activeCycleId || null }
+      }),
+    [state.activeCycleId]
+  );
+  const generateScheduleForActiveCycle = useCallback(
+    () =>
+      dispatch({
+        type: 'GENERATE_PLAN',
+        payload: { cycleId: state.activeCycleId || null }
       }),
     [state.activeCycleId]
   );
@@ -628,6 +651,7 @@ export function IdentityProvider({ children, initialState }) {
         completeOnboarding,
         applyOnboardingInputs,
         startNewCycle,
+        startNewCycleWithDecision,
         endCycle,
         setActiveCycle,
         deleteCycle,
@@ -644,6 +668,8 @@ export function IdentityProvider({ children, initialState }) {
         applyNextSuggestion,
         setCalibrationDays,
         generatePlan,
+        generatePlanForCycle,
+        generateScheduleForActiveCycle,
         commitPreviewItems,
         applyPlan,
         applyDraftSchedule,
@@ -753,6 +779,10 @@ function ensureTemplates(state) {
   if (!state.planCalibration) state.planCalibration = { confidence: 0, assumptions: [], missingInfo: [] };
   if (!('planPreview' in state)) state.planPreview = null;
   if (!('correctionSignals' in state)) state.correctionSignals = null;
+  if (!state.proposedBlocks) state.proposedBlocks = [];
+  if (!state.proposedBlocksByCycleId || typeof state.proposedBlocksByCycleId !== 'object') {
+    state.proposedBlocksByCycleId = {};
+  }
   if (!state.suggestedBlocks) state.suggestedBlocks = [];
   if (!state.suggestionEvents) state.suggestionEvents = [];
   if (!state.truthEntries) state.truthEntries = [];
@@ -886,6 +916,7 @@ export function attemptGoalAdmissionPure(state, contract) {
     goalHash: contract?.inscription?.contractHash || null,
     executionEvents: [],
     suggestionEvents: [],
+    proposedBlocks: [],
     suggestedBlocks: [],
     truthEntries: []
   };

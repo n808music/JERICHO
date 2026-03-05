@@ -18,6 +18,7 @@ import { useIdentityStore } from '../../state/identityStore';
 import GoalAdmissionPage from '../../ui/goalAdmission/GoalAdmissionPage';
 import { getActiveGoalOutcomes } from '../../state/cycleSelectors.js';
 import { getContractStartDayKey, getContractDeadlineDayKey } from '../../state/suggestionFilters.js';
+import CycleTransitionModal from './CycleTransitionModal.jsx';
 
 const formatDate = (iso) => {
   if (!iso) return '';
@@ -86,7 +87,7 @@ function buildDefiniteGoalView(activeCycle) {
   };
 }
 
-export function StructurePageConsolidated() {
+export function StructurePageConsolidated({ onStartNewCycleRequest = null }) {
   const store = useIdentityStore();
   const {
     activeCycleId,
@@ -94,33 +95,39 @@ export function StructurePageConsolidated() {
     aspirations,
     appTime,
     constraints,
+    debug,
     availabilityPolicy,
+    proposedBlocks,
     suggestedBlocks,
     lastPlanError,
-    generateColdPlan,
     rebaseColdPlan,
     applyPlan,
     setSchedulingConstraints,
     attemptGoalAdmission,
     archiveAndCloneCycle
   } = store;
+  const [isCycleTransitionModalOpen, setCycleTransitionModalOpen] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
   const activeCycle = activeCycleId ? cyclesById[activeCycleId] : null;
   const planDraft = activeCycle?.planDraft ?? store.planDraft ?? null;
-  const isCycleReadOnly =
-    activeCycle?.status === 'Ended' ||
-    activeCycle?.status === 'Archived' ||
-    activeCycle?.state === 'Ended' ||
-    activeCycle?.state === 'Archived';
+  const cycleStatus = String(activeCycle?.status || activeCycle?.state || '')
+    .trim()
+    .toLowerCase();
+  const isCycleReadOnly = cycleStatus === 'ended' || cycleStatus === 'archived';
   const hasAdmittedGoal = Boolean(activeCycle?.goalContract);
   const timeZone = appTime?.timeZone || 'UTC';
   const contractStartDayKey = getContractStartDayKey(activeCycle?.goalContract, timeZone);
   const activeDayKey = appTime?.activeDayKey || null;
   const suppressDrafts = Boolean(contractStartDayKey && activeDayKey && activeDayKey < contractStartDayKey);
   const contract = activeCycle?.goalContract || null;
+  const canonicalProposedBlocks = useMemo(
+    () => proposedBlocks || suggestedBlocks || [],
+    [proposedBlocks, suggestedBlocks]
+  );
   const visiblePreviewItems = useMemo(
     () => {
       const deadlineDayKey = getContractDeadlineDayKey(contract);
-      return (suggestedBlocks || [])
+      return (canonicalProposedBlocks || [])
         .filter((item) => item?.status === 'suggested')
         .filter((item) => {
           const dayKey = item?.dayKey || (item?.startISO ? item.startISO.slice(0, 10) : '');
@@ -139,8 +146,9 @@ export function StructurePageConsolidated() {
           reason: 'action_graph'
         }));
     },
-    [suggestedBlocks, contract, contractStartDayKey]
+    [canonicalProposedBlocks, contract, contractStartDayKey]
   );
+  const lastGenerateDebug = debug?.lastGenerateResult || { proposedBlocksCount: 0, lastPlanErrorCode: null };
   const previewCount = visiblePreviewItems.length;
   const definiteGoalView = buildDefiniteGoalView(activeCycle);
   const existingGoalOutcomes = useMemo(() => getActiveGoalOutcomes(cyclesById), [cyclesById]);
@@ -318,14 +326,27 @@ export function StructurePageConsolidated() {
   // ============================================================================
   return (
     <div className="space-y-4">
-      {/* Debug panel (temporary) */}
       <div className="rounded-md border border-line/60 bg-jericho-surface/80 p-3 text-xs">
-        <div className="flex gap-4 items-center">
-          <div><strong>activeCycleId:</strong> {String(activeCycleId || 'none')}</div>
-          <div><strong>hasGoalContract:</strong> {String(Boolean(activeCycle?.goalContract))}</div>
-          <div><strong>proposedBlocks:</strong> {(suggestedBlocks || []).length}</div>
-          <div><strong>lastPlanError:</strong> {lastPlanError ? lastPlanError.code || lastPlanError.reason : 'none'}</div>
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowDebug((prev) => !prev)}
+          className="rounded border border-line/60 px-2 py-1 text-[11px] text-muted hover:text-jericho-accent"
+        >
+          {showDebug ? 'Hide Debug' : 'Debug'}
+        </button>
+        {showDebug && (
+          <div className="mt-2 flex flex-wrap gap-4 items-center">
+            <div><strong>cycle:</strong> {activeCycleId ? String(activeCycleId).slice(0, 6) : 'none'}</div>
+            <div><strong>hasGoalContract:</strong> {String(Boolean(activeCycle?.goalContract))}</div>
+            <div><strong>proposedBlocks:</strong> {(canonicalProposedBlocks || []).length}</div>
+            <div><strong>lastPlanError:</strong> {lastPlanError ? lastPlanError.code || lastPlanError.reason : 'none'}</div>
+            <div><strong>reasonCodes:</strong> {Array.isArray(lastPlanError?.reasonCodes) ? lastPlanError.reasonCodes.join(', ') : 'none'}</div>
+            <div><strong>lastGenerateClickAtISO:</strong> {String(debug?.lastGenerateClickAtISO || 'none')}</div>
+            <div><strong>lastGenerateClickCycleId:</strong> {debug?.lastGenerateClickCycleId ? String(debug.lastGenerateClickCycleId).slice(0, 6) : 'none'}</div>
+            <div><strong>lastGenerate.proposedBlocksCount:</strong> {String(lastGenerateDebug.proposedBlocksCount ?? 0)}</div>
+            <div><strong>lastGenerate.lastPlanErrorCode:</strong> {String(lastGenerateDebug.lastPlanErrorCode || 'none')}</div>
+          </div>
+        )}
       </div>
       {/* Goal Banner (Canonical, Read-Only) */}
       {activeCycle && (
@@ -383,8 +404,8 @@ export function StructurePageConsolidated() {
             <p className="text-xs uppercase tracking-[0.14em] text-muted">Deliverables</p>
           </div>
           <div className="text-xs text-muted/70 flex items-center gap-4">
-            {activeCycle?.suggestedBlocks?.length > 0 && (
-              <span>{activeCycle.suggestedBlocks.length} blocks proposed</span>
+            {(activeCycle?.proposedBlocks?.length || activeCycle?.suggestedBlocks?.length) > 0 && (
+              <span>{activeCycle?.proposedBlocks?.length || activeCycle?.suggestedBlocks?.length || 0} blocks proposed</span>
             )}
             {store?.deliverablesByCycleId?.[activeCycleId]?.autoGenerated && (
               <span className="text-success text-xs font-medium">Auto-generated</span>
@@ -558,7 +579,7 @@ export function StructurePageConsolidated() {
               type="button"
               className="rounded-full border border-line/60 px-2 py-0.5 text-[11px] text-muted"
               onClick={() => {
-                generateColdPlan?.();
+                store.generateScheduleForActiveCycle?.();
               }}
             >
               Regenerate Route
@@ -576,7 +597,7 @@ export function StructurePageConsolidated() {
         </div>
 
         {/* Error Banner (Explicit Failure) */}
-        {(commitError || lastPlanError) && (
+        {hasAdmittedGoal && (commitError || lastPlanError) && (
           <div className="rounded-lg border border-red-600/40 bg-red-50/5 p-3 space-y-2">
             <div className="flex items-center justify-between">
               <div>
@@ -711,11 +732,10 @@ export function StructurePageConsolidated() {
           <div className="flex gap-2">
             <button
               onClick={() => {
-                if (window.confirm('Start a new cycle?')) {
-                  store.startNewCycle?.({
-                    goalText: activeCycle?.goalContract?.goalText || 'New goal',
-                    deadlineDayKey: activeCycle?.goalContract?.endDayKey
-                  });
+                if (onStartNewCycleRequest) {
+                  onStartNewCycleRequest();
+                } else {
+                  setCycleTransitionModalOpen(true);
                 }
               }}
               className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent"
@@ -736,6 +756,11 @@ export function StructurePageConsolidated() {
               onClick={() => {
                 if (window.confirm('Delete the active cycle and clear the calendar? This cannot be undone.')) {
                   store.deleteCycle?.(activeCycleId);
+                  try {
+                    window.location.hash = '#/structure';
+                  } catch {
+                    // ignore hash routing failures
+                  }
                 }
               }}
               className="rounded-full border border-red-600 px-3 py-1 text-xs text-red-600 hover:bg-red-600/10"
@@ -745,6 +770,29 @@ export function StructurePageConsolidated() {
           </div>
         </div>
       </details>
+
+      <CycleTransitionModal
+        open={isCycleTransitionModalOpen}
+        onArchive={() => {
+          store.startNewCycleWithDecision?.({ mode: 'archive' });
+          setCycleTransitionModalOpen(false);
+          try {
+            window.location.hash = '#/structure';
+          } catch {
+            // ignore hash routing failures
+          }
+        }}
+        onDelete={() => {
+          store.startNewCycleWithDecision?.({ mode: 'delete' });
+          setCycleTransitionModalOpen(false);
+          try {
+            window.location.hash = '#/structure';
+          } catch {
+            // ignore hash routing failures
+          }
+        }}
+        onCancel={() => setCycleTransitionModalOpen(false)}
+      />
     </div>
   );
 }

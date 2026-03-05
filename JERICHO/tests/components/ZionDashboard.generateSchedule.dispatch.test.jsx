@@ -1,0 +1,95 @@
+import React from 'react';
+import '@testing-library/jest-dom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import ZionDashboard from '../../src/components/ZionDashboard.jsx';
+
+const generateScheduleForActiveCycle = vi.fn();
+const noop = vi.fn();
+let mockStore = {};
+
+vi.mock('../../src/state/identityStore', () => ({
+  useIdentityStore: () => mockStore,
+}));
+
+function buildStore() {
+  const dayKey = '2026-02-03';
+  const cycleId = 'cycle-active';
+  return {
+    today: { date: dayKey, blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
+    currentWeek: { weekStart: dayKey, days: [] },
+    cycle: [],
+    planDraft: null,
+    planCalibration: null,
+    correctionSignals: null,
+    suggestionEvents: [],
+    suggestedBlocks: [],
+    deliverablesByCycleId: { [cycleId]: { deliverables: [], suggestionLinks: {} } },
+    goalAdmissionByGoal: {},
+    appTime: { nowISO: `${dayKey}T12:00:00.000Z`, activeDayKey: dayKey, timeZone: 'UTC' },
+    goalWorkById: {},
+    constraints: {},
+    cyclesById: {
+      [cycleId]: {
+        id: cycleId,
+        status: 'active',
+        goalContract: { goalId: 'goal-1', startDayKey: '2026-02-01', endDayKey: '2026-03-01' },
+      },
+    },
+    activeCycleId: cycleId,
+    goalExecutionContract: { goalId: 'goal-1', startDayKey: '2026-02-01', endDayKey: '2026-03-01' },
+    probabilityByGoal: {},
+    feasibilityByGoal: {},
+    profileLearning: {},
+    actions: {},
+    generateScheduleForActiveCycle,
+    generatePlan: noop,
+    commitPreviewItems: noop,
+    applyPlan: noop,
+    setActiveCycle: noop,
+    deleteCycle: noop,
+    startNewCycle: noop,
+    startNewCycleWithDecision: noop,
+    completeBlock: noop,
+    setDefiniteGoal: noop,
+    setPatternTargets: noop,
+    createBlock: noop,
+    updateBlock: noop,
+    deleteBlock: noop,
+    rescheduleBlock: noop,
+    setActiveDayKey: noop,
+    jumpToToday: noop,
+    tickNow: noop,
+    setCalibrationDays: noop,
+    acceptSuggestedBlock: noop,
+    acceptSuggestedBlockWithPlacement: noop,
+    rejectSuggestedBlock: noop,
+    ignoreSuggestedBlock: noop,
+    dismissSuggestedBlock: noop,
+    createDeliverable: noop,
+    updateDeliverable: noop,
+    deleteDeliverable: noop,
+    createCriterion: noop,
+    toggleCriterionDone: noop,
+    deleteCriterion: noop,
+    linkBlockToDeliverable: noop,
+    assignSuggestionLink: noop,
+  };
+}
+
+describe('ZionDashboard schedule generation dispatch wiring', () => {
+  beforeEach(() => {
+    generateScheduleForActiveCycle.mockClear();
+    mockStore = buildStore();
+  });
+
+  it('generate schedule button uses canonical active-cycle scheduler action', async () => {
+    render(<ZionDashboard initialView="today" initialZionView="day" />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /generate schedule/i }));
+
+    expect(generateScheduleForActiveCycle).toHaveBeenCalledTimes(1);
+  });
+});
