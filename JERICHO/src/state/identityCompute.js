@@ -5290,7 +5290,7 @@ function generatePlan(state, payload = {}) {
         : Math.max(1, Math.min(2, resolvedMaxPerWeek));
   constraints.maxBlocksPerWeek = resolvedMaxPerWeek;
   constraints.maxBlocksPerDay = resolvedMaxPerDay;
-  cycle.autoAsanaPlan = compileAutoAsanaPlan({
+  const compiledPlan = compileAutoAsanaPlan({
     goalId: contract.goalId,
     cycleId: cycle.id,
     planProof,
@@ -5301,6 +5301,26 @@ function generatePlan(state, payload = {}) {
     actionSequence: actionSequenceWithDeliverableIds,
     sessionPlan: Array.isArray(cycle?.llmSessionPlan) ? cycle.llmSessionPlan : []
   });
+  logGenerateDiagnostics({
+    traceId: `trace-${cycle.id}-propose`,
+    cycleId: cycle.id,
+    goalId: contract?.goalId || null,
+    moduleName: 'compileAutoAsanaPlan',
+    stepName: 'complete',
+    status: compiledPlan?.horizonBlocks?.length > 0 ? 'ok' : 'fail',
+    inputSummary: {
+      actionSequenceCount: actionSequenceWithDeliverableIds?.length || 0,
+      sessionPlanCount: Array.isArray(cycle?.llmSessionPlan) ? cycle.llmSessionPlan.length : 0,
+      horizonDays,
+    },
+    outputSummary: {
+      horizonBlocksCount: compiledPlan?.horizonBlocks?.length || 0,
+      placedDayKeys: (compiledPlan?.horizonBlocks || []).map((b) => b?.dayKey).filter(Boolean),
+    },
+    lastPlanErrorCode: compiledPlan?.horizonBlocks?.length > 0 ? null : 'NO_PROPOSED_BLOCKS',
+    reasonCodes: [],
+  });
+  cycle.autoAsanaPlan = compiledPlan;
   const suggestions = (cycle.autoAsanaPlan?.horizonBlocks || []).map((block, index) => ({
     id: block.identityKey || block.id || `suggested:auto:${cycle.id}:${index}`,
     goalId: contract.goalId,
@@ -5388,24 +5408,6 @@ function generatePlan(state, payload = {}) {
   } else {
     setGenerateHeartbeat(state, cycle.id, suggestedCount, state.lastPlanError?.code || null);
   }
-  if (suggestedCount > 0 && !state.scheduleApplied) {
-    applyDraftSchedule(state, { cycleId: cycle.id, goalId: contract.goalId });
-    state.scheduleApplied = true;
-    logGenerateDiagnostics({
-      traceId: `trace-${cycle.id}-apply`,
-      cycleId: cycle.id,
-      goalId: contract?.goalId || null,
-      moduleName: 'applyDraftSchedule',
-      stepName: 'complete',
-      status: 'ok',
-      outputSummary: {
-        committedBlocksCount: (state.today?.blocks || []).length,
-        cycleBlocksCount: (state.cycle || []).flatMap((d) => d.blocks || []).length,
-        scheduleApplied: state.scheduleApplied,
-      },
-      reasonCodes: [],
-    });
-  }
   logGenerateDiagnostics({
     traceId: `trace-${cycle.id}-generate`,
     cycleId: cycle.id,
@@ -5423,6 +5425,49 @@ function generatePlan(state, payload = {}) {
     lastPlanErrorCode: state.lastPlanError?.code || null,
     reasonCodes: state.lastPlanError?.reasonCodes || [],
   });
+  if (suggestedCount > 0 && !state.scheduleApplied) {
+    applyDraftSchedule(state, { cycleId: cycle.id, goalId: contract.goalId });
+    state.scheduleApplied = true;
+    logGenerateDiagnostics({
+      traceId: `trace-${cycle.id}-apply`,
+      cycleId: cycle.id,
+      goalId: contract?.goalId || null,
+      moduleName: 'applyDraftSchedule',
+      stepName: 'complete',
+      status: 'ok',
+      inputSummary: {
+        proposedBlocksCount: (state.proposedBlocks || []).length,
+        suggestedCount: (state.proposedBlocks || []).filter((b) => b?.status === 'suggested').length,
+        cycleId: cycle.id,
+      },
+      outputSummary: {
+        committedBlocksCount: (state.today?.blocks || []).length,
+        cycleBlocksCount: (state.cycle || []).flatMap((d) => d.blocks || []).length,
+        scheduleApplied: state.scheduleApplied,
+      },
+      reasonCodes: [],
+    });
+    logGenerateDiagnostics({
+      traceId: `trace-${cycle.id}-commit`,
+      cycleId: cycle.id,
+      goalId: contract?.goalId || null,
+      moduleName: 'commitBlocks',
+      stepName: 'complete',
+      status: state.lastPlanError?.code ? 'fail' : 'ok',
+      inputSummary: {
+        acceptedBlocksCount: (state.proposedBlocks || []).filter((b) => b?.status === 'accepted').length,
+        targetCycleId: cycle.id,
+      },
+      outputSummary: {
+        executionEventCount: (state.executionEvents || []).length,
+        todayBlocksCount: (state.today?.blocks || []).length,
+        cycleBlocksCount: (state.cycle || []).flatMap((d) => d.blocks || []).length,
+        draftScheduleAppliedAtISO: state.draftScheduleAppliedAtISO || null,
+      },
+      lastPlanErrorCode: state.lastPlanError?.code || null,
+      reasonCodes: state.lastPlanError?.reasonCodes || [],
+    });
+  }
   state.cyclesById[cycle.id] = cycle;
 }
 
@@ -5633,23 +5678,6 @@ function applyDraftSchedule(state, payload = {}) {
   cycle.coldPlan = { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } };
   cycle.lastPolicySelectionDecision = previewDecisionBeforeApply || appliedPreview.policySelectionDecision || null;
   state.cyclesById[cycle.id] = cycle;
-  logGenerateDiagnostics({
-    traceId: `trace-${cycle.id}-commit`,
-    cycleId: cycle.id,
-    goalId: contract?.goalId || null,
-    moduleName: 'commitBlocks',
-    stepName: 'complete',
-    status: state.lastPlanError?.code ? 'fail' : 'ok',
-    outputSummary: {
-      createdBlockCount: proposedItems.length,
-      acceptedSuggestionCount: acceptedSuggestionIds.size,
-      executionEventCount: (state.executionEvents || []).length,
-      todayBlocksCount: (state.today?.blocks || []).length,
-      cycleBlocksCount: (state.cycle || []).flatMap((d) => d.blocks || []).length,
-    },
-    lastPlanErrorCode: state.lastPlanError?.code || null,
-    reasonCodes: state.lastPlanError?.reasonCodes || [],
-  });
 }
 
 function resolveRenegotiationOption(cycle, payload = {}) {
