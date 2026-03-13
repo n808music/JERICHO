@@ -1,7 +1,7 @@
 # JERICHO Phase 1 Baseline
 **Date:** 2026-03-13  
 **Branch state:** post-1.0 foundation, pre-2.0 architecture  
-**Suite state:** red on 4 known pre-existing files, 0 session-introduced regressions  
+**Suite state:** Bucket 1 closed, Bucket 3 architectural seams documented, 0 session-introduced regressions  
 
 ---
 
@@ -36,14 +36,14 @@ The following capabilities are proven working as of this baseline:
 ## Baseline Test Debt Registry
 
 ### Bucket 1 — Pre-existing trunk debt
-Failures present before this session. Not caused by session changes. Do not fix individually — instrument with Phase 1 diagnostics first to understand root cause before touching.
+Bucket 1 is now closed. These files were the original pre-existing trunk-debt baseline and are now resolved.
 
-| File | Failing Tests | Root Cause Hypothesis | Phase Target |
-|---|---|---|---|
-| `tests/state/renegotiation.apply.test.js` | 0 | Closed in Phase 1. Source-gated auto-apply so renegotiation regenerates forward proposals without mutating historical execution evidence. | Closed |
-| `tests/state/calibration.recompute.test.js` | 4 | Suggestion identity / recompute parity. `Cannot read properties of undefined (reading 'id')` points to suggestion objects with missing identity keys after recompute. | Phase 1 diagnostics → Phase 2 canonical suggestion store |
-| `src/state/__tests__/mvp3_linkage_integrity.test.js` | 0 | Closed in Phase 1. Canonical deliverable workspace path + explicit unlinked acceptance fixture corrected linkage/convergence accounting. | Closed |
-| `src/state/__tests__/mvp3_terminal_convergence.test.js` | 0 | Closed in Phase 1. Cycle-scoped deliverable resolution removed strategy contamination from terminal convergence. | Closed |
+| File | Status | Fix |
+|---|---|---|
+| `tests/state/renegotiation.apply.test.js` | CLOSED | Auto-apply source guard. Renegotiation-triggered generation no longer auto-commits or mutates historical execution evidence. |
+| `tests/state/calibration.recompute.test.js` | CLOSED | Contract overwrite fixed. Merge pattern at the cycle contract sync points preserves `startDayKey`, `endDayKey`, and `horizonDays`; fixture-level acceptance/rejection tests now seed real calibration-generated suggestions. |
+| `src/state/__tests__/mvp3_linkage_integrity.test.js` | CLOSED | Workspace numeric aliasing removed and strategy contamination removed from the cycle deliverable workspace. |
+| `src/state/__tests__/mvp3_terminal_convergence.test.js` | CLOSED | Convergence scope fixed. Strategy deliverables are excluded from terminal requirements; only cycle-scoped deliverables count. |
 
 ### Bucket 2 — Session-introduced regressions
 **None.** All session changes either passed tests or were reverted cleanly.

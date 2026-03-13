@@ -50,6 +50,7 @@ function seedOnboardingState() {
   });
 }
 
+
 describe('calibration recompute', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -74,7 +75,7 @@ describe('calibration recompute', () => {
   });
 
   it('does not mutate accepted/rejected suggestions when recalibrating', () => {
-    const state0 = seedOnboardingState();
+    const state0 = computeDerivedState(seedOnboardingState(), { type: 'SET_CALIBRATION_DAYS', daysPerWeek: 3 });
     const first = state0.suggestedBlocks[0];
     const second = state0.suggestedBlocks[1];
     const accepted = computeDerivedState(state0, { type: 'ACCEPT_SUGGESTED_BLOCK', proposalId: first.id });
@@ -164,7 +165,7 @@ describe('calibration recompute', () => {
   });
 
   it('reject sets reason, emits event, and is idempotent', () => {
-    const state0 = seedOnboardingState();
+    const state0 = computeDerivedState(seedOnboardingState(), { type: 'SET_CALIBRATION_DAYS', daysPerWeek: 3 });
     const suggestionId = state0.suggestedBlocks[0].id;
     const rejected = computeDerivedState(state0, {
       type: 'REJECT_SUGGESTED_BLOCK',

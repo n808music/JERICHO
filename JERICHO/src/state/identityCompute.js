@@ -596,7 +596,10 @@ export function hydrateActiveCycleState(state) {
   state.planCalibration = cycle.calibration || state.planCalibration || { confidence: 0, assumptions: [], missingInfo: [] };
   state.planPreview = cycle.planPreview || null;
   state.correctionSignals = cycle.correctionSignals || null;
-  state.goalExecutionContract = cycle.goalContract || cycle.contract || state.goalExecutionContract || null;
+  state.goalExecutionContract = {
+    ...(state.goalExecutionContract || {}),
+    ...(cycle.goalContract || cycle.contract || {}),
+  };
   state.activeGoalId = cycle.goalGovernanceContract?.goalId || state.activeGoalId || null;
   state.truthEntries = cycle.truthEntries || state.truthEntries || [];
   state.suggestionHistory = cycle.suggestionHistory || state.suggestionHistory || null;
@@ -617,7 +620,10 @@ export function persistActiveCycleState(state) {
   cycle.planPreview = state.planPreview || null;
   cycle.correctionSignals = state.correctionSignals || null;
   cycle.contract = cycle.goalContract || cycle.contract || state.goalExecutionContract || null;
-  state.goalExecutionContract = cycle.goalContract || cycle.contract || state.goalExecutionContract || null;
+  state.goalExecutionContract = {
+    ...(state.goalExecutionContract || {}),
+    ...(cycle.goalContract || cycle.contract || {}),
+  };
   cycle.truthEntries = state.truthEntries || cycle.truthEntries || [];
   cycle.suggestionHistory = state.suggestionHistory || cycle.suggestionHistory || null;
   state.cyclesById[state.activeCycleId] = cycle;
@@ -5442,7 +5448,13 @@ function generatePlan(state, payload = {}) {
     lastPlanErrorCode: state.lastPlanError?.code || null,
     reasonCodes: state.lastPlanError?.reasonCodes || [],
   });
-  if (suggestedCount > 0 && !state.scheduleApplied) {
+  const generationSource = payload?.source || null;
+  if (
+    suggestedCount > 0 &&
+    !state.scheduleApplied &&
+    generationSource !== 'RENEGOTIATION_APPLY' &&
+    generationSource !== 'RECOVERY'
+  ) {
     applyDraftSchedule(state, { cycleId: cycle.id, goalId: contract.goalId });
     state.scheduleApplied = true;
     logGenerateDiagnostics({
