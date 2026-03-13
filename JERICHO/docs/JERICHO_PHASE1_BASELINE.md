@@ -40,10 +40,10 @@ Failures present before this session. Not caused by session changes. Do not fix 
 
 | File | Failing Tests | Root Cause Hypothesis | Phase Target |
 |---|---|---|---|
-| `tests/state/renegotiation.apply.test.js` | 2 | Historical evidence / proposal regeneration assumptions broken. Renegotiation flow expects clean proposal state that auto-apply now populates earlier. | Phase 1 diagnostics → Phase 2 proposal/commit separation |
+| `tests/state/renegotiation.apply.test.js` | 0 | Closed in Phase 1. Source-gated auto-apply so renegotiation regenerates forward proposals without mutating historical execution evidence. | Closed |
 | `tests/state/calibration.recompute.test.js` | 4 | Suggestion identity / recompute parity. `Cannot read properties of undefined (reading 'id')` points to suggestion objects with missing identity keys after recompute. | Phase 1 diagnostics → Phase 2 canonical suggestion store |
-| `src/state/__tests__/mvp3_linkage_integrity.test.js` | 2 | Linkage / convergence accounting inconsistent. UNLINKED_ACTIVITY not being marked, E_end units not accumulating. | Phase 1 diagnostics → Phase 2 convergence module isolation |
-| `src/state/__tests__/mvp3_terminal_convergence.test.js` | 2 | Terminal convergence verdict returning INCOMPLETE instead of CONVERGED. Learning contribution not firing. | Phase 1 diagnostics → Phase 2 convergence module isolation |
+| `src/state/__tests__/mvp3_linkage_integrity.test.js` | 0 | Closed in Phase 1. Canonical deliverable workspace path + explicit unlinked acceptance fixture corrected linkage/convergence accounting. | Closed |
+| `src/state/__tests__/mvp3_terminal_convergence.test.js` | 0 | Closed in Phase 1. Cycle-scoped deliverable resolution removed strategy contamination from terminal convergence. | Closed |
 
 ### Bucket 2 — Session-introduced regressions
 **None.** All session changes either passed tests or were reverted cleanly.
@@ -54,6 +54,7 @@ Not active test failures. Known seams that Phase 2 must close.
 | Area | Seam Description | Phase Target |
 |---|---|---|
 | `recomputeSummaries()` month truncation | `state.cycle` is rebuilt as view-only month data, discarding committed blocks outside the current month. Calendar reads from view slices instead of canonical block store. The correct fix requires a flat `state.blocks` canonical store. | Phase 2 — canonical block store |
+| `tests/components/generatePlan.calendarIntegration.test.jsx` | `recomputeSummaries` month truncation still drops committed horizon blocks from render slices before React month view reads them. Scheduler placement is correct; render source is not canonical. | Phase 2 — canonical block store |
 | Preview vs commit separation | Auto-apply and proposal semantics are mixed. Tests expect proposals to remain preview-only; system now auto-commits. Needs explicit artifact ownership per the module determinism audit. | Phase 2 — module boundary contracts |
 | `getAllBlocks` reads view slices | `getAllBlocks` reads `state.today`, `state.currentWeek`, `state.cycle` instead of a canonical flat store. This couples the query layer to the view layer. | Phase 2 — canonical block store |
 
