@@ -27,9 +27,17 @@ import { computeProfileLearning } from './learning.ts';
 import { computeTerminalConvergence } from './convergenceTerminal.ts';
 import { rolloverAtMidnight, shouldRollover } from '../core/engine/rollover.ts';
 import { buildPolicyAndQualityDiagnostics } from './draftSchedule.js';
+import {
+  getCanonicalCycleActions,
+  getCanonicalCycleContract,
+  getCanonicalCycleDeliverables,
+  getCanonicalProposedBlocks
+} from './cycleSelectors.js';
 import { buildHistoryProfile, deriveCycleHistorySignals } from '../planner/scoring/historySignals.ts';
 import { computeCycleIntegrityScore, computeCyclePOS } from '../domain/scoring/cycleScoring.ts';
 import { aggregateCycleOutcomes, buildPosExplanation } from '../domain/scoring/posExplanation.ts';
+import { buildCycleDynamicsTransitionPatch, deriveCycleDynamicsProfile } from './engine/cycleDynamics.ts';
+import { compileGoalToDeliverables, toLegacyWorkspaceDeliverables } from './engine/goalToDeliverables.ts';
 
 /**
  * @typedef {import('./identityTypes.js').IdentityState} IdentityState
@@ -39,7 +47,7 @@ import { aggregateCycleOutcomes, buildPosExplanation } from '../domain/scoring/p
  */
 
 /**
- * @typedef {{ type: 'BEGIN_BLOCK'; id: string } | { type: 'COMPLETE_BLOCK'; id: string } | { type: 'RESCHEDULE_BLOCK'; id: string; start: string; end: string } | { type: 'APPLY_LENSES'; lenses: Partial<LensesConfig> } | { type: 'SET_VIEW_DATE'; date: string } | { type: 'REBALANCE_TODAY'; mode?: 'CLEAR_AFTERNOON' } | { type: 'COMPLETE_ONBOARDING'; onboarding: any } | { type: 'START_NEW_CYCLE'; payload: any } | { type: 'START_NEW_CYCLE_WITH_DECISION'; payload: { mode: 'archive' | 'delete' } } | { type: 'END_CYCLE'; cycleId: string } | { type: 'ARCHIVE_AND_CLONE_CYCLE'; cycleId: string; overrides?: any } | { type: 'SET_ACTIVE_CYCLE'; cycleId: string } | { type: 'DELETE_CYCLE'; cycleId: string } | { type: 'HARD_DELETE_CYCLE'; cycleId: string } | { type: 'ADD_TRUTH_ENTRY'; payload: any } | { type: 'CREATE_BLOCK'; payload: any } | { type: 'UPDATE_BLOCK'; payload: any } | { type: 'DELETE_BLOCK'; id: string } | { type: 'ADD_RECURRING_PATTERN'; pattern: any } | { type: 'SET_PRIMARY_OBJECTIVE'; objectiveId: string | null } | { type: 'SET_CALIBRATION_DAYS'; daysPerWeek: number; uncertain?: boolean } | { type: 'GENERATE_PLAN' } | { type: 'APPLY_PLAN' } | { type: 'ACCEPT_SUGGESTED_BLOCK'; proposalId: string } | { type: 'REJECT_SUGGESTED_BLOCK'; proposalId: string; reason: string } | { type: 'IGNORE_SUGGESTED_BLOCK'; proposalId: string } | { type: 'DISMISS_SUGGESTED_BLOCK'; proposalId: string } | { type: 'CREATE_DELIVERABLE'; payload: any } | { type: 'UPDATE_DELIVERABLE'; payload: any } | { type: 'DELETE_DELIVERABLE'; payload: any } | { type: 'CREATE_CRITERION'; payload: any } | { type: 'TOGGLE_CRITERION_DONE'; payload: any } | { type: 'DELETE_CRITERION'; payload: any } | { type: 'LINK_BLOCK_TO_DELIVERABLE'; payload: any } | { type: 'ASSIGN_SUGGESTION_LINK'; payload: any } | { type: 'SET_STRATEGY'; payload: any } | { type: 'GENERATE_COLD_PLAN'; payload?: any } | { type: 'REBASE_COLD_PLAN'; payload?: any } | { type: 'SET_DEFINITE_GOAL'; outcome: string; deadlineDayKey: string } | { type: 'COMPILE_GOAL_EQUATION'; payload: any }} Action
+ * @typedef {{ type: 'BEGIN_BLOCK'; id: string } | { type: 'COMPLETE_BLOCK'; id: string } | { type: 'RESCHEDULE_BLOCK'; id: string; start: string; end: string } | { type: 'APPLY_LENSES'; lenses: Partial<LensesConfig> } | { type: 'SET_VIEW_DATE'; date: string } | { type: 'REBALANCE_TODAY'; mode?: 'CLEAR_AFTERNOON' } | { type: 'COMPLETE_ONBOARDING'; onboarding: any } | { type: 'START_NEW_CYCLE'; payload: any } | { type: 'START_NEW_CYCLE_WITH_DECISION'; payload: { mode: 'archive' | 'delete' } } | { type: 'END_CYCLE'; cycleId: string } | { type: 'ARCHIVE_AND_CLONE_CYCLE'; cycleId: string; overrides?: any } | { type: 'SET_ACTIVE_CYCLE'; cycleId: string } | { type: 'DELETE_CYCLE'; cycleId: string } | { type: 'HARD_DELETE_CYCLE'; cycleId: string } | { type: 'ADD_TRUTH_ENTRY'; payload: any } | { type: 'CREATE_BLOCK'; payload: any } | { type: 'UPDATE_BLOCK'; payload: any } | { type: 'DELETE_BLOCK'; id: string } | { type: 'ADD_RECURRING_PATTERN'; pattern: any } | { type: 'SET_PRIMARY_OBJECTIVE'; objectiveId: string | null } | { type: 'SET_CALIBRATION_DAYS'; daysPerWeek: number; uncertain?: boolean } | { type: 'GENERATE_PLAN' } | { type: 'APPLY_PLAN' } | { type: 'ACCEPT_SUGGESTED_BLOCK'; proposalId: string } | { type: 'REJECT_SUGGESTED_BLOCK'; proposalId: string; reason: string } | { type: 'IGNORE_SUGGESTED_BLOCK'; proposalId: string } | { type: 'DISMISS_SUGGESTED_BLOCK'; proposalId: string } | { type: 'CREATE_DELIVERABLE'; payload: any } | { type: 'UPDATE_DELIVERABLE'; payload: any } | { type: 'DELETE_DELIVERABLE'; payload: any } | { type: 'CREATE_CRITERION'; payload: any } | { type: 'TOGGLE_CRITERION_DONE'; payload: any } | { type: 'DELETE_CRITERION'; payload: any } | { type: 'LINK_BLOCK_TO_DELIVERABLE'; payload: any } | { type: 'ASSIGN_SUGGESTION_LINK'; payload: any } | { type: 'SET_STRATEGY'; payload: any } | { type: 'GENERATE_COLD_PLAN'; payload?: any } | { type: 'REBASE_COLD_PLAN'; payload?: any } | { type: 'SET_DEFINITE_GOAL'; outcome: string; deadlineDayKey: string } | { type: 'COMPILE_GOAL_EQUATION'; payload: any } | { type: 'APPLY_RENEGOTIATION_OPTION'; payload?: any }} Action
  */
 
 export function computeDerivedState(state, action) {
@@ -113,10 +121,35 @@ export function computeDerivedState(state, action) {
       };
       break;
     }
-    case 'COMPLETE_ONBOARDING':
-      applyOnboardingInputs(next, action.onboarding);
-      next.meta = { ...(next.meta || {}), onboardingComplete: true, scenarioLabel: action.onboarding?.scenarioLabel || next.meta?.scenarioLabel || '' };
+    case 'CREATE_GOAL':
+    case 'SAVE_ONBOARDING':
+    case 'COMPLETE_ONBOARDING': {
+      const onboardingPayload = action.onboarding || action.payload || {};
+      applyOnboardingInputs(next, onboardingPayload);
+      next.meta = {
+        ...(next.meta || {}),
+        onboardingComplete: true,
+        scenarioLabel: onboardingPayload?.scenarioLabel || next.meta?.scenarioLabel || ''
+      };
+      enforceOnboardingExecutionGraphGate(next, next.activeCycleId, action.type);
       break;
+    }
+    case 'FINISH_ONBOARDING_GATE': {
+      const onboardingPayload = action.onboarding || action.payload || {};
+      const scenarioLabel =
+        onboardingPayload?.goalText ||
+        onboardingPayload?.goalDraftV2?.goalLabel ||
+        onboardingPayload?.goalDraftV2?.goalText ||
+        next.meta?.scenarioLabel ||
+        '';
+      next.meta = {
+        ...(next.meta || {}),
+        onboardingComplete: true,
+        scenarioLabel: String(scenarioLabel || '').slice(0, 120)
+      };
+      next.pendingOnboardingInputs = onboardingPayload || null;
+      break;
+    }
     case 'START_NEW_CYCLE':
       startNewCycle(next, action.payload);
       break;
@@ -165,9 +198,12 @@ export function computeDerivedState(state, action) {
     case 'ADD_TRUTH_ENTRY':
       addTruthEntry(next, action.payload);
       break;
-    case 'APPLY_ONBOARDING_INPUTS':
-      applyOnboardingInputs(next, action.onboarding);
+    case 'APPLY_ONBOARDING_INPUTS': {
+      const onboardingPayload = action.onboarding || action.payload || {};
+      applyOnboardingInputs(next, onboardingPayload);
+      enforceOnboardingExecutionGraphGate(next, next.activeCycleId, action.type);
       break;
+    }
     case 'CREATE_BLOCK':
       createBlock(next, action.payload);
       break;
@@ -241,7 +277,144 @@ export function computeDerivedState(state, action) {
     case 'SET_CALIBRATION_DAYS':
       applyCalibrationDays(next, action.daysPerWeek, action.uncertain);
       break;
+    case 'GENERATE_PLAN_STARTED': {
+      const cycleId = action.payload?.cycleId || next.activeCycleId || null;
+      const cycle = cycleId ? next.cyclesById?.[cycleId] : null;
+      if (!cycle) break;
+      cycle.planStatus = 'generating';
+      cycle.planGenerationSource = action.payload?.source || 'UNKNOWN';
+      cycle.llmActionGraph = null;
+      next.lastPlanError = null;
+      next.planRecovery = null;
+      setGenerateHeartbeat(next, cycleId, 0, null);
+      break;
+    }
+    case 'GENERATE_PLAN_WITH_ACTIONS': {
+      const payload = action.payload || {};
+      const cycleId = payload.cycleId || next.activeCycleId || null;
+      const cycle = cycleId ? next.cyclesById?.[cycleId] : null;
+      if (!cycle) {
+        next.lastPlanError = {
+          code: 'CYCLE_NOT_FOUND',
+          reason: 'Cycle missing when applying LLM actions.',
+          cycleId
+        };
+        setGenerateHeartbeat(next, cycleId, 0, 'CYCLE_NOT_FOUND');
+        break;
+      }
+      const actions = Array.isArray(payload.actions) ? payload.actions : [];
+      if (actions.length === 0) {
+        cycle.planStatus = 'error';
+        next.lastPlanError = {
+          code: 'EMPTY_LLM_ACTIONS',
+          reason: 'LLM returned empty actions array.',
+          cycleId
+        };
+        setGenerateHeartbeat(next, cycleId, 0, 'EMPTY_LLM_ACTIONS');
+        break;
+      }
+      cycle.llmActionGraph = {
+        actions,
+        templates: Array.isArray(payload.templates) ? payload.templates : [],
+        diagnostics: payload.diagnostics || {}
+      };
+      cycle.llmSessionPlan = Array.isArray(payload.sessions) ? payload.sessions.map((entry) => ({ ...entry })) : [];
+      cycle.planGenerationSource = payload.source || cycle.planGenerationSource || 'LLM';
+      cycle.actions = actions.map((item) => ({ ...item }));
+      const compiledDeliverables = compileGoalToDeliverables({
+        executionType: payload.executionType || cycle?.goalContract?.executionType || 'GenericStructured',
+        actions: cycle.actions,
+        contract: cycle.goalContract || null,
+        cycleId: cycleId || cycle?.id || 'cycle',
+      });
+      if (compiledDeliverables.usesCanonicalDeliverablePath && compiledDeliverables.deliverables.length > 0) {
+        const nowISO = next.appTime?.nowISO || new Date().toISOString();
+        const workspace = getDeliverableWorkspace(next, cycleId);
+        if (workspace) {
+          workspace.deliverables = toLegacyWorkspaceDeliverables(compiledDeliverables.deliverables, nowISO);
+          workspace.scaffoldGroups = compiledDeliverables.scaffoldGroups;
+          workspace.compilerSummary = {
+            archetype: compiledDeliverables.archetype,
+            usesCanonicalDeliverablePath: true,
+            deliverableCount: compiledDeliverables.deliverables.length,
+            scaffoldGroupCount: compiledDeliverables.scaffoldGroups.length,
+            actionSeedCount: compiledDeliverables.actionSeeds.length,
+            estimatedSessionCount: compiledDeliverables.estimatedSessionCount,
+            legacyFallbackUsed: false,
+            invalidDeliverables: compiledDeliverables.invalidDeliverables,
+          };
+          workspace.autoGenerated = true;
+          workspace.autoGeneratedAt = nowISO;
+          workspace.autoStrategy = {
+            method: 'goal_to_deliverable_compiler_phase_a',
+            detectedType: compiledDeliverables.archetype,
+            rationale: 'Deliverables compiled from canonical action graph outputs.',
+          };
+          workspace.lastUpdatedAtISO = nowISO;
+          next.deliverablesByCycleId[cycleId] = workspace;
+        }
+        cycle.canonicalDeliverables = compiledDeliverables.deliverables;
+      }
+      cycle.planStatus = 'ready';
+      if (!cycle.planProof) {
+        cycle.planProof = buildPlanProofFromLLMActions(actions, cycle);
+      }
+      next.lastPlanError = null;
+      next.planRecovery = null;
+      generatePlan(next, { cycleId });
+      if (next.lastPlanError?.code) {
+        cycle.planStatus = 'error';
+      }
+      break;
+    }
+    case 'GENERATE_PLAN_FAILED': {
+      const cycleId = action.payload?.cycleId || next.activeCycleId || null;
+      const error = action.payload?.error || {};
+      const cycle = cycleId ? next.cyclesById?.[cycleId] : null;
+      if (cycle) {
+        cycle.planStatus = 'error';
+        cycle.planGenerationSource = action.payload?.source || cycle.planGenerationSource || 'UNKNOWN';
+        cycle.llmActionGraph = null;
+      }
+      next.lastPlanError = {
+        code: error.code || 'GENERATE_PLAN_FAILED',
+        reason: error.reason || 'Plan generation failed.',
+        reasonCodes: Array.isArray(error.reasonCodes) ? error.reasonCodes : [],
+        cycleId
+      };
+      if (String(error.code || '').trim().toUpperCase() === 'MISSING_GOAL_DRAFT') {
+        const recovery = action.payload?.recovery || {};
+        const prefill = recovery?.prefill && typeof recovery.prefill === 'object' ? recovery.prefill : null;
+        next.planRecovery = {
+          required: recovery?.required || 'GOAL_DRAFT_CONTEXT',
+          route: recovery?.route || 'STRUCTURE_GATE_2',
+          prefill,
+          sourceErrorCode: error.code || 'MISSING_GOAL_DRAFT',
+          createdAtISO: next.appTime?.nowISO || new Date().toISOString()
+        };
+        if (prefill) {
+          next.pendingOnboardingInputs = {
+            ...(next.pendingOnboardingInputs || {}),
+            ...prefill,
+            goalDraftV2: {
+              ...((next.pendingOnboardingInputs || {}).goalDraftV2 || {}),
+              ...(prefill.goalDraftV2 || {})
+            }
+          };
+        }
+      } else {
+        next.planRecovery = null;
+      }
+      setGenerateHeartbeat(next, cycleId, 0, next.lastPlanError.code);
+      break;
+    }
+    case 'CLEAR_PLAN_RECOVERY':
+      next.planRecovery = null;
+      break;
     case 'GENERATE_PLAN':
+      generatePlan(next, action.payload || {});
+      break;
+    case 'REBUILD_SCHEDULE':
       generatePlan(next, action.payload || {});
       break;
     case 'APPLY_PLAN':
@@ -249,6 +422,9 @@ export function computeDerivedState(state, action) {
       break;
     case 'APPLY_DRAFT_SCHEDULE':
       applyDraftSchedule(next, action.payload || {});
+      break;
+    case 'APPLY_RENEGOTIATION_OPTION':
+      applyRenegotiationOption(next, action.payload || {});
       break;
     case 'SET_SCHEDULING_CONSTRAINTS': {
       const payload = action.payload || {};
@@ -263,6 +439,23 @@ export function computeDerivedState(state, action) {
           ...payload.availabilityPolicy
         };
       }
+      break;
+    }
+    case 'UPDATE_WORK_WINDOWS': {
+      const payload = action.payload || {};
+      const cycleId = payload.cycleId || next.activeCycleId;
+      const cycle = cycleId ? next.cyclesById?.[cycleId] : null;
+      if (!cycle) break;
+      if (!cycle.goalContract) cycle.goalContract = {};
+      const normalizedWorkWindows = normalizeCanonicalWorkWindows(payload.workWindows || {});
+      cycle.goalContract.workWindows = normalizedWorkWindows;
+      if (next.activeCycleId === cycleId) {
+        next.goalExecutionContract = {
+          ...(next.goalExecutionContract || {}),
+          workWindows: normalizedWorkWindows
+        };
+      }
+      next.cyclesById[cycleId] = cycle;
       break;
     }
     case 'COMMIT_PREVIEW_ITEMS': {
@@ -357,15 +550,17 @@ export function computeDerivedState(state, action) {
   const governed = computeNextSuggestion(next);
   next.nextSuggestion = governed.suggestion;
   applySuggestionGovernance(next, prevSuggestion, governed);
+  normalizeActiveCycleExecutionGraph(next);
   applyGoalDirective(next);
   applyProbabilityEligibility(next);
   applyProbabilityScoring(next);
   applyFeasibility(next);
   applyProgressCredit(next);
+  applyCycleDynamics(next);
   next.profileLearning = computeProfileLearning(next.cyclesById);
   if (applySuggestionEventOverrides(next)) {
     next.planPreview = computePlanPreview({
-      suggestedBlocks: next.suggestedBlocks,
+      suggestedBlocks: next.proposedBlocks || [],
       planDraft: next.planDraft,
       contract: next.goalExecutionContract,
       policyState: getCurrentPolicyState(next),
@@ -378,7 +573,7 @@ export function computeDerivedState(state, action) {
   mergePriorTodayBlocks(next, previousTodayBlocks);
   syncPlacementStateFromEvents(next);
   enforceSafeDefaults(next);
-  syncProposedBlocksFromSuggested(next);
+  syncSuggestedBlocksMirror(next);
   flagDraftBlocks(next);
   persistActiveCycleState(next);
   enforceActiveCycleTodayBlocks(next, hadCycleRecords);
@@ -401,7 +596,7 @@ export function hydrateActiveCycleState(state) {
   state.planCalibration = cycle.calibration || state.planCalibration || { confidence: 0, assumptions: [], missingInfo: [] };
   state.planPreview = cycle.planPreview || null;
   state.correctionSignals = cycle.correctionSignals || null;
-  state.goalExecutionContract = cycle.contract || state.goalExecutionContract || null;
+  state.goalExecutionContract = cycle.goalContract || cycle.contract || state.goalExecutionContract || null;
   state.activeGoalId = cycle.goalGovernanceContract?.goalId || state.activeGoalId || null;
   state.truthEntries = cycle.truthEntries || state.truthEntries || [];
   state.suggestionHistory = cycle.suggestionHistory || state.suggestionHistory || null;
@@ -415,13 +610,14 @@ export function persistActiveCycleState(state) {
   if (!cycle) return state;
   cycle.executionEvents = state.executionEvents || [];
   cycle.suggestionEvents = state.suggestionEvents || [];
-  cycle.proposedBlocks = state.proposedBlocks || state.suggestedBlocks || [];
+  cycle.proposedBlocks = state.proposedBlocks || [];
   cycle.suggestedBlocks = cycle.proposedBlocks;
   cycle.planDraft = state.planDraft || null;
   cycle.calibration = state.planCalibration || null;
   cycle.planPreview = state.planPreview || null;
   cycle.correctionSignals = state.correctionSignals || null;
-  cycle.contract = state.goalExecutionContract || cycle.contract || null;
+  cycle.contract = cycle.goalContract || cycle.contract || state.goalExecutionContract || null;
+  state.goalExecutionContract = cycle.goalContract || cycle.contract || state.goalExecutionContract || null;
   cycle.truthEntries = state.truthEntries || cycle.truthEntries || [];
   cycle.suggestionHistory = state.suggestionHistory || cycle.suggestionHistory || null;
   state.cyclesById[state.activeCycleId] = cycle;
@@ -462,12 +658,46 @@ function enforceActiveCycleTodayBlocks(state, hadCycleRecords = false) {
 }
 
 function collectGovernanceContracts(state) {
-  if (state.activeCycleId && state.cyclesById?.[state.activeCycleId]?.goalGovernanceContract) {
-    return [state.cyclesById[state.activeCycleId].goalGovernanceContract];
+  if (!state?.activeCycleId) return [];
+  const cycle = state?.cyclesById?.[state.activeCycleId] || null;
+  if (!cycle) return [];
+  const activeContract = cycle.goalGovernanceContract || null;
+  const canonicalContract = getCanonicalCycleContract(cycle, state.goalExecutionContract, cycle?.contract || null);
+  const canonicalGoalId = canonicalContract?.goalId || null;
+  if (activeContract?.goalId) {
+    if (canonicalGoalId && activeContract.goalId !== canonicalGoalId) {
+      return [{ ...activeContract, goalId: canonicalGoalId }];
+    }
+    return [activeContract];
   }
-  return Object.values(state.cyclesById || {})
-    .map((cycle) => cycle?.goalGovernanceContract)
-    .filter(Boolean);
+  if (activeContract && canonicalGoalId) {
+    return [{ ...activeContract, goalId: canonicalGoalId }];
+  }
+  if (!canonicalGoalId) return [];
+  const timezone = canonicalContract?.timezone || state?.appTime?.timeZone || APP_TIME_ZONE;
+  return [
+    {
+      contractId: activeContract?.contractId || `gov-synth-${cycle.id || state.activeCycleId}`,
+      version: Number.isFinite(Number(activeContract?.version)) ? Number(activeContract.version) : 1,
+      goalId: canonicalGoalId,
+      activeFromISO: canonicalContract?.startDayKey || state?.appTime?.activeDayKey || nowDayKey(timezone),
+      activeUntilISO: canonicalContract?.endDayKey || canonicalContract?.deadline?.dayKey || null,
+      scope: {
+        domainsAllowed: [],
+        timeHorizon: 'week',
+        timezone
+      },
+      governance: {
+        suggestionsEnabled: true,
+        probabilityEnabled: true,
+        minEvidenceEvents: 1
+      },
+      constraints: {
+        forbiddenDirectives: ['repair'],
+        maxActiveBlocks: 6
+      }
+    }
+  ];
 }
 
 function sameSuggestion(a, b) {
@@ -560,6 +790,57 @@ function ensureDeliverablesStore(state) {
   if (!state.deliverablesByCycleId) state.deliverablesByCycleId = {};
 }
 
+function bootstrapCycleActionsFromDeliverables(state, cycleId, deliverables = []) {
+  const items = Array.isArray(deliverables) ? deliverables : [];
+  return items
+    .filter((deliverable) => deliverable && deliverable.id)
+    .map((deliverable, index) => ({
+      id: `act-${cycleId}-${index + 1}`,
+      title: String(deliverable.title || `Deliverable ${index + 1}`).trim() || `Deliverable ${index + 1}`,
+      status: 'todo',
+      priority: index + 1,
+      topoIndex: index,
+      dependsOn: [],
+      estimateMin: Math.max(30, Number(deliverable.estimateMin || 60)),
+      deliverableId: deliverable.id
+    }));
+}
+
+function normalizeActiveCycleExecutionGraph(state) {
+  ensureDeliverablesStore(state);
+  const cycleId = state.activeCycleId || null;
+  if (!cycleId) return;
+  const cycle = state.cyclesById?.[cycleId];
+  if (!cycle) return;
+
+  const workspaceDeliverables = state.deliverablesByCycleId?.[cycleId]?.deliverables || [];
+  const deliverablesCount = Array.isArray(workspaceDeliverables) ? workspaceDeliverables.length : 0;
+  const currentActions = Array.isArray(cycle.actions) ? cycle.actions : [];
+  let nextActions = currentActions;
+  if (!nextActions.length && deliverablesCount > 0) {
+    nextActions = bootstrapCycleActionsFromDeliverables(state, cycleId, workspaceDeliverables);
+    cycle.actions = nextActions;
+  }
+
+  const llmActions = Array.isArray(cycle.llmActionGraph?.actions) ? cycle.llmActionGraph.actions : [];
+  const hasGraph = nextActions.length > 0 || llmActions.length > 0;
+  cycle.executionGraphReady = hasGraph;
+  state.cyclesById[cycleId] = cycle;
+
+  if (!hasGraph && deliverablesCount > 0) {
+    if (!state.lastPlanError || state.lastPlanError.code === 'ACTION_GRAPH_MISSING') {
+      state.lastPlanError = {
+        code: 'ACTION_GRAPH_MISSING',
+        reason: 'Active cycle has deliverables but no validated execution graph.',
+        reasonCodes: ['NO_ACTION_GRAPH'],
+        cycleId
+      };
+    }
+  } else if (hasGraph && state.lastPlanError?.code === 'ACTION_GRAPH_MISSING') {
+    state.lastPlanError = null;
+  }
+}
+
 function getActiveCycle(state) {
   return state.activeCycleId ? state.cyclesById?.[state.activeCycleId] : null;
 }
@@ -585,6 +866,86 @@ function setGenerateHeartbeat(state, cycleId, proposedBlocksCount, lastPlanError
     proposedBlocksCount: Number.isFinite(proposedBlocksCount) ? proposedBlocksCount : 0,
     lastPlanErrorCode: lastPlanErrorCode || null
   };
+}
+
+function countRawWorkWindows(workWindows) {
+  if (!workWindows || typeof workWindows !== 'object') return 0;
+  return Object.values(workWindows).reduce((sum, rows) => {
+    if (!Array.isArray(rows)) return sum;
+    return sum + rows.length;
+  }, 0);
+}
+
+function countNormalizedSchedulerWindows(weeklyWindows) {
+  if (!weeklyWindows || typeof weeklyWindows !== 'object') return 0;
+  return Object.values(weeklyWindows).reduce((sum, rows) => {
+    if (!Array.isArray(rows)) return sum;
+    return (
+      sum +
+      rows.filter((row) => {
+        const start = String(row?.startHHMM || '').trim();
+        const end = String(row?.endHHMM || '').trim();
+        return Boolean(start && end && start < end);
+      }).length
+    );
+  }, 0);
+}
+
+function logGenerateDiagnostics({
+  cycleId,
+  goalId,
+  deliverableCount,
+  actionCount,
+  rawWorkWindowsCount,
+  normalizedCandidateWindowCount,
+  horizonDays,
+  materializedWorkableDays,
+  proposedBlocks,
+  lastPlanErrorCode,
+  traceId,
+  moduleName,
+  stepName,
+  status,
+  inputSummary,
+  outputSummary,
+  reasonCodes,
+}) {
+  if (process.env.NODE_ENV === 'production') return;
+  const firstThree = (proposedBlocks || []).slice(0, 3).map((block) => ({
+    id: block?.id || null,
+    dayKey: block?.dayKey || null,
+    startISO: block?.startISO || null,
+    status: block?.status || null,
+  }));
+  const errorCode = lastPlanErrorCode || null;
+  // eslint-disable-next-line no-console
+  console.group('JERICHO_GENERATE_TRACE');
+  console.log({
+    traceId: traceId || `trace-${cycleId}-${Date.now()}`,
+    cycleId: cycleId || null,
+    goalId: goalId || null,
+    moduleName: moduleName || 'generatePlan',
+    stepName: stepName || 'complete',
+    status: status || (errorCode ? 'fail' : 'ok'),
+    timestamp: new Date().toISOString(),
+    inputSummary: inputSummary || {
+      deliverableCount: Number(deliverableCount || 0),
+      actionCount: Number(actionCount || 0),
+      horizonDays: Number.isFinite(Number(horizonDays)) ? Number(horizonDays) : null,
+      rawWorkWindowsCount: Number(rawWorkWindowsCount || 0),
+      normalizedCandidateWindowCount: Number(normalizedCandidateWindowCount || 0),
+    },
+    outputSummary: outputSummary || {
+      proposedBlocksCount: Array.isArray(proposedBlocks) ? proposedBlocks.length : 0,
+      materializedWorkableDays: Number.isFinite(Number(materializedWorkableDays))
+        ? Number(materializedWorkableDays)
+        : null,
+      firstThreeProposedBlocks: firstThree,
+    },
+    errorCode,
+    reasonCodes: reasonCodes || [],
+  });
+  console.groupEnd();
 }
 
 function isActiveCycleStatus(status) {
@@ -626,6 +987,155 @@ function maxDayKey(a, b) {
   return a >= b ? a : b;
 }
 
+function coerceDayKey(value, timeZone) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const isoDay = dayKeyFromISO(raw, timeZone);
+  if (isoDay) return isoDay;
+  const parsed = new Date(raw);
+  if (!Number.isFinite(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
+function buildPlanProofFromLLMActions(actions = [], cycle = {}) {
+  const totalRequiredUnits = Math.max(1, Array.isArray(actions) ? actions.length : 1);
+  const workableDaysRemaining = 14;
+  const requiredPacePerDay = Math.max(1, Math.ceil(totalRequiredUnits / workableDaysRemaining));
+  const maxPerDay = Math.max(1, requiredPacePerDay);
+  const maxPerWeek = Math.max(1, requiredPacePerDay * 7);
+  const slackUnits = Math.max(0, workableDaysRemaining * maxPerDay - totalRequiredUnits);
+  const slackRatio = totalRequiredUnits > 0 ? slackUnits / totalRequiredUnits : 0;
+  const intensityRatio = maxPerDay > 0 ? requiredPacePerDay / maxPerDay : 1;
+  return {
+    workableDaysRemaining,
+    totalRequiredUnits,
+    requiredPacePerDay,
+    maxPerDay,
+    maxPerWeek,
+    slackUnits,
+    slackRatio,
+    intensityRatio,
+  };
+}
+
+function annotateActionsWithDeliverableIds(cycle, actions = []) {
+  const list = Array.isArray(actions) ? actions : [];
+  if (!list.length) return [];
+  const byActionId = new Map();
+  const canonicalDeliverables = Array.isArray(cycle?.canonicalDeliverables) ? cycle.canonicalDeliverables : [];
+  canonicalDeliverables.forEach((deliverable) => {
+    const deliverableId = String(deliverable?.id || '').trim();
+    if (!deliverableId) return;
+    const actionIds = Array.isArray(deliverable?.actionIds) ? deliverable.actionIds : [];
+    actionIds.forEach((actionId) => {
+      const key = String(actionId || '').trim();
+      if (!key) return;
+      byActionId.set(key, deliverableId);
+    });
+  });
+  return list.map((action, index) => {
+    const actionId = String(action?.id || '').trim();
+    const deliverableId = byActionId.get(actionId) || `deliv-synthetic-${index + 1}`;
+    return {
+      ...action,
+      deliverableId
+    };
+  });
+}
+
+function dayKeyToDow(dayKey) {
+  if (!dayKey) return null;
+  const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  const date = new Date(`${dayKey}T12:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return null;
+  return days[date.getUTCDay()] || null;
+}
+
+function parseHHMMToMinutes(hhmm) {
+  const text = String(hhmm || '').trim();
+  const match = /^(\d{1,2}):(\d{2})$/.exec(text);
+  if (!match) return 0;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return 0;
+  return Math.max(0, Math.min(24 * 60, hours * 60 + minutes));
+}
+
+const WORK_WINDOW_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+function normalizeCanonicalWorkWindows(workWindows) {
+  return WORK_WINDOW_DAYS.reduce((acc, day) => {
+    const rows = Array.isArray(workWindows?.[day]) ? workWindows[day] : [];
+    acc[day] = rows
+      .map((row) => ({
+        start: String(row?.start || '').trim(),
+        end: String(row?.end || '').trim()
+      }))
+      .filter((row) => row.start && row.end && row.start < row.end);
+    return acc;
+  }, {});
+}
+
+function getWorkDaysFromWindows(workWindows) {
+  if (!workWindows || typeof workWindows !== 'object') return ['mon', 'tue', 'wed', 'thu', 'fri'];
+  const workDays = Object.entries(workWindows)
+    .filter(([, windows]) => Array.isArray(windows) && windows.length > 0)
+    .map(([day]) => String(day || '').trim().toLowerCase());
+  return workDays.length ? workDays : ['mon', 'tue', 'wed', 'thu', 'fri'];
+}
+
+function getAvailableMinutesForDow(dow, workWindows) {
+  if (!workWindows || typeof workWindows !== 'object') return 60;
+  const windows = Array.isArray(workWindows?.[dow]) ? workWindows[dow] : [];
+  return windows.reduce((total, window) => {
+    const start = parseHHMMToMinutes(window?.start);
+    const end = parseHHMMToMinutes(window?.end);
+    return total + Math.max(0, end - start);
+  }, 0);
+}
+
+function getFirstWindowStartForDow(dow, workWindows) {
+  if (!workWindows || typeof workWindows !== 'object') return '09:00';
+  const windows = Array.isArray(workWindows?.[dow]) ? workWindows[dow] : [];
+  return windows[0]?.start || '09:00';
+}
+
+function toSchedulerWeeklyWindows(workWindows) {
+  const dayMap = {
+    sun: 'SUN',
+    mon: 'MON',
+    tue: 'TUE',
+    wed: 'WED',
+    thu: 'THU',
+    fri: 'FRI',
+    sat: 'SAT',
+  };
+  if (!workWindows || typeof workWindows !== 'object') return {};
+  return Object.entries(workWindows).reduce((acc, [day, windows]) => {
+    const schedulerDay = dayMap[String(day || '').toLowerCase()];
+    if (!schedulerDay || !Array.isArray(windows) || windows.length === 0) return acc;
+    const mapped = windows
+      .map((window) => ({
+        startHHMM: window?.start || '',
+        endHHMM: window?.end || '',
+      }))
+      .filter((window) => window.startHHMM && window.endHHMM && window.startHHMM < window.endHHMM);
+    if (mapped.length) acc[schedulerDay] = mapped;
+    return acc;
+  }, {});
+}
+
+function hasAnySchedulerWindows(weeklyWindows) {
+  if (!weeklyWindows || typeof weeklyWindows !== 'object') return false;
+  return Object.values(weeklyWindows).some((rows) => Array.isArray(rows) && rows.length > 0);
+}
+
+function computeWeeklyCapacityFromWorkWindows(workWindows) {
+  const workDays = getWorkDaysFromWindows(workWindows);
+  return workDays.reduce((total, dow) => total + getAvailableMinutesForDow(dow, workWindows), 0);
+}
+
 function clearCycleTransientState(state) {
   state.proposedBlocks = [];
   if (!state.proposedBlocksByCycleId || typeof state.proposedBlocksByCycleId !== 'object') {
@@ -634,6 +1144,7 @@ function clearCycleTransientState(state) {
   if (state.activeCycleId) {
     state.proposedBlocksByCycleId[state.activeCycleId] = [];
   }
+  state.proposedBlocks = [];
   state.suggestedBlocks = [];
   state.suggestionEvents = [];
   state.lastPlanError = null;
@@ -696,6 +1207,7 @@ export function resetCycleToGoalEntryReady(state, cycleId) {
   state.planDraft = null;
   state.planPreview = null;
   state.planCalibration = null;
+  state.proposedBlocks = [];
   state.suggestedBlocks = [];
   state.suggestionEvents = [];
   state.executionEvents = [];
@@ -711,7 +1223,41 @@ export function resetCycleToGoalEntryReady(state, cycleId) {
 }
 
 function setCycleProposedBlocks(state, cycleId, proposals = []) {
-  const normalized = Array.isArray(proposals) ? proposals : [];
+  const canonicalActions = Array.isArray(state?.cyclesById?.[cycleId]?.actions)
+    ? state.cyclesById[cycleId].actions
+    : [];
+  const actionTitleById = new Map();
+  canonicalActions.forEach((action) => {
+    const actionId = String(action?.id || '').trim();
+    const actionTitle = String(action?.title || '').trim();
+    if (actionId && actionTitle) actionTitleById.set(actionId, actionTitle);
+  });
+  const normalized = [];
+  const seen = new Set();
+  (Array.isArray(proposals) ? proposals : []).forEach((proposal, index) => {
+    if (!proposal || typeof proposal !== 'object') return;
+    const actionId = String(proposal?.actionId || '').trim();
+    const canonicalActionTitle = actionTitleById.get(actionId) || '';
+    const resolvedTitle =
+      canonicalActionTitle ||
+      String(proposal?.title || '').trim() ||
+      String(proposal?.label || '').trim() ||
+      '';
+    const identity = String(
+      proposal.identityKey ||
+        proposal.id ||
+        `${cycleId || 'cycle'}::${proposal.deliverableId || 'deliv-synthetic'}::${proposal.actionId || `synthetic-action-${index + 1}`}::${proposal.sessionIndex || 0}`
+    ).trim();
+    if (!identity || seen.has(identity)) return;
+    seen.add(identity);
+    normalized.push({
+      ...proposal,
+      title: resolvedTitle || proposal.title,
+      label: resolvedTitle || proposal.label,
+      id: proposal.id || identity,
+      identityKey: proposal.identityKey || identity
+    });
+  });
   state.proposedBlocks = normalized;
   if (!state.proposedBlocksByCycleId || typeof state.proposedBlocksByCycleId !== 'object') {
     state.proposedBlocksByCycleId = {};
@@ -727,8 +1273,9 @@ function setCycleProposedBlocks(state, cycleId, proposals = []) {
   }
 }
 
-function syncProposedBlocksFromSuggested(state) {
-  state.proposedBlocks = Array.isArray(state.suggestedBlocks) ? state.suggestedBlocks : [];
+function syncSuggestedBlocksMirror(state) {
+  state.proposedBlocks = Array.isArray(state.proposedBlocks) ? state.proposedBlocks : [];
+  state.suggestedBlocks = state.proposedBlocks;
   if (!state.proposedBlocksByCycleId || typeof state.proposedBlocksByCycleId !== 'object') {
     state.proposedBlocksByCycleId = {};
   }
@@ -1189,6 +1736,9 @@ function enforceSafeDefaults(state) {
   if (!state.proposedBlocksByCycleId || typeof state.proposedBlocksByCycleId !== 'object') {
     state.proposedBlocksByCycleId = {};
   }
+  if (!state.cycleDynamicsByCycleId || typeof state.cycleDynamicsByCycleId !== 'object') {
+    state.cycleDynamicsByCycleId = {};
+  }
   if (!state.suggestedBlocks) state.suggestedBlocks = [];
   if (!state.suggestionEvents) state.suggestionEvents = [];
   if (!state.deliverablesByCycleId) state.deliverablesByCycleId = {};
@@ -1349,16 +1899,13 @@ function applyProbabilityScoring(state) {
     }
     const contract = contracts.find((c) => c.goalId === goalId);
     const timezone = contract?.scope?.timezone || 'UTC';
+    const cycleForGoal = resolveCycleForGoal(state, goalId);
+    const scopedConstraints = resolveCycleScopedConstraints(state, cycleForGoal, timezone);
     const constraints = {
+      ...scopedConstraints,
       timezone,
-      maxBlocksPerDay: state?.constraints?.maxBlocksPerDay,
-      maxBlocksPerWeek: state?.constraints?.maxBlocksPerWeek,
-      workableDayPolicy: state?.constraints?.workableDayPolicy,
-      blackoutDates: state?.constraints?.blackoutDates,
-      dailyCapacityOverrides: state?.constraints?.dailyCapacityOverrides,
-      calendarCommittedBlocksByDate: state?.constraints?.calendarCommittedBlocksByDate,
-      scoringWindowDays: state?.constraints?.scoringWindowDays
     };
+    seedCanonicalWorkModelIfMissing(state, goalId);
     probabilityByGoal[goalId] = scoreGoalSuccessProbability(goalId, state, constraints, nowISO);
   });
   state.probabilityByGoal = probabilityByGoal;
@@ -1372,18 +1919,584 @@ function applyFeasibility(state) {
   goalIds.forEach((goalId) => {
     const contract = contracts.find((c) => c.goalId === goalId);
     const timezone = contract?.scope?.timezone || 'UTC';
+    const cycleForGoal = resolveCycleForGoal(state, goalId);
+    const scopedConstraints = resolveCycleScopedConstraints(state, cycleForGoal, timezone);
     const constraints = {
+      ...scopedConstraints,
       timezone,
-      maxBlocksPerDay: state?.constraints?.maxBlocksPerDay ?? 4,
-      workableDayPolicy: state?.constraints?.workableDayPolicy,
-      blackoutDates: state?.constraints?.blackoutDates,
-      dailyCapacityOverrides: state?.constraints?.dailyCapacityOverrides,
-      calendarCommittedBlocksByDate: state?.constraints?.calendarCommittedBlocksByDate
+      maxBlocksPerDay: scopedConstraints?.maxBlocksPerDay ?? 4,
     };
+    seedCanonicalWorkModelIfMissing(state, goalId);
     const deadlineISO = resolveGoalDeadline(goalId, state) || nowISO;
     feasibilityByGoal[goalId] = computeFeasibility({ goalId, deadlineISO }, state, constraints, nowISO);
   });
   state.feasibilityByGoal = feasibilityByGoal;
+}
+
+function seedCanonicalWorkModelIfMissing(state, goalId) {
+  if (!goalId) return;
+  state.goalWorkById = state.goalWorkById || {};
+  const existing = Array.isArray(state.goalWorkById[goalId]) ? state.goalWorkById[goalId] : [];
+  if (existing.length > 0) return;
+  const cycle = resolveCycleForGoal(state, goalId);
+  if (!cycle) return;
+
+  const canonicalActions = getCanonicalCycleActions(cycle);
+  const canonicalDeliverables = getCanonicalCycleDeliverables(state?.deliverablesByCycleId || {}, cycle?.id || null, cycle);
+  const canonicalProposed = getCanonicalProposedBlocks(cycle?.proposedBlocks, cycle?.suggestedBlocks);
+  const canonicalCommitted = getAllBlocks(state).filter((block) => {
+    if (!block) return false;
+    if (block?.goalId && block.goalId !== goalId) return false;
+    if (block?.cycleId && cycle?.id && block.cycleId !== cycle.id) return false;
+    const status = String(block?.status || '').toLowerCase();
+    return status !== 'completed' && status !== 'complete' && status !== 'cancelled' && status !== 'canceled';
+  });
+
+  let derived = canonicalActions
+    .filter((action) => action?.id || action?.title)
+    .map((action, index) => ({
+      workItemId: `derived-action-${goalId}-${index + 1}`,
+      title: String(action?.title || `Action ${index + 1}`),
+      blocksRemaining: Math.max(1, Math.ceil((Number(action?.estimateMin) || 60) / 60))
+    }));
+
+  if (derived.length === 0) {
+    derived = canonicalProposed
+      .filter(Boolean)
+      .map((block, index) => ({
+        workItemId: `derived-proposed-${goalId}-${index + 1}`,
+        title: String(block?.title || `Planned block ${index + 1}`),
+        blocksRemaining: 1
+      }));
+  }
+  if (derived.length === 0) {
+    derived = canonicalCommitted
+      .filter(Boolean)
+      .map((block, index) => ({
+        workItemId: `derived-committed-${goalId}-${index + 1}`,
+        title: String(block?.title || `Committed block ${index + 1}`),
+        blocksRemaining: 1
+      }));
+  }
+  if (derived.length === 0) {
+    derived = canonicalDeliverables
+      .filter(Boolean)
+      .map((deliverable, index) => ({
+        workItemId: `derived-deliverable-${goalId}-${index + 1}`,
+        title: String(deliverable?.title || `Deliverable ${index + 1}`),
+        blocksRemaining: Math.max(1, Math.ceil((Number(deliverable?.estimateMin) || 60) / 60))
+      }));
+  }
+  if (derived.length === 0) return;
+  state.goalWorkById[goalId] = derived;
+}
+
+function resolveCycleForGoal(state, goalId) {
+  if (!goalId) return null;
+  const activeCycleId = state?.activeCycleId || null;
+  const activeCycle = activeCycleId ? state?.cyclesById?.[activeCycleId] : null;
+  if (activeCycle) {
+    const activeGoalId =
+      activeCycle?.goalContract?.goalId ||
+      activeCycle?.goalGovernanceContract?.goalId ||
+      activeCycle?.contract?.goalId ||
+      null;
+    if (activeGoalId === goalId) return activeCycle;
+  }
+  const cycles = Object.values(state?.cyclesById || {});
+  return (
+    cycles.find((cycle) => cycle?.goalContract?.goalId === goalId) ||
+    cycles.find((cycle) => cycle?.goalGovernanceContract?.goalId === goalId) ||
+    cycles.find((cycle) => cycle?.contract?.goalId === goalId) ||
+    null
+  );
+}
+
+function clampUnitScore(value) {
+  if (!Number.isFinite(value)) return null;
+  return Math.max(0, Math.min(1, Number(value)));
+}
+
+function deriveCanonicalFeasibilityScore(state, cycle, goalId) {
+  const feasibility = goalId ? state?.feasibilityByGoal?.[goalId] || null : null;
+  const probability = goalId ? state?.probabilityByGoal?.[goalId] || null : null;
+  const canonicalActions = getCanonicalCycleActions(cycle);
+  const canonicalDeliverables = getCanonicalCycleDeliverables(state?.deliverablesByCycleId || {}, cycle?.id || null, cycle);
+  const canonicalProposed = getCanonicalProposedBlocks(cycle?.proposedBlocks, cycle?.suggestedBlocks);
+  const canonicalWorkItems = Array.isArray(state?.goalWorkById?.[goalId]) ? state.goalWorkById[goalId] : [];
+  const hasThroughputModel =
+    canonicalWorkItems.length > 0 ||
+    canonicalActions.length > 0 ||
+    canonicalDeliverables.length > 0 ||
+    canonicalProposed.length > 0;
+
+  const diagnostics = {
+    hasThroughputModel,
+    workItemsCount: canonicalWorkItems.length,
+    actionCount: canonicalActions.length,
+    deliverablesCount: canonicalDeliverables.length,
+    proposedCount: canonicalProposed.length,
+    feasibilityStatus: feasibility?.status || null,
+  };
+
+  if (!hasThroughputModel) {
+    return { feasibilityScore: null, reasonCode: 'POS_THROUGHPUT_MODEL_MISSING', diagnostics };
+  }
+  if (!feasibility) {
+    return { feasibilityScore: null, reasonCode: 'POS_FEASIBILITY_INPUT_MISSING', diagnostics };
+  }
+  if (feasibility.status === 'INFEASIBLE') {
+    return { feasibilityScore: 0, reasonCode: null, diagnostics };
+  }
+
+  const remaining = Number(feasibility.remainingBlocksTotal || 0);
+  const workableDaysRemaining = Number(feasibility.workableDaysRemaining);
+  const requiredPerDay = Number(feasibility.requiredBlocksPerDay);
+  const capacityPerDay = resolveCycleCapacityPerDay(state, cycle);
+
+  if (Number.isFinite(workableDaysRemaining) && workableDaysRemaining <= 0 && remaining > 0) {
+    return { feasibilityScore: 0, reasonCode: null, diagnostics };
+  }
+  if (remaining <= 0) {
+    const reasons = Array.isArray(feasibility?.reasons) ? feasibility.reasons : [];
+    if (reasons.includes('GOAL_HAS_NO_REMAINING_WORK')) {
+      if (canonicalWorkItems.length > 0) {
+        return { feasibilityScore: 1, reasonCode: null, diagnostics };
+      }
+      return { feasibilityScore: null, reasonCode: 'POS_THROUGHPUT_MODEL_MISSING', diagnostics };
+    }
+    return { feasibilityScore: null, reasonCode: 'POS_FEASIBILITY_INPUT_MISSING', diagnostics };
+  }
+  if (!Number.isFinite(requiredPerDay) || !(requiredPerDay >= 0) || !(capacityPerDay > 0)) {
+    return { feasibilityScore: null, reasonCode: 'POS_THROUGHPUT_MODEL_MISSING', diagnostics };
+  }
+
+  const feasibilityScore = clampUnitScore((capacityPerDay - requiredPerDay) / capacityPerDay);
+  return { feasibilityScore, reasonCode: null, diagnostics };
+}
+
+function mapTrajectoryToReasonCode(trajectory) {
+  const normalized = String(trajectory || '').trim().toUpperCase();
+  if (normalized === 'ON_TRACK') return 'POS_TRAJECTORY_ON_TRACK';
+  if (normalized === 'RECOVERABLE_DRIFT') return 'POS_TRAJECTORY_RECOVERABLE_DRIFT';
+  if (normalized === 'AT_RISK') return 'POS_TRAJECTORY_AT_RISK';
+  return 'POS_TRAJECTORY_INFEASIBLE';
+}
+
+function deriveDynamicOutcomeAggregate({
+  blocks = [],
+  cycleDynamics = null,
+  feasibility = null,
+  feasibilityScore = null,
+  capacityPerDay = 4
+}) {
+  const normalizedBlocks = Array.isArray(blocks) ? blocks : [];
+  let completedBlocks = 0;
+  let missedBlocks = 0;
+  let expiredBlocks = 0;
+  let plannedBlocks = 0;
+  let inProgressBlocks = 0;
+  normalizedBlocks.forEach((block) => {
+    const status = String(block?.status || '').trim().toLowerCase();
+    if (status === 'completed' || status === 'complete') completedBlocks += 1;
+    else if (status === 'missed') missedBlocks += 1;
+    else if (status === 'expired') expiredBlocks += 1;
+    else if (status === 'in_progress') inProgressBlocks += 1;
+    else if (status === 'planned') plannedBlocks += 1;
+  });
+
+  const overdueUnfinished =
+    Number(cycleDynamics?.totals?.overdueUnfinished || 0) > 0 ? Number(cycleDynamics.totals.overdueUnfinished) : 0;
+  const missedRecoverable = Math.max(0, missedBlocks - expiredBlocks);
+  const overdueRecoverableBurden = overdueUnfinished + missedRecoverable;
+  const baseRemaining = Number(feasibility?.remainingBlocksTotal || 0);
+  const remainingRequiredWork = Math.max(baseRemaining, overdueRecoverableBurden + expiredBlocks);
+  const workableDaysRemaining = Number(feasibility?.workableDaysRemaining || 0);
+  const requiredPerDay =
+    workableDaysRemaining > 0 ? Math.ceil(remainingRequiredWork / workableDaysRemaining) : Number.POSITIVE_INFINITY;
+  const requiredWeeklyThroughput = Number.isFinite(requiredPerDay) ? Math.ceil(requiredPerDay * 7) : null;
+  const baseRequiredWeeklyThroughput = Number.isFinite(Number(feasibility?.requiredBlocksPerDay))
+    ? Math.ceil(Number(feasibility.requiredBlocksPerDay) * 7)
+    : null;
+  const safeCapacityPerDay = Number.isFinite(capacityPerDay) && capacityPerDay > 0 ? capacityPerDay : 4;
+  const capacityWeekly = safeCapacityPerDay * 7;
+  const throughputPressure = Number.isFinite(requiredPerDay) ? requiredPerDay / safeCapacityPerDay : Number.POSITIVE_INFINITY;
+
+  let trajectory = 'ON_TRACK';
+  if (
+    String(feasibility?.status || '').toUpperCase() === 'INFEASIBLE' ||
+    (workableDaysRemaining <= 0 && remainingRequiredWork > 0)
+  ) {
+    trajectory = 'INFEASIBLE_TRAJECTORY';
+  } else if (expiredBlocks > 0 || throughputPressure >= 1 || overdueRecoverableBurden >= Math.max(3, Math.ceil(remainingRequiredWork * 0.4))) {
+    trajectory = 'AT_RISK';
+  } else if (missedBlocks > 0 || overdueRecoverableBurden > 0 || throughputPressure >= 0.75) {
+    trajectory = 'RECOVERABLE_DRIFT';
+  }
+
+  const trajectoryMultiplier =
+    trajectory === 'ON_TRACK' ? 1 : trajectory === 'RECOVERABLE_DRIFT' ? 0.85 : trajectory === 'AT_RISK' ? 0.65 : 0.35;
+  const driftPenalty = Math.min(0.5, missedBlocks * 0.04 + expiredBlocks * 0.1 + overdueUnfinished * 0.03);
+  const completionBonus =
+    missedBlocks === 0 && expiredBlocks === 0 ? Math.min(0.08, Math.max(0, completedBlocks) * 0.01) : 0;
+  const feasibilityAdjustment = clampUnitScore(trajectoryMultiplier - driftPenalty + completionBonus) ?? 0;
+  const adjustedFeasibilityScore =
+    Number.isFinite(feasibilityScore) && feasibilityScore !== null
+      ? clampUnitScore(Number(feasibilityScore) * feasibilityAdjustment)
+      : null;
+
+  const reasonCodes = [mapTrajectoryToReasonCode(trajectory)];
+  if (expiredBlocks > 0) reasonCodes.push('POS_TERMINAL_DRIFT_EXPIRED');
+  if (
+    Number.isFinite(requiredWeeklyThroughput) &&
+    Number.isFinite(baseRequiredWeeklyThroughput) &&
+    requiredWeeklyThroughput > baseRequiredWeeklyThroughput
+  ) {
+    reasonCodes.push('POS_REQUIRED_WEEKLY_THROUGHPUT_UP');
+  }
+
+  return {
+    completedBlocks,
+    missedBlocks,
+    expiredBlocks,
+    plannedBlocks,
+    inProgressBlocks,
+    overdueUnfinished,
+    overdueRecoverableBurden,
+    remainingRequiredWork,
+    workableDaysRemaining: Number.isFinite(workableDaysRemaining) ? workableDaysRemaining : null,
+    requiredWeeklyThroughput,
+    baseRequiredWeeklyThroughput,
+    capacityWeekly,
+    throughputPressure: Number.isFinite(throughputPressure) ? Number(throughputPressure.toFixed(3)) : null,
+    trajectory,
+    reasonCodes,
+    feasibilityAdjustment,
+    adjustedFeasibilityScore
+  };
+}
+
+function buildDynamicPosReasons(dynamicOutcome) {
+  if (!dynamicOutcome || !Array.isArray(dynamicOutcome.reasonCodes)) return [];
+  const directionByCode = {
+    POS_TRAJECTORY_ON_TRACK: 'UP',
+    POS_TRAJECTORY_RECOVERABLE_DRIFT: 'DOWN',
+    POS_TRAJECTORY_AT_RISK: 'DOWN',
+    POS_TRAJECTORY_INFEASIBLE: 'DOWN',
+    POS_REQUIRED_WEEKLY_THROUGHPUT_UP: 'DOWN',
+    POS_TERMINAL_DRIFT_EXPIRED: 'DOWN'
+  };
+  return dynamicOutcome.reasonCodes.map((code) => ({
+    code,
+    direction: directionByCode[code] || 'NEUTRAL',
+    magnitude: code === 'POS_TERMINAL_DRIFT_EXPIRED' ? 1 : 0.5,
+    evidence:
+      code === 'POS_REQUIRED_WEEKLY_THROUGHPUT_UP'
+        ? `required/week ${dynamicOutcome.baseRequiredWeeklyThroughput ?? '—'} -> ${dynamicOutcome.requiredWeeklyThroughput ?? '—'}`
+        : code === 'POS_TERMINAL_DRIFT_EXPIRED'
+          ? `expired ${dynamicOutcome.expiredBlocks}`
+          : `trajectory ${String(dynamicOutcome.trajectory || '').toLowerCase()}`
+  }));
+}
+
+function deriveContractFailureRegistration({
+  activeDayKey,
+  deadlineDayKey,
+  feasibility,
+  dynamicOutcome
+}) {
+  const remainingRequiredWork = Number(dynamicOutcome?.remainingRequiredWork || 0);
+  const requiredWeeklyThroughput = Number(dynamicOutcome?.requiredWeeklyThroughput || 0);
+  const capacityWeekly = Number(dynamicOutcome?.capacityWeekly || 0);
+  const trajectory = String(dynamicOutcome?.trajectory || '').trim().toUpperCase();
+  const feasibilityStatus = String(feasibility?.status || '').trim().toUpperCase();
+  const deadlinePassed = Boolean(deadlineDayKey && activeDayKey && activeDayKey > deadlineDayKey);
+  const reasons = [];
+
+  if (deadlinePassed && remainingRequiredWork > 0) {
+    reasons.push('DEADLINE_PASSED_WITH_REMAINING_WORK', 'RENEGOTIATION_REQUIRED');
+    return {
+      state: 'DEADLINE_FAILED_RENEGOTIATION_REQUIRED',
+      reasons,
+      renegotiationRequired: true,
+      details: {
+        deadlineDayKey: deadlineDayKey || null,
+        deadlinePassed,
+        remainingRequiredWork,
+        requiredWeeklyThroughput: Number.isFinite(requiredWeeklyThroughput) ? requiredWeeklyThroughput : null,
+        capacityWeekly: Number.isFinite(capacityWeekly) ? capacityWeekly : null
+      }
+    };
+  }
+
+  if (feasibilityStatus === 'INFEASIBLE' || trajectory === 'INFEASIBLE_TRAJECTORY') {
+    reasons.push(
+      ...(Array.isArray(feasibility?.reasons) ? feasibility.reasons.map((r) => `FEASIBILITY_${String(r || '').toUpperCase()}`) : [])
+    );
+    if (!reasons.length) reasons.push('INFEASIBLE_UNDER_CURRENT_CONTRACT');
+    return {
+      state: 'INFEASIBLE_CURRENT_CONTRACT',
+      reasons,
+      renegotiationRequired: true,
+      details: {
+        deadlineDayKey: deadlineDayKey || null,
+        deadlinePassed,
+        remainingRequiredWork,
+        requiredWeeklyThroughput: Number.isFinite(requiredWeeklyThroughput) ? requiredWeeklyThroughput : null,
+        capacityWeekly: Number.isFinite(capacityWeekly) ? capacityWeekly : null
+      }
+    };
+  }
+
+  if (
+    remainingRequiredWork > 0 &&
+    Number.isFinite(requiredWeeklyThroughput) &&
+    Number.isFinite(capacityWeekly) &&
+    requiredWeeklyThroughput > capacityWeekly
+  ) {
+    reasons.push('REQUIRED_THROUGHPUT_EXCEEDS_CONTRACT_CAPACITY');
+    return {
+      state: 'OVERLOADED_CURRENT_CONTRACT',
+      reasons,
+      renegotiationRequired: true,
+      details: {
+        deadlineDayKey: deadlineDayKey || null,
+        deadlinePassed,
+        remainingRequiredWork,
+        requiredWeeklyThroughput,
+        capacityWeekly
+      }
+    };
+  }
+
+  if (
+    trajectory === 'RECOVERABLE_DRIFT' ||
+    trajectory === 'AT_RISK' ||
+    Number(dynamicOutcome?.missedBlocks || 0) > 0 ||
+    Number(dynamicOutcome?.overdueRecoverableBurden || 0) > 0
+  ) {
+    reasons.push(trajectory === 'AT_RISK' ? 'TRAJECTORY_AT_RISK' : 'DRIFT_RECOVERABLE_UNDER_CONTRACT');
+    return {
+      state: 'RECOVERABLE_DRIFT',
+      reasons,
+      renegotiationRequired: false,
+      details: {
+        deadlineDayKey: deadlineDayKey || null,
+        deadlinePassed,
+        remainingRequiredWork,
+        requiredWeeklyThroughput: Number.isFinite(requiredWeeklyThroughput) ? requiredWeeklyThroughput : null,
+        capacityWeekly: Number.isFinite(capacityWeekly) ? capacityWeekly : null
+      }
+    };
+  }
+
+  reasons.push('CONTRACT_CAPACITY_AND_DEADLINE_ALIGNED');
+  return {
+    state: 'ON_TRACK',
+    reasons,
+    renegotiationRequired: false,
+    details: {
+      deadlineDayKey: deadlineDayKey || null,
+      deadlinePassed,
+      remainingRequiredWork,
+      requiredWeeklyThroughput: Number.isFinite(requiredWeeklyThroughput) ? requiredWeeklyThroughput : null,
+      capacityWeekly: Number.isFinite(capacityWeekly) ? capacityWeekly : null
+    }
+  };
+}
+
+function resolveBlockDurationMinutes(block) {
+  const direct = Number(block?.durationMinutes);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+  const startMs = Date.parse(String(block?.start || block?.startISO || ''));
+  const endMs = Date.parse(String(block?.end || block?.endISO || ''));
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return 60;
+  return Math.max(1, Math.round((endMs - startMs) / 60000));
+}
+
+function resolveMinutesCapPerDay(state, cycle, canonicalContract, blocks, capacityPerDay) {
+  const explicitMaxMinutes = Number(state?.constraints?.maxMinutesPerDay);
+  if (Number.isFinite(explicitMaxMinutes) && explicitMaxMinutes > 0) return explicitMaxMinutes;
+  const strategyMaxMinutes = Number(cycle?.strategy?.constraints?.maxMinutesPerDay);
+  if (Number.isFinite(strategyMaxMinutes) && strategyMaxMinutes > 0) return strategyMaxMinutes;
+  const draftMinutes = Number(state?.planDraft?.minutesPerDay);
+  if (Number.isFinite(draftMinutes) && draftMinutes > 0) return draftMinutes;
+
+  const contractWorkWindows = canonicalContract?.workWindows || cycle?.goalContract?.workWindows || null;
+  const hasExplicitContractWindows = countRawWorkWindows(contractWorkWindows) > 0;
+  const weeklyCapacityFromWindows = hasExplicitContractWindows
+    ? computeWeeklyCapacityFromWorkWindows(contractWorkWindows)
+    : 0;
+  if (hasExplicitContractWindows && Number.isFinite(weeklyCapacityFromWindows) && weeklyCapacityFromWindows > 0) {
+    const workDays = Math.max(1, getWorkDaysFromWindows(contractWorkWindows).length);
+    return Math.max(30, Math.floor(weeklyCapacityFromWindows / workDays));
+  }
+  return Math.max(30, Math.round((Number(capacityPerDay) || 1) * 60));
+}
+
+function resolveCycleScopedConstraints(state, cycle, timeZone = 'UTC') {
+  const globalConstraints = state?.constraints || {};
+  const strategyConstraints = cycle?.strategy?.constraints || {};
+  return {
+    ...globalConstraints,
+    ...strategyConstraints,
+    timezone: timeZone || globalConstraints.timezone || strategyConstraints.timezone || 'UTC',
+  };
+}
+
+function resolveCycleCapacityPerDay(state, cycle) {
+  const scopedConstraints = resolveCycleScopedConstraints(state, cycle, state?.appTime?.timeZone || APP_TIME_ZONE);
+  const maxBlocksPerDay = Number(scopedConstraints?.maxBlocksPerDay);
+  const strategyMaxBlocksPerDay = Number(cycle?.strategy?.constraints?.maxBlocksPerDay);
+  return Number.isFinite(maxBlocksPerDay) && maxBlocksPerDay > 0
+    ? maxBlocksPerDay
+    : Number.isFinite(strategyMaxBlocksPerDay) && strategyMaxBlocksPerDay > 0
+      ? strategyMaxBlocksPerDay
+      : 4;
+}
+
+function buildRecoveryOption({
+  type,
+  summary,
+  delta = null,
+  unit = null,
+  reasonCode
+}) {
+  return { type, summary, delta, unit, reasonCode };
+}
+
+function deriveRecoveryAnalysis({
+  state,
+  cycle,
+  canonicalContract,
+  dynamicOutcome,
+  feasibility,
+  blocks,
+  capacityPerDay,
+  contractFailure
+}) {
+  const missedExpiredBurden =
+    Math.max(0, Number(dynamicOutcome?.missedBlocks || 0)) + Math.max(0, Number(dynamicOutcome?.expiredBlocks || 0));
+  const plannedCommitted =
+    Math.max(0, Number(dynamicOutcome?.plannedBlocks || 0)) + Math.max(0, Number(dynamicOutcome?.inProgressBlocks || 0));
+  const remainingRequiredBurden = Math.max(0, Number(dynamicOutcome?.remainingRequiredWork || feasibility?.remainingBlocksTotal || 0));
+  const unscheduledRequiredBurden = Math.max(0, remainingRequiredBurden - plannedCommitted);
+  const workableDaysRemaining = Math.max(0, Number(dynamicOutcome?.workableDaysRemaining ?? feasibility?.workableDaysRemaining ?? 0));
+  const remainingCapacityBlocks = workableDaysRemaining * Math.max(0, Number(capacityPerDay) || 0);
+  const availableRecoverySlack = remainingCapacityBlocks - remainingRequiredBurden;
+  const requiredBlocksPerDayAfterRecovery =
+    workableDaysRemaining > 0 ? Math.ceil(remainingRequiredBurden / workableDaysRemaining) : Number.POSITIVE_INFINITY;
+  const requiredWeeklyThroughputAfterRecovery = Number.isFinite(requiredBlocksPerDayAfterRecovery)
+    ? Math.ceil(requiredBlocksPerDayAfterRecovery * 7)
+    : null;
+  const projectedSlackAfterRecovery = Number.isFinite(availableRecoverySlack) ? availableRecoverySlack : null;
+  const overCapacityAmount = Math.max(0, remainingRequiredBurden - remainingCapacityBlocks);
+
+  const averageBlockMinutes = (() => {
+    const durations = (Array.isArray(blocks) ? blocks : [])
+      .map((block) => resolveBlockDurationMinutes(block))
+      .filter((minutes) => Number.isFinite(minutes) && minutes > 0);
+    if (!durations.length) return 60;
+    return Math.round(durations.reduce((sum, minutes) => sum + minutes, 0) / durations.length);
+  })();
+  const minutesCapPerDay = resolveMinutesCapPerDay(state, cycle, canonicalContract, blocks, capacityPerDay);
+  const requiredMinutesPerDayAfterRecovery = Number.isFinite(requiredBlocksPerDayAfterRecovery)
+    ? requiredBlocksPerDayAfterRecovery * averageBlockMinutes
+    : Number.POSITIVE_INFINITY;
+
+  const overloadReasonCodes = [];
+  if (overCapacityAmount > 0) overloadReasonCodes.push('RECOVERY_OVER_MAX_BLOCKS_PER_DAY');
+  if (requiredMinutesPerDayAfterRecovery > minutesCapPerDay) overloadReasonCodes.push('RECOVERY_OVER_MINUTES_PER_DAY');
+  if (String(contractFailure?.state || '').toUpperCase() === 'DEADLINE_FAILED_RENEGOTIATION_REQUIRED') {
+    overloadReasonCodes.push('RECOVERY_DEADLINE_EXTENSION_REQUIRED');
+  }
+
+  const recoverableWithinCurrentContract =
+    overloadReasonCodes.length === 0 &&
+    Number.isFinite(requiredBlocksPerDayAfterRecovery) &&
+    workableDaysRemaining > 0 &&
+    requiredBlocksPerDayAfterRecovery <= Math.max(0, Number(capacityPerDay) || 0);
+  const overloadDetected = !recoverableWithinCurrentContract && remainingRequiredBurden > 0;
+
+  const recoveryReasons = [];
+  if (recoverableWithinCurrentContract) {
+    recoveryReasons.push('RECOVERY_WITHIN_CONTRACT');
+    if (availableRecoverySlack <= 0) recoveryReasons.push('RECOVERY_CONSUMES_ALL_SLACK');
+  } else {
+    recoveryReasons.push(...overloadReasonCodes);
+    recoveryReasons.push('RECOVERY_CONTRACT_RENEGOTIATION_REQUIRED');
+  }
+
+  const renegotiationRequired = overloadDetected || Boolean(contractFailure?.renegotiationRequired);
+  const renegotiationOptions = [];
+  if (renegotiationRequired) {
+    const extraDaysNeeded = Math.max(0, Math.ceil(overCapacityAmount / Math.max(1, Number(capacityPerDay) || 1)));
+    if (extraDaysNeeded > 0) {
+      renegotiationOptions.push(
+        buildRecoveryOption({
+          type: 'EXTEND_DEADLINE',
+          summary: `Extend deadline by ${extraDaysNeeded} day(s) to restore capacity fit.`,
+          delta: extraDaysNeeded,
+          unit: 'days',
+          reasonCode: 'RECOVERY_DEADLINE_EXTENSION_REQUIRED'
+        })
+      );
+    }
+    const capacityWeekly = Math.max(0, Number(dynamicOutcome?.capacityWeekly || (Number(capacityPerDay) || 0) * 7));
+    const throughputDelta =
+      Number.isFinite(requiredWeeklyThroughputAfterRecovery) && requiredWeeklyThroughputAfterRecovery !== null
+        ? Math.max(0, requiredWeeklyThroughputAfterRecovery - capacityWeekly)
+        : 0;
+    if (throughputDelta > 0) {
+      renegotiationOptions.push(
+        buildRecoveryOption({
+          type: 'INCREASE_THROUGHPUT',
+          summary: `Increase allowed throughput by ${throughputDelta} block(s)/week.`,
+          delta: throughputDelta,
+          unit: 'blocks/week',
+          reasonCode: 'RECOVERY_OVER_MAX_BLOCKS_PER_DAY'
+        })
+      );
+    }
+    const scopeReduction = Math.max(0, overCapacityAmount);
+    if (scopeReduction > 0) {
+      renegotiationOptions.push(
+        buildRecoveryOption({
+          type: 'REDUCE_SCOPE',
+          summary: `Reduce required scope by ${scopeReduction} block(s) to restore viability.`,
+          delta: scopeReduction,
+          unit: 'blocks',
+          reasonCode: 'RECOVERY_SCOPE_REDUCTION_REQUIRED'
+        })
+      );
+    }
+  }
+
+  return {
+    recoveryState: recoverableWithinCurrentContract ? 'RECOVERY_WITHIN_CONTRACT' : 'RECOVERY_RENEGOTIATION_REQUIRED',
+    recoveryReasons,
+    recoveryMetrics: {
+      missedExpiredBurden,
+      unscheduledRequiredBurden,
+      remainingRequiredBurden,
+      availableRecoverySlack,
+      recoverableWithinCurrentContract,
+      overloadDetected,
+      overloadReasonCodes,
+      requiredWeeklyThroughputAfterRecovery,
+      requiredBlocksPerDayAfterRecovery: Number.isFinite(requiredBlocksPerDayAfterRecovery)
+        ? requiredBlocksPerDayAfterRecovery
+        : null,
+      requiredMinutesPerDayAfterRecovery: Number.isFinite(requiredMinutesPerDayAfterRecovery)
+        ? requiredMinutesPerDayAfterRecovery
+        : null,
+      minutesCapPerDay,
+      projectedSlackAfterRecovery,
+      overCapacityAmount
+    },
+    renegotiationRequired,
+    renegotiationOptions
+  };
 }
 
 function applyCycleScoring(state) {
@@ -1391,10 +2504,14 @@ function applyCycleScoring(state) {
   if (!cycleId) return;
   const cycle = state?.cyclesById?.[cycleId];
   if (!cycle) return;
+  const canonicalContract = getCanonicalCycleContract(cycle, state.goalExecutionContract, cycle?.contract || null);
+  const goalId = canonicalContract?.goalId || null;
 
   const activeDayKey = state?.appTime?.activeDayKey || state?.today?.date || nowDayKey();
   const nowISO = state?.appTime?.nowISO || `${activeDayKey}T12:00:00.000Z`;
-  const blocks = getAllBlocks(state);
+  const scopedEvents = getCanonicalExecutionEventsForCycleGoal(state, cycleId, goalId);
+  const materialized = materializeBlocksFromEvents(scopedEvents, { todayISO: state.today?.date });
+  const blocks = Array.from(materialized?.blocksById?.values?.() || []).filter(Boolean);
 
   const integrity = computeCycleIntegrityScore({
     cycleId,
@@ -1402,13 +2519,47 @@ function applyCycleScoring(state) {
     blocks,
   });
 
-  const previewFeasibility = Number(cycle?.planPreview?.feasibilityConfidence);
-  const rootFeasibility = Number(state?.planPreview?.feasibilityConfidence);
-  const feasibilityScore = Number.isFinite(previewFeasibility)
-    ? previewFeasibility
-    : Number.isFinite(rootFeasibility)
-    ? rootFeasibility
+  const canonicalFeasibility = deriveCanonicalFeasibilityScore(state, cycle, goalId);
+  const feasibilityScore = Number.isFinite(canonicalFeasibility.feasibilityScore)
+    ? Number(canonicalFeasibility.feasibilityScore)
     : null;
+  const generationSource = String(cycle?.planGenerationSource || '').trim().toUpperCase();
+  const planStatus = String(cycle?.planStatus || '').trim().toLowerCase();
+  const hasLLMActionGraph = Boolean(cycle?.llmActionGraph);
+  const isLlmPath = generationSource === 'LLM' || planStatus === 'generating' || hasLLMActionGraph;
+  const maxBlocksPerDay = Number(state?.constraints?.maxBlocksPerDay);
+  const strategyMaxBlocksPerDay = Number(cycle?.strategy?.constraints?.maxBlocksPerDay);
+  const capacityPerDay =
+    Number.isFinite(maxBlocksPerDay) && maxBlocksPerDay > 0
+      ? maxBlocksPerDay
+      : Number.isFinite(strategyMaxBlocksPerDay) && strategyMaxBlocksPerDay > 0
+        ? strategyMaxBlocksPerDay
+        : 4;
+  const feasibility = goalId ? state?.feasibilityByGoal?.[goalId] || null : null;
+  const probability = goalId ? state?.probabilityByGoal?.[goalId] || null : null;
+  const dynamicOutcome = deriveDynamicOutcomeAggregate({
+    blocks,
+    cycleDynamics: state?.cycleDynamicsByCycleId?.[cycleId] || cycle?.cycleDynamics || null,
+    feasibility,
+    feasibilityScore,
+    capacityPerDay
+  });
+  const contractFailure = deriveContractFailureRegistration({
+    activeDayKey,
+    deadlineDayKey: canonicalContract?.endDayKey || null,
+    feasibility,
+    dynamicOutcome
+  });
+  const recovery = deriveRecoveryAnalysis({
+    state,
+    cycle,
+    canonicalContract,
+    dynamicOutcome,
+    feasibility,
+    blocks,
+    capacityPerDay,
+    contractFailure
+  });
 
   const metrics = {
     ...(cycle.metrics || {}),
@@ -1417,24 +2568,82 @@ function applyCycleScoring(state) {
     integrityMinutesCounted: integrity.minutesCounted,
     feasibilityScore,
     posScore: null,
+    posUnavailableReasonCode: canonicalFeasibility.reasonCode || null,
+    dynamicOutcome,
+    requiredWeeklyThroughput: dynamicOutcome.requiredWeeklyThroughput,
+    workableDaysRemaining: dynamicOutcome.workableDaysRemaining,
+    trajectory: dynamicOutcome.trajectory,
+    contractFailureState: contractFailure.state,
+    contractFailureReasons: contractFailure.reasons,
+    contractRenegotiationRequired: contractFailure.renegotiationRequired,
+    contractFailureDetails: contractFailure.details,
+    recoveryState: recovery.recoveryState,
+    recoveryReasons: recovery.recoveryReasons,
+    recoveryMetrics: recovery.recoveryMetrics,
+    renegotiationRequired: recovery.renegotiationRequired,
+    renegotiationOptions: recovery.renegotiationOptions,
+    posInputs: {
+      goalIdUsed: goalId,
+      ...canonicalFeasibility.diagnostics,
+      dynamicOutcome
+    }
   };
 
+  const feasibilityStatus = goalId ? state?.feasibilityByGoal?.[goalId]?.status || null : null;
+  if (feasibilityStatus === 'INFEASIBLE' && Boolean(canonicalFeasibility?.diagnostics?.hasThroughputModel)) {
+    metrics.posScore = 0;
+    metrics.feasibilityScore = 0;
+    metrics.posUnavailableReasonCode = null;
+  }
+
   if (Number.isFinite(feasibilityScore)) {
+    const effectiveFeasibility =
+      Number.isFinite(dynamicOutcome?.adjustedFeasibilityScore) && dynamicOutcome.adjustedFeasibilityScore !== null
+        ? Number(dynamicOutcome.adjustedFeasibilityScore)
+        : feasibilityScore;
     const pos = computeCyclePOS({
       cycleId,
       nowISO,
-      feasibilityScore,
+      feasibilityScore: effectiveFeasibility,
       blocks,
     });
     metrics.posScore = pos.pos;
     metrics.feasibilityScore = pos.feasibility;
     metrics.integrityScore = pos.integrity;
-  } else if (cycle?.planPreview) {
+  } else if (
+    cycle?.planPreview &&
+    !isLlmPath &&
+    (!state?.lastPlanError?.code || state?.lastPlanError?.code === 'FEASIBILITY_MISSING_FOR_PLAN')
+  ) {
+    const reasonCodes = [];
+    if (canonicalFeasibility.reasonCode) {
+      reasonCodes.push(canonicalFeasibility.reasonCode);
+    }
     state.lastPlanError = {
       ...(state.lastPlanError || {}),
       code: 'FEASIBILITY_MISSING_FOR_PLAN',
       reason: 'Plan preview exists but feasibility confidence is unavailable.',
-      cycleId
+      cycleId,
+      reasonCodes
+    };
+  }
+
+  const probabilityValue = Number(probability?.value);
+  const hasNoExecutionEvidence = Number(integrity?.minutesCounted || 0) <= 0;
+  if (
+    hasNoExecutionEvidence &&
+    Number.isFinite(probabilityValue) &&
+    probabilityValue > 0 &&
+    String(feasibility?.status || '').toUpperCase() !== 'INFEASIBLE'
+  ) {
+    metrics.posScore = clampUnitScore(probabilityValue);
+    if (!Number.isFinite(metrics.feasibilityScore) || Number(metrics.feasibilityScore) <= 0) {
+      metrics.feasibilityScore = clampUnitScore(probabilityValue);
+    }
+    metrics.posUnavailableReasonCode = null;
+    metrics.posInputs = {
+      ...(metrics.posInputs || {}),
+      seededFromInitialForecast: true
     };
   }
 
@@ -1455,6 +2664,9 @@ function applyCycleScoring(state) {
       if (normalized) conflictCodes.add(normalized);
     });
   }
+  if (metrics.posUnavailableReasonCode) {
+    conflictCodes.add(String(metrics.posUnavailableReasonCode).trim().toUpperCase());
+  }
   const conflictsNow = Array.from(conflictCodes).sort((a, b) => a.localeCompare(b));
 
   const explanation = buildPosExplanation({
@@ -1470,7 +2682,11 @@ function applyCycleScoring(state) {
     outcomeAggPrev: previousSnapshot?.outcomeAgg || null,
     outcomeAggNow,
   });
-  metrics.posExplanation = explanation;
+  const dynamicReasons = buildDynamicPosReasons(dynamicOutcome);
+  metrics.posExplanation = {
+    ...explanation,
+    reasons: [...(explanation?.reasons || []), ...dynamicReasons].slice(0, 3)
+  };
 
   if (Number.isFinite(metrics.posScore)) {
     metrics.posSnapshotAtISO = nowISO;
@@ -1479,11 +2695,129 @@ function applyCycleScoring(state) {
       integrityScore: metrics.integrityScore,
       posScore: metrics.posScore,
       outcomeAgg: outcomeAggNow,
+      dynamicOutcome: {
+        requiredWeeklyThroughput: dynamicOutcome.requiredWeeklyThroughput,
+        trajectory: dynamicOutcome.trajectory
+      },
+      contractFailure: {
+        state: contractFailure.state,
+        renegotiationRequired: contractFailure.renegotiationRequired
+      },
+      recovery: {
+        state: recovery.recoveryState,
+        renegotiationRequired: recovery.renegotiationRequired
+      }
     };
   }
 
   cycle.metrics = metrics;
+  cycle.contractFailure = {
+    state: contractFailure.state,
+    reasons: contractFailure.reasons,
+    renegotiationRequired: contractFailure.renegotiationRequired,
+    details: contractFailure.details,
+    updatedAtISO: nowISO
+  };
+  cycle.recoveryContract = {
+    state: recovery.recoveryState,
+    reasons: recovery.recoveryReasons,
+    metrics: recovery.recoveryMetrics,
+    renegotiationRequired: recovery.renegotiationRequired,
+    options: recovery.renegotiationOptions,
+    updatedAtISO: nowISO
+  };
   state.cyclesById[cycleId] = cycle;
+}
+
+function applyCycleDynamics(state) {
+  const cycleId = state?.activeCycleId || null;
+  if (!cycleId) return;
+  const cycle = state?.cyclesById?.[cycleId];
+  if (!cycle) return;
+  const canonicalContract = getCanonicalCycleContract(cycle, state.goalExecutionContract, cycle?.contract || null);
+  const goalId = canonicalContract?.goalId || null;
+  const nowISO =
+    state?.appTime?.nowISO ||
+    `${state?.appTime?.activeDayKey || state?.today?.date || nowDayKey()}T12:00:00.000Z`;
+  const scopedEvents = getCanonicalExecutionEventsForCycleGoal(state, cycleId, goalId);
+  const materialized = materializeBlocksFromEvents(scopedEvents, { todayISO: state.today?.date });
+  const scopedBlocks = Array.from(materialized?.blocksById?.values?.() || []).filter(Boolean);
+  const profile = deriveCycleDynamicsProfile({
+    cycleId,
+    goalId,
+    blocks: scopedBlocks,
+    nowISO
+  });
+  state.cycleDynamicsByCycleId = state.cycleDynamicsByCycleId || {};
+  state.cycleDynamicsByCycleId[cycleId] = profile;
+  cycle.cycleDynamics = profile;
+  enforceCycleDynamicsTransitions(state, {
+    cycleId,
+    goalId,
+    nowISO,
+    blocks: scopedBlocks,
+    profile
+  });
+  state.cyclesById[cycleId] = cycle;
+}
+
+function getCanonicalExecutionEventsForCycleGoal(state, cycleId, goalId) {
+  const events = Array.isArray(state?.executionEvents) ? state.executionEvents : [];
+  return events.filter((event) => {
+    if (!event) return false;
+    const eventCycleId = event?.cycleId || cycleId;
+    if (eventCycleId !== cycleId) return false;
+    if (!goalId) return true;
+    if (event?.goalId && event.goalId !== goalId) return false;
+    return true;
+  });
+}
+
+function enforceCycleDynamicsTransitions(state, { cycleId, goalId, nowISO, blocks, profile }) {
+  const patch = buildCycleDynamicsTransitionPatch({
+    cycleId,
+    goalId,
+    blocks,
+    recommendedTransitions: profile?.recommendedTransitions || []
+  });
+  if (!patch.length) return;
+
+  const blockById = new Map((Array.isArray(blocks) ? blocks : []).map((block) => [block?.id, block]));
+  let didAppend = false;
+  patch.forEach((transition) => {
+    const block = blockById.get(transition.blockId);
+    if (!block) return;
+    const toStatus = transition.toStatus;
+    const fromStatus = String(block?.status || '').trim().toLowerCase();
+    if (!toStatus || fromStatus === toStatus) return;
+    if (block?.cycleId && block.cycleId !== cycleId) return;
+    if (goalId && block?.goalId && block.goalId && block.goalId !== goalId) return;
+
+    const event = {
+      id: nextDeterministicId(state, `evt-dynamics-${transition.blockId}`),
+      blockId: transition.blockId,
+      minutes: Number.isFinite(Number(block?.durationMinutes)) ? Number(block.durationMinutes) : 0,
+      rawLabel: String(block?.label || 'Block'),
+      domain: block?.domain || block?.practice || 'Focus',
+      cycleId: cycleId,
+      goalId: goalId || block?.goalId || null,
+      origin: block?.origin || 'manual',
+      completed: false,
+      kind: 'update',
+      status: toStatus,
+      missedAtISO: toStatus === 'missed' ? nowISO : block?.missedAtISO || null,
+      reason: transition.reasonCode,
+      linkageStatus: block?.deliverableId || block?.criterionId ? 'LINKED' : 'UNLINKED_ACTIVITY'
+    };
+    if (!canEmitExecutionEvent(state.executionEvents || [], event)) return;
+    appendExecutionEvent(state, event);
+    didAppend = true;
+  });
+
+  if (!didAppend) return;
+  const rematerialized = materializeBlocksFromEvents(state.executionEvents || [], { todayISO: state.today?.date });
+  state.today.blocks = rematerialized.todayBlocks || [];
+  state.cycle = rematerialized.days || [];
 }
 
 function applyProgressCredit(state) {
@@ -1524,15 +2858,12 @@ function estimateBlockMinutes(block) {
 }
 
 function resolveGoalDeadline(goalId, state) {
-  if (state.activeCycleId && state.cyclesById?.[state.activeCycleId]) {
-    const active = state.cyclesById[state.activeCycleId];
-    if (active?.goalGovernanceContract?.goalId === goalId) {
-      return active?.definiteGoal?.deadlineDayKey || null;
-    }
-  }
-  const cycles = Object.values(state?.cyclesById || {});
-  const match = cycles.find((cycle) => cycle?.goalGovernanceContract?.goalId === goalId);
-  return match?.definiteGoal?.deadlineDayKey || null;
+  if (!state?.activeCycleId || !state?.cyclesById?.[state.activeCycleId]) return null;
+  const active = state.cyclesById[state.activeCycleId];
+  const canonicalContract = getCanonicalCycleContract(active, state.goalExecutionContract, active?.contract || null);
+  const canonicalGoalId = canonicalContract?.goalId || active?.goalGovernanceContract?.goalId || null;
+  if (!canonicalGoalId || canonicalGoalId !== goalId) return null;
+  return canonicalContract?.endDayKey || active?.goalContract?.endDayKey || active?.definiteGoal?.deadlineDayKey || null;
 }
 
 function applyGoalDirective(state) {
@@ -2824,12 +4155,12 @@ function rehydrateSuggestionOverrides(suggestions = [], events = []) {
 }
 
 function applySuggestionEventOverrides(state) {
-  const suggestions = state.suggestedBlocks || [];
+  const suggestions = state.proposedBlocks || [];
   const events = state.suggestionEvents || [];
   if (!suggestions.length || !events.length) return false;
   const next = rehydrateSuggestionOverrides(suggestions, events);
   const changed = next.some((entry, idx) => entry.status !== suggestions[idx]?.status || entry.rejectedReason !== suggestions[idx]?.rejectedReason);
-  if (changed) state.suggestedBlocks = next;
+  if (changed) setCycleProposedBlocks(state, state.activeCycleId || null, next);
   return changed;
 }
 
@@ -2877,10 +4208,83 @@ function computeCorrectionSignals(state, windowDays = 14) {
   };
 }
 
+function hasValidatedCycleActionGraph(cycle) {
+  if (!cycle) return false;
+  const actionSource = getCanonicalCycleActions(cycle);
+  if (!actionSource.length) return false;
+  return actionSource.every((action) => {
+    if (!action || !action.id) return false;
+    const title = String(action.title || action.label || '').trim();
+    return title.length > 0;
+  });
+}
+
+function ensureCycleDeliverablesWorkspace(state, cycleId) {
+  if (!cycleId) return 0;
+  state.deliverablesByCycleId = state.deliverablesByCycleId || {};
+  const cycle = state.cyclesById?.[cycleId];
+  if (!cycle) return 0;
+  const strategyDeliverables = Array.isArray(cycle.strategy?.deliverables) ? cycle.strategy.deliverables : [];
+  const existingWorkspace = state.deliverablesByCycleId[cycleId] || {
+    cycleId,
+    deliverables: [],
+    suggestionLinks: {},
+    lastUpdatedAtISO: state.appTime?.nowISO || new Date().toISOString()
+  };
+  if ((!existingWorkspace.deliverables || existingWorkspace.deliverables.length === 0) && strategyDeliverables.length > 0) {
+    existingWorkspace.deliverables = strategyDeliverables.map((deliverable) => ({ ...deliverable }));
+    existingWorkspace.lastUpdatedAtISO = state.appTime?.nowISO || new Date().toISOString();
+  }
+  state.deliverablesByCycleId[cycleId] = existingWorkspace;
+  return Array.isArray(existingWorkspace.deliverables) ? existingWorkspace.deliverables.length : 0;
+}
+
+function enforceOnboardingExecutionGraphGate(state, cycleId, actionType = 'ONBOARDING') {
+  if (!cycleId) return;
+  const cycle = state.cyclesById?.[cycleId];
+  if (!cycle) return;
+  const deliverablesCount = ensureCycleDeliverablesWorkspace(state, cycleId);
+  const hasGraph = hasValidatedCycleActionGraph(cycle);
+  if (deliverablesCount > 0 && hasGraph) {
+    cycle.executionGraphReady = true;
+    if (state.lastPlanError?.code === 'ACTION_GRAPH_MISSING') {
+      state.lastPlanError = null;
+    }
+    state.cyclesById[cycleId] = cycle;
+    return;
+  }
+
+  cycle.executionGraphReady = false;
+  state.cyclesById[cycleId] = cycle;
+  const reasonCodes = [];
+  if (deliverablesCount <= 0) {
+    reasonCodes.push('NO_DELIVERABLES');
+  }
+  if (!hasGraph) {
+    reasonCodes.push('NO_ACTION_GRAPH');
+  }
+  state.lastPlanError = {
+    code: 'ACTION_GRAPH_MISSING',
+    reason: 'Onboarding cannot progress without a validated execution graph.',
+    reasonCodes,
+    cycleId,
+    actionType
+  };
+}
+
 function applyOnboardingInputs(state, onboarding = {}) {
+  const goalDraftV2 = onboarding?.goalDraftV2 || null;
   const focusAreas = normalizeFocusAreas(onboarding.focusAreas);
   const pattern = derivePatternFromGoal({ ...onboarding, focusAreas });
-  const goalText = (onboarding.goalText || onboarding.direction || state.vector.direction || '').trim();
+  const goalText = (
+    goalDraftV2?.goalLabel ||
+    goalDraftV2?.goalText ||
+    goalDraftV2?.terminalOutcome?.text ||
+    onboarding.goalText ||
+    onboarding.direction ||
+    state.vector.direction ||
+    ''
+  ).trim();
   const narrative = (onboarding.narrative || '').trim();
   const successDefinition = (onboarding.successDefinition || '').trim();
   const horizonDays = parseHorizonDays(onboarding.horizon);
@@ -2933,6 +4337,9 @@ function applyOnboardingInputs(state, onboarding = {}) {
 
   const goalContract = {
     goalId,
+    executionType: goalDraftV2?.executionType || onboarding.executionType || null,
+    goalLabel: goalText || null,
+    goalText: goalText || null,
     status: 'active',
     activationDateISO: startDayKey,
     deadlineISO: endDayKey,
@@ -2964,7 +4371,7 @@ function applyOnboardingInputs(state, onboarding = {}) {
     activeFromISO: startDayKey,
     activeUntilISO: endDayKey,
     scope: {
-      domainsAllowed: ['Body', 'Focus', 'Creation', 'Resources'],
+      domainsAllowed: [],
       timeHorizon: 'week',
       timezone: timeZone || 'UTC'
     },
@@ -3095,7 +4502,7 @@ function applyOnboardingInputs(state, onboarding = {}) {
     missingInfo: parseMinimumDays(onboarding.minimumDaysPerWeek) ? [] : ['daysPerWeek']
   };
   state.planPreview = computePlanPreview({
-    suggestedBlocks: state.suggestedBlocks,
+    suggestedBlocks: state.proposedBlocks || [],
     planDraft: state.planDraft,
     contract: state.goalExecutionContract,
     policyState: getCurrentPolicyState(state),
@@ -3114,6 +4521,7 @@ function applyOnboardingInputs(state, onboarding = {}) {
   state.cyclesById[newCycleId].planDraft = state.planDraft;
   state.cyclesById[newCycleId].calibration = state.planCalibration;
   state.cyclesById[newCycleId].planPreview = state.planPreview;
+  state.cyclesById[newCycleId].proposedBlocks = state.proposedBlocks;
   state.cyclesById[newCycleId].suggestedBlocks = state.suggestedBlocks;
   state.cyclesById[newCycleId].suggestionEvents = state.suggestionEvents;
   state.cyclesById[newCycleId].executionEvents = state.executionEvents;
@@ -3131,7 +4539,16 @@ function startNewCycle(state, payload = {}) {
   const current = state.activeCycleId ? state.cyclesById[state.activeCycleId] : null;
   const profileDomains = (state.goalExecutionContract && state.goalExecutionContract.domains) || [];
   const focusAreas = normalizeFocusAreas(payload.focusAreas || profileDomains);
-  const goalText = (payload.goalText || state.goalExecutionContract?.goalText || state.vector?.direction || '').trim();
+  const goalDraftV2 = payload?.goalDraftV2 || null;
+  const goalText = (
+    goalDraftV2?.goalLabel ||
+    goalDraftV2?.goalText ||
+    goalDraftV2?.terminalOutcome?.text ||
+    payload.goalText ||
+    state.goalExecutionContract?.goalText ||
+    state.vector?.direction ||
+    ''
+  ).trim();
   const narrative = (payload.narrative || state.goalExecutionContract?.narrative || '').trim();
   const successDefinition = (payload.successDefinition || state.goalExecutionContract?.successDefinition || '').trim();
   const timeZone = state.appTime?.timeZone;
@@ -3164,6 +4581,9 @@ function startNewCycle(state, payload = {}) {
 
   const goalContract = {
     goalId,
+    executionType: goalDraftV2?.executionType || payload.executionType || state.goalExecutionContract?.executionType || null,
+    goalLabel: goalText || null,
+    goalText: goalText || null,
     status: 'active',
     activationDateISO: startDayKey,
     deadlineISO: deadlineDayKey,
@@ -3195,7 +4615,7 @@ function startNewCycle(state, payload = {}) {
     activeFromISO: startDayKey,
     activeUntilISO: deadlineDayKey,
     scope: {
-      domainsAllowed: ['Body', 'Focus', 'Creation', 'Resources'],
+      domainsAllowed: [],
       timeHorizon: 'week',
       timezone: timeZone || 'UTC'
     },
@@ -3298,6 +4718,7 @@ function startNewCycle(state, payload = {}) {
     historyInfluenceStrength: 'standard',
   };
 
+  state.proposedBlocks = [];
   state.suggestedBlocks = [];
   state.suggestionEvents = [];
 
@@ -3308,7 +4729,7 @@ function startNewCycle(state, payload = {}) {
     missingInfo: ['daysPerWeek']
   };
   state.planPreview = computePlanPreview({
-    suggestedBlocks: state.suggestedBlocks,
+    suggestedBlocks: state.proposedBlocks || [],
     planDraft: state.planDraft,
     contract: state.goalExecutionContract,
     policyState: getCurrentPolicyState(state),
@@ -3333,6 +4754,7 @@ function startNewCycle(state, payload = {}) {
   state.cyclesById[newCycleId].planDraft = state.planDraft;
   state.cyclesById[newCycleId].calibration = state.planCalibration;
   state.cyclesById[newCycleId].planPreview = state.planPreview;
+  state.cyclesById[newCycleId].proposedBlocks = state.proposedBlocks;
   state.cyclesById[newCycleId].suggestedBlocks = state.suggestedBlocks;
   state.cyclesById[newCycleId].suggestionEvents = state.suggestionEvents;
   state.cyclesById[newCycleId].executionEvents = state.executionEvents;
@@ -3391,6 +4813,7 @@ function deleteCycle(state, cycleId) {
     state.today = { ...(state.today || {}), blocks: [] };
     state.currentWeek = { ...(state.currentWeek || {}), days: [] };
     state.cycle = [];
+    state.proposedBlocks = [];
     state.suggestedBlocks = [];
     state.suggestionEvents = [];
     state.executionEvents = [];
@@ -3490,6 +4913,7 @@ function hardDeleteCycle(state, cycleId) {
     state.today = { ...(state.today || {}), blocks: [] };
     state.currentWeek = { ...(state.currentWeek || {}), days: [] };
     state.cycle = [];
+    state.proposedBlocks = [];
     state.suggestedBlocks = [];
     state.suggestionEvents = [];
     state.executionEvents = [];
@@ -3561,6 +4985,7 @@ function endCycle(state, cycleId) {
     state.today = { ...(state.today || {}), blocks: [] };
     state.currentWeek = { ...(state.currentWeek || {}), days: [] };
     state.cycle = [];
+    state.proposedBlocks = [];
     state.suggestedBlocks = [];
     state.suggestionEvents = [];
     state.executionEvents = [];
@@ -3631,8 +5056,14 @@ function generatePlan(state, payload = {}) {
   const explicitCycleId = payload?.cycleId || null;
   const targetCycleId = explicitCycleId || state.activeCycleId || null;
   const cycle = explicitCycleId ? state?.cyclesById?.[explicitCycleId] || null : getTargetCycle(state, targetCycleId);
-  const contract = cycle?.goalContract || cycle?.contract || state.goalExecutionContract;
+  const cycleIdForLog = cycle?.id || targetCycleId || null;
+  const deliverableCount = Number(state?.deliverablesByCycleId?.[cycleIdForLog]?.deliverables?.length || 0);
+  const llmActionCount = Number(cycle?.llmActionGraph?.actions?.length || 0);
+  const cycleActionCount = Number(cycle?.actions?.length || 0);
+  const actionCount = Math.max(llmActionCount, cycleActionCount);
+  const contract = getCanonicalCycleContract(cycle, state.goalExecutionContract, cycle?.contract || null);
   state.draftScheduleAppliedAtISO = null;
+  state.scheduleApplied = false;
   if (!cycle) {
     state.lastPlanError = {
       code: 'CYCLE_TARGET_INVALID',
@@ -3640,6 +5071,15 @@ function generatePlan(state, payload = {}) {
       cycleId: targetCycleId || null
     };
     setGenerateHeartbeat(state, targetCycleId, 0, 'CYCLE_TARGET_INVALID');
+    logGenerateDiagnostics({
+      cycleId: cycleIdForLog,
+      deliverableCount,
+      actionCount,
+      rawWorkWindowsCount: 0,
+      normalizedCandidateWindowCount: 0,
+      proposedBlocks: state.proposedBlocks || [],
+      lastPlanErrorCode: 'CYCLE_TARGET_INVALID',
+    });
     return;
   }
   if (isCycleReadOnly(cycle)) {
@@ -3652,18 +5092,40 @@ function generatePlan(state, payload = {}) {
       }
     };
     setGenerateHeartbeat(state, cycle.id || targetCycleId, 0, 'CYCLE_READ_ONLY');
+    logGenerateDiagnostics({
+      cycleId: cycle.id || targetCycleId,
+      deliverableCount,
+      actionCount,
+      rawWorkWindowsCount: 0,
+      normalizedCandidateWindowCount: 0,
+      proposedBlocks: state.proposedBlocks || [],
+      lastPlanErrorCode: 'CYCLE_READ_ONLY',
+    });
     return;
   }
-  const weeklyWindows = state?.constraints?.weeklyWindows || state?.availabilityPolicy?.weeklyWindows || {};
-  const hasExplicitWeeklyWindows = Object.keys(weeklyWindows || {}).length > 0;
-  const windowsMode = hasExplicitWeeklyWindows ? 'explicit_windows' : 'legacy_days_allowed';
+  const contractWorkWindows = contract?.workWindows || cycle?.goalContract?.workWindows || null;
+  const stateWeeklyWindows = state?.constraints?.weeklyWindows || state?.availabilityPolicy?.weeklyWindows || {};
+  const contractWeeklyWindows = toSchedulerWeeklyWindows(contractWorkWindows);
+  const hasContractWeeklyWindows = hasAnySchedulerWindows(contractWeeklyWindows);
+  const stateHasExplicitWeeklyWindows = hasAnySchedulerWindows(stateWeeklyWindows);
+  const weeklyWindows = hasContractWeeklyWindows ? contractWeeklyWindows : stateWeeklyWindows;
+  const hasExplicitWeeklyWindows = hasAnySchedulerWindows(weeklyWindows);
+  const windowsMode = hasContractWeeklyWindows
+    ? 'contract_work_windows'
+    : stateHasExplicitWeeklyWindows
+      ? 'explicit_windows'
+      : 'legacy_days_allowed';
   const dayEndAtHHMM = state?.constraints?.dayEndAtHHMM || state?.availabilityPolicy?.dayEndAtHHMM || '23:59';
+  const weeklyCapMinutes = computeWeeklyCapacityFromWorkWindows(contractWorkWindows);
+  const rawWorkWindowsCount = countRawWorkWindows(contractWorkWindows);
+  const normalizedCandidateWindowCount = countNormalizedSchedulerWindows(weeklyWindows);
   const baseErrorMeta = {
     cycleId: cycle.id || targetCycleId,
     startISO: contract?.startDateISO || (contract?.startDayKey ? `${contract.startDayKey}T00:00:00.000Z` : null),
     endISO: contract?.endDateISO || (contract?.endDayKey ? `${contract.endDayKey}T23:59:59.000Z` : null),
     windowsMode,
-    dayEndAtHHMM
+    dayEndAtHHMM,
+    weeklyCapMinutes
   };
   if (!contract) {
     setCycleProposedBlocks(state, cycle.id || targetCycleId, []);
@@ -3676,6 +5138,37 @@ function generatePlan(state, payload = {}) {
       meta: baseErrorMeta
     };
     setGenerateHeartbeat(state, cycle.id || targetCycleId, 0, 'NO_ACTION_GRAPH');
+    logGenerateDiagnostics({
+      cycleId: cycle?.id || targetCycleId,
+      deliverableCount,
+      actionCount,
+      rawWorkWindowsCount,
+      normalizedCandidateWindowCount,
+      proposedBlocks: state.proposedBlocks || [],
+      lastPlanErrorCode: state.lastPlanError?.code || 'NO_ACTION_GRAPH',
+    });
+    return;
+  }
+  if (!contract.goalId) {
+    setCycleProposedBlocks(state, cycle.id || targetCycleId, []);
+    state.lastPlanError = {
+      code: 'GOAL_ID_MISSING',
+      reason: 'Active cycle goal contract is missing goalId; generation cannot bind canonical proposals.',
+      cycleId: cycle.id || targetCycleId,
+      reasonCodes: ['GOAL_ID_MISSING'],
+      conflicts: [],
+      meta: baseErrorMeta
+    };
+    setGenerateHeartbeat(state, cycle.id || targetCycleId, 0, 'GOAL_ID_MISSING');
+    logGenerateDiagnostics({
+      cycleId: cycle.id || targetCycleId,
+      deliverableCount,
+      actionCount,
+      rawWorkWindowsCount,
+      normalizedCandidateWindowCount,
+      proposedBlocks: state.proposedBlocks || [],
+      lastPlanErrorCode: 'GOAL_ID_MISSING',
+    });
     return;
   }
   const admission = state.goalAdmissionByGoal?.[contract.goalId] || cycle.goalAdmission;
@@ -3687,15 +5180,49 @@ function generatePlan(state, payload = {}) {
       goalId: contract.goalId
     };
     setGenerateHeartbeat(state, cycle.id, 0, 'GOAL_NOT_ADMITTED');
+    logGenerateDiagnostics({
+      cycleId: cycle.id,
+      deliverableCount,
+      actionCount,
+      rawWorkWindowsCount,
+      normalizedCandidateWindowCount,
+      proposedBlocks: state.proposedBlocks || [],
+      lastPlanErrorCode: 'GOAL_NOT_ADMITTED',
+    });
     return;
   }
   const timeZone = state.appTime?.timeZone || 'UTC';
   const nowISO = state.appTime?.nowISO || new Date().toISOString();
-  const todayDayKey = dayKeyFromISO(nowISO, timeZone) || state.appTime?.activeDayKey || nowDayKey(timeZone);
-  const contractStartDayKey = contract.startDayKey || dayKeyFromISO(contract.startDateISO || '', timeZone) || null;
-  const contractEndDayKey = contract.endDayKey || dayKeyFromISO(contract.endDateISO || '', timeZone) || null;
+  const nowDayKeyFromClock = dayKeyFromISO(nowISO, timeZone) || null;
+  const activeDayKey = state.appTime?.activeDayKey || null;
+  const todayDayKey = maxDayKey(activeDayKey, nowDayKeyFromClock) || nowDayKey(timeZone);
+  const contractStartDayKey =
+    coerceDayKey(contract.startDayKey, timeZone) ||
+    coerceDayKey(contract.startDateISO, timeZone) ||
+    coerceDayKey(contract.startDate, timeZone) ||
+    coerceDayKey(contract.temporalBinding?.startDayKey, timeZone) ||
+    null;
+  const contractEndDayKey =
+    coerceDayKey(contract.endDayKey, timeZone) ||
+    coerceDayKey(contract.deadline?.dayKey, timeZone) ||
+    coerceDayKey(contract.endDateISO, timeZone) ||
+    coerceDayKey(contract.deadlineISO, timeZone) ||
+    coerceDayKey(contract.deadline, timeZone) ||
+    coerceDayKey(cycle?.goalGovernanceContract?.activeUntilISO, timeZone) ||
+    coerceDayKey(cycle?.definiteGoal?.deadlineDayKey, timeZone) ||
+    coerceDayKey(state?.goalExecutionContract?.endDayKey, timeZone) ||
+    coerceDayKey(state?.goalExecutionContract?.deadline?.dayKey, timeZone) ||
+    coerceDayKey(state?.goalExecutionContract?.deadlineISO, timeZone) ||
+    null;
   const anchorDayKey = maxDayKey(todayDayKey, contractStartDayKey) || todayDayKey;
   const anchorNowISO = `${anchorDayKey}T12:00:00.000Z`;
+  const fallbackSessionCount = Number(Array.isArray(cycle?.llmSessionPlan) ? cycle.llmSessionPlan.length : 0);
+  const fallbackActionCount = Number(getCanonicalCycleActions(cycle).length || 0);
+  const minimumFallbackHorizonDays = Math.max(90, fallbackSessionCount, fallbackActionCount);
+  const fullHorizonDays = contractEndDayKey
+    ? Math.max(1, daysBetween(anchorDayKey, contractEndDayKey) + 1)
+    : Math.max(14, minimumFallbackHorizonDays);
+  const horizonDays = Math.max(1, fullHorizonDays);
   const plan = state.planDraft || cycle.planDraft;
   const planProof =
     cycle.planProof ||
@@ -3713,39 +5240,69 @@ function generatePlan(state, payload = {}) {
       meta: baseErrorMeta
     };
     setGenerateHeartbeat(state, cycle.id, 0, 'NO_ACTION_GRAPH');
+    logGenerateDiagnostics({
+      cycleId: cycle.id,
+      deliverableCount,
+      actionCount,
+      rawWorkWindowsCount,
+      normalizedCandidateWindowCount,
+      proposedBlocks: state.proposedBlocks || [],
+      lastPlanErrorCode: state.lastPlanError?.code || 'NO_ACTION_GRAPH',
+    });
     state.cyclesById[cycle.id] = cycle;
     return;
   }
 
   cycle.planProof = planProof;
+  const scopedConstraints = resolveCycleScopedConstraints(state, cycle, timeZone);
   const constraints = {
+    ...scopedConstraints,
     timezone: timeZone,
-    maxBlocksPerDay: state?.constraints?.maxBlocksPerDay,
-    maxBlocksPerWeek: state?.constraints?.maxBlocksPerWeek,
-    workableDayPolicy: state?.constraints?.workableDayPolicy,
-    blackoutDates: state?.constraints?.blackoutDates,
-    calendarCommittedBlocksByDate: state?.constraints?.calendarCommittedBlocksByDate,
-    weeklyWindows: state?.constraints?.weeklyWindows || state?.availabilityPolicy?.weeklyWindows,
-    dayEndAtHHMM: state?.constraints?.dayEndAtHHMM || state?.availabilityPolicy?.dayEndAtHHMM,
+    weeklyWindows,
+    dayEndAtHHMM: scopedConstraints?.dayEndAtHHMM || state?.availabilityPolicy?.dayEndAtHHMM,
     cycleStartDayKey: contractStartDayKey,
     cycleEndDayKey: contractEndDayKey,
   };
-  const horizonEnd = addDays(anchorDayKey, 13, timeZone);
+  const horizonEnd = addDays(anchorDayKey, Math.max(0, horizonDays - 1), timeZone);
   const { days } = materializeBlocksFromEvents(state.executionEvents || [], { todayISO: state.today?.date });
   const acceptedBlocks = (days || [])
     .filter((d) => d?.date && d.date >= anchorDayKey && d.date <= horizonEnd)
     .flatMap((d) => (d.blocks || []).filter((b) => b?.cycleId === cycle.id));
+  const actionSequence = getCanonicalCycleActions(cycle);
+  const actionSequenceWithDeliverableIds = annotateActionsWithDeliverableIds(cycle, actionSequence);
+  const explicitMaxPerWeek = Number(scopedConstraints?.maxBlocksPerWeek);
+  const strategyMaxPerWeek = Number(cycle?.strategy?.constraints?.maxBlocksPerWeek);
+  const horizonWeeks = Math.max(1, Math.ceil(horizonDays / 7));
+  const derivedMaxPerWeek = Math.max(1, Math.ceil(Math.max(1, actionSequence.length) / horizonWeeks));
+  const resolvedMaxPerWeek =
+    Number.isFinite(explicitMaxPerWeek) && explicitMaxPerWeek > 0
+      ? explicitMaxPerWeek
+      : Number.isFinite(strategyMaxPerWeek) && strategyMaxPerWeek > 0
+        ? strategyMaxPerWeek
+        : derivedMaxPerWeek;
+  const explicitMaxPerDay = Number(scopedConstraints?.maxBlocksPerDay);
+  const strategyMaxPerDay = Number(cycle?.strategy?.constraints?.maxBlocksPerDay);
+  const resolvedMaxPerDay =
+    Number.isFinite(explicitMaxPerDay) && explicitMaxPerDay > 0
+      ? explicitMaxPerDay
+      : Number.isFinite(strategyMaxPerDay) && strategyMaxPerDay > 0
+        ? strategyMaxPerDay
+        : Math.max(1, Math.min(2, resolvedMaxPerWeek));
+  constraints.maxBlocksPerWeek = resolvedMaxPerWeek;
+  constraints.maxBlocksPerDay = resolvedMaxPerDay;
   cycle.autoAsanaPlan = compileAutoAsanaPlan({
     goalId: contract.goalId,
     cycleId: cycle.id,
     planProof,
     constraints,
     nowISO: anchorNowISO,
-    horizonDays: 14,
-    acceptedBlocks
+    horizonDays,
+    acceptedBlocks,
+    actionSequence: actionSequenceWithDeliverableIds,
+    sessionPlan: Array.isArray(cycle?.llmSessionPlan) ? cycle.llmSessionPlan : []
   });
   const suggestions = (cycle.autoAsanaPlan?.horizonBlocks || []).map((block, index) => ({
-    id: block.id || `suggested:auto:${cycle.id}:${index}`,
+    id: block.identityKey || block.id || `suggested:auto:${cycle.id}:${index}`,
     goalId: contract.goalId,
     cycleId: cycle.id,
     status: 'suggested',
@@ -3755,6 +5312,10 @@ function generatePlan(state, payload = {}) {
     createdAtISO: nowISO,
     startISO: block.startISO,
     dayKey: block.dayKey,
+    identityKey: block.identityKey || null,
+    deliverableId: block.deliverableId || null,
+    actionId: block.actionId || null,
+    sessionIndex: Number.isFinite(block.sessionIndex) ? Number(block.sessionIndex) : index,
     source: 'action_graph'
   }));
   setCycleProposedBlocks(state, cycle.id, suggestions);
@@ -3767,9 +5328,9 @@ function generatePlan(state, payload = {}) {
     atISO: nowISO
   });
   state.planPreview = computePlanPreview({
-    suggestedBlocks: state.proposedBlocks || state.suggestedBlocks,
+    suggestedBlocks: state.proposedBlocks || [],
     planDraft: state.planDraft,
-    contract: state.goalExecutionContract,
+    contract,
     policyState: getCurrentPolicyState(state),
     historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
     timeZone: state.appTime?.timeZone || APP_TIME_ZONE,
@@ -3814,7 +5375,11 @@ function generatePlan(state, payload = {}) {
       reason: 'No proposed blocks could be scheduled under current constraints.',
       reasonCodes: orderedReasonCodes,
       conflicts: normalizedConflicts,
-      meta: baseErrorMeta
+      meta: {
+        ...baseErrorMeta,
+        anchorDow: dayKeyToDow(anchorDayKey),
+        anchorStartHHMM: getFirstWindowStartForDow(dayKeyToDow(anchorDayKey), contractWorkWindows),
+      }
     };
     setGenerateHeartbeat(state, cycle.id, 0, 'NO_PROPOSED_BLOCKS');
   } else if (!state.lastPlanError || state.lastPlanError.code === 'NO_PROPOSED_BLOCKS') {
@@ -3823,6 +5388,41 @@ function generatePlan(state, payload = {}) {
   } else {
     setGenerateHeartbeat(state, cycle.id, suggestedCount, state.lastPlanError?.code || null);
   }
+  if (suggestedCount > 0 && !state.scheduleApplied) {
+    applyDraftSchedule(state, { cycleId: cycle.id, goalId: contract.goalId });
+    state.scheduleApplied = true;
+    logGenerateDiagnostics({
+      traceId: `trace-${cycle.id}-apply`,
+      cycleId: cycle.id,
+      goalId: contract?.goalId || null,
+      moduleName: 'applyDraftSchedule',
+      stepName: 'complete',
+      status: 'ok',
+      outputSummary: {
+        committedBlocksCount: (state.today?.blocks || []).length,
+        cycleBlocksCount: (state.cycle || []).flatMap((d) => d.blocks || []).length,
+        scheduleApplied: state.scheduleApplied,
+      },
+      reasonCodes: [],
+    });
+  }
+  logGenerateDiagnostics({
+    traceId: `trace-${cycle.id}-generate`,
+    cycleId: cycle.id,
+    goalId: contract?.goalId || null,
+    moduleName: 'generatePlan',
+    stepName: 'complete',
+    status: state.lastPlanError?.code ? 'fail' : 'ok',
+    deliverableCount,
+    actionCount,
+    rawWorkWindowsCount,
+    normalizedCandidateWindowCount,
+    horizonDays,
+    materializedWorkableDays: cycle?.autoAsanaPlan?.horizon?.daysCount || null,
+    proposedBlocks: state.proposedBlocks || [],
+    lastPlanErrorCode: state.lastPlanError?.code || null,
+    reasonCodes: state.lastPlanError?.reasonCodes || [],
+  });
   state.cyclesById[cycle.id] = cycle;
 }
 
@@ -3882,10 +5482,44 @@ function applyGeneratedPlan(state) {
   state.cyclesById[cycle.id] = cycle;
 }
 
+function recordDraftPolicyParity(state, appliedPreview) {
+  const isNumericParity = (left, right) => {
+    if (Number.isFinite(left) && Number.isFinite(right)) {
+      return Number(left) === Number(right);
+    }
+    return !Number.isFinite(left) && !Number.isFinite(right);
+  };
+  const appliedPolicyId = appliedPreview?.qualityPolicyIdUsed || 'BALANCED';
+  state.qualityPolicyIdApplied = appliedPolicyId;
+  state.qualityScoreApplied = appliedPreview?.qualityScoreBaseline;
+  state.qualityScoreAppliedByComponent = appliedPreview?.qualityScoreBaselineByComponent || null;
+  state.policySelectionDecisionApplied = appliedPreview?.policySelectionDecision || null;
+  state.policySelectionReasonCodesApplied = [...(appliedPreview?.policySelectionReasonCodes || [])];
+  state.historyProfileSnapshotUsedApplied = appliedPreview?.historyProfileSnapshotUsed || null;
+  state.historyReasonCodesApplied = [...(appliedPreview?.historyReasonCodes || [])];
+  state.pacingInjectedCheckpointCountApplied = appliedPreview?.pacingInjectedCheckpointCount || 0;
+  state.pacingInjectedByMilestoneApplied = appliedPreview?.pacingInjectedByMilestone || {};
+  const previewPolicyId = state.planPreview?.qualityPolicyIdUsed || null;
+  const previewReasonCodes = JSON.stringify(state.planPreview?.policySelectionReasonCodes || []);
+  const appliedReasonCodes = JSON.stringify(appliedPreview?.policySelectionReasonCodes || []);
+  state.policySelectionParity = Boolean(previewPolicyId && previewPolicyId === appliedPolicyId && previewReasonCodes === appliedReasonCodes);
+  state.scoreParity = Boolean(
+    isNumericParity(state.planPreview?.qualityScoreBaseline, appliedPreview?.qualityScoreBaseline) &&
+      JSON.stringify(state.planPreview?.qualityScoreBaselineByComponent || {}) ===
+        JSON.stringify(appliedPreview?.qualityScoreBaselineByComponent || {})
+  );
+  state.pacingParity = Boolean(
+    Number(state.planPreview?.pacingInjectedCheckpointCount || 0) === Number(appliedPreview?.pacingInjectedCheckpointCount || 0) &&
+      JSON.stringify(state.planPreview?.pacingInjectedByMilestone || {}) ===
+        JSON.stringify(appliedPreview?.pacingInjectedByMilestone || {})
+  );
+  return appliedPolicyId;
+}
+
 function applyDraftSchedule(state, payload = {}) {
   const targetCycleId = payload?.cycleId || state.activeCycleId || null;
   const cycle = getTargetCycle(state, targetCycleId);
-  const contract = cycle?.goalContract || state.goalExecutionContract;
+  const contract = getCanonicalCycleContract(cycle, state.goalExecutionContract, cycle?.contract || null);
   if (!cycle || !contract) return;
   if (isCycleReadOnly(cycle)) {
     state.lastPlanError = {
@@ -3897,18 +5531,25 @@ function applyDraftSchedule(state, payload = {}) {
   }
   const nowDay = state.appTime?.activeDayKey || state.today?.date || nowDayKey(state.appTime?.timeZone || APP_TIME_ZONE);
   const previewDecisionBeforeApply = state.planPreview?.policySelectionDecision || null;
-  const suggestedBlocks = (state.proposedBlocks || state.suggestedBlocks || []).filter((block) => block?.cycleId === cycle.id);
+  const sourceBlocks = state.proposedBlocks || [];
+  const suggestedBlocks = sourceBlocks.filter((block) => !block?.cycleId || block?.cycleId === cycle.id);
   const timeZone = state.appTime?.timeZone || 'UTC';
   const appliedPreview = computePlanPreview({
     suggestedBlocks,
     planDraft: state.planDraft,
-    contract: state.goalExecutionContract,
+    contract,
     policyState: cycle.policyState || null,
     historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
     timeZone,
   });
-  const proposedItems = (suggestedBlocks || []).filter((item) => item?.status === 'suggested');
+  let proposedItems = (suggestedBlocks || []).filter((item) => item?.status === 'suggested');
   if (!proposedItems.length) {
+    proposedItems = (suggestedBlocks || []).filter(Boolean);
+  }
+  const appliedPolicyId = recordDraftPolicyParity(state, appliedPreview);
+  if (!proposedItems.length) {
+    // No-op apply: preserve deterministic preview/apply parity flags for diagnostics.
+    state.scoreParity = true;
     state.lastPlanError = {
       code: 'NO_PROPOSED_BLOCKS',
       reason: 'No preview items to apply.',
@@ -3937,7 +5578,7 @@ function applyDraftSchedule(state, payload = {}) {
     });
   });
   const acceptedSuggestionIds = new Set(proposedItems.map((item) => item.id));
-  const nextSuggestions = (state.proposedBlocks || state.suggestedBlocks || []).map((item) => {
+  const nextSuggestions = sourceBlocks.map((item) => {
     if (!acceptedSuggestionIds.has(item?.id)) return item;
     return {
       ...item,
@@ -3957,7 +5598,6 @@ function applyDraftSchedule(state, payload = {}) {
       atISO: state.appTime?.nowISO || new Date().toISOString(),
     });
   });
-  const appliedPolicyId = appliedPreview.qualityPolicyIdUsed || 'BALANCED';
   const priorState = cycle.policyState || null;
   const changedPolicy = priorState?.currentPolicyId !== appliedPolicyId;
   const policySetAtDayKey = changedPolicy ? nowDay : priorState?.policySetAtDayKey || nowDay;
@@ -3968,29 +5608,7 @@ function applyDraftSchedule(state, payload = {}) {
     policyAgeDays,
     priorSignalsSnapshot: appliedPreview.policySelectionSignalsSnapshot || priorState?.priorSignalsSnapshot || null,
   };
-  state.qualityPolicyIdApplied = appliedPolicyId;
-  state.qualityScoreApplied = appliedPreview.qualityScoreBaseline;
-  state.qualityScoreAppliedByComponent = appliedPreview.qualityScoreBaselineByComponent || null;
-  state.policySelectionDecisionApplied = appliedPreview.policySelectionDecision || null;
-  state.policySelectionReasonCodesApplied = [...(appliedPreview.policySelectionReasonCodes || [])];
-  state.historyProfileSnapshotUsedApplied = appliedPreview.historyProfileSnapshotUsed || null;
-  state.historyReasonCodesApplied = [...(appliedPreview.historyReasonCodes || [])];
-  state.pacingInjectedCheckpointCountApplied = appliedPreview.pacingInjectedCheckpointCount || 0;
-  state.pacingInjectedByMilestoneApplied = appliedPreview.pacingInjectedByMilestone || {};
   const previewPolicyId = state.planPreview?.qualityPolicyIdUsed || null;
-  const previewReasonCodes = JSON.stringify(state.planPreview?.policySelectionReasonCodes || []);
-  const appliedReasonCodes = JSON.stringify(appliedPreview.policySelectionReasonCodes || []);
-  state.policySelectionParity = Boolean(previewPolicyId && previewPolicyId === appliedPolicyId && previewReasonCodes === appliedReasonCodes);
-  state.scoreParity = Boolean(
-    Number(state.planPreview?.qualityScoreBaseline) === Number(appliedPreview.qualityScoreBaseline) &&
-      JSON.stringify(state.planPreview?.qualityScoreBaselineByComponent || {}) ===
-        JSON.stringify(appliedPreview.qualityScoreBaselineByComponent || {})
-  );
-  state.pacingParity = Boolean(
-    Number(state.planPreview?.pacingInjectedCheckpointCount || 0) === Number(appliedPreview.pacingInjectedCheckpointCount || 0) &&
-      JSON.stringify(state.planPreview?.pacingInjectedByMilestone || {}) ===
-        JSON.stringify(appliedPreview.pacingInjectedByMilestone || {})
-  );
   state.planEvents = state.planEvents || [];
   state.planEvents.push({
     id: nextDeterministicId(state, `draft-policy-applied-${cycle.id}`),
@@ -4015,6 +5633,241 @@ function applyDraftSchedule(state, payload = {}) {
   cycle.coldPlan = { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } };
   cycle.lastPolicySelectionDecision = previewDecisionBeforeApply || appliedPreview.policySelectionDecision || null;
   state.cyclesById[cycle.id] = cycle;
+  logGenerateDiagnostics({
+    traceId: `trace-${cycle.id}-commit`,
+    cycleId: cycle.id,
+    goalId: contract?.goalId || null,
+    moduleName: 'commitBlocks',
+    stepName: 'complete',
+    status: state.lastPlanError?.code ? 'fail' : 'ok',
+    outputSummary: {
+      createdBlockCount: proposedItems.length,
+      acceptedSuggestionCount: acceptedSuggestionIds.size,
+      executionEventCount: (state.executionEvents || []).length,
+      todayBlocksCount: (state.today?.blocks || []).length,
+      cycleBlocksCount: (state.cycle || []).flatMap((d) => d.blocks || []).length,
+    },
+    lastPlanErrorCode: state.lastPlanError?.code || null,
+    reasonCodes: state.lastPlanError?.reasonCodes || [],
+  });
+}
+
+function resolveRenegotiationOption(cycle, payload = {}) {
+  const optionPool = Array.isArray(cycle?.metrics?.renegotiationOptions)
+    ? cycle.metrics.renegotiationOptions
+    : Array.isArray(cycle?.recoveryContract?.options)
+      ? cycle.recoveryContract.options
+      : [];
+  if (!optionPool.length) return null;
+  if (payload?.option && typeof payload.option === 'object') {
+    const exact = optionPool.find(
+      (option) =>
+        option?.type === payload.option.type &&
+        Number(option?.delta ?? null) === Number(payload.option.delta ?? null) &&
+        String(option?.summary || '') === String(payload.option.summary || '')
+    );
+    if (exact) return exact;
+  }
+  if (Number.isInteger(payload?.optionIndex) && payload.optionIndex >= 0 && payload.optionIndex < optionPool.length) {
+    return optionPool[payload.optionIndex];
+  }
+  if (payload?.optionType) {
+    const normalizedType = String(payload.optionType || '').trim().toUpperCase();
+    const preferredDelta = Number(payload?.delta);
+    const typed = optionPool.filter((option) => String(option?.type || '').trim().toUpperCase() === normalizedType);
+    if (typed.length === 0) return null;
+    if (Number.isFinite(preferredDelta)) {
+      const exact = typed.find((option) => Number(option?.delta) === preferredDelta);
+      if (exact) return exact;
+    }
+    return typed[0];
+  }
+  return optionPool[0] || null;
+}
+
+function applyRenegotiationOption(state, payload = {}) {
+  const activeCycleId = state?.activeCycleId || null;
+  if (!activeCycleId) return;
+  const requestedCycleId = payload?.cycleId || activeCycleId;
+  if (requestedCycleId !== activeCycleId) {
+    state.lastPlanError = {
+      code: 'RENEGOTIATION_ACTIVE_CYCLE_MISMATCH',
+      reason: 'Renegotiation may only be applied to the canonical active cycle.',
+      cycleId: requestedCycleId,
+      activeCycleId,
+    };
+    return;
+  }
+  const cycle = state?.cyclesById?.[activeCycleId];
+  if (!cycle) return;
+  const canonicalContract = getCanonicalCycleContract(cycle, state.goalExecutionContract, cycle?.contract || null);
+  const goalId = canonicalContract?.goalId || null;
+  if (payload?.goalId && goalId && payload.goalId !== goalId) {
+    state.lastPlanError = {
+      code: 'RENEGOTIATION_GOAL_MISMATCH',
+      reason: 'Renegotiation payload goal does not match canonical active goal.',
+      cycleId: activeCycleId,
+      goalId,
+    };
+    return;
+  }
+  const selectedOption = resolveRenegotiationOption(cycle, payload);
+  if (!selectedOption) {
+    state.lastPlanError = {
+      code: 'RENEGOTIATION_OPTION_MISSING',
+      reason: 'No deterministic renegotiation option is available to apply.',
+      cycleId: activeCycleId,
+      goalId,
+    };
+    return;
+  }
+
+  const optionType = String(selectedOption?.type || '').trim().toUpperCase();
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  const timeZone = state?.appTime?.timeZone || APP_TIME_ZONE;
+  const priorContract = {
+    endDayKey: canonicalContract?.endDayKey || null,
+    maxBlocksPerDay: Number(cycle?.strategy?.constraints?.maxBlocksPerDay) || null,
+    maxBlocksPerWeek: Number(cycle?.strategy?.constraints?.maxBlocksPerWeek) || null,
+    maxMinutesPerDay: Number(cycle?.strategy?.constraints?.maxMinutesPerDay) || null,
+  };
+
+  let applied = false;
+  let unsupportedReason = null;
+  let changeSet = {};
+
+  if (optionType === 'EXTEND_DEADLINE') {
+    const deltaDaysRaw = Number(selectedOption?.delta);
+    const deltaDays = Number.isFinite(deltaDaysRaw) && deltaDaysRaw > 0 ? Math.max(1, Math.round(deltaDaysRaw)) : 0;
+    const currentEndDayKey =
+      canonicalContract?.endDayKey || canonicalContract?.deadline?.dayKey || cycle?.goalContract?.endDayKey || null;
+    if (!(deltaDays > 0) || !currentEndDayKey) {
+      unsupportedReason = 'RENEGOTIATION_EXTENSION_INPUT_INVALID';
+    } else {
+      const nextEndDayKey = addDays(currentEndDayKey, deltaDays, timeZone);
+      cycle.goalContract = cycle.goalContract || {};
+      cycle.goalContract.endDayKey = nextEndDayKey;
+      cycle.goalContract.deadlineISO = `${nextEndDayKey}T23:59:59.000Z`;
+      cycle.goalContract.endDateISO = `${nextEndDayKey}T23:59:59.000Z`;
+      if (cycle.goalContract.deadline && typeof cycle.goalContract.deadline === 'object') {
+        cycle.goalContract.deadline = {
+          ...cycle.goalContract.deadline,
+          dayKey: nextEndDayKey,
+        };
+      }
+      if (cycle.goalGovernanceContract) {
+        cycle.goalGovernanceContract = {
+          ...cycle.goalGovernanceContract,
+          activeUntilISO: nextEndDayKey,
+        };
+      }
+      if (cycle.definiteGoal?.deadlineDayKey) {
+        cycle.definiteGoal = { ...cycle.definiteGoal, deadlineDayKey: nextEndDayKey };
+      }
+      if (cycle.contract && typeof cycle.contract === 'object') {
+        cycle.contract = {
+          ...cycle.contract,
+          endDayKey: nextEndDayKey,
+          deadlineISO: `${nextEndDayKey}T23:59:59.000Z`,
+          endDateISO: `${nextEndDayKey}T23:59:59.000Z`,
+        };
+      }
+      changeSet = {
+        deadlineExtendedDays: deltaDays,
+        endDayKey: nextEndDayKey,
+      };
+      applied = true;
+    }
+  } else if (optionType === 'INCREASE_THROUGHPUT') {
+    const deltaPerWeekRaw = Number(selectedOption?.delta);
+    const deltaPerWeek = Number.isFinite(deltaPerWeekRaw) && deltaPerWeekRaw > 0 ? Math.max(1, Math.round(deltaPerWeekRaw)) : 0;
+    if (!(deltaPerWeek > 0)) {
+      unsupportedReason = 'RENEGOTIATION_THROUGHPUT_INPUT_INVALID';
+    } else {
+      const strategy = cycle.strategy || {};
+      const strategyConstraints = strategy.constraints || {};
+      const workWindows = canonicalContract?.workWindows || cycle?.goalContract?.workWindows || null;
+      const workDays = countRawWorkWindows(workWindows) > 0
+        ? getWorkDaysFromWindows(workWindows)
+        : strategyConstraints?.workableDayPolicy?.weekdays || state?.constraints?.workableDayPolicy?.weekdays || ['mon', 'tue', 'wed', 'thu', 'fri'];
+      const workDaysCount = Math.max(1, Array.isArray(workDays) ? workDays.length : 5);
+      const priorWeek =
+        (Number.isFinite(Number(strategyConstraints.maxBlocksPerWeek)) && Number(strategyConstraints.maxBlocksPerWeek) > 0)
+          ? Number(strategyConstraints.maxBlocksPerWeek)
+          : resolveCycleCapacityPerDay(state, cycle) * 7;
+      const priorDay =
+        (Number.isFinite(Number(strategyConstraints.maxBlocksPerDay)) && Number(strategyConstraints.maxBlocksPerDay) > 0)
+          ? Number(strategyConstraints.maxBlocksPerDay)
+          : Math.max(1, Math.ceil(priorWeek / workDaysCount));
+      const nextWeek = Math.max(priorWeek, priorWeek + deltaPerWeek);
+      const nextDay = Math.max(priorDay, Math.ceil(nextWeek / workDaysCount));
+      cycle.strategy = {
+        ...strategy,
+        constraints: {
+          ...strategyConstraints,
+          maxBlocksPerWeek: nextWeek,
+          maxBlocksPerDay: nextDay,
+        },
+      };
+      changeSet = {
+        maxBlocksPerWeek: nextWeek,
+        maxBlocksPerDay: nextDay,
+        throughputIncreasePerWeek: deltaPerWeek,
+      };
+      applied = true;
+    }
+  } else {
+    unsupportedReason = `RENEGOTIATION_OPTION_UNSUPPORTED_${optionType || 'UNKNOWN'}`;
+  }
+
+  const record = {
+    id: nextDeterministicId(state, 'reneg'),
+    atISO: nowISO,
+    cycleId: activeCycleId,
+    goalId,
+    optionType,
+    optionSummary: selectedOption?.summary || optionType,
+    optionDelta: Number.isFinite(Number(selectedOption?.delta)) ? Number(selectedOption.delta) : null,
+    optionUnit: selectedOption?.unit || null,
+    status: applied ? 'APPLIED' : 'UNSUPPORTED',
+    priorContract,
+    appliedContractChanges: changeSet,
+    unsupportedReason: unsupportedReason || null,
+  };
+  cycle.renegotiationHistory = Array.isArray(cycle.renegotiationHistory) ? cycle.renegotiationHistory : [];
+  cycle.renegotiationHistory.push(record);
+  cycle.lastRenegotiationApplied = record;
+  cycle.metrics = {
+    ...(cycle.metrics || {}),
+    renegotiationApplyResult: {
+      status: record.status,
+      optionType,
+      atISO: nowISO,
+      reason: unsupportedReason || null,
+    },
+  };
+
+  if (applied) {
+    state.lastPlanError = null;
+    if (state.activeCycleId === cycle.id && cycle.goalContract) {
+      state.goalExecutionContract = {
+        ...(state.goalExecutionContract || {}),
+        ...cycle.goalContract,
+        goalId: cycle.goalContract.goalId || goalId || state.goalExecutionContract?.goalId || null,
+      };
+    }
+    setCycleProposedBlocks(state, cycle.id, []);
+    generatePlan(state, { cycleId: cycle.id, source: 'RENEGOTIATION_APPLY' });
+  } else {
+    state.lastPlanError = {
+      code: 'RENEGOTIATION_OPTION_UNSUPPORTED',
+      reason: unsupportedReason || 'Renegotiation option is analysis-only in this build.',
+      cycleId: activeCycleId,
+      goalId,
+      optionType,
+    };
+  }
+  state.cyclesById[activeCycleId] = cycle;
 }
 
 function setDefiniteGoal(state, payload = {}) {
@@ -4190,7 +6043,7 @@ function compileGoalEquation(state, payload = {}) {
 
 function acceptSuggestedBlock(state, proposalId) {
   if (!proposalId) return;
-  const suggestions = state.suggestedBlocks || [];
+  const suggestions = (state.proposedBlocks || []).map((entry) => ({ ...entry }));
   const target = suggestions.find((s) => s.id === proposalId);
   if (!target || target.status !== 'suggested') return;
   const existingCreate = (state.executionEvents || []).find(
@@ -4226,13 +6079,14 @@ function acceptSuggestedBlock(state, proposalId) {
     atISO: nowISO
   });
   state.planPreview = computePlanPreview({
-    suggestedBlocks: state.suggestedBlocks,
+    suggestedBlocks: suggestions,
     planDraft: state.planDraft,
     contract: state.goalExecutionContract,
     policyState: getCurrentPolicyState(state),
     historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
     timeZone: state.appTime?.timeZone || APP_TIME_ZONE,
   });
+  setCycleProposedBlocks(state, state.activeCycleId || null, suggestions);
 }
 
 function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
@@ -4242,7 +6096,7 @@ function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
   const contract = state.goalExecutionContract;
   if (!plan || !contract) return;
   if (plan.status === 'calibrated' && plan.daysPerWeek === parsed) return;
-  const prevSuggestionIds = (state.suggestedBlocks || [])
+  const prevSuggestionIds = (state.proposedBlocks || [])
     .filter((s) => s && s.status === 'suggested')
     .map((s) => s.id);
 
@@ -4270,7 +6124,7 @@ function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
     state.cyclesById[state.activeCycleId].calibration = calibration;
   }
 
-  const preserved = (state.suggestedBlocks || []).filter((s) => s && s.status !== 'suggested');
+  const preserved = (state.proposedBlocks || []).filter((s) => s && s.status !== 'suggested');
   const reservedIds = new Set(preserved.map((s) => s.id));
   const suggestedTarget = Math.max(0, blocksPerWeek - reservedIds.size);
   const nextSuggested = buildSuggestedBlocks({
@@ -4284,7 +6138,7 @@ function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
     reservedIds,
     timeZone: state.appTime?.timeZone
   });
-  state.suggestedBlocks = [...preserved, ...nextSuggested];
+  setCycleProposedBlocks(state, state.activeCycleId || null, [...preserved, ...nextSuggested]);
 
   const nowISO = new Date().toISOString();
   state.suggestionEvents = state.suggestionEvents || [];
@@ -4298,7 +6152,7 @@ function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
   });
 
   state.planPreview = computePlanPreview({
-    suggestedBlocks: state.suggestedBlocks,
+    suggestedBlocks: state.proposedBlocks || [],
     planDraft: state.planDraft,
     contract: state.goalExecutionContract,
     policyState: getCurrentPolicyState(state),
@@ -4320,7 +6174,7 @@ function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
 
 function rejectSuggestedBlock(state, proposalId, reason) {
   if (!proposalId) return;
-  const suggestions = state.suggestedBlocks || [];
+  const suggestions = (state.proposedBlocks || []).map((entry) => ({ ...entry }));
   const target = suggestions.find((s) => s.id === proposalId);
   if (!target) return;
   if (target.status === 'rejected') return;
@@ -4341,18 +6195,19 @@ function rejectSuggestedBlock(state, proposalId, reason) {
     atISO: nowISO
   });
   state.planPreview = computePlanPreview({
-    suggestedBlocks: state.suggestedBlocks,
+    suggestedBlocks: suggestions,
     planDraft: state.planDraft,
     contract: state.goalExecutionContract,
     policyState: getCurrentPolicyState(state),
     historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
     timeZone: state.appTime?.timeZone || APP_TIME_ZONE,
   });
+  setCycleProposedBlocks(state, state.activeCycleId || null, suggestions);
 }
 
 function ignoreSuggestedBlock(state, proposalId) {
   if (!proposalId) return;
-  const suggestions = state.suggestedBlocks || [];
+  const suggestions = (state.proposedBlocks || []).map((entry) => ({ ...entry }));
   const target = suggestions.find((s) => s.id === proposalId);
   if (!target || target.status !== 'suggested') return;
   const nowISO = new Date().toISOString();
@@ -4367,18 +6222,19 @@ function ignoreSuggestedBlock(state, proposalId) {
     atISO: nowISO
   });
   state.planPreview = computePlanPreview({
-    suggestedBlocks: state.suggestedBlocks,
+    suggestedBlocks: suggestions,
     planDraft: state.planDraft,
     contract: state.goalExecutionContract,
     policyState: getCurrentPolicyState(state),
     historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
     timeZone: state.appTime?.timeZone || APP_TIME_ZONE,
   });
+  setCycleProposedBlocks(state, state.activeCycleId || null, suggestions);
 }
 
 function dismissSuggestedBlock(state, proposalId) {
   if (!proposalId) return;
-  const suggestions = state.suggestedBlocks || [];
+  const suggestions = (state.proposedBlocks || []).map((entry) => ({ ...entry }));
   const target = suggestions.find((s) => s.id === proposalId);
   if (!target || target.status !== 'suggested') return;
   const nowISO = new Date().toISOString();
@@ -4393,13 +6249,14 @@ function dismissSuggestedBlock(state, proposalId) {
     atISO: nowISO
   });
   state.planPreview = computePlanPreview({
-    suggestedBlocks: state.suggestedBlocks,
+    suggestedBlocks: suggestions,
     planDraft: state.planDraft,
     contract: state.goalExecutionContract,
     policyState: getCurrentPolicyState(state),
     historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
     timeZone: state.appTime?.timeZone || APP_TIME_ZONE,
   });
+  setCycleProposedBlocks(state, state.activeCycleId || null, suggestions);
 }
 
 function createDeliverable(state, payload = {}) {
@@ -4657,8 +6514,8 @@ function handleDraftBlockCreate(state, action = {}) {
   const minutes = clampDurationMinutes((endDate.getTime() - startDate.getTime()) / 60000);
   const cycleId = action.cycleId || state.activeCycleId || null;
   const blockId = generateDraftBlockId(state, { ...action, cycleId });
-  const { domain, practice } = normalizeDomainValue(action.domain || action.practice);
-  const rawLabel = action.label || action.title || practice || domain || 'Draft Block';
+  const { domain } = normalizeDomainValue(action.domain || action.practice);
+  const rawLabel = action.title || action.label || 'Untitled task';
   const status = action.status || 'in_progress';
   const dateISO = dayKeyFromISO(startISO, state.appTime?.timeZone) || dayKeyFromDate(startDate);
   const event = {
@@ -4752,7 +6609,8 @@ function createBlock(state, payload = {}) {
     lockedUntilDayKey,
     practice,
     domain,
-    label: payload.label || payload.title || practice || 'Block',
+    title: payload.title || payload.label || 'Untitled task',
+    label: payload.title || payload.label || 'Untitled task',
     start: startDate.toISOString(),
     end: endDate.toISOString(),
     status,
