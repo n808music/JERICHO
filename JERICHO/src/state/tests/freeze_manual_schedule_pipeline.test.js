@@ -40,7 +40,7 @@ describe('Freeze: Manual Scheduling Pipeline', () => {
         title: 'Manual Block',
         timeZone: 'UTC',
         linkToGoal: true,
-        deliverableId: state.deliverablesByCycleId?.[cycleId]?.[0]?.id
+        deliverableId: state.deliverablesByCycleId?.[cycleId]?.deliverables?.[0]?.id
       }
     });
 

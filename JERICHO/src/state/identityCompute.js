@@ -1313,11 +1313,9 @@ function touchDeliverableWorkspace(state, cycleId) {
 }
 
 function syncDeliverableWorkspaceIndexes(workspace) {
-  if (!workspace || !Array.isArray(workspace.deliverables)) return;
-  workspace.deliverables.forEach((deliverable, idx) => {
-    workspace[idx] = deliverable;
-  });
-  workspace.length = workspace.deliverables.length;
+  // Numeric index aliasing removed.
+  // Callers must read from workspace.deliverables directly.
+  return workspace;
 }
 
 function getSuggestionLink(state, cycleId, suggestionId) {
@@ -4224,17 +4222,12 @@ function ensureCycleDeliverablesWorkspace(state, cycleId) {
   state.deliverablesByCycleId = state.deliverablesByCycleId || {};
   const cycle = state.cyclesById?.[cycleId];
   if (!cycle) return 0;
-  const strategyDeliverables = Array.isArray(cycle.strategy?.deliverables) ? cycle.strategy.deliverables : [];
   const existingWorkspace = state.deliverablesByCycleId[cycleId] || {
     cycleId,
     deliverables: [],
     suggestionLinks: {},
     lastUpdatedAtISO: state.appTime?.nowISO || new Date().toISOString()
   };
-  if ((!existingWorkspace.deliverables || existingWorkspace.deliverables.length === 0) && strategyDeliverables.length > 0) {
-    existingWorkspace.deliverables = strategyDeliverables.map((deliverable) => ({ ...deliverable }));
-    existingWorkspace.lastUpdatedAtISO = state.appTime?.nowISO || new Date().toISOString();
-  }
   state.deliverablesByCycleId[cycleId] = existingWorkspace;
   return Array.isArray(existingWorkspace.deliverables) ? existingWorkspace.deliverables.length : 0;
 }
@@ -4957,11 +4950,9 @@ function endCycle(state, cycleId) {
   // MVP 3.0: Compute terminal convergence
   const nowISO = state.appTime?.nowISO || new Date().toISOString();
   const timezone = state.appTime?.timeZone || 'UTC';
+  const rawEntry = state.deliverablesByCycleId?.[cycle.id];
   const deliverables =
-    state.deliverablesByCycleId?.[cycle.id]?.deliverables ||
-    cycle?.deliverables ||
-    cycle?.strategy?.deliverables ||
-    [];
+    (Array.isArray(rawEntry) ? rawEntry : Array.isArray(rawEntry?.deliverables) ? rawEntry.deliverables : []) || [];
   const convergenceReport = computeTerminalConvergence({
     cycle,
     planProof: cycle?.goalPlan?.planProof || null,
@@ -4969,6 +4960,32 @@ function endCycle(state, cycleId) {
     nowISO,
     timezone,
     deliverables
+  });
+  logGenerateDiagnostics({
+    traceId: `trace-${cycle.id}-convergence`,
+    cycleId: cycle.id,
+    goalId: cycle?.goalContract?.goalId || cycle?.goalGovernanceContract?.goalId || cycle?.contract?.goalId || null,
+    moduleName: 'endCycle',
+    stepName: 'computeTerminalConvergence',
+    status: 'ok',
+    inputSummary: {
+      cycleStatus: cycle.status || null,
+      deliverablesCount: Array.isArray(deliverables) ? deliverables.length : 0,
+      executionEventsCount: Array.isArray(cycle?.executionEvents || state.executionEvents)
+        ? (cycle?.executionEvents || state.executionEvents || []).length
+        : 0,
+      deadlineDayKey: cycle?.definiteGoal?.deadlineDayKey || null,
+    },
+    outputSummary: {
+      verdict: convergenceReport?.verdict || null,
+      reasons: convergenceReport?.reasons || [],
+      pEndIds: (convergenceReport?.P_end?.deliverables || []).map((d) => d.deliverableId),
+      eEndIds: (convergenceReport?.E_end?.deliverables || []).map((d) => d.deliverableId),
+      eEndCounts: (convergenceReport?.E_end?.deliverables || []).map((d) => d.completedBlocks),
+      completedUnits: convergenceReport?.E_end?.completedUnits ?? 0,
+      unlinkedActivityBlocks: convergenceReport?.E_end?.unlinkedActivityBlocks ?? 0,
+    },
+    reasonCodes: [],
   });
   cycle.convergenceReport = convergenceReport;
   
@@ -5429,25 +5446,6 @@ function generatePlan(state, payload = {}) {
     applyDraftSchedule(state, { cycleId: cycle.id, goalId: contract.goalId });
     state.scheduleApplied = true;
     logGenerateDiagnostics({
-      traceId: `trace-${cycle.id}-apply`,
-      cycleId: cycle.id,
-      goalId: contract?.goalId || null,
-      moduleName: 'applyDraftSchedule',
-      stepName: 'complete',
-      status: 'ok',
-      inputSummary: {
-        proposedBlocksCount: (state.proposedBlocks || []).length,
-        suggestedCount: (state.proposedBlocks || []).filter((b) => b?.status === 'suggested').length,
-        cycleId: cycle.id,
-      },
-      outputSummary: {
-        committedBlocksCount: (state.today?.blocks || []).length,
-        cycleBlocksCount: (state.cycle || []).flatMap((d) => d.blocks || []).length,
-        scheduleApplied: state.scheduleApplied,
-      },
-      reasonCodes: [],
-    });
-    logGenerateDiagnostics({
       traceId: `trace-${cycle.id}-commit`,
       cycleId: cycle.id,
       goalId: contract?.goalId || null,
@@ -5600,6 +5598,26 @@ function applyDraftSchedule(state, payload = {}) {
       reason: 'No preview items to apply.',
       cycleId: cycle.id
     };
+    logGenerateDiagnostics({
+      traceId: `trace-${cycle.id}-apply`,
+      cycleId: cycle.id,
+      goalId: contract?.goalId || null,
+      moduleName: 'applyDraftSchedule',
+      stepName: 'complete',
+      status: 'fail',
+      inputSummary: {
+        proposedBlocksCount: (state.proposedBlocks || []).length,
+        suggestedCount: (state.proposedBlocks || []).filter((b) => b?.status === 'suggested').length,
+        cycleId: cycle.id,
+      },
+      outputSummary: {
+        committedBlocksCount: (state.today?.blocks || []).length,
+        cycleBlocksCount: (state.cycle || []).flatMap((d) => d.blocks || []).length,
+        scheduleApplied: Boolean(state.scheduleApplied),
+      },
+      lastPlanErrorCode: 'NO_PROPOSED_BLOCKS',
+      reasonCodes: [],
+    });
     return;
   }
   proposedItems.forEach((item) => {
@@ -5678,6 +5696,26 @@ function applyDraftSchedule(state, payload = {}) {
   cycle.coldPlan = { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } };
   cycle.lastPolicySelectionDecision = previewDecisionBeforeApply || appliedPreview.policySelectionDecision || null;
   state.cyclesById[cycle.id] = cycle;
+  logGenerateDiagnostics({
+    traceId: `trace-${cycle.id}-apply`,
+    cycleId: cycle.id,
+    goalId: contract?.goalId || null,
+    moduleName: 'applyDraftSchedule',
+    stepName: 'complete',
+    status: 'ok',
+    inputSummary: {
+      proposedBlocksCount: (state.proposedBlocks || []).length,
+      suggestedCount: (state.proposedBlocks || []).filter((b) => b?.status === 'suggested').length,
+      cycleId: cycle.id,
+    },
+    outputSummary: {
+      committedBlocksCount: (state.today?.blocks || []).length,
+      cycleBlocksCount: (state.cycle || []).flatMap((d) => d.blocks || []).length,
+      scheduleApplied: Boolean(state.scheduleApplied),
+      draftScheduleAppliedAtISO: state.draftScheduleAppliedAtISO || null,
+    },
+    reasonCodes: [],
+  });
 }
 
 function resolveRenegotiationOption(cycle, payload = {}) {
@@ -6675,6 +6713,7 @@ function createBlock(state, payload = {}) {
     beforeSummary: '',
     afterSummary: state.today?.summaryLine || ''
   };
+  return newBlock;
 }
 
 function updateBlock(state, payload = {}) {

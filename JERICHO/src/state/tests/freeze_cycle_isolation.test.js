@@ -24,7 +24,7 @@ describe('Freeze: Cycle Isolation', () => {
 
     // Create a deliverable and a block, accept materialization
     state = computeDerivedState(state, { type: 'CREATE_DELIVERABLE', payload: { cycleId: cycleA, title: 'A Task', requiredBlocks: 1 } });
-    state = computeDerivedState(state, { type: 'CREATE_BLOCK', payload: { start: localStartISOForHour(10), durationMinutes: 30, domain: 'CREATION', title: 'A Block', timeZone: 'UTC', linkToGoal: true, deliverableId: state.deliverablesByCycleId?.[cycleA]?.[0]?.id } });
+    state = computeDerivedState(state, { type: 'CREATE_BLOCK', payload: { start: localStartISOForHour(10), durationMinutes: 30, domain: 'CREATION', title: 'A Block', timeZone: 'UTC', linkToGoal: true, deliverableId: state.deliverablesByCycleId?.[cycleA]?.deliverables?.[0]?.id } });
 
     // Add completion event and end cycle A (archive)
     const created = state.today.blocks[state.today.blocks.length - 1];

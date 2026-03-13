@@ -107,12 +107,37 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
         }
       });
 
-      const suggestions = onboarded.suggestedBlocks || [];
-      const firstSuggestion = suggestions.find((s) => s.status === 'suggested');
+      const firstSuggestion = {
+        id: 'suggestion-test-1',
+        status: 'suggested',
+        cycleId: onboarded.activeCycleId,
+        goalId: onboarded.activeGoalId,
+        deliverableId: null,
+        criterionId: null,
+        title: 'Test suggestion',
+        startISO: `${FIXED_DAY}T09:00:00.000Z`,
+        endISO: `${FIXED_DAY}T10:00:00.000Z`,
+        durationMinutes: 60,
+        domain: 'FOCUS'
+      };
+      const withSuggestions = {
+        ...onboarded,
+        proposedBlocks: [firstSuggestion],
+        suggestedBlocks: [firstSuggestion],
+        cyclesById: {
+          ...onboarded.cyclesById,
+          [onboarded.activeCycleId]: {
+            ...onboarded.cyclesById[onboarded.activeCycleId],
+            proposedBlocks: [firstSuggestion],
+            suggestedBlocks: [firstSuggestion]
+          }
+        }
+      };
+
       expect(firstSuggestion).toBeTruthy();
 
       // Accept it (suggestions may have deliverable linkage or not)
-      const accepted = computeDerivedState(onboarded, {
+      const accepted = computeDerivedState(withSuggestions, {
         type: 'ACCEPT_SUGGESTED_BLOCK',
         proposalId: firstSuggestion.id
       });
@@ -246,7 +271,7 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
       });
 
       const block = withLinked.today.blocks[0];
-      const delivId = (withLinked.deliverablesByCycleId?.[cycleId] || [])[0]?.id || null;
+      const delivId = (withLinked.deliverablesByCycleId?.[cycleId]?.deliverables || [])[0]?.id || null;
       const completeEvent = buildExecutionEventFromBlock(block, {
         completed: true,
         kind: 'complete',

@@ -92,7 +92,7 @@ describe('MVP 3.0 Invariants', () => {
         kind: 'complete',
         dateISO: FIXED_DAY,
         minutes: 30,
-        deliverableId: (withBlock.deliverablesByCycleId?.[cycleId] || [])[0]?.id || null
+        deliverableId: (withBlock.deliverablesByCycleId?.[cycleId]?.deliverables || [])[0]?.id || null
       });
 
       const withCompletion = {
@@ -160,7 +160,7 @@ describe('MVP 3.0 Invariants', () => {
       });
 
       const block = withBlock.today.blocks[0];
-      const deliverableId = (withBlock.deliverablesByCycleId?.[cycleId] || [])[0]?.id || null;
+      const deliverableId = (withBlock.deliverablesByCycleId?.[cycleId]?.deliverables || [])[0]?.id || null;
       const completeEvent = buildExecutionEventFromBlock(block, {
         completed: true,
         kind: 'complete',
@@ -305,7 +305,7 @@ describe('MVP 3.0 Invariants', () => {
       });
 
       const block1 = withBlock1.today.blocks[0];
-      const deliv1Id = (withBlock1.deliverablesByCycleId?.[cycle1Id] || [])[0]?.id || null;
+      const deliv1Id = (withBlock1.deliverablesByCycleId?.[cycle1Id]?.deliverables || [])[0]?.id || null;
       const event1 = buildExecutionEventFromBlock(block1, {
         completed: true,
         kind: 'complete',
@@ -357,7 +357,7 @@ describe('MVP 3.0 Invariants', () => {
       });
 
       const block2 = withBlock2.today.blocks[0];
-      const deliv2Id = (withBlock2.deliverablesByCycleId?.[cycle2Id] || [])[0]?.id || null;
+      const deliv2Id = (withBlock2.deliverablesByCycleId?.[cycle2Id]?.deliverables || [])[0]?.id || null;
       const event2 = buildExecutionEventFromBlock(block2, {
         completed: true,
         kind: 'complete',
