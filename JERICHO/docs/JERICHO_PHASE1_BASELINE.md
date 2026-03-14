@@ -123,6 +123,12 @@ SUGGESTION_IDENTITY_MISSING
 RENEGOTIATION_STATE_CONFLICT
 ```
 
+## Performance Flakes
+
+| File | Note |
+|---|---|
+| `src/core/__tests__/autoGeneration.integration.test.ts` | Perf gate fails intermittently in full suite (184ms vs 100ms threshold) but passes in isolation (239ms total, tests 39ms). Suite environment overhead, not a logic regression. Monitor but do not fix until reproducible. |
+
 ---
 
 ## Phase 2 Module Targets (preview)
