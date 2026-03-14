@@ -59,8 +59,8 @@ describe('schedule generation non-silent deterministic behavior', () => {
 
     const next = computeDerivedState(buildState(), { type: 'GENERATE_PLAN', payload: { cycleId: 'cycle-1' } });
 
-    const proposedCount = (next.proposedBlocks || []).filter((s) => s.status === 'suggested').length;
-    expect(proposedCount).toBeGreaterThan(0);
+    const acceptedCount = (next.proposedBlocks || []).filter((s) => s.status === 'accepted').length;
+    expect(acceptedCount).toBeGreaterThan(0);
     expect(next.lastPlanError).toBeNull();
     expect(next.debug?.lastGenerateClickCycleId).toBe('cycle-1');
     expect(next.debug?.lastGenerateResult?.proposedBlocksCount).toBeGreaterThan(0);

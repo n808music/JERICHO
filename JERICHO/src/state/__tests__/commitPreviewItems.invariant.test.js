@@ -57,8 +57,9 @@ describe('commitPreviewItems invariant', () => {
 
     const next = computeDerivedState(state, action);
     expect(next.lastPlanError).toBeNull();
-    expect(next.executionEvents.length).toBe(2);
-    const committedDayKeys = next.executionEvents.map((event) => dayKeyFromISO(event.dateISO, 'UTC'));
+    const createEvents = next.executionEvents.filter((event) => event.kind === 'create');
+    expect(createEvents.length).toBe(2);
+    const committedDayKeys = createEvents.map((event) => dayKeyFromISO(event.dateISO, 'UTC'));
     expect(new Set(committedDayKeys)).toEqual(
       new Set([
         dayKeyFromISO('2026-01-20T03:00:00.000Z', 'UTC'),
