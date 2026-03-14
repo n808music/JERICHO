@@ -1,12 +1,17 @@
 import React from 'react';
 import '@testing-library/jest-dom';
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { act } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import OnboardingScreen from '../../src/components/OnboardingScreen.jsx';
 
 describe('Onboarding goal contract', () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    cleanup();
+  });
+
   const interact = async (callback) => {
     await act(async () => {
       await callback();
@@ -14,19 +19,15 @@ describe('Onboarding goal contract', () => {
   };
 
   const fillRequiredFields = async (user) => {
-    await interact(() => user.selectOptions(screen.getByLabelText(/Objective type/i), 'create'));
-    await interact(() => user.type(screen.getByLabelText(/Start date/i), '2025-01-20'));
+    await interact(() => user.selectOptions(screen.getAllByRole('combobox')[0], 'Fundraising'));
+    await interact(() => user.type(screen.getByLabelText(/Start date/i), '2026-03-16'));
     await interact(() =>
-      user.type(screen.getByLabelText(/Deadline \(when it must be done\)/i), '2025-04-01')
+      user.type(screen.getByLabelText(/Deadline \(when it must be done\)/i), '2026-06-30')
     );
     await interact(() => user.selectOptions(screen.getByLabelText(/Days per week/i), '5'));
     await interact(() => user.selectOptions(screen.getByLabelText(/Minutes per day/i), '90'));
-    await interact(() => user.selectOptions(screen.getByLabelText(/Primary domain/i), 'Creation'));
-    await interact(() => user.selectOptions(screen.getByLabelText(/Work mode/i), 'SHIP'));
     await interact(() => user.type(screen.getByLabelText(/Target count/i), '6'));
-    await interact(() =>
-      user.selectOptions(screen.getByLabelText(/Target unit/i), 'songs recorded (rough takes)')
-    );
+    await interact(() => user.selectOptions(screen.getByLabelText(/Target unit/i), 'commitments secured'));
   };
 
   it('keeps CTA disabled until every required field is valid and reports missing fields in order', async () => {
@@ -37,16 +38,14 @@ describe('Onboarding goal contract', () => {
     expect(button).toBeDisabled();
     const missingSummary = screen.getByText(/^Missing:/i);
     expect(missingSummary).toHaveTextContent(
-      'Missing: Objective, Start date, Deadline, Capacity, Primary domain, Work mode, Target count, Target unit, Definition of done'
+      'Missing: Execution type, Start date, Deadline, Capacity, Target count, Target unit, Definition of done'
     );
 
     await fillRequiredFields(user);
     expect(button).toBeDisabled();
     expect(screen.getByText(/^Missing:/i)).toHaveTextContent('Missing: Definition of done');
 
-    await interact(() =>
-      user.type(screen.getByLabelText(/Definition of done/i), 'Rough vocal take + bounce exported')
-    );
+    await interact(() => user.type(screen.getByPlaceholderText('Count it when...'), 'Rough vocal take + bounce exported'));
     expect(button).toBeEnabled();
     expect(screen.queryByText(/^Missing:/i)).toBeNull();
   });
@@ -56,11 +55,9 @@ describe('Onboarding goal contract', () => {
     const onComplete = vi.fn();
     render(<OnboardingScreen onComplete={onComplete} />);
 
-    await interact(() => user.type(screen.getByLabelText(/Goal label/i), 'Launch demo'));
+    await interact(() => user.type(screen.getByPlaceholderText('e.g., Ship the first draft'), 'Launch demo'));
     await fillRequiredFields(user);
-    await interact(() =>
-      user.type(screen.getByLabelText(/Definition of done/i), 'Rough vocal take + bounce exported')
-    );
+    await interact(() => user.type(screen.getByPlaceholderText('Count it when...'), 'Rough vocal take + bounce exported'));
 
     const button = screen.getByRole('button', { name: /Enter Control Room/i });
     await interact(() => user.click(button));
@@ -68,44 +65,66 @@ describe('Onboarding goal contract', () => {
     const payload = onComplete.mock.calls[0][0];
     expect(payload).toHaveProperty('goalContract');
     expect(payload.goalContract).toMatchObject({
-      objectiveType: 'create',
-      domainPrimary: 'Creation',
-      workMode: 'SHIP',
+      objectiveType: 'Fundraising',
+      executionType: 'Fundraising',
       target: {
         count: 6,
-        unit: 'songs recorded (rough takes)',
+        unit: 'commitments secured',
         definitionOfDone: 'Rough vocal take + bounce exported'
       }
     });
     expect(payload.goalContract.baseline).toBeUndefined();
     expect(payload.goalContract.target.count).toBe(6);
-    expect(payload.goalContract.target.unit).toBe('songs recorded (rough takes)');
+    expect(payload.goalContract.target.unit).toBe('commitments secured');
     expect(payload.goalContract.target.definitionOfDone).toBe('Rough vocal take + bounce exported');
-    expect(payload.goalContract.startDateISO).toBe('2025-01-20T00:00:00.000Z');
-    expect(payload.goalContract.deadlineISO).toBe('2025-04-01T23:59:59.000Z');
+    expect(payload.goalContract.startDateISO).toBe('2026-03-16T00:00:00.000Z');
+    expect(payload.goalContract.deadlineISO).toBe('2026-06-30T23:59:59.000Z');
   });
 
   it('renders the exact deterministic plan preview lines', async () => {
     const user = userEvent.setup();
     render(<OnboardingScreen onComplete={() => {}} />);
 
+    await interact(() => user.selectOptions(screen.getAllByRole('combobox')[0], 'Fundraising'));
     await interact(() => user.type(screen.getByLabelText(/Target count/i), '6'));
+    await interact(() => user.selectOptions(screen.getByLabelText(/Target unit/i), 'commitments secured'));
+    await interact(() => user.type(screen.getByLabelText(/Start date/i), '2026-03-16'));
     await interact(() =>
-      user.selectOptions(screen.getByLabelText(/Target unit/i), 'songs recorded (rough takes)')
-    );
-    await interact(() => user.type(screen.getByLabelText(/Start date/i), '2025-01-20'));
-    await interact(() =>
-      user.type(screen.getByLabelText(/Deadline \(when it must be done\)/i), '2025-04-01')
+      user.type(screen.getByLabelText(/Deadline \(when it must be done\)/i), '2026-06-30')
     );
     await interact(() => user.selectOptions(screen.getByLabelText(/Days per week/i), '5'));
     await interact(() => user.selectOptions(screen.getByLabelText(/Minutes per day/i), '90'));
-    await interact(() =>
-      user.type(screen.getByLabelText(/Definition of done/i), 'Rough vocal take + bounce exported')
-    );
+    await interact(() => user.type(screen.getByPlaceholderText('Count it when...'), 'Rough vocal take + bounce exported'));
 
     expect(screen.getByText('We will generate work sessions based on your available time.')).toBeInTheDocument();
-    expect(screen.getByText('Target: 6 songs recorded (rough takes)')).toBeInTheDocument();
+    expect(screen.getByText('Target: 6 commitments secured')).toBeInTheDocument();
     expect(screen.getByText('Weekly time: 450 minutes')).toBeInTheDocument();
-    expect(screen.getByText('Plan window: Jan 20 → Apr 1 (72 days)')).toBeInTheDocument();
+    expect(screen.getByText('Plan window: Mar 16 → Jun 30 (107 days)')).toBeInTheDocument();
+  });
+
+  it('tailors fundraising target unit options to the goal label intent', async () => {
+    const user = userEvent.setup();
+    render(<OnboardingScreen onComplete={() => {}} />);
+
+    await interact(() =>
+      user.type(screen.getByPlaceholderText('e.g., Ship the first draft'), 'Raise 25k in sponsorship commitments for June event')
+    );
+    await interact(() => user.selectOptions(screen.getAllByRole('combobox')[0], 'Fundraising'));
+
+    expect(screen.getByRole('option', { name: 'sponsorship dollars committed' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'sponsorship agreements signed' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'investor meetings completed' })).toBeNull();
+  });
+
+  it('tailors non-fundraising target units from goal label intent', async () => {
+    const user = userEvent.setup();
+    render(<OnboardingScreen onComplete={() => {}} />);
+
+    await interact(() => user.type(screen.getByPlaceholderText('e.g., Ship the first draft'), 'Reach conversational spanish fluency'));
+    await interact(() => user.selectOptions(screen.getAllByRole('combobox')[0], 'SkillAcquisition'));
+
+    expect(screen.getByRole('option', { name: 'conversation sessions completed' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'vocabulary sets mastered' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'projects completed' })).toBeNull();
   });
 });

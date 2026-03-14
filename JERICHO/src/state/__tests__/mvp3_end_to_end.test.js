@@ -88,7 +88,7 @@ describe('MVP 3.0 End-to-End Smoke Test', () => {
       }
     });
 
-    const deliverables = withDeliv2.deliverablesByCycleId?.[cycleId] || [];
+    const deliverables = withDeliv2.deliverablesByCycleId?.[cycleId]?.deliverables || [];
     expect(deliverables.length).toBe(2);
     const delivId1 = deliverables[0].id;
     const delivId2 = deliverables[1].id;

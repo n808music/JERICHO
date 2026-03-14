@@ -58,6 +58,13 @@ Not active test failures. Known seams that Phase 2 must close.
 | Preview vs commit separation | Auto-apply and proposal semantics are mixed. Tests expect proposals to remain preview-only; system now auto-commits. Needs explicit artifact ownership per the module determinism audit. | Phase 2 — module boundary contracts |
 | `getAllBlocks` reads view slices | `getAllBlocks` reads `state.today`, `state.currentWeek`, `state.cycle` instead of a canonical flat store. This couples the query layer to the view layer. | Phase 2 — canonical block store |
 
+### Bucket 4 — Test environment debt
+Files that pass in isolation but can fail in the full suite due to leaked timer/DOM/module state.
+
+| File | Seam Description | Mitigation |
+|---|---|---|
+| `tests/components/OnboardingScreen.test.jsx` | Contamination-sensitive component test. Passed in isolation and on pre-`bccf0fb` baseline, but failed in one full-suite run with an empty render tree / missing DOM queries. | Defensive `beforeEach` resets real timers and DOM cleanup; do not classify as product regression without paired reproduction. |
+
 ---
 
 ## Phase 1 Objectives
