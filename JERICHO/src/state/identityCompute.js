@@ -6676,6 +6676,26 @@ function findBlockById(state, id) {
   return blocks.find((b) => b.id === id) || null;
 }
 
+function ensureBlockStore(state) {
+  if (!state.blockStore || typeof state.blockStore !== 'object') {
+    state.blockStore = { blocks: {} };
+  }
+  if (!state.blockStore.blocks || typeof state.blockStore.blocks !== 'object') {
+    state.blockStore.blocks = {};
+  }
+}
+
+function upsertCanonicalBlock(state, block) {
+  if (!block || !block.id) return;
+  ensureBlockStore(state);
+  state.blockStore.blocks[block.id] = block;
+}
+
+export function getCanonicalBlocks(state) {
+  if (!state.blockStore?.blocks) return [];
+  return Object.values(state.blockStore.blocks);
+}
+
 function createBlock(state, payload = {}) {
   const surface = (payload.surface || '').toString().toLowerCase() || 'today';
   const timeZone = payload.timeZone || state.appTime?.timeZone;
@@ -6755,6 +6775,7 @@ function createBlock(state, payload = {}) {
     beforeSummary: '',
     afterSummary: state.today?.summaryLine || ''
   };
+  upsertCanonicalBlock(state, newBlock);
   return newBlock;
 }
 
