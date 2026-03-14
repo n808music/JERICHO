@@ -3063,11 +3063,16 @@ function recomputeSummaries(state) {
 }
 
 function buildWeekFromCycle(cycle, date) {
-  const days = cycle.slice(0, 7).map((day, idx) => ({
-    ...day,
-    label: day.label || day.date || `Day ${idx + 1}`
-  }));
-  return { weekStart: date || days[0]?.date, days };
+  const weekStartDate = normalizeWeekStart(date || new Date().toISOString());
+  const weekStart = dayKeyFromDate(weekStartDate, 'UTC');
+  const cycleMap = new Map((Array.isArray(cycle) ? cycle : []).map((day) => [day?.date, day]));
+  const days = Array.from({ length: 7 }, (_, idx) => {
+    const dayKey = addDays(weekStart, idx, 'UTC');
+    const existing = cycleMap.get(dayKey);
+    const day = existing || { date: dayKey, blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] };
+    return { ...day, label: day.label || day.date || `Day ${idx + 1}` };
+  });
+  return { weekStart, days };
 }
 
 function buildMonthCycle(state, dateString) {
