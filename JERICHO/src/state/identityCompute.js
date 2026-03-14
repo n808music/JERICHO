@@ -6216,6 +6216,34 @@ function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
     reservedIds,
     timeZone: state.appTime?.timeZone
   });
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.group('JERICHO_SUGGESTION_TRACE');
+    console.log({
+      traceId: `trace-calibration-handoff-${contract.goalId}`,
+      cycleId: state.activeCycleId || null,
+      goalId: contract.goalId || null,
+      moduleName: 'applyCalibrationDays',
+      stepName: 'handoff',
+      status: nextSuggested.length > 0 ? 'ok' : 'fail',
+      timestamp: new Date().toISOString(),
+      inputSummary: {
+        contractStartDayKey: contract.startDayKey || null,
+        contractHorizonDays: contract.horizonDays || null,
+        suggestedTarget,
+        preservedCount: preserved.length,
+        timeZone: state.appTime?.timeZone || null,
+      },
+      outputSummary: {
+        nextSuggestedCount: nextSuggested.length,
+        totalProposedCount: preserved.length + nextSuggested.length,
+      },
+      errorCode: nextSuggested.length > 0 ? null : 'CALIBRATION_SUGGESTION_EMPTY',
+      reasonCodes: nextSuggested.length === 0 ? ['check_startDayKey_and_timeZone'] : [],
+    });
+    console.groupEnd();
+  }
+
   setCycleProposedBlocks(state, state.activeCycleId || null, [...preserved, ...nextSuggested]);
 
   const nowISO = new Date().toISOString();

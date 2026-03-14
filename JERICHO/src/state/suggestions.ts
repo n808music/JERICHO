@@ -51,6 +51,29 @@ export function generateSuggestions({
   reservedIds = new Set(),
   timeZone
 }: GenerateSuggestionsInput): Suggestion[] {
+  if (process.env.NODE_ENV !== 'production') {
+    console.group('JERICHO_SUGGESTION_TRACE');
+    console.log({
+      traceId: `trace-suggest-${goalId}-${startDayKey || 'no-anchor'}`,
+      goalId: goalId || null,
+      moduleName: 'buildSuggestedBlocks',
+      stepName: 'entry',
+      status: startDayKey ? 'ok' : 'fail',
+      timestamp: new Date().toISOString(),
+      inputSummary: {
+        startDayKey: startDayKey || null,
+        blocksPerWeek,
+        daysPerWeek,
+        templatesCount: templates.length,
+        timeZone: timeZone || null,
+        reservedIdsCount: reservedIds.size,
+      },
+      errorCode: startDayKey ? null : 'SUGGESTION_ANCHOR_MISSING',
+      reasonCodes: startDayKey ? [] : ['startDayKey_undefined'],
+    });
+    console.groupEnd();
+  }
+
   const slots = blocksPerWeek > 7 ? ['09:00', '16:00'] : ['09:00'];
   const suggestions: Suggestion[] = [];
   const nowISO = new Date().toISOString();
@@ -97,5 +120,27 @@ export function generateSuggestions({
     });
     sequence += 1;
   }
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.group('JERICHO_SUGGESTION_TRACE');
+    console.log({
+      traceId: `trace-suggest-${goalId}-${startDayKey || 'no-anchor'}`,
+      goalId: goalId || null,
+      moduleName: 'buildSuggestedBlocks',
+      stepName: 'complete',
+      status: suggestions.length > 0 ? 'ok' : 'fail',
+      timestamp: new Date().toISOString(),
+      outputSummary: {
+        suggestionsCount: suggestions.length,
+        requestedCount: blocksPerWeek,
+        firstDayKey: suggestions[0]?.dayKey || null,
+        lastDayKey: suggestions[suggestions.length - 1]?.dayKey || null,
+      },
+      errorCode: suggestions.length > 0 ? null : 'NO_SUGGESTIONS_GENERATED',
+      reasonCodes: suggestions.length === 0 ? ['anchor_or_template_failure'] : [],
+    });
+    console.groupEnd();
+  }
+
   return suggestions;
 }
