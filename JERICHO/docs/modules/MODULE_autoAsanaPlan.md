@@ -199,12 +199,38 @@ type AutoAsanaPlan = {
 
 ## Phase 2 Required Actions (to reach GREEN grade)
 
-- [ ] Remove `horizonDays = 14` default — make it required or raise to `90`
-- [ ] Change `maxBlocksPerDay` internal default from `Infinity` to `1`
-- [ ] Add `code?: string` to `conflicts[]` in `AutoAsanaPlan` type declaration
-- [ ] Add `PlanProof` and `TimeWindow` type definitions to this sheet
+- [x] Raise `horizonDays` default from `14` to `90` as a temporary boundary safeguard until callers pass explicit horizon values
+- [x] Add `code?: string` to `conflicts[]` in `AutoAsanaPlan` type declaration
+- [x] Add `PlanProof` and `TimeWindow` type definitions to this sheet
 - [ ] Add tests for conflict emission shape, recovery options, and boundary enforcement
 - [ ] Write agent charter (Phase 3 prerequisite)
+
+## Deferred Boundary Actions
+
+| Action | Reason deferred | Prerequisite |
+|---|---|---|
+| `maxBlocksPerDay` internal default → `1` | Breaks work-window generation tests that assume `Infinity` fallback. Requires explicit per-day constraints in those fixtures before the default can be tightened safely. | Fixture updates in `schedule.generatesFromWorkWindows` and `schedule.generate.materializesBlocks` |
+
+### `PlanProof` type
+
+```typescript
+type PlanProof = {
+  workableDaysRemaining: number;
+  totalRequiredUnits: number;
+  requiredPacePerDay: number;
+  maxPerDay: number;
+  maxPerWeek: number;
+  slackUnits: number;
+  slackRatio: number;
+  intensityRatio: number;
+};
+```
+
+### `TimeWindow` type
+
+```typescript
+type TimeWindow = { startMin: number; endMin: number };
+```
 
 ---
 

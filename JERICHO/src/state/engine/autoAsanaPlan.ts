@@ -38,8 +38,12 @@ type AutoAsanaPlan = {
     durationMinutes: number;
     kind: string;
     title: string;
+    identityKey?: string;
+    deliverableId?: string | null;
+    actionId?: string | null;
+    sessionIndex?: number | null;
   }>;
-  conflicts: { kind: string; detail: string; candidateResolutions?: string[] }[];
+  conflicts: { kind: string; detail: string; code?: string; candidateResolutions?: string[] }[];
   recoveryOptions: { kind: string; detail: string }[];
   audit: { generatedAtISO: string; goalId: string; cycleId: string; policyVersion: string };
 };
@@ -63,8 +67,10 @@ export function compileAutoAsanaPlan({
   planProof,
   constraints,
   nowISO,
-  horizonDays = 14,
-  acceptedBlocks = []
+  horizonDays = 90,
+  acceptedBlocks = [],
+  actionSequence = [],
+  sessionPlan = []
 }: {
   goalId: string;
   cycleId: string;
@@ -73,6 +79,16 @@ export function compileAutoAsanaPlan({
   nowISO: string;
   horizonDays?: number;
   acceptedBlocks?: Array<{ id: string; startISO: string; durationMinutes: number }>;
+  actionSequence?: Array<{ id?: string; title?: string; estimateMin?: number; dependencies?: string[]; deliverableId?: string | null }>;
+  sessionPlan?: Array<{
+    date?: string;
+    startTime?: string;
+    durationMinutes?: number;
+    actionSteps?: string[];
+    completionCondition?: string;
+    deliverableId?: string;
+    actionId?: string;
+  }>;
 }): AutoAsanaPlan {
   const timeZone = constraints?.timezone || 'UTC';
   const nowDay = dayKeyFromISO(nowISO, timeZone) || nowDayKey(timeZone);
@@ -82,6 +98,11 @@ export function compileAutoAsanaPlan({
       : nowDay;
   const endDayKey = addDays(startDayKey, Math.max(0, horizonDays - 1), timeZone);
   const dayKeys = collectHorizonDays(startDayKey, endDayKey, constraints, timeZone);
+  if (process.env.NODE_ENV !== 'production') {
+    // Placement diagnostics for horizon expansion vs. distributor output.
+    // eslint-disable-next-line no-console
+    console.log('dayKeys sample', dayKeys[0], dayKeys[dayKeys.length - 1], 'total:', dayKeys.length);
+  }
 
   const maxPerDay = Math.max(0, Number.isFinite(planProof?.maxPerDay) ? Number(planProof.maxPerDay) : 0);
   const requiredPerDay = Math.max(0, Math.ceil(planProof?.requiredPacePerDay || 0));
@@ -93,7 +114,9 @@ export function compileAutoAsanaPlan({
     timeZone,
     cycleId,
     constraints,
-    acceptedBlocks
+    acceptedBlocks,
+    actionSequence,
+    sessionPlan
   });
 
   const conflicts: AutoAsanaPlan['conflicts'] = schedule.conflicts;
@@ -152,7 +175,7 @@ export function compileAutoAsanaPlan({
       generatedAtISO: nowISO,
       goalId,
       cycleId,
-      policyVersion: 'auto_asana_v1.1'
+      policyVersion: 'auto_asana_v1.2'
     }
   };
 }
@@ -239,7 +262,9 @@ function scheduleHorizonBlocks({
   timeZone,
   cycleId,
   constraints,
-  acceptedBlocks
+  acceptedBlocks,
+  actionSequence,
+  sessionPlan
 }: {
   dayKeys: string[];
   plannedPerDay: number;
@@ -247,8 +272,29 @@ function scheduleHorizonBlocks({
   cycleId: string;
   constraints: Constraints;
   acceptedBlocks: Array<{ id: string; startISO: string; durationMinutes: number }>;
+  actionSequence: Array<{ id?: string; title?: string; estimateMin?: number; dependencies?: string[]; deliverableId?: string | null }>;
+  sessionPlan: Array<{
+    date?: string;
+    startTime?: string;
+    durationMinutes?: number;
+    actionSteps?: string[];
+    completionCondition?: string;
+    deliverableId?: string;
+    actionId?: string;
+  }>;
 }) {
-  const placed: Array<{ id: string; dayKey: string; startISO: string; durationMinutes: number; kind: string; title: string }> = [];
+  const placed: Array<{
+    id: string;
+    dayKey: string;
+    startISO: string;
+    durationMinutes: number;
+    kind: string;
+    title: string;
+    identityKey?: string;
+    deliverableId?: string | null;
+    actionId?: string | null;
+    sessionIndex?: number | null;
+  }> = [];
   const conflicts: AutoAsanaPlan['conflicts'] = [];
   const recoveryOptions: AutoAsanaPlan['recoveryOptions'] = [];
   if (!plannedPerDay || !dayKeys.length) {
@@ -269,9 +315,20 @@ function scheduleHorizonBlocks({
     weeklyCounts[weekKey] = (weeklyCounts[weekKey] || 0) + 1;
   });
 
-  const requiredDrafts = buildRequiredDrafts(dayKeys, plannedPerDay, cycleId, durationMinutes);
+  const requiredDrafts = buildRequiredDrafts(
+    dayKeys,
+    plannedPerDay,
+    cycleId,
+    durationMinutes,
+    actionSequence,
+    sessionPlan
+  );
+  const seenIdentityKeys = new Set<string>();
 
   requiredDrafts.forEach((draft) => {
+    if (draft.identityKey && seenIdentityKeys.has(draft.identityKey)) {
+      return;
+    }
     const slot = findSlotForDraft({
       draft,
       dayKeys,
@@ -304,28 +361,259 @@ function scheduleHorizonBlocks({
       startISO: slot.startISO,
       durationMinutes: draft.durationMinutes,
       kind: 'EXECUTION',
-      title: 'Auto Asana Execution'
+      title: draft.title || 'Auto Asana Execution',
+      identityKey: draft.identityKey || '',
+      deliverableId: draft.deliverableId || null,
+      actionId: draft.actionId || null,
+      sessionIndex: Number.isFinite(draft.sessionIndex) ? draft.sessionIndex : null
     });
+    if (draft.identityKey) {
+      seenIdentityKeys.add(draft.identityKey);
+    }
     dailyCounts[slot.dayKey] = (dailyCounts[slot.dayKey] || 0) + 1;
     const weekKey = weekKeyForDay(slot.dayKey);
     weeklyCounts[weekKey] = (weeklyCounts[weekKey] || 0) + 1;
   });
 
+  if (process.env.NODE_ENV !== 'production') {
+    // eslint-disable-next-line no-console
+    console.log('placed dayKeys', placed.filter((d) => d?.dayKey).map((d) => d.dayKey).sort());
+  }
+
   return { placed, conflicts, recoveryOptions };
 }
 
-function buildRequiredDrafts(dayKeys: string[], plannedPerDay: number, cycleId: string, durationMinutes: number) {
-  const drafts: Array<{ id: string; durationMinutes: number; targetDayKey: string; failCode?: string; failDayKey?: string; recoveryOptions?: any[] }> = [];
+function buildRequiredDrafts(
+  dayKeys: string[],
+  plannedPerDay: number,
+  cycleId: string,
+  durationMinutes: number,
+  actionSequence: Array<{ id?: string; title?: string; estimateMin?: number; dependencies?: string[]; deliverableId?: string | null }>,
+  sessionPlan: Array<{
+    date?: string;
+    startTime?: string;
+    durationMinutes?: number;
+    actionSteps?: string[];
+    completionCondition?: string;
+    deliverableId?: string;
+    actionId?: string;
+  }>
+) {
+  const orderedActions = orderActionsForScheduling(actionSequence);
+  const actionTitleById = new Map<string, string>();
+  const actionTitleByDeliverableId = new Map<string, string>();
+  orderedActions.forEach((action) => {
+    const id = String(action?.id || '').trim();
+    const title = String(action?.title || '').trim();
+    const deliverableId = String(action?.deliverableId || '').trim();
+    if (id && title) {
+      actionTitleById.set(id, title);
+    }
+    if (deliverableId && title && !actionTitleByDeliverableId.has(deliverableId)) {
+      actionTitleByDeliverableId.set(deliverableId, title);
+    }
+  });
+  const normalizedSessionPlan = normalizeSessionPlanEntries(sessionPlan);
+  if (normalizedSessionPlan.length > 0) {
+    const totalSessions = Math.max(1, normalizedSessionPlan.length);
+    return normalizedSessionPlan.map((session, index) => {
+      const orderedFallbackAction = orderedActions[Math.min(index, Math.max(0, orderedActions.length - 1))] || null;
+      const syntheticActionKey = `synthetic-action-${index + 1}`;
+      const actionKey =
+        session.actionId ||
+        String(orderedFallbackAction?.id || '').trim() ||
+        syntheticActionKey;
+      const canonicalActionTitle = actionTitleById.get(actionKey) || '';
+      const deliverableKey =
+        session.deliverableId ||
+        String(orderedFallbackAction?.deliverableId || '').trim() ||
+        `deliv-synthetic-${index + 1}`;
+      const canonicalDeliverableTitle = actionTitleByDeliverableId.get(deliverableKey) || '';
+      const sessionIndex = Number.isFinite(session.sessionIndex) ? Number(session.sessionIndex) : index;
+      const spreadIndex = dayKeys.length
+        ? Math.min(dayKeys.length - 1, Math.floor((index * dayKeys.length) / totalSessions))
+        : -1;
+      const spreadTargetDayKey = spreadIndex >= 0 ? dayKeys[spreadIndex] : null;
+      const identityKey = buildProposalIdentityKey({
+        cycleId,
+        deliverableId: deliverableKey,
+        actionId: actionKey,
+        sessionIndex
+      });
+      return {
+        id: `blk-auto-${identityKey}`,
+        durationMinutes: session.durationMinutes,
+        targetDayKey: spreadTargetDayKey || session.date,
+        preferredStartTime: session.startTime,
+        title:
+          canonicalActionTitle ||
+          canonicalDeliverableTitle ||
+          String(orderedFallbackAction?.title || '').trim() ||
+          session.title,
+        actionId: actionKey,
+        deliverableId: deliverableKey,
+        sessionIndex,
+        identityKey
+      };
+    });
+  }
+  // Canonical action sequence present: expand each action into one or more
+  // session blocks, then spread all sessions across the available horizon.
+  if (orderedActions.length > 0 && dayKeys.length > 0) {
+    const baseSessionMinutes = Math.max(15, Number(durationMinutes) || 60);
+    const actionSessionCounts = new Map<string, number>();
+    const sessionSpecs = orderedActions.flatMap((action, actionIndex) => {
+      const actionDuration = Number(action?.estimateMin);
+      const totalMinutes = Number.isFinite(actionDuration) && actionDuration > 0 ? actionDuration : baseSessionMinutes;
+      const sessionCount = Math.max(1, Math.ceil(totalMinutes / baseSessionMinutes));
+      let remaining = totalMinutes;
+      return Array.from({ length: sessionCount }).map((_, idx) => {
+        const isLast = idx === sessionCount - 1;
+        const chunk = isLast ? Math.max(15, remaining) : Math.max(15, baseSessionMinutes);
+        remaining = Math.max(0, remaining - chunk);
+        const titleBase = String(action?.title || '').trim() || 'Auto Asana Execution';
+        const title =
+          sessionCount > 1 ? `${titleBase} (Session ${idx + 1}/${sessionCount})` : titleBase;
+        const actionId = action?.id ? String(action.id) : `synthetic-action-${actionIndex + 1}`;
+        const currentIndex = actionSessionCounts.get(actionId) || 0;
+        actionSessionCounts.set(actionId, currentIndex + 1);
+        const deliverableId = action?.deliverableId ? String(action.deliverableId) : `deliv-synthetic-${actionIndex + 1}`;
+        return {
+          actionId,
+          deliverableId,
+          title,
+          durationMinutes: chunk,
+          sessionIndex: currentIndex
+        };
+      });
+    });
+
+    const totalSessions = Math.max(1, sessionSpecs.length);
+    return sessionSpecs.map((session, index) => {
+      const targetIndex = Math.min(
+        dayKeys.length - 1,
+        Math.floor((index * dayKeys.length) / totalSessions)
+      );
+      const targetDayKey = dayKeys[targetIndex] || dayKeys[dayKeys.length - 1];
+      return {
+        id: `blk-auto-${buildProposalIdentityKey({
+          cycleId,
+          deliverableId: session.deliverableId,
+          actionId: session.actionId,
+          sessionIndex: session.sessionIndex
+        })}`,
+        durationMinutes: session.durationMinutes,
+        targetDayKey,
+        title: session.title,
+        actionId: session.actionId,
+        deliverableId: session.deliverableId,
+        sessionIndex: session.sessionIndex,
+        identityKey: buildProposalIdentityKey({
+          cycleId,
+          deliverableId: session.deliverableId,
+          actionId: session.actionId,
+          sessionIndex: session.sessionIndex
+        })
+      };
+    });
+  }
+  const drafts: Array<{
+    id: string;
+    durationMinutes: number;
+    targetDayKey: string;
+    preferredStartTime?: string;
+    title?: string;
+    deliverableId?: string | null;
+    actionId?: string | null;
+    sessionIndex?: number;
+    identityKey?: string;
+    failCode?: string;
+    failDayKey?: string;
+    recoveryOptions?: any[];
+  }> = [];
+  let actionCursor = 0;
   dayKeys.forEach((dayKey) => {
     for (let idx = 0; idx < plannedPerDay; idx += 1) {
+      const action = orderedActions.length ? orderedActions[actionCursor % orderedActions.length] : null;
+      actionCursor += 1;
+      const actionTitle = String(action?.title || '').trim();
+      const actionDuration = Number(action?.estimateMin);
+      const actionId = action?.id ? String(action.id) : `synthetic-action-${actionCursor}`;
+      const deliverableId = action?.deliverableId ? String(action.deliverableId) : `deliv-synthetic-${actionCursor}`;
+      const sessionIndex = idx;
+      const identityKey = buildProposalIdentityKey({
+        cycleId,
+        deliverableId,
+        actionId,
+        sessionIndex
+      });
       drafts.push({
-        id: `blk-auto-${cycleId}-${dayKey}-${idx}`,
-        durationMinutes,
-        targetDayKey: dayKey
+        id: `blk-auto-${identityKey}`,
+        durationMinutes: Number.isFinite(actionDuration) && actionDuration > 0 ? actionDuration : durationMinutes,
+        targetDayKey: dayKey,
+        title: actionTitle || 'Auto Asana Execution',
+        actionId,
+        deliverableId,
+        sessionIndex,
+        identityKey
       });
     }
   });
   return drafts;
+}
+
+function orderActionsForScheduling(
+  actions: Array<{ id?: string; title?: string; estimateMin?: number; dependencies?: string[] }>
+) {
+  const source = Array.isArray(actions) ? actions.filter((action) => action && action.id && action.title) : [];
+  if (!source.length) return [];
+
+  const byId = new Map(source.map((action) => [String(action.id), action]));
+  const indegree = new Map<string, number>();
+  const out = new Map<string, string[]>();
+
+  byId.forEach((_, id) => {
+    indegree.set(id, 0);
+    out.set(id, []);
+  });
+
+  source.forEach((action) => {
+    const id = String(action.id);
+    const deps = Array.isArray(action.dependencies) ? action.dependencies : [];
+    deps.forEach((dep) => {
+      const depId = String(dep || '');
+      if (!byId.has(depId) || depId === id) return;
+      out.get(depId)?.push(id);
+      indegree.set(id, (indegree.get(id) || 0) + 1);
+    });
+  });
+
+  const queue = source
+    .map((action) => String(action.id))
+    .filter((id) => (indegree.get(id) || 0) === 0);
+  const ordered: Array<{ id?: string; title?: string; estimateMin?: number; dependencies?: string[] }> = [];
+  const visited = new Set<string>();
+
+  while (queue.length) {
+    const current = queue.shift() as string;
+    if (visited.has(current)) continue;
+    visited.add(current);
+    const action = byId.get(current);
+    if (action) ordered.push(action);
+    (out.get(current) || []).forEach((nextId) => {
+      indegree.set(nextId, (indegree.get(nextId) || 0) - 1);
+      if ((indegree.get(nextId) || 0) === 0) queue.push(nextId);
+    });
+  }
+
+  if (ordered.length < source.length) {
+    source.forEach((action) => {
+      const id = String(action.id);
+      if (!visited.has(id)) ordered.push(action);
+    });
+  }
+
+  return ordered;
 }
 
 function findSlotForDraft({
@@ -359,7 +647,10 @@ function findSlotForDraft({
   const explicitWeeklyWindows = hasExplicitWeeklyWindows(constraints);
   const dayEndAtMin = parseHHMMToMinutes(constraints?.dayEndAtHHMM || '23:59');
 
-  for (const dayKey of dayKeys) {
+  const dayScanOrder = orderDayKeysForDraft(dayKeys, draft?.targetDayKey);
+  const preferredStartMinutes = parseHHMMToMinutes(draft?.preferredStartTime || '');
+
+  for (const dayKey of dayScanOrder) {
     const allowed = explicitWeeklyWindows
       ? subtractWindows(
           normalizeHHMMWindows(constraints?.weeklyWindows?.[dayCodeFromDayKey(dayKey, timeZone)] || [], dayEndAtMin),
@@ -386,6 +677,22 @@ function findSlotForDraft({
       continue;
     }
     for (const window of allowed) {
+      if (preferredStartMinutes > 0 && preferredStartMinutes + draft.durationMinutes <= window.endMin) {
+        const preferredCandidate = {
+          startMin: Math.max(window.startMin, preferredStartMinutes),
+          endMin: Math.max(window.startMin, preferredStartMinutes) + draft.durationMinutes
+        };
+        if (
+          preferredCandidate.endMin <= window.endMin &&
+          !overlapsAny(preferredCandidate, dayBusy)
+        ) {
+          overlapOnly = false;
+          const startISO = buildLocalStartISO(dayKey, minutesToTime(preferredCandidate.startMin), timeZone).startISO;
+          if (startISO) {
+            return { dayKey, startISO };
+          }
+        }
+      }
       for (let startMin = window.startMin; startMin + draft.durationMinutes <= window.endMin; startMin += step) {
         const candidate = { startMin, endMin: startMin + draft.durationMinutes };
         if (!overlapsAny(candidate, dayBusy)) {
@@ -409,6 +716,102 @@ function findSlotForDraft({
     draft.recoveryOptions = [{ kind: 'EXTEND_HORIZON', detail: 'Extend horizon or reduce sessions.' }];
   }
   return null;
+}
+
+function orderDayKeysForDraft(dayKeys: string[], targetDayKey?: string) {
+  if (!Array.isArray(dayKeys) || dayKeys.length <= 1) return dayKeys || [];
+  if (!targetDayKey) return dayKeys;
+  const targetIndex = dayKeys.indexOf(targetDayKey);
+  if (targetIndex < 0) return dayKeys;
+
+  const ordered: string[] = [];
+  for (let offset = 0; ordered.length < dayKeys.length; offset += 1) {
+    const right = targetIndex + offset;
+    if (right >= 0 && right < dayKeys.length) {
+      ordered.push(dayKeys[right]);
+    }
+    if (offset === 0) continue;
+    const left = targetIndex - offset;
+    if (left >= 0 && left < dayKeys.length) {
+      ordered.push(dayKeys[left]);
+    }
+  }
+  return ordered;
+}
+
+function normalizeSessionPlanEntries(
+  sessions: Array<{
+    date?: string;
+    startTime?: string;
+    durationMinutes?: number;
+    actionSteps?: string[];
+    completionCondition?: string;
+    deliverableId?: string;
+    actionId?: string;
+  }>
+) {
+  if (!Array.isArray(sessions) || sessions.length === 0) return [];
+  const counterByAction = new Map<string, number>();
+  const normalized = sessions
+    .map((session, index) => {
+      const date = String(session?.date || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+      const startTime = String(session?.startTime || '').trim();
+      const duration = Number(session?.durationMinutes);
+      const durationMinutes = Number.isFinite(duration) && duration > 0 ? Math.floor(duration) : 60;
+      const actionId = String(session?.actionId || '').trim();
+      const deliverableId = String(session?.deliverableId || '').trim();
+      const actionSteps = Array.isArray(session?.actionSteps) ? session.actionSteps.map((step) => String(step || '').trim()).filter(Boolean) : [];
+      const completionCondition = String(session?.completionCondition || '').trim();
+      const fallbackTitle = `Execution session ${index + 1}`;
+      const title = actionSteps[0] || completionCondition || fallbackTitle;
+      const actionKey = actionId || `synthetic-action-${index + 1}`;
+      const sessionIndex = counterByAction.get(actionKey) || 0;
+      counterByAction.set(actionKey, sessionIndex + 1);
+      return {
+        date,
+        startTime: /^\d{2}:\d{2}$/.test(startTime) ? startTime : '09:00',
+        durationMinutes: Math.max(15, durationMinutes),
+        actionId: actionKey,
+        deliverableId: deliverableId || `deliv-synthetic-${index + 1}`,
+        title,
+        sessionIndex
+      };
+    })
+    .filter(Boolean) as Array<{
+    date: string;
+    startTime: string;
+    durationMinutes: number;
+    actionId: string;
+    deliverableId: string;
+    title: string;
+    sessionIndex: number;
+  }>;
+  normalized.sort((left, right) => {
+    if (left.date !== right.date) return left.date.localeCompare(right.date);
+    if (left.startTime !== right.startTime) return left.startTime.localeCompare(right.startTime);
+    if (left.actionId !== right.actionId) return left.actionId.localeCompare(right.actionId);
+    return left.sessionIndex - right.sessionIndex;
+  });
+  return normalized;
+}
+
+function buildProposalIdentityKey({
+  cycleId,
+  deliverableId,
+  actionId,
+  sessionIndex
+}: {
+  cycleId: string;
+  deliverableId?: string | null;
+  actionId?: string | null;
+  sessionIndex?: number | null;
+}) {
+  const normalizedCycleId = String(cycleId || 'cycle');
+  const normalizedDeliverableId = String(deliverableId || 'deliv-synthetic');
+  const normalizedActionId = String(actionId || 'synthetic-action');
+  const normalizedSessionIndex = Number.isFinite(Number(sessionIndex)) ? Number(sessionIndex) : 0;
+  return `${normalizedCycleId}::${normalizedDeliverableId}::${normalizedActionId}::${normalizedSessionIndex}`;
 }
 
 function normalizeWindows(windows: TimeWindow[]) {
@@ -468,7 +871,18 @@ function clampPlacedBlocksToCycleWindow({
   constraints,
   timeZone
 }: {
-  placed: Array<{ id: string; dayKey: string; startISO: string; durationMinutes: number; kind: string; title: string }>;
+  placed: Array<{
+    id: string;
+    dayKey: string;
+    startISO: string;
+    durationMinutes: number;
+    kind: string;
+    title: string;
+    identityKey?: string;
+    deliverableId?: string | null;
+    actionId?: string | null;
+    sessionIndex?: number | null;
+  }>;
   conflicts: AutoAsanaPlan['conflicts'];
   constraints: Constraints;
   timeZone: string;
