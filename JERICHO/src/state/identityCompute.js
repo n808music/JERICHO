@@ -5598,9 +5598,6 @@ function applyDraftSchedule(state, payload = {}) {
     timeZone,
   });
   let proposedItems = (suggestedBlocks || []).filter((item) => item?.status === 'suggested');
-  if (!proposedItems.length) {
-    proposedItems = (suggestedBlocks || []).filter(Boolean);
-  }
   const appliedPolicyId = recordDraftPolicyParity(state, appliedPreview);
   if (!proposedItems.length) {
     // No-op apply: preserve deterministic preview/apply parity flags for diagnostics.
