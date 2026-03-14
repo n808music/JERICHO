@@ -166,6 +166,18 @@ Modules to isolate and make fully deterministic per the 2.0 game plan:
 
 ---
 
+## Phase 1 Status
+
+Status: COMPLETE as of `26c7d8b` / diagnostic dashboard mounted.
+
+Gate check:
+- Structured traces cover goal intake, proposal generation, calibration handoff, apply, commit, and convergence
+- Bucket 1 failures are closed
+- Baseline debt registry exists with Bucket 3, Bucket 4, and performance flake notes documented
+- Diagnostic dashboard panel is mounted in dev mode for live trace inspection
+
+---
+
 ## Gate: When Phase 1 Is Done
 
 Phase 1 is complete when:
