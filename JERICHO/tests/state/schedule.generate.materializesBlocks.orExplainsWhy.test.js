@@ -59,17 +59,11 @@ describe('GENERATE_PLAN materializes blocks or explains why', () => {
     });
 
     const next = computeDerivedState(buildState(), { type: 'GENERATE_PLAN', payload: { cycleId: 'cycle-1' } });
-    const proposedCount = (next.proposedBlocks || []).filter((b) => b?.status === 'suggested').length;
-
-    if (proposedCount > 0) {
-      expect(next.lastPlanError).toBeNull();
-    } else {
-      expect(next.lastPlanError?.code).toBe('NO_PROPOSED_BLOCKS');
-      expect(Array.isArray(next.lastPlanError?.reasonCodes)).toBe(true);
-      expect(next.lastPlanError.reasonCodes.length).toBeGreaterThan(0);
-    }
-
-    expect(!(proposedCount === 0 && !next.lastPlanError)).toBe(true);
+    expect((next.proposedBlocks || []).filter((b) => b?.status === 'accepted').length).toBe(0);
+    expect(next.scheduleApplied).toBe(false);
+    expect(next.lastPlanError?.code).toBe('NO_PROPOSED_BLOCKS');
+    expect(Array.isArray(next.lastPlanError?.reasonCodes)).toBe(true);
+    expect(next.lastPlanError.reasonCodes.length).toBeGreaterThan(0);
   });
 
   it('materialized proposals clear lastPlanError', () => {
@@ -87,7 +81,8 @@ describe('GENERATE_PLAN materializes blocks or explains why', () => {
     });
 
     const next = computeDerivedState(buildState(), { type: 'GENERATE_PLAN', payload: { cycleId: 'cycle-1' } });
-    expect((next.proposedBlocks || []).some((b) => b?.status === 'suggested')).toBe(true);
+    expect((next.proposedBlocks || []).some((b) => b?.status === 'accepted')).toBe(true);
+    expect(next.scheduleApplied).toBe(true);
     expect(next.lastPlanError).toBeNull();
   });
 });
