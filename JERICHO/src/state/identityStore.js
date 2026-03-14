@@ -8,10 +8,20 @@ import { assertEngineAuthority } from './invariants/engineAuthority.ts';
 import { validateGoalAdmission } from '../domain/goal/GoalAdmissionPolicy.ts';
 import { GoalRejectionCode } from '../domain/goal/GoalRejectionCode.ts';
 import { buildAutoDeliverablesFromGoalContract, detectCompoundGoal } from '../domain/autoStrategy.ts';
+import { createGeneratePlanWithLLM } from './storeLLMActions.ts';
 
 const STATE_VERSION = '1.0.0';
 
 const IdentityContext = createContext(null);
+
+const ALL_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+function emptyWorkWindows() {
+  return ALL_DAYS.reduce((acc, day) => {
+    acc[day] = [];
+    return acc;
+  }, {});
+}
 
 const seedState = buildInitialIdentityState();
 
@@ -115,7 +125,7 @@ function buildInitialIdentityState() {
     activeFromISO: todayDate,
     activeUntilISO: contractDeadline,
     scope: {
-      domainsAllowed: ['Body', 'Focus', 'Creation', 'Resources'],
+      domainsAllowed: [],
       timeHorizon: 'week',
       timezone: 'America/Chicago'
     },
@@ -228,12 +238,14 @@ function buildInitialIdentityState() {
     goalAdmissionByGoal: {},
     aspirationsByCycleId: { 'cycle-1': [] },
     lastPlanError: null,
+    planRecovery: null,
     proposedBlocks: [],
     proposedBlocksByCycleId: { 'cycle-1': [] },
     history: { cycles: [] },
     today,
     currentWeek: { weekStart: '2025-12-08', days: weekDays },
     cycle: weekDays,
+    blockStore: { blocks: {} },
     viewDate: todayDate,
     templates: { objectives: {} },
     lastAdaptedDate: null,
@@ -312,6 +324,87 @@ function sanitizeTargets(dailyTargets = []) {
     map[key] = Number.isFinite(val) && val >= 0 ? val : 0;
   });
   return Object.entries(map).map(([name, minutes]) => ({ name, minutes }));
+}
+
+function parseHHMMToMinutes(hhmm) {
+  const text = String(hhmm || '').trim();
+  const match = /^(\d{1,2}):(\d{2})$/.exec(text);
+  if (!match) return 0;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return 0;
+  return Math.max(0, Math.min(24 * 60, hours * 60 + minutes));
+}
+
+function getWorkDaysFromWindows(workWindows) {
+  if (!workWindows || typeof workWindows !== 'object') return ['mon', 'tue', 'wed', 'thu', 'fri'];
+  const workDays = Object.entries(workWindows)
+    .filter(([, windows]) => Array.isArray(windows) && windows.length > 0)
+    .map(([day]) => String(day || '').trim().toLowerCase());
+  return workDays.length ? workDays : ['mon', 'tue', 'wed', 'thu', 'fri'];
+}
+
+function getAvailableMinutesForDow(dow, workWindows) {
+  if (!workWindows || typeof workWindows !== 'object') return 60;
+  const windows = Array.isArray(workWindows?.[dow]) ? workWindows[dow] : [];
+  return windows.reduce((total, window) => {
+    const start = parseHHMMToMinutes(window?.start);
+    const end = parseHHMMToMinutes(window?.end);
+    return total + Math.max(0, end - start);
+  }, 0);
+}
+
+function computeWeeklyCapacityFromWorkWindows(workWindows) {
+  const workDays = getWorkDaysFromWindows(workWindows);
+  return workDays.reduce((total, dow) => total + getAvailableMinutesForDow(dow, workWindows), 0);
+}
+
+function computeMaxDailyMinutesFromWorkWindows(workWindows) {
+  const workDays = getWorkDaysFromWindows(workWindows);
+  return workDays.reduce((maxValue, dow) => Math.max(maxValue, getAvailableMinutesForDow(dow, workWindows)), 0);
+}
+
+function workDaysToWeekdayIndexes(workDays = []) {
+  const map = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+  const out = workDays.map((dow) => map[dow]).filter((idx) => Number.isFinite(idx));
+  return out.length ? out : [1, 2, 3, 4, 5];
+}
+
+function bootstrapActionsFromDeliverables(cycleId, deliverables = []) {
+  const normalized = Array.isArray(deliverables) ? deliverables : [];
+  return normalized
+    .filter((deliverable) => deliverable && deliverable.id)
+    .map((deliverable, index) => ({
+      id: `act-${cycleId}-${index + 1}`,
+      title: String(deliverable.title || `Deliverable ${index + 1}`).trim() || `Deliverable ${index + 1}`,
+      status: 'todo',
+      priority: index + 1,
+      topoIndex: index,
+      dependsOn: [],
+      estimateMin: Math.max(30, Number(deliverable.estimateMin || 60)),
+      deliverableId: deliverable.id
+    }));
+}
+
+function buildAdmissionPlanProofFromActions(actions = []) {
+  const totalRequiredUnits = Math.max(1, Array.isArray(actions) ? actions.length : 1);
+  const workableDaysRemaining = 14;
+  const requiredPacePerDay = Math.max(1, Math.ceil(totalRequiredUnits / workableDaysRemaining));
+  const maxPerDay = Math.max(1, requiredPacePerDay);
+  const maxPerWeek = Math.max(1, requiredPacePerDay * 7);
+  const slackUnits = Math.max(0, workableDaysRemaining * maxPerDay - totalRequiredUnits);
+  const slackRatio = totalRequiredUnits > 0 ? slackUnits / totalRequiredUnits : 0;
+  const intensityRatio = maxPerDay > 0 ? requiredPacePerDay / maxPerDay : 1;
+  return {
+    workableDaysRemaining,
+    totalRequiredUnits,
+    requiredPacePerDay,
+    maxPerDay,
+    maxPerWeek,
+    slackUnits,
+    slackRatio,
+    intensityRatio
+  };
 }
 
 function applySetDefiniteGoal(state, action) {
@@ -487,10 +580,15 @@ export function IdentityProvider({ children, initialState }) {
   const [state, dispatch] = useReducer(identityReducer, initialState || seedState);
   const [activePractice, setActivePractice] = React.useState(null);
   const [activeLens, setActiveLens] = React.useState(null);
+  const stateRef = React.useRef(state);
 
   if (process.env.NODE_ENV !== 'production') {
     assertEngineAuthority(state);
   }
+
+  React.useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const beginBlock = useCallback((id) => dispatch({ type: 'BEGIN_BLOCK', id }), []);
   const completeBlock = useCallback((id) => dispatch({ type: 'COMPLETE_BLOCK', id }), []);
@@ -504,7 +602,9 @@ export function IdentityProvider({ children, initialState }) {
   const openLens = useCallback((lens) => setActiveLens(lens), []);
   const rebalanceToday = useCallback((mode) => dispatch({ type: 'REBALANCE_TODAY', mode }), []);
   const completeOnboarding = useCallback((onboarding) => dispatch({ type: 'COMPLETE_ONBOARDING', onboarding }), []);
+  const finishOnboardingGate = useCallback((onboarding) => dispatch({ type: 'FINISH_ONBOARDING_GATE', onboarding }), []);
   const applyOnboardingInputs = useCallback((onboarding) => dispatch({ type: 'APPLY_ONBOARDING_INPUTS', onboarding }), []);
+  const clearPlanRecovery = useCallback(() => dispatch({ type: 'CLEAR_PLAN_RECOVERY' }), []);
   const startNewCycle = useCallback((payload) => dispatch({ type: 'START_NEW_CYCLE', payload }), []);
   const startNewCycleWithDecision = useCallback(
     (payload) => dispatch({ type: 'START_NEW_CYCLE_WITH_DECISION', payload }),
@@ -545,13 +645,29 @@ export function IdentityProvider({ children, initialState }) {
       }),
     [state.activeCycleId]
   );
+  const llmStore = React.useMemo(
+    () => ({
+      getState: () => stateRef.current,
+      dispatch,
+      generatePlan,
+      getAnthropicApiKey: () => null
+    }),
+    [dispatch, generatePlan]
+  );
+  const generatePlanWithLLMAsync = createGeneratePlanWithLLM(llmStore);
+  const generatePlanWithLLM = useCallback(
+    (payload = {}) =>
+      generatePlanWithLLMAsync({
+        cycleId: payload?.cycleId || state.activeCycleId || null
+      }),
+    [generatePlanWithLLMAsync, state.activeCycleId]
+  );
   const generateScheduleForActiveCycle = useCallback(
     () =>
-      dispatch({
-        type: 'GENERATE_PLAN',
-        payload: { cycleId: state.activeCycleId || null }
+      generatePlanWithLLMAsync({
+        cycleId: state.activeCycleId || null
       }),
-    [state.activeCycleId]
+    [generatePlanWithLLMAsync, state.activeCycleId]
   );
   const commitPreviewItems = useCallback((payload) => dispatch({ type: 'COMMIT_PREVIEW_ITEMS', payload }), []);
   const applyPlan = useCallback(() => dispatch({ type: 'APPLY_PLAN' }), []);
@@ -563,8 +679,20 @@ export function IdentityProvider({ children, initialState }) {
       }),
     [state.activeCycleId]
   );
+  const applyRenegotiationOption = useCallback(
+    (payload = {}) =>
+      dispatch({
+        type: 'APPLY_RENEGOTIATION_OPTION',
+        payload: { ...(payload || {}), cycleId: payload?.cycleId || state.activeCycleId || null }
+      }),
+    [state.activeCycleId]
+  );
   const setSchedulingConstraints = useCallback(
     (payload = {}) => dispatch({ type: 'SET_SCHEDULING_CONSTRAINTS', payload }),
+    []
+  );
+  const updateWorkWindows = useCallback(
+    (payload = {}) => dispatch({ type: 'UPDATE_WORK_WINDOWS', payload }),
     []
   );
   const setStrategy = useCallback((payload) => dispatch({ type: 'SET_STRATEGY', payload }), []);
@@ -621,8 +749,8 @@ export function IdentityProvider({ children, initialState }) {
   const resetIdentity = useCallback(() => dispatch({ type: 'RESET_IDENTITY' }), []);
 
   const attemptGoalAdmission = useCallback(
-    (contract) => {
-      const { nextState, result } = attemptGoalAdmissionPure(state, contract);
+    (payload) => {
+      const { nextState, result } = attemptGoalAdmissionPure(state, payload);
       dispatch({ type: 'APPLY_NEXT_STATE', nextState });
       return result;
     },
@@ -633,73 +761,80 @@ export function IdentityProvider({ children, initialState }) {
     persistState(state);
   }, [state]);
 
+  const store = {
+    ...state,
+    getState: () => state,
+    activePractice,
+    activeLens,
+    beginBlock,
+    completeBlock,
+    rescheduleBlock,
+    applyLenses,
+    setViewDate,
+    highlightPractice,
+    openLens,
+    rebalanceToday,
+    completeOnboarding,
+    finishOnboardingGate,
+    applyOnboardingInputs,
+    clearPlanRecovery,
+    startNewCycle,
+    startNewCycleWithDecision,
+    endCycle,
+    setActiveCycle,
+    deleteCycle,
+    hardDeleteCycle,
+    addTruthEntry,
+    createBlock,
+    updateBlock,
+    deleteBlock,
+    setActiveDayKey,
+    jumpToToday,
+    tickNow,
+    addRecurringPattern,
+    setPrimaryObjective,
+    applyNextSuggestion,
+    setCalibrationDays,
+    generatePlan,
+    generatePlanWithLLM,
+    generatePlanForCycle,
+    generateScheduleForActiveCycle,
+    commitPreviewItems,
+    applyPlan,
+    applyDraftSchedule,
+    applyRenegotiationOption,
+    setSchedulingConstraints,
+    updateWorkWindows,
+    setStrategy,
+    generateColdPlan,
+    rebaseColdPlan,
+    acceptSuggestedBlock,
+    acceptSuggestedBlockWithPlacement,
+    rejectSuggestedBlock,
+    ignoreSuggestedBlock,
+    dismissSuggestedBlock,
+    createDeliverable,
+    updateDeliverable,
+    deleteDeliverable,
+    createCriterion,
+    toggleCriterionDone,
+    deleteCriterion,
+    linkBlockToDeliverable,
+    assignSuggestionLink,
+    compileGoalEquation,
+    resetIdentity,
+    setDefiniteGoal,
+    setAim,
+    setPatternTargets,
+    attemptGoalAdmission,
+    archiveAndCloneCycle,
+  };
+  if (typeof window !== 'undefined') window.__jerichoDebug__ = store;
+
   return React.createElement(
     IdentityContext.Provider,
     {
-      value: {
-        ...state,
-        activePractice,
-        activeLens,
-        beginBlock,
-        completeBlock,
-        rescheduleBlock,
-        applyLenses,
-        setViewDate,
-        highlightPractice,
-        openLens,
-        rebalanceToday,
-        completeOnboarding,
-        applyOnboardingInputs,
-        startNewCycle,
-        startNewCycleWithDecision,
-        endCycle,
-        setActiveCycle,
-        deleteCycle,
-        hardDeleteCycle,
-        addTruthEntry,
-        createBlock,
-        updateBlock,
-        deleteBlock,
-        setActiveDayKey,
-        jumpToToday,
-        tickNow,
-        addRecurringPattern,
-        setPrimaryObjective,
-        applyNextSuggestion,
-        setCalibrationDays,
-        generatePlan,
-        generatePlanForCycle,
-        generateScheduleForActiveCycle,
-        commitPreviewItems,
-        applyPlan,
-        applyDraftSchedule,
-        setSchedulingConstraints,
-        setStrategy,
-        generateColdPlan,
-        rebaseColdPlan,
-        acceptSuggestedBlock,
-        acceptSuggestedBlockWithPlacement,
-        rejectSuggestedBlock,
-        ignoreSuggestedBlock,
-        dismissSuggestedBlock,
-        createDeliverable,
-        updateDeliverable,
-        deleteDeliverable,
-        createCriterion,
-        toggleCriterionDone,
-        deleteCriterion,
-        linkBlockToDeliverable,
-        assignSuggestionLink,
-        compileGoalEquation,
-        resetIdentity,
-        setDefiniteGoal,
-        setAim,
-        setPatternTargets
-        ,
-        attemptGoalAdmission,
-        archiveAndCloneCycle,
-        commitPreviewItems
-      }
+      value: store
     },
     children
   );
@@ -743,14 +878,55 @@ function persistState(state) {
   }
 }
 
-function ensureTemplates(state) {
+function addMinutesToHHMM(startHHMM = '09:00', durationMinutes = 60) {
+  const [startHoursRaw, startMinutesRaw] = String(startHHMM || '09:00')
+    .split(':')
+    .map((value) => Number(value));
+  const startHours = Number.isFinite(startHoursRaw) ? startHoursRaw : 9;
+  const startMinutes = Number.isFinite(startMinutesRaw) ? startMinutesRaw : 0;
+  const safeDuration = Number.isFinite(durationMinutes) ? Number(durationMinutes) : 60;
+  const totalMinutes = Math.max(0, startHours * 60 + startMinutes + safeDuration);
+  const endHours = Math.floor(totalMinutes / 60);
+  const endMinutes = totalMinutes % 60;
+  const hh = String(Math.max(0, Math.min(23, endHours))).padStart(2, '0');
+  const mm = String(Math.max(0, Math.min(59, endMinutes))).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+export function migrateTemporalBindingToWorkWindows(cycle) {
+  if (!cycle?.goalContract) return;
+  if (cycle.goalContract.workWindows) return;
+
+  const temporalBinding = cycle.goalContract.temporalBinding;
+  if (!temporalBinding) {
+    cycle.goalContract.workWindows = emptyWorkWindows();
+    return;
+  }
+
+  const activeDays = String(temporalBinding.specificDays || '')
+    .split(',')
+    .map((day) => day.trim().toLowerCase().slice(0, 3))
+    .filter((day) => ALL_DAYS.includes(day));
+  const start = temporalBinding.activationTime || '09:00';
+  const end = addMinutesToHHMM(start, temporalBinding.sessionDurationMinutes ?? 60);
+
+  cycle.goalContract.workWindows = ALL_DAYS.reduce((acc, day) => {
+    acc[day] = activeDays.includes(day) ? [{ start, end }] : [];
+    return acc;
+  }, {});
+}
+
+export function ensureTemplates(state) {
   if (!state.templates) state.templates = { objectives: {} };
   if (!state.templates.objectives) state.templates.objectives = {};
+  if (!state.blockStore || typeof state.blockStore !== 'object') state.blockStore = { blocks: {} };
+  if (!state.blockStore.blocks || typeof state.blockStore.blocks !== 'object') state.blockStore.blocks = {};
   if (!('lastAdaptedDate' in state)) state.lastAdaptedDate = null;
   if (!state.stability) state.stability = { headline: '', actionLine: '' };
   state.today = state.today || {};
   state.today.blocks = Array.isArray(state.today.blocks) ? state.today.blocks : [];
   if (!('nextSuggestion' in state)) state.nextSuggestion = null;
+  if (!('planRecovery' in state)) state.planRecovery = null;
   state.currentWeek = state.currentWeek || { days: [] };
   state.currentWeek.days = Array.isArray(state.currentWeek.days) ? state.currentWeek.days : [];
   state.currentWeek.metrics = state.currentWeek.metrics || {};
@@ -775,6 +951,7 @@ function ensureTemplates(state) {
   if (!state.aspirationsByCycleId) state.aspirationsByCycleId = {};
   if (!('lastPlanError' in state)) state.lastPlanError = null;
   if (!('goalExecutionContract' in state)) state.goalExecutionContract = null;
+  if (!('pendingOnboardingInputs' in state)) state.pendingOnboardingInputs = null;
   if (!('planDraft' in state)) state.planDraft = null;
   if (!state.planCalibration) state.planCalibration = { confidence: 0, assumptions: [], missingInfo: [] };
   if (!('planPreview' in state)) state.planPreview = null;
@@ -825,6 +1002,45 @@ function ensureTemplates(state) {
     }
     if (typeof state.appTime.isFollowingNow !== 'boolean') state.appTime.isFollowingNow = true;
   }
+  const activeCycleId = state.activeCycleId || null;
+  if (activeCycleId && state.cyclesById?.[activeCycleId]) {
+    const activeCycle = state.cyclesById[activeCycleId];
+    if (!activeCycle.goalContract && state.goalExecutionContract) {
+      activeCycle.goalContract = structuredClone
+        ? structuredClone(state.goalExecutionContract)
+        : JSON.parse(JSON.stringify(state.goalExecutionContract));
+      state.cyclesById[activeCycleId] = activeCycle;
+    }
+  }
+
+  Object.values(state.cyclesById || {}).forEach((cycle) => {
+    migrateTemporalBindingToWorkWindows(cycle);
+    const inferredStartDayKey =
+      cycle?.startedAtDayKey ||
+      cycle?.goalContract?.startDayKey ||
+      dayKeyFromISO(cycle?.goalGovernanceContract?.activeFromISO || '', state.appTime?.timeZone || 'UTC') ||
+      null;
+    if (inferredStartDayKey) {
+      if (!cycle.startedAtDayKey) cycle.startedAtDayKey = inferredStartDayKey;
+      if (cycle.goalContract && !cycle.goalContract.startDayKey) {
+        cycle.goalContract.startDayKey = inferredStartDayKey;
+      }
+      if (state.activeCycleId && state.activeCycleId === cycle.id) {
+        state.goalExecutionContract = state.goalExecutionContract || {};
+        if (!state.goalExecutionContract.startDayKey) {
+          state.goalExecutionContract.startDayKey = inferredStartDayKey;
+        }
+      }
+    }
+  });
+
+  if (state.goalExecutionContract && !state.goalExecutionContract.workWindows) {
+    const wrapper = { goalContract: state.goalExecutionContract };
+    migrateTemporalBindingToWorkWindows(wrapper);
+    state.goalExecutionContract.workWindows =
+      state.goalExecutionContract.workWindows || emptyWorkWindows();
+  }
+
   return state;
 }
 
@@ -832,10 +1048,65 @@ function ensureTemplates(state) {
  * Pure admission reducer: validates a contract and returns nextState + result
  * This is intentionally pure so it can be tested without React.
  */
-export function attemptGoalAdmissionPure(state, contract) {
+export function attemptGoalAdmissionPure(state, admissionInput) {
+  const payload =
+    admissionInput && typeof admissionInput === 'object' && 'contract' in admissionInput
+      ? admissionInput
+      : { contract: admissionInput };
+  const contract = payload?.contract || null;
+  const goalDraftV2 = payload?.goalDraftV2 || contract?.goalDraftV2 || null;
+  if (!contract) {
+    return {
+      nextState: state,
+      result: { status: 'REJECTED', rejectionCodes: ['GOAL_CONTRACT_MISSING'] }
+    };
+  }
   const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
   ensureCycleStructures(draft);
   const nowISO = draft.appTime?.nowISO || new Date().toISOString();
+  const timeZone = draft.appTime?.timeZone || 'UTC';
+  const appNowDayKey = dayKeyFromISO(nowISO, timeZone);
+  const activeDayKey = draft.appTime?.activeDayKey || null;
+  const effectiveTodayDayKey = [activeDayKey, appNowDayKey]
+    .filter(Boolean)
+    .sort()
+    .pop() || nowDayKey(timeZone);
+  const normalizeToDayKey = (value) => {
+    const text = String(value || '').trim();
+    if (!text) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+    return dayKeyFromISO(text, timeZone);
+  };
+  const inferredStartDayKey =
+    normalizeToDayKey(contract?.startDayKey) ||
+    normalizeToDayKey(contract?.startDateISO) ||
+    normalizeToDayKey(contract?.startDate) ||
+    normalizeToDayKey(contract?.temporalBinding?.startDayKey) ||
+    effectiveTodayDayKey;
+  if (inferredStartDayKey < effectiveTodayDayKey) {
+    const rejectionCode = GoalRejectionCode.START_DAY_BEFORE_ACTIVE_DAY;
+    const rejectionReason =
+      `Inferred start day ${inferredStartDayKey} is before active day ${effectiveTodayDayKey}.`;
+    const aspirationId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    const aspiration = {
+      id: aspirationId,
+      createdAtISO: nowISO,
+      contractDraft: structuredClone ? structuredClone(contract) : JSON.parse(JSON.stringify(contract)),
+      rejectionCodes: [rejectionCode],
+      rejectionReason,
+    };
+    draft.aspirations = draft.aspirations || [];
+    draft.aspirations.push(aspiration);
+    if (!draft.aspirationsByCycleId) draft.aspirationsByCycleId = {};
+    const forCycle = draft.activeCycleId || 'global';
+    draft.aspirationsByCycleId[forCycle] = draft.aspirationsByCycleId[forCycle] || [];
+    draft.aspirationsByCycleId[forCycle].push(aspiration);
+    const nextState = computeDerivedState(draft, { type: 'NO_OP' });
+    return {
+      nextState,
+      result: { status: 'REJECTED', aspirationId, rejectionCodes: [rejectionCode], rejectionReason }
+    };
+  }
 
   const activeCycles = Object.values(draft.cyclesById || {}).filter((cycle) => cycle?.status === 'Active');
   const existingOutcomes = activeCycles
@@ -905,26 +1176,140 @@ export function attemptGoalAdmissionPure(state, contract) {
     };
   }
 
-  // ADMITTED -> create new cycle and set active
-  const newCycleId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-  const newCycle = {
-    id: newCycleId,
-    status: 'Active',
-    createdAtISO: nowISO,
-    endedAtISO: null,
-    goalContract: structuredClone ? structuredClone(contract) : JSON.parse(JSON.stringify(contract)),
-    goalHash: contract?.inscription?.contractHash || null,
-    executionEvents: [],
-    suggestionEvents: [],
-    proposedBlocks: [],
-    suggestedBlocks: [],
-    truthEntries: []
+  const admittedGoalText =
+    goalDraftV2?.goalLabel ||
+    goalDraftV2?.goalText ||
+    contract?.goalLabel ||
+    contract?.goalText ||
+    contract?.terminalOutcome?.text ||
+    contract?.terminalOutcome?.verificationCriteria ||
+    '';
+  const admittedExecutionType =
+    goalDraftV2?.executionType ||
+    contract?.goalDraftV2?.executionType ||
+    contract?.executionType ||
+    null;
+  const normalizedGoalContract = structuredClone ? structuredClone(contract) : JSON.parse(JSON.stringify(contract));
+  normalizedGoalContract.admissionStatus = 'ADMITTED';
+  normalizedGoalContract.executionType = admittedExecutionType;
+  normalizedGoalContract.goalDraftV2 = goalDraftV2 || normalizedGoalContract.goalDraftV2 || null;
+  if (!normalizedGoalContract.goalText && admittedGoalText) normalizedGoalContract.goalText = admittedGoalText;
+  if (!normalizedGoalContract.goalLabel && admittedGoalText) normalizedGoalContract.goalLabel = admittedGoalText;
+
+  // ADMITTED -> attach to active blank cycle when possible, otherwise create a new cycle.
+  const existingActiveId = draft.activeCycleId || null;
+  const existingActiveCycle = existingActiveId ? draft.cyclesById?.[existingActiveId] || null : null;
+  const existingStatus = String(existingActiveCycle?.status || existingActiveCycle?.state || '')
+    .trim()
+    .toLowerCase();
+  const canAttachToActiveBlankCycle = Boolean(
+    existingActiveCycle && existingStatus === 'active' && !existingActiveCycle.goalContract
+  );
+  const newCycleId = canAttachToActiveBlankCycle
+    ? existingActiveId
+    : (crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+  const newCycle = canAttachToActiveBlankCycle
+    ? {
+        ...existingActiveCycle,
+        id: newCycleId,
+        status: 'Active',
+        endedAtISO: null,
+      }
+    : {
+        id: newCycleId,
+        status: 'Active',
+        createdAtISO: nowISO,
+        endedAtISO: null,
+        executionEvents: [],
+        suggestionEvents: [],
+        proposedBlocks: [],
+        suggestedBlocks: [],
+        truthEntries: []
+      };
+  newCycle.goalContract = normalizedGoalContract;
+  newCycle.goalDraftV2 = goalDraftV2 || null;
+  newCycle.goalHash = contract?.inscription?.contractHash || null;
+  const deadlineDayKey =
+    normalizedGoalContract?.deadline?.dayKey ||
+    normalizedGoalContract?.endDayKey ||
+    normalizedGoalContract?.deadlineISO ||
+    null;
+  const explicitStartDayKey =
+    normalizeToDayKey(normalizedGoalContract?.startDayKey) ||
+    normalizeToDayKey(normalizedGoalContract?.startDateISO) ||
+    normalizeToDayKey(normalizedGoalContract?.startDate) ||
+    null;
+  const startDayKey = explicitStartDayKey || effectiveTodayDayKey;
+  normalizedGoalContract.startDayKey = startDayKey;
+  const timezone = timeZone;
+  newCycle.goalGovernanceContract = {
+    contractId: `gov-${newCycleId}`,
+    version: 1,
+    goalId: normalizedGoalContract?.goalId || null,
+    activeFromISO: startDayKey,
+    activeUntilISO: deadlineDayKey || null,
+    scope: {
+      domainsAllowed: [],
+      timeHorizon: 'week',
+      timezone
+    },
+    governance: {
+      suggestionsEnabled: true,
+      probabilityEnabled: true,
+      minEvidenceEvents: 1,
+      cooldowns: { resuggestMinutes: 30, maxSuggestionsPerDay: 6 }
+    },
+    constraints: {
+      forbiddenDirectives: ['repair'],
+      maxActiveBlocks: 6
+    }
   };
+  newCycle.definiteGoal = {
+    outcome: admittedGoalText || newCycle?.definiteGoal?.outcome || 'Definite goal',
+    deadlineDayKey: deadlineDayKey || newCycle?.definiteGoal?.deadlineDayKey || null
+  };
+  newCycle.startedAtDayKey = startDayKey;
+  newCycle.executionEvents = [];
+  newCycle.suggestionEvents = [];
+  newCycle.proposedBlocks = [];
+  newCycle.suggestedBlocks = [];
+  newCycle.truthEntries = [];
 
   draft.cyclesById = draft.cyclesById || {};
   draft.cyclesById[newCycleId] = newCycle;
-  draft.cycleOrder = Array.isArray(draft.cycleOrder) ? [...draft.cycleOrder, newCycleId] : [newCycleId];
+  if (!canAttachToActiveBlankCycle) {
+    draft.cycleOrder = Array.isArray(draft.cycleOrder) ? [...draft.cycleOrder, newCycleId] : [newCycleId];
+  }
   draft.activeCycleId = newCycleId;
+  draft.viewDate = startDayKey;
+  if (draft.appTime) {
+    draft.appTime.activeDayKey = startDayKey;
+  }
+  draft.goalAdmissionByGoal = draft.goalAdmissionByGoal || {};
+  if (normalizedGoalContract?.goalId) {
+    draft.goalAdmissionByGoal[normalizedGoalContract.goalId] = {
+      status: 'ADMITTED',
+      reasonCodes: [],
+      admittedAtISO: nowISO
+    };
+  }
+  draft.goalExecutionContract = {
+    ...(draft.goalExecutionContract || {}),
+    goalId: normalizedGoalContract?.goalId || draft.goalExecutionContract?.goalId || null,
+    goalText: admittedGoalText || draft.goalExecutionContract?.goalText || '',
+    startDayKey,
+    endDayKey:
+      normalizedGoalContract?.endDayKey ||
+      normalizedGoalContract?.deadline?.dayKey ||
+      normalizedGoalContract?.deadlineISO ||
+      draft.goalExecutionContract?.endDayKey ||
+      null,
+    workWindows: normalizedGoalContract?.workWindows || draft.goalExecutionContract?.workWindows || null,
+    executionType: admittedExecutionType,
+    goalDraftV2: goalDraftV2 || null
+  };
+  draft.pendingOnboardingInputs = null;
+  draft.planRecovery = null;
 
   // STEP 2: Auto-seed deliverables if none exist
   if (!draft.deliverablesByCycleId) draft.deliverablesByCycleId = {};
@@ -955,19 +1340,45 @@ export function attemptGoalAdmissionPure(state, contract) {
   // STEP 3: Initialize cycle.strategy with auto-seeded deliverables
   // This ensures they're visible in cycle.strategy.deliverables immediately after admission
   const deadline = contract?.deadline?.dayKey || contract?.endDayKey || null;
+  const workWindows = normalizedGoalContract?.workWindows || null;
+  const workDays = getWorkDaysFromWindows(workWindows);
+  const weeklyCapMinutes = computeWeeklyCapacityFromWorkWindows(workWindows);
+  const maxDailyMinutes = computeMaxDailyMinutesFromWorkWindows(workWindows);
   newCycle.strategy = {
     deadlineISO: deadline ? `${deadline}T23:59:59Z` : null,
     deliverables: cycleDeliverablesEntry.deliverables || [],
     constraints: {
-      maxBlocksPerDay: contract?.temporalBinding?.sessionDurationMinutes ? Math.ceil(contract.temporalBinding.sessionDurationMinutes / 120) : 4,
-      maxBlocksPerWeek: contract?.temporalBinding?.daysPerWeek ? contract.temporalBinding.daysPerWeek * 4 : 16,
-      preferredDaysOfWeek: [1, 2, 3, 4, 5], // Mon-Fri (0=Sun, 6=Sat)
+      maxBlocksPerDay: maxDailyMinutes > 0 ? Math.max(1, Math.ceil(maxDailyMinutes / 120)) : 4,
+      maxBlocksPerWeek: weeklyCapMinutes > 0 ? Math.max(1, Math.ceil(weeklyCapMinutes / 120)) : 16,
+      weeklyCapacityMinutes: weeklyCapMinutes,
+      preferredDaysOfWeek: workDaysToWeekdayIndexes(workDays),
       blackoutDayKeys: [],
       tz: draft.appTime?.timeZone || 'UTC'
     },
     assumptionsHash: null
   };
+  const bootstrappedActions = bootstrapActionsFromDeliverables(
+    newCycleId,
+    cycleDeliverablesEntry.deliverables || []
+  );
+  newCycle.actions = bootstrappedActions;
+  newCycle.executionGraphReady = bootstrappedActions.length > 0;
+  if (bootstrappedActions.length > 0) {
+    newCycle.planProof = buildAdmissionPlanProofFromActions(bootstrappedActions);
+  }
   draft.cyclesById[newCycleId] = newCycle;
+
+  if (!newCycle.executionGraphReady) {
+    draft.lastPlanError = {
+      code: 'ACTION_GRAPH_MISSING',
+      reason: 'Goal admission completed without a validated execution graph.',
+      reasonCodes: ['NO_ACTION_GRAPH'],
+      cycleId: newCycleId,
+      actionType: 'ATTEMPT_GOAL_ADMISSION'
+    };
+  } else if (draft.lastPlanError?.code === 'ACTION_GRAPH_MISSING') {
+    draft.lastPlanError = null;
+  }
 
   // STEP 5: Auto-run plan generation after admission to populate suggestedBlocks
   let derivedState = computeDerivedState(draft, { type: 'NO_OP' });
