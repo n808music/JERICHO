@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { computeDerivedState } from '../identityCompute.js';
@@ -52,6 +52,15 @@ function snapshotProposedSummary(suggestions = []) {
 }
 
 describe('Certification runner (artifacts)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(NOW_ISO));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('produces deterministic certification artifacts when enabled', async () => {
     let state = buildBlankState();
 
