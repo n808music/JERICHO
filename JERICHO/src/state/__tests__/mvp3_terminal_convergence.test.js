@@ -60,10 +60,16 @@ describe('MVP 3.0 Invariants', () => {
       });
 
       const cycleId = onboarded.activeCycleId;
-      const cycle = onboarded.cyclesById[cycleId];
+      const seededId = (onboarded.deliverablesByCycleId?.[cycleId]?.deliverables || [])[0]?.id || null;
+      const normalized = seededId
+        ? computeDerivedState(onboarded, {
+            type: 'DELETE_DELIVERABLE',
+            payload: { cycleId, deliverableId: seededId }
+          })
+        : onboarded;
 
       // Create a deliverable with 1 required block
-      const withDeliverable = computeDerivedState(onboarded, {
+      const withDeliverable = computeDerivedState(normalized, {
         type: 'CREATE_DELIVERABLE',
         payload: {
           cycleId,
@@ -134,9 +140,16 @@ describe('MVP 3.0 Invariants', () => {
       });
 
       const cycleId = onboarded.activeCycleId;
+      const seededId = (onboarded.deliverablesByCycleId?.[cycleId]?.deliverables || [])[0]?.id || null;
+      const normalized = seededId
+        ? computeDerivedState(onboarded, {
+            type: 'DELETE_DELIVERABLE',
+            payload: { cycleId, deliverableId: seededId }
+          })
+        : onboarded;
 
       // Create a deliverable with 2 required blocks
-      const withDeliverable = computeDerivedState(onboarded, {
+      const withDeliverable = computeDerivedState(normalized, {
         type: 'CREATE_DELIVERABLE',
         payload: {
           cycleId,
@@ -209,9 +222,16 @@ describe('MVP 3.0 Invariants', () => {
       });
 
       const cycleId = onboarded.activeCycleId;
+      const seededId = (onboarded.deliverablesByCycleId?.[cycleId]?.deliverables || [])[0]?.id || null;
+      const normalized = seededId
+        ? computeDerivedState(onboarded, {
+            type: 'DELETE_DELIVERABLE',
+            payload: { cycleId, deliverableId: seededId }
+          })
+        : onboarded;
 
       // Create a deliverable with 1 required block
-      const withDeliverable = computeDerivedState(onboarded, {
+      const withDeliverable = computeDerivedState(normalized, {
         type: 'CREATE_DELIVERABLE',
         payload: {
           cycleId,
@@ -286,7 +306,14 @@ describe('MVP 3.0 Invariants', () => {
       });
 
       const cycle1Id = converged.activeCycleId;
-      const withDeliv1 = computeDerivedState(converged, {
+      const seededCycle1Id = (converged.deliverablesByCycleId?.[cycle1Id]?.deliverables || [])[0]?.id || null;
+      const normalizedCycle1 = seededCycle1Id
+        ? computeDerivedState(converged, {
+            type: 'DELETE_DELIVERABLE',
+            payload: { cycleId: cycle1Id, deliverableId: seededCycle1Id }
+          })
+        : converged;
+      const withDeliv1 = computeDerivedState(normalizedCycle1, {
         type: 'CREATE_DELIVERABLE',
         payload: { cycleId: cycle1Id, title: 'D Deliverable', requiredBlocks: 1 }
       });
@@ -338,7 +365,14 @@ describe('MVP 3.0 Invariants', () => {
       });
 
       const cycle2Id = newCycle2.activeCycleId;
-      const withDeliv2 = computeDerivedState(newCycle2, {
+      const seededCycle2Id = (newCycle2.deliverablesByCycleId?.[cycle2Id]?.deliverables || [])[0]?.id || null;
+      const normalizedCycle2 = seededCycle2Id
+        ? computeDerivedState(newCycle2, {
+            type: 'DELETE_DELIVERABLE',
+            payload: { cycleId: cycle2Id, deliverableId: seededCycle2Id }
+          })
+        : newCycle2;
+      const withDeliv2 = computeDerivedState(normalizedCycle2, {
         type: 'CREATE_DELIVERABLE',
         payload: { cycleId: cycle2Id, title: 'E Deliverable', requiredBlocks: 2 }
       });

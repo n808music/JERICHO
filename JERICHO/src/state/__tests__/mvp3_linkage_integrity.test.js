@@ -245,9 +245,16 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
       });
 
       const cycleId = onboarded.activeCycleId;
+      const seededId = (onboarded.deliverablesByCycleId?.[cycleId]?.deliverables || [])[0]?.id || null;
+      const normalized = seededId
+        ? computeDerivedState(onboarded, {
+            type: 'DELETE_DELIVERABLE',
+            payload: { cycleId, deliverableId: seededId }
+          })
+        : onboarded;
 
       // Create deliverable
-      const withDeliv = computeDerivedState(onboarded, {
+      const withDeliv = computeDerivedState(normalized, {
         type: 'CREATE_DELIVERABLE',
         payload: {
           cycleId,

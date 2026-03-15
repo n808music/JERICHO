@@ -64,13 +64,20 @@ describe('MVP 3.0 End-to-End Smoke Test', () => {
     expect(onboarded.activeCycleId).toBeTruthy();
     const cycleId = onboarded.activeCycleId;
     const cycle1 = onboarded.cyclesById[cycleId];
+    const seededId = (onboarded.deliverablesByCycleId?.[cycleId]?.deliverables || [])[0]?.id || null;
+    const normalized = seededId
+      ? computeDerivedState(onboarded, {
+          type: 'DELETE_DELIVERABLE',
+          payload: { cycleId, deliverableId: seededId }
+        })
+      : onboarded;
 
     expect(cycle1).toBeTruthy();
     expect(cycle1.status).toBe('active');
     expect(cycle1.goalExecutionContract || cycle1.goalContract).toBeTruthy();
 
     // Step 2: Create deliverables defining success
-    const withDeliv1 = computeDerivedState(onboarded, {
+    const withDeliv1 = computeDerivedState(normalized, {
       type: 'CREATE_DELIVERABLE',
       payload: {
         cycleId,
