@@ -106,7 +106,7 @@ describe('MVP 3.0 End-to-End Smoke Test', () => {
 
     for (let i = 0; i < 5; i++) {
       const hour = 9 + (i % 3); // Spread across morning
-      const startISO = buildLocalStartISO(FIXED_DAY, `0${hour}:00`, 'UTC').startISO;
+      const startISO = buildLocalStartISO(FIXED_DAY, `${String(hour).padStart(2, '0')}:00`, 'UTC').startISO;
       const delivId = i < 2 ? delivId1 : delivId2; // First 2 for Design, last 3 for Impl
 
       state = computeDerivedState(state, {
