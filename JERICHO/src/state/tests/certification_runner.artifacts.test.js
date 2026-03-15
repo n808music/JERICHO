@@ -113,7 +113,10 @@ describe('Certification runner (artifacts)', () => {
 
     state = computeDerivedState(state, { type: 'GENERATE_PLAN' });
     const proposedSummary = snapshotProposedSummary(state.suggestedBlocks || []);
-    expect(proposedSummary.count).toBeGreaterThan(0);
+    const committedAfterGenerate = snapshotCommittedBlocks(state.today?.blocks || []);
+    expect(state.scheduleApplied).toBe(true);
+    expect((state.proposedBlocks || []).some((block) => block?.status === 'accepted')).toBe(true);
+    expect(committedAfterGenerate.length).toBeGreaterThan(0);
 
     state = computeDerivedState(state, { type: 'APPLY_PLAN' });
 
