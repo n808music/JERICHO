@@ -3,6 +3,40 @@ import { computeDerivedState } from '../../src/state/identityCompute.js';
 import { dayKeyFromISO } from '../../src/state/time/time.ts';
 
 const FIXED_DAY = '2026-01-09';
+const EQUATION_PAYLOAD = {
+  label: 'Ship v0',
+  family: 'SKILL',
+  mechanismClass: 'THROUGHPUT',
+  objective: 'PRACTICE_HOURS_TOTAL',
+  objectiveValue: 20,
+  deadlineDayKey: '2026-02-08',
+  deadlineType: 'HARD',
+  workingFullTime: true,
+  workDaysPerWeek: 4,
+  workStartWindow: 'MID',
+  workEndWindow: 'MID',
+  minSleepHours: 8,
+  sleepFixedWindow: false,
+  sleepStartWindow: 'LATE',
+  sleepEndWindow: 'EARLY',
+  hasWeeklyRestDay: true,
+  restDay: 0,
+  blackoutBlocks: [],
+  hasGymAccess: true,
+  canCookMostDays: true,
+  hasTransportLimitation: false,
+  currentlyInjured: false,
+  beginnerLevel: false,
+  maxDailyWorkMinutes: 120,
+  noEveningWork: false,
+  noMorningWork: false,
+  weekendsAllowed: true,
+  travelThisPeriod: 'NONE',
+  acceptsDailyMinimum: true,
+  acceptsFixedSchedule: true,
+  acceptsNoRenegotiation7d: true,
+  acceptsAutomaticCatchUp: true,
+};
 
 function buildBaseState(date = FIXED_DAY, timeZone = 'UTC') {
   const nowISO = `${date}T12:00:00.000Z`;
@@ -40,7 +74,7 @@ function buildBaseState(date = FIXED_DAY, timeZone = 'UTC') {
 function seedOnboardingState() {
   const base = buildBaseState();
   const seeded = computeDerivedState(base, { type: 'SET_VIEW_DATE', date: base.today.date });
-  return computeDerivedState(seeded, {
+  const onboarded = computeDerivedState(seeded, {
     type: 'COMPLETE_ONBOARDING',
     onboarding: {
       direction: 'Ship v0',
@@ -50,6 +84,14 @@ function seedOnboardingState() {
       focusAreas: ['Creation', 'Focus'],
       successDefinition: 'MVP shipped'
     }
+  });
+  const compiled = computeDerivedState(onboarded, {
+    type: 'COMPILE_GOAL_EQUATION',
+    payload: { equation: EQUATION_PAYLOAD },
+  });
+  return computeDerivedState(compiled, {
+    type: 'GENERATE_PLAN',
+    payload: { source: 'RENEGOTIATION_APPLY' },
   });
 }
 
@@ -66,7 +108,7 @@ describe('suggestions local anchoring', () => {
   it('keeps suggestion dayKey aligned with startISO in local tz', () => {
     const state = seedOnboardingState();
     const timeZone = state.appTime?.timeZone || 'UTC';
-    const suggested = state.suggestedBlocks || [];
+    const suggested = (state.proposedBlocks || []).filter((block) => block?.status === 'suggested');
 
     expect(suggested.length).toBeGreaterThan(0);
     suggested.forEach((s) => {
