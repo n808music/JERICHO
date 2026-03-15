@@ -6118,10 +6118,10 @@ function acceptSuggestedBlock(state, proposalId) {
   if (!proposalId) return;
   const suggestions = (state.proposedBlocks || []).map((entry) => ({ ...entry }));
   const target = suggestions.find((s) => s.id === proposalId);
-  if (!target || target.status !== 'suggested') return;
   const existingCreate = (state.executionEvents || []).find(
     (event) => event?.kind === 'create' && (event?.suggestionId === proposalId || event?.blockId === `blk-${proposalId}`)
   );
+  if (!target || target.status !== 'suggested') return;
   if (existingCreate) return;
   const link = getSuggestionLink(state, state.activeCycleId, proposalId);
   const blockId = `blk-${proposalId}`;
