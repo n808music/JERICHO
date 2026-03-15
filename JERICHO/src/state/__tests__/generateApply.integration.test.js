@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { computeDerivedState } from '../identityCompute.js';
 
 const FIXED_DAY = '2026-01-08';
@@ -37,68 +37,99 @@ function buildBaseState() {
   };
 }
 
+const EQUATION_PAYLOAD = {
+  label: 'Skill Goal',
+  family: 'SKILL',
+  mechanismClass: 'THROUGHPUT',
+  objective: 'PRACTICE_HOURS_TOTAL',
+  objectiveValue: 20,
+  deadlineDayKey: '2026-02-08',
+  deadlineType: 'HARD',
+  workingFullTime: true,
+  workDaysPerWeek: 4,
+  workStartWindow: 'MID',
+  workEndWindow: 'MID',
+  minSleepHours: 8,
+  sleepFixedWindow: false,
+  sleepStartWindow: 'LATE',
+  sleepEndWindow: 'EARLY',
+  hasWeeklyRestDay: true,
+  restDay: 0,
+  blackoutBlocks: [],
+  hasGymAccess: true,
+  canCookMostDays: true,
+  hasTransportLimitation: false,
+  currentlyInjured: false,
+  beginnerLevel: false,
+  maxDailyWorkMinutes: 120,
+  noEveningWork: false,
+  noMorningWork: false,
+  weekendsAllowed: true,
+  travelThisPeriod: 'NONE',
+  acceptsDailyMinimum: true,
+  acceptsFixedSchedule: true,
+  acceptsNoRenegotiation7d: true,
+  acceptsAutomaticCatchUp: true
+};
+
+function buildCompiledState() {
+  const base = buildBaseState();
+  const onboarded = computeDerivedState(base, {
+    type: 'COMPLETE_ONBOARDING',
+    onboarding: {
+      direction: 'Skill Goal',
+      goalText: 'Skill Goal',
+      horizon: '30d',
+      narrative: '',
+      focusAreas: ['Focus'],
+      successDefinition: 'Practice complete',
+      minimumDaysPerWeek: 4
+    }
+  });
+
+  return computeDerivedState(onboarded, {
+    type: 'COMPILE_GOAL_EQUATION',
+    payload: {
+      equation: EQUATION_PAYLOAD
+    }
+  });
+}
+
 describe('generate/apply integration', () => {
-  it('generates a plan and applies blocks', () => {
-    const base = buildBaseState();
-    const onboarded = computeDerivedState(base, {
-      type: 'COMPLETE_ONBOARDING',
-      onboarding: {
-        direction: 'Skill Goal',
-        goalText: 'Skill Goal',
-        horizon: '30d',
-        narrative: '',
-        focusAreas: ['Focus'],
-        successDefinition: 'Practice complete',
-        minimumDaysPerWeek: 4
-      }
-    });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(`${FIXED_DAY}T12:00:00.000Z`));
+  });
 
-    const compiled = computeDerivedState(onboarded, {
-      type: 'COMPILE_GOAL_EQUATION',
-      payload: {
-        equation: {
-          label: 'Skill Goal',
-          family: 'SKILL',
-          mechanismClass: 'THROUGHPUT',
-          objective: 'PRACTICE_HOURS_TOTAL',
-          objectiveValue: 20,
-          deadlineDayKey: '2026-02-08',
-          deadlineType: 'HARD',
-          workingFullTime: true,
-          workDaysPerWeek: 4,
-          workStartWindow: 'MID',
-          workEndWindow: 'MID',
-          minSleepHours: 8,
-          sleepFixedWindow: false,
-          sleepStartWindow: 'LATE',
-          sleepEndWindow: 'EARLY',
-          hasWeeklyRestDay: true,
-          restDay: 0,
-          blackoutBlocks: [],
-          hasGymAccess: true,
-          canCookMostDays: true,
-          hasTransportLimitation: false,
-          currentlyInjured: false,
-          beginnerLevel: false,
-          maxDailyWorkMinutes: 120,
-          noEveningWork: false,
-          noMorningWork: false,
-          weekendsAllowed: true,
-          travelThisPeriod: 'NONE',
-          acceptsDailyMinimum: true,
-          acceptsFixedSchedule: true,
-          acceptsNoRenegotiation7d: true,
-          acceptsAutomaticCatchUp: true
-        }
-      }
-    });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
+  it('GENERATE_PLAN auto-commits in normal flow - blocks accepted without explicit apply', () => {
+    const compiled = buildCompiledState();
     const planned = computeDerivedState(compiled, { type: 'GENERATE_PLAN' });
-    const cycle = planned.cyclesById[planned.activeCycleId];
-    expect(cycle.autoAsanaPlan).toBeTruthy();
-    expect((planned.suggestedBlocks || []).length).toBeGreaterThan(0);
 
-    const applied = computeDerivedState(planned, { type: 'APPLY_PLAN' });
+    expect(planned.scheduleApplied).toBe(true);
+    expect((planned.executionEvents || []).filter((e) => e?.kind === 'create').length).toBeGreaterThan(0);
+    expect((planned.proposedBlocks || []).some((b) => b?.status === 'accepted')).toBe(true);
+
+    const cycle = planned.cyclesById[planned.activeCycleId];
+    expect(cycle.autoAsanaPlan).toBeNull();
+  });
+
+  it('RENEGOTIATION_APPLY source preserves preview state - APPLY_PLAN commits from autoAsanaPlan', () => {
+    const compiled = buildCompiledState();
+    const previewed = computeDerivedState(compiled, {
+      type: 'GENERATE_PLAN',
+      payload: { source: 'RENEGOTIATION_APPLY' }
+    });
+
+    const cycleAfterPreview = previewed.cyclesById[previewed.activeCycleId];
+    expect(cycleAfterPreview.autoAsanaPlan).toBeTruthy();
+    expect(previewed.scheduleApplied).toBeFalsy();
+    expect((previewed.proposedBlocks || []).some((b) => b?.status === 'suggested')).toBe(true);
+
+    const applied = computeDerivedState(previewed, { type: 'APPLY_PLAN' });
     const created = (applied.executionEvents || []).filter((e) => e?.kind === 'create' && e?.origin === 'auto_asana');
     expect(created.length).toBeGreaterThan(0);
   });
