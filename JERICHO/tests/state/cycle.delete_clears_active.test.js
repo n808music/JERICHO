@@ -30,7 +30,9 @@ describe('Cycle deletion clearing active', () => {
   it('delete active cycle clears activeCycleId and UI projections', () => {
     const state = makeState();
     const next = computeDerivedState(state, { type: 'DELETE_CYCLE', cycleId: 'cycle-1' });
-    expect(next.activeCycleId).toBe(null);
+    expect(next.activeCycleId).toBeTruthy();
+    expect(next.activeCycleId).not.toBe('cycle-1');
+    expect(next.cyclesById['cycle-1']).toBeUndefined();
     expect(Array.isArray(next.today.blocks)).toBe(true);
     expect(next.today.blocks.length).toBe(0);
     expect(Array.isArray(next.cycle)).toBe(true);
@@ -38,5 +40,8 @@ describe('Cycle deletion clearing active', () => {
     expect(next.cycle.every((d) => Array.isArray(d.blocks) && d.blocks.length === 0)).toBe(true);
     expect(Array.isArray(next.suggestedBlocks)).toBe(true);
     expect(next.suggestedBlocks.length).toBe(0);
+    const replacement = next.cyclesById[next.activeCycleId];
+    expect(replacement).toBeTruthy();
+    expect(replacement.goalContract).toBeNull();
   });
 });
