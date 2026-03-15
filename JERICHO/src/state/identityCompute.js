@@ -3075,11 +3075,11 @@ function buildWeekFromCycle(cycle, date) {
   return { weekStart, days };
 }
 
-function buildMonthCycle(state, dateString) {
-  const base = dateString ? new Date(dateString) : new Date();
-  const year = base.getFullYear();
-  const month = base.getMonth();
-  const totalDays = new Date(year, month + 1, 0).getDate();
+export function buildMonthCycle(state, dateString) {
+  const base = dateString ? new Date(`${dateString}T12:00:00.000Z`) : new Date();
+  const year = base.getUTCFullYear();
+  const month = base.getUTCMonth();
+  const totalDays = new Date(Date.UTC(year, month + 1, 0)).getDate();
   const existingMap = new Map(
     (Array.isArray(state.cycle) ? state.cycle : []).map((d) => [d.date, d])
   );
