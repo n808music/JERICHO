@@ -58,8 +58,10 @@ describe('Cycle UX invariants', () => {
   it('deletes an active cycle and keeps projections clean', () => {
     const state = computeDerivedState(baseState(), { type: 'CREATE_BLOCK', payload: blockPayload });
     const deleted = computeDerivedState(state, { type: 'DELETE_CYCLE', cycleId: state.activeCycleId });
-    expect(deleted.activeCycleId).toBeNull();
+    expect(deleted.activeCycleId).toBeTruthy();
+    expect(deleted.activeCycleId).not.toBe(state.activeCycleId);
     expect(deleted.today.blocks.length).toBe(0);
     expect(deleted.cyclesById[state.activeCycleId]).toBeUndefined();
+    expect(deleted.cyclesById[deleted.activeCycleId]?.goalContract).toBeNull();
   });
 });
