@@ -533,7 +533,8 @@ export function computeDerivedState(state, action) {
   }
 
   applyExecutionEvents(next);
-  mergePriorTodayBlocks(next, previousTodayBlocks);
+  const survivingPriorBlocks = previousTodayBlocks.filter((block) => !block?.cycleId || block?.cycleId === next.activeCycleId);
+  mergePriorTodayBlocks(next, survivingPriorBlocks);
   recomputeSummaries(next);
   next.vector = recalculateIdentityVector(next);
   const allowAdapt =
@@ -4391,7 +4392,19 @@ function applyOnboardingInputs(state, onboarding = {}) {
     }
   };
 
-  const newCycleId = `cycle-${startDayKey}-${Object.keys(state.cyclesById).length + 1}`;
+  state.meta = state.meta || {};
+  state.meta.nextCycleSequenceByDayKey = state.meta.nextCycleSequenceByDayKey || {};
+  if (!state.meta.nextCycleSequenceByDayKey[startDayKey]) {
+    const dayPrefix = `cycle-${startDayKey}-`;
+    const existingNums = Object.keys(state.cyclesById || {})
+      .filter((id) => id.startsWith(dayPrefix))
+      .map((id) => Number.parseInt(id.slice(dayPrefix.length), 10))
+      .filter((n) => Number.isFinite(n));
+    state.meta.nextCycleSequenceByDayKey[startDayKey] = existingNums.length > 0 ? Math.max(...existingNums) : 0;
+  }
+  const nextN = state.meta.nextCycleSequenceByDayKey[startDayKey] + 1;
+  state.meta.nextCycleSequenceByDayKey[startDayKey] = nextN;
+  const newCycleId = `cycle-${startDayKey}-${nextN}`;
   state.cyclesById[newCycleId] = {
     id: newCycleId,
     status: 'active',
@@ -4628,7 +4641,19 @@ function startNewCycle(state, payload = {}) {
     }
   };
 
-  const newCycleId = `cycle-${startDayKey}-${Object.keys(state.cyclesById).length + 1}`;
+  state.meta = state.meta || {};
+  state.meta.nextCycleSequenceByDayKey = state.meta.nextCycleSequenceByDayKey || {};
+  if (!state.meta.nextCycleSequenceByDayKey[startDayKey]) {
+    const dayPrefix = `cycle-${startDayKey}-`;
+    const existingNums = Object.keys(state.cyclesById || {})
+      .filter((id) => id.startsWith(dayPrefix))
+      .map((id) => Number.parseInt(id.slice(dayPrefix.length), 10))
+      .filter((n) => Number.isFinite(n));
+    state.meta.nextCycleSequenceByDayKey[startDayKey] = existingNums.length > 0 ? Math.max(...existingNums) : 0;
+  }
+  const nextN = state.meta.nextCycleSequenceByDayKey[startDayKey] + 1;
+  state.meta.nextCycleSequenceByDayKey[startDayKey] = nextN;
+  const newCycleId = `cycle-${startDayKey}-${nextN}`;
   state.cyclesById[newCycleId] = {
     id: newCycleId,
     status: 'active',
