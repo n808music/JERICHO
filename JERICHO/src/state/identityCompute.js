@@ -4424,14 +4424,7 @@ function applyOnboardingInputs(state, onboarding = {}) {
   state.deliverablesByCycleId = state.deliverablesByCycleId || {};
   state.deliverablesByCycleId[newCycleId] = {
     cycleId: newCycleId,
-    deliverables: [],
-    suggestionLinks: {},
-    lastUpdatedAtISO: state.appTime?.nowISO || new Date().toISOString()
-  };
-  state.deliverablesByCycleId = state.deliverablesByCycleId || {};
-  state.deliverablesByCycleId[newCycleId] = {
-    cycleId: newCycleId,
-    deliverables: [],
+    deliverables,
     suggestionLinks: {},
     lastUpdatedAtISO: state.appTime?.nowISO || new Date().toISOString()
   };
