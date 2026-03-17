@@ -12,6 +12,14 @@ const defaultState = buildState({
   identity: mockIdentity || {},
   history: [],
   tasks: [],
+  schedule: {
+    committedBlocks: [],
+    daySlots: [],
+    overflowTasks: [],
+    todayPriorityTaskId: null,
+    cycleStart: null,
+    cycleEnd: null
+  },
   integrity: {
     score: 0,
     completedCount: 0,
@@ -82,7 +90,7 @@ export async function safeReadState(options = {}) {
 export async function writeState(state) {
   const next = buildState(state);
   await fs.mkdir(path.dirname(getStorePath()), { recursive: true });
-  await fs.writeFile(getStorePath(), JSON.stringify(next, null, 2));
+  await fs.writeFile(getStorePath(), stableStringify(next, 2));
   return next;
 }
 
@@ -101,9 +109,9 @@ export async function updateIdentity(domain, capability, level) {
   return writeState({ ...current, identity });
 }
 
-export async function recordTaskStatus(taskId, status, meta = {}) {
+export async function recordTaskStatus(taskId, status, meta = {}, options = {}) {
   const current = await readState();
-  const nowIso = new Date().toISOString();
+  const nowIso = options.nowIso || new Date().toISOString();
   const defaultBreakdown = {
     completedOnTime: status === 'completed' ? 1 : 0,
     completedLate: 0,
@@ -155,8 +163,31 @@ function buildState(raw) {
     identity: typeof base.identity === 'object' && base.identity !== null ? base.identity : {},
     history: Array.isArray(base.history) ? base.history : [],
     tasks: Array.isArray(base.tasks) ? base.tasks : [],
+    schedule: normalizeSchedule(base.schedule),
     integrity: normalizeIntegrity(base.integrity),
     team: normalizeTeam(base.team)
+  };
+}
+
+function normalizeSchedule(schedule) {
+  if (!schedule || typeof schedule !== 'object') {
+    return {
+      committedBlocks: [],
+      daySlots: [],
+      overflowTasks: [],
+      todayPriorityTaskId: null,
+      cycleStart: null,
+      cycleEnd: null
+    };
+  }
+
+  return {
+    committedBlocks: Array.isArray(schedule.committedBlocks) ? schedule.committedBlocks : [],
+    daySlots: Array.isArray(schedule.daySlots) ? schedule.daySlots : [],
+    overflowTasks: Array.isArray(schedule.overflowTasks) ? schedule.overflowTasks : [],
+    todayPriorityTaskId: schedule.todayPriorityTaskId || null,
+    cycleStart: schedule.cycleStart || null,
+    cycleEnd: schedule.cycleEnd || null
   };
 }
 
@@ -170,4 +201,22 @@ function normalizeIntegrity(integrity) {
     pendingCount: Number(integrity.pendingCount) || 0,
     lastRun: integrity.lastRun || null
   };
+}
+
+/**
+ * Stable JSON stringify that sorts object keys to ensure deterministic output.
+ * This helps keep persisted state diffs stable and makes state snapshots comparable.
+ */
+function stableStringify(value, space = 2) {
+  return JSON.stringify(value, (key, val) => {
+    if (val && typeof val === 'object' && !Array.isArray(val)) {
+      return Object.keys(val)
+        .sort()
+        .reduce((acc, k) => {
+          acc[k] = val[k];
+          return acc;
+        }, {});
+    }
+    return val;
+  }, space);
 }
