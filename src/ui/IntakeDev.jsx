@@ -2,10 +2,12 @@ import { useState } from 'react';
 import GoalIntakeUI from '../components/intake/GoalIntakeUI.jsx';
 import FeasibilityDisplay from '../components/feasibility/FeasibilityDisplay.jsx';
 import ScheduleProposalView from '../components/scheduling/ScheduleProposalView.jsx';
+import CalendarView from '../components/calendar/CalendarView.jsx';
 
 void GoalIntakeUI;
 void FeasibilityDisplay;
 void ScheduleProposalView;
+void CalendarView;
 
 export default function IntakeDev() {
   const [stage, setStage] = useState('intake');
@@ -23,6 +25,25 @@ export default function IntakeDev() {
             setStage('feasibility');
           }}
         />
+        <button
+          style={{ marginTop: 16, fontSize: 12, color: '#999' }}
+          onClick={() => {
+            setScheduleResult({
+              goalId: 'dev-goal-001',
+              cycleId: 'dev-cycle-001',
+              traceId: 'dev-trace-001',
+              goalSubtype: 'Music Project Production',
+              goalFamily: 'CreativeProduction',
+              feasibilityScore: 72,
+              feasibilityBand: 'YELLOW',
+              committedBlocks: 7,
+              scheduleId: 'dev-schedule-001'
+            });
+            setStage('done');
+          }}
+        >
+          [DEV] Skip to Surface 4
+        </button>
       </div>
     );
   }
@@ -30,10 +51,21 @@ export default function IntakeDev() {
   if (stage === 'done') {
     return (
       <div style={shellStyle}>
-        <h2>Schedule committed</h2>
-        <pre style={{ background: '#f4f4f4', padding: 16, borderRadius: 8 }}>
-          {JSON.stringify(scheduleResult, null, 2)}
-        </pre>
+        <CalendarView
+          schedulePayload={scheduleResult}
+          onComplete={(result) => {
+            console.log('All blocks marked:', result);
+            setStage('finished');
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (stage === 'finished') {
+    return (
+      <div style={shellStyle}>
+        <h2>Schedule complete</h2>
         <button
           onClick={() => {
             setStage('intake');

@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url';
 import http from 'http';
 import { runPipeline } from '../core/pipeline.js';
 import { mockGoals, mockIdentity } from '../data/mock-data.js';
-import { writeState, safeReadState } from '../data/storage.js';
+import { readState, writeState, safeReadState } from '../data/storage.js';
 import { compileSceneGraph } from '../core/scene-compiler.js';
 import { interpretCommand } from '../core/ai-interpreter.js';
 import { planDirectives } from '../core/directive-planner.js';
@@ -538,6 +538,252 @@ const server = http.createServer(async (req, res) => {
             ok: false,
             committedBlocks: 0,
             scheduleId: null,
+            errorCode: 'SERVER_ERROR'
+          },
+          200
+        );
+        return;
+      }
+    }
+
+    if (req.method === 'GET' && req.url.startsWith('/api/schedule/blocks')) {
+      const requestUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+      const goalId = requestUrl.searchParams.get('goalId');
+      const cycleId = requestUrl.searchParams.get('cycleId');
+
+      if (!goalId || !cycleId) {
+        respondJson(
+          res,
+          {
+            ok: false,
+            blocks: [],
+            totalBlocks: 0,
+            completedBlocks: 0,
+            missedBlocks: 0,
+            errorCode: 'SCHEDULE_QUERY_MISSING'
+          },
+          200
+        );
+        return;
+      }
+
+      try {
+        const state = await readState();
+        const committedBlocks = Array.isArray(state.schedule?.committedBlocks) ? state.schedule.committedBlocks : [];
+        const goalBlocks = committedBlocks.filter((block) => block.goalId === goalId);
+        const cycleMatchedBlocks = goalBlocks.filter((block) => block.cycleId === cycleId);
+        const blocks = cycleMatchedBlocks.length > 0 ? cycleMatchedBlocks : goalBlocks;
+
+        respondJson(
+          res,
+          {
+            ok: true,
+            blocks: blocks.map((block) => ({
+              blockId: block.blockId,
+              actionId: block.actionId,
+              actionName: block.actionName,
+              date: block.date,
+              startTime: block.startTime,
+              durationMinutes: block.durationMinutes,
+              status: block.status
+            })),
+            totalBlocks: blocks.length,
+            completedBlocks: blocks.filter((block) => block.status === 'completed').length,
+            missedBlocks: blocks.filter((block) => block.status === 'missed').length,
+            errorCode: null
+          },
+          200
+        );
+        return;
+      } catch (error) {
+        respondJson(
+          res,
+          {
+            ok: false,
+            blocks: [],
+            totalBlocks: 0,
+            completedBlocks: 0,
+            missedBlocks: 0,
+            errorCode: 'SERVER_ERROR'
+          },
+          200
+        );
+        return;
+      }
+    }
+
+    if (req.method === 'POST' && req.url.match(/^\/api\/schedule\/blocks\/[^/]+\/complete$/)) {
+      let badJson = false;
+      const payload = await readJsonBody(req).catch(() => {
+        badJson = true;
+        return {};
+      });
+
+      if (badJson) {
+        respondError(res, 'BAD_JSON', 'Request body must be valid JSON.', 400);
+        return;
+      }
+
+      const blockId = req.url.split('/api/schedule/blocks/')[1]?.replace('/complete', '');
+      if (!blockId) {
+        respondError(res, 'INVALID_BLOCK', 'blockId is required.', 400);
+        return;
+      }
+
+      try {
+        const state = await readState();
+        const result = updateScheduleBlockStatus(state, blockId, 'completed', {
+          completedAt: payload.completedAt || new Date().toISOString()
+        });
+
+        if (!result.ok) {
+          respondJson(res, result, 200);
+          return;
+        }
+
+        await writeState(result.state);
+        const updatedBlock = result.state.schedule?.committedBlocks?.find((block) => block.blockId === blockId);
+        const goalId = updatedBlock?.goalId || 'unknown';
+        const cycleId = updatedBlock?.cycleId || 'unknown';
+        const traceId = `trace-block-complete-${Date.now()}`;
+        recordTraceSummary({
+          traceId,
+          goalId,
+          cycleId,
+          status: 'success',
+          integrationStatus: 'PASS',
+          criticalFailures: 0,
+          events: [
+            {
+              traceId,
+              moduleName: 'CalendarView',
+              stepName: 'block_completed',
+              status: 'success',
+              inputSummary: {
+                blockId
+              },
+              outputSummary: {
+                blockId,
+                status: 'completed'
+              },
+              errorCode: null,
+              reasonCodes: [],
+              timestamp: new Date().toISOString(),
+              sourceReadPath: `/api/schedule/blocks/${blockId}/complete`,
+              sourceWritePath: `/api/schedule/blocks/${blockId}/complete`,
+              executionTimeMs: 0
+            }
+          ]
+        });
+        respondJson(
+          res,
+          {
+            ok: true,
+            blockId,
+            status: 'completed',
+            errorCode: null
+          },
+          200
+        );
+        return;
+      } catch (error) {
+        respondJson(
+          res,
+          {
+            ok: false,
+            blockId,
+            status: null,
+            errorCode: 'SERVER_ERROR'
+          },
+          200
+        );
+        return;
+      }
+    }
+
+    if (req.method === 'POST' && req.url.match(/^\/api\/schedule\/blocks\/[^/]+\/missed$/)) {
+      let badJson = false;
+      const payload = await readJsonBody(req).catch(() => {
+        badJson = true;
+        return {};
+      });
+
+      if (badJson) {
+        respondError(res, 'BAD_JSON', 'Request body must be valid JSON.', 400);
+        return;
+      }
+
+      const blockId = req.url.split('/api/schedule/blocks/')[1]?.replace('/missed', '');
+      if (!blockId) {
+        respondError(res, 'INVALID_BLOCK', 'blockId is required.', 400);
+        return;
+      }
+
+      try {
+        const state = await readState();
+        const result = updateScheduleBlockStatus(state, blockId, 'missed', {
+          missedAt: payload.missedAt || new Date().toISOString(),
+          missReason: payload.reason || null
+        });
+
+        if (!result.ok) {
+          respondJson(res, result, 200);
+          return;
+        }
+
+        await writeState(result.state);
+        const updatedBlock = result.state.schedule?.committedBlocks?.find((block) => block.blockId === blockId);
+        const goalId = updatedBlock?.goalId || 'unknown';
+        const cycleId = updatedBlock?.cycleId || 'unknown';
+        const traceId = `trace-block-missed-${Date.now()}`;
+        recordTraceSummary({
+          traceId,
+          goalId,
+          cycleId,
+          status: 'success',
+          integrationStatus: 'PASS',
+          criticalFailures: 0,
+          events: [
+            {
+              traceId,
+              moduleName: 'CalendarView',
+              stepName: 'block_missed',
+              status: 'success',
+              inputSummary: {
+                blockId,
+                reason: payload.reason || null
+              },
+              outputSummary: {
+                blockId,
+                status: 'missed'
+              },
+              errorCode: null,
+              reasonCodes: [],
+              timestamp: new Date().toISOString(),
+              sourceReadPath: `/api/schedule/blocks/${blockId}/missed`,
+              sourceWritePath: `/api/schedule/blocks/${blockId}/missed`,
+              executionTimeMs: 0
+            }
+          ]
+        });
+        respondJson(
+          res,
+          {
+            ok: true,
+            blockId,
+            status: 'missed',
+            errorCode: null
+          },
+          200
+        );
+        return;
+      } catch (error) {
+        respondJson(
+          res,
+          {
+            ok: false,
+            blockId,
+            status: null,
             errorCode: 'SERVER_ERROR'
           },
           200
@@ -1871,6 +2117,57 @@ function applyTaskStatusToState(state, taskId, status) {
   const history = Array.isArray(state.history) ? [...state.history] : [];
   history.push(makeHistoryEntry(matchedTask, status));
   return { ...state, tasks: updatedTasks, history };
+}
+
+function updateScheduleBlockStatus(state, blockId, status, meta = {}) {
+  const committedBlocks = Array.isArray(state.schedule?.committedBlocks) ? state.schedule.committedBlocks : [];
+  const existingBlock = committedBlocks.find((block) => block.blockId === blockId);
+
+  if (!existingBlock) {
+    return {
+      ok: false,
+      blockId,
+      status: null,
+      errorCode: 'BLOCK_NOT_FOUND'
+    };
+  }
+
+  const nextBlocks = committedBlocks.map((block) => {
+    if (block.blockId !== blockId) {
+      return block;
+    }
+
+    if (status === 'completed') {
+      return {
+        ...block,
+        status: 'completed',
+        completedAt: meta.completedAt || new Date().toISOString(),
+        actualDate: meta.completedAt || new Date().toISOString(),
+        missedAt: null,
+        missReason: null
+      };
+    }
+
+    return {
+      ...block,
+      status: 'missed',
+      missedAt: meta.missedAt || new Date().toISOString(),
+      missReason: meta.missReason || null,
+      actualDate: null,
+      completedAt: null
+    };
+  });
+
+  return {
+    ok: true,
+    state: {
+      ...state,
+      schedule: {
+        ...state.schedule,
+        committedBlocks: nextBlocks
+      }
+    }
+  };
 }
 
 function validateDefiniteGoal(text) {
