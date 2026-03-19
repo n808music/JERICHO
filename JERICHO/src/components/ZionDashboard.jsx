@@ -4,6 +4,7 @@ import PlanningPanel from './zion/PlanningPanel.jsx';
 import BlockDetailsPanel from './zion/BlockDetailsPanel.jsx';
 import Workspace from './zion/Workspace.jsx';
 import AssistantPanel from './zion/AssistantPanel.jsx';
+import DiagnosticsPanel from './DiagnosticsPanel.jsx';
 import MissionSetupFlow from './zion/MissionSetupFlow.jsx';
 import { StructurePageConsolidated } from './zion/StructurePageConsolidated.jsx';
 import CycleTransitionModal from './zion/CycleTransitionModal.jsx';
@@ -105,6 +106,7 @@ function useZionState() {
     appTime,
     goalWorkById,
     constraints,
+    debug,
     cyclesById,
     activeCycleId,
     goalExecutionContract,
@@ -159,6 +161,7 @@ function useZionState() {
     appTime,
     goalWorkById,
     constraints,
+    debug,
     cyclesById,
     activeCycleId,
     probabilityByGoal,
@@ -224,6 +227,7 @@ export default function ZionDashboard({
     appTime,
     goalWorkById,
     constraints,
+    debug,
     lastPlanError,
     cyclesById,
     activeCycleId,
@@ -1590,6 +1594,17 @@ export default function ZionDashboard({
                   </div>
                 </div>
               </div>
+
+              <DiagnosticsPanel
+                drift={Math.round((safeStability.driftScore || 0) * 100)}
+                risks={recoveryReasons || []}
+                metrics={{
+                  completionRate: Math.round((safeStability.completionRate || 0) * 100),
+                  streak: Math.round((safeStability.streakScore || 0) * 100),
+                  driftIndex: Math.round((safeStability.driftScore || 0) * 100),
+                }}
+                traceLog={debug?.traceLog || []}
+              />
 
               <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4 space-y-3">
                 <div className="flex items-center justify-between">

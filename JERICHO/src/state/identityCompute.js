@@ -80,7 +80,17 @@ export function computeDerivedState(state, action) {
       updateBlockStatus(next, action.id, 'in_progress');
       break;
     case 'COMPLETE_BLOCK':
-      // handled in reducer for ledger; keep no-op here
+      appendTraceLog(next, {
+        traceId: `trace-block-complete-${action.id || 'unknown'}-${Date.now()}`,
+        moduleName: 'executionContract',
+        stepName: 'block_completed',
+        status: 'success',
+        inputSummary: { blockId: action.id || null },
+        outputSummary: {
+          completedAt: next.appTime?.nowISO || new Date().toISOString()
+        },
+        timestamp: next.appTime?.nowISO || new Date().toISOString()
+      });
       break;
     case 'RESCHEDULE_BLOCK':
       rescheduleBlock(next, action.id, action.start, action.end);
@@ -834,11 +844,18 @@ function ensureAdmissionStores(state) {
   if (!state.aspirationsByCycleId) state.aspirationsByCycleId = {};
   if (!('lastPlanError' in state)) state.lastPlanError = null;
   if (!state.debug || typeof state.debug !== 'object') state.debug = {};
+  if (!Array.isArray(state.debug.traceLog)) state.debug.traceLog = [];
   if (!state.debug.lastGenerateClickAtISO) state.debug.lastGenerateClickAtISO = null;
   if (!state.debug.lastGenerateClickCycleId) state.debug.lastGenerateClickCycleId = null;
   if (!state.debug.lastGenerateResult || typeof state.debug.lastGenerateResult !== 'object') {
     state.debug.lastGenerateResult = { proposedBlocksCount: 0, lastPlanErrorCode: null };
   }
+}
+
+function appendTraceLog(state, entry) {
+  if (!state.debug || typeof state.debug !== 'object') state.debug = {};
+  const traceLog = Array.isArray(state.debug.traceLog) ? state.debug.traceLog : [];
+  state.debug.traceLog = [...traceLog.slice(-19), entry];
 }
 
 function ensureDeliverablesStore(state) {
@@ -947,6 +964,7 @@ function countNormalizedSchedulerWindows(weeklyWindows) {
 }
 
 function logGenerateDiagnostics({
+  state,
   cycleId,
   goalId,
   deliverableCount,
@@ -1002,6 +1020,32 @@ function logGenerateDiagnostics({
     reasonCodes: reasonCodes || [],
   });
   console.groupEnd();
+  if (!state?.debug || typeof state.debug !== 'object') return;
+  const resolvedTraceId = traceId || `trace-${cycleId}-${Date.now()}`;
+  const resolvedStatus = status || (errorCode ? 'fail' : 'ok');
+  appendTraceLog(state, {
+    traceId: resolvedTraceId,
+    moduleName: moduleName || 'generatePlan',
+    stepName:
+      moduleName === 'applyDraftSchedule'
+        ? 'schedule_committed'
+        : moduleName === 'generatePlan'
+          ? 'schedule_generated'
+          : stepName || 'complete',
+    status: resolvedStatus === 'fail' ? 'error' : 'success',
+    inputSummary: inputSummary || {
+      cycleId: cycleId || null,
+      goalId: goalId || null
+    },
+    outputSummary: {
+      ...(outputSummary || {
+        proposedBlocksCount: Array.isArray(proposedBlocks) ? proposedBlocks.length : 0,
+      }),
+      errorCode,
+    },
+    errorCode,
+    timestamp: new Date().toISOString()
+  });
 }
 
 function isActiveCycleStatus(status) {
@@ -5142,6 +5186,7 @@ function endCycle(state, cycleId) {
     deliverables
   });
   logGenerateDiagnostics({
+    state,
     traceId: `trace-${cycle.id}-convergence`,
     cycleId: cycle.id,
     goalId: cycle?.goalContract?.goalId || cycle?.goalGovernanceContract?.goalId || cycle?.contract?.goalId || null,
@@ -5276,6 +5321,7 @@ function generatePlan(state, payload = {}) {
     };
     setGenerateHeartbeat(state, targetCycleId, 0, 'CYCLE_TARGET_INVALID');
     logGenerateDiagnostics({
+      state,
       cycleId: cycleIdForLog,
       deliverableCount,
       actionCount,
@@ -5297,6 +5343,7 @@ function generatePlan(state, payload = {}) {
     };
     setGenerateHeartbeat(state, cycle.id || targetCycleId, 0, 'CYCLE_READ_ONLY');
     logGenerateDiagnostics({
+      state,
       cycleId: cycle.id || targetCycleId,
       deliverableCount,
       actionCount,
@@ -5343,6 +5390,7 @@ function generatePlan(state, payload = {}) {
     };
     setGenerateHeartbeat(state, cycle.id || targetCycleId, 0, 'NO_ACTION_GRAPH');
     logGenerateDiagnostics({
+      state,
       cycleId: cycle?.id || targetCycleId,
       deliverableCount,
       actionCount,
@@ -5383,6 +5431,7 @@ function generatePlan(state, payload = {}) {
     };
     setGenerateHeartbeat(state, cycle.id || targetCycleId, 0, 'GOAL_ID_MISSING');
     logGenerateDiagnostics({
+      state,
       cycleId: cycle.id || targetCycleId,
       deliverableCount,
       actionCount,
@@ -5404,6 +5453,7 @@ function generatePlan(state, payload = {}) {
     };
     setGenerateHeartbeat(state, cycle.id, 0, 'GOAL_NOT_ADMITTED');
     logGenerateDiagnostics({
+      state,
       cycleId: cycle.id,
       deliverableCount,
       actionCount,
@@ -5464,6 +5514,7 @@ function generatePlan(state, payload = {}) {
     };
     setGenerateHeartbeat(state, cycle.id, 0, 'NO_ACTION_GRAPH');
     logGenerateDiagnostics({
+      state,
       cycleId: cycle.id,
       deliverableCount,
       actionCount,
@@ -5527,6 +5578,7 @@ function generatePlan(state, payload = {}) {
   });
   const perfCompileMs = debugPerfActions ? Date.now() - perfCompileStart : 0;
   logGenerateDiagnostics({
+    state,
     traceId: `trace-${cycle.id}-propose`,
     cycleId: cycle.id,
     goalId: contract?.goalId || null,
@@ -5636,6 +5688,7 @@ function generatePlan(state, payload = {}) {
     setGenerateHeartbeat(state, cycle.id, suggestedCount, state.lastPlanError?.code || null);
   }
   logGenerateDiagnostics({
+    state,
     traceId: `trace-${cycle.id}-generate`,
     cycleId: cycle.id,
     goalId: contract?.goalId || null,
@@ -5665,6 +5718,7 @@ function generatePlan(state, payload = {}) {
     state.scheduleApplied = true;
     state.pendingPlanConfirmation = false;
     logGenerateDiagnostics({
+      state,
       traceId: `trace-${cycle.id}-commit`,
       cycleId: cycle.id,
       goalId: contract?.goalId || null,
@@ -5834,6 +5888,7 @@ function applyDraftSchedule(state, payload = {}) {
       cycleId: cycle.id
     };
     logGenerateDiagnostics({
+      state,
       traceId: `trace-${cycle.id}-apply`,
       cycleId: cycle.id,
       goalId: contract?.goalId || null,
@@ -5933,6 +5988,7 @@ function applyDraftSchedule(state, payload = {}) {
     };
   }
   logGenerateDiagnostics({
+    state,
     traceId: `trace-${cycle.id}-apply`,
     cycleId: cycle.id,
     goalId: contract?.goalId || null,
