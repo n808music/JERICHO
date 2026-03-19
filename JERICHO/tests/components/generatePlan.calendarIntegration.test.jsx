@@ -134,7 +134,7 @@ describe('generatePlan -> calendar integration', () => {
   });
 
   it(
-    'generatePlan auto-applies and calendar shows blocks in April-June',
+    'generatePlan requires explicit apply before calendar shows committed blocks in April-June',
     async () => {
       const user = userEvent.setup();
       const { container } = render(
@@ -148,6 +148,15 @@ describe('generatePlan -> calendar integration', () => {
 
       await act(async () => {
         await capturedStore.generatePlanWithLLM({ cycleId: CYCLE_ID });
+      });
+
+      await waitFor(() => {
+        expect(capturedStore.getState().pendingPlanConfirmation).toBe(true);
+        expect(capturedStore.getState().scheduleApplied).toBe(false);
+      });
+
+      await act(async () => {
+        capturedStore.applyPlan({ cycleId: CYCLE_ID });
       });
 
       await waitFor(() => {

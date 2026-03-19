@@ -1,4 +1,5 @@
 import { addDays, buildLocalStartISO, dayKeyFromISO, nowDayKey } from '../time/time.ts';
+import { isRuntimeEnvFlagEnabled } from '../../utils/runtimeEnv.js';
 
 type Constraints = {
   timezone: string;
@@ -98,7 +99,7 @@ export function compileAutoAsanaPlan({
       : nowDay;
   const endDayKey = addDays(startDayKey, Math.max(0, horizonDays - 1), timeZone);
   const dayKeys = collectHorizonDays(startDayKey, endDayKey, constraints, timeZone);
-  if (process.env.NODE_ENV !== 'production') {
+  if (isRuntimeEnvFlagEnabled('JERICHO_DEBUG_SCHEDULER')) {
     // Placement diagnostics for horizon expansion vs. distributor output.
     // eslint-disable-next-line no-console
     console.log('dayKeys sample', dayKeys[0], dayKeys[dayKeys.length - 1], 'total:', dayKeys.length);
@@ -118,7 +119,6 @@ export function compileAutoAsanaPlan({
     actionSequence,
     sessionPlan
   });
-
   const conflicts: AutoAsanaPlan['conflicts'] = schedule.conflicts;
   const recoveryOptions: AutoAsanaPlan['recoveryOptions'] = schedule.recoveryOptions;
   const clamped = clampPlacedBlocksToCycleWindow({
@@ -127,7 +127,6 @@ export function compileAutoAsanaPlan({
     constraints,
     timeZone
   });
-
   if (maxPerDay && requiredPerDay > maxPerDay) {
     conflicts.push({
       kind: 'UNSCHEDULABLE',
@@ -305,6 +304,8 @@ function scheduleHorizonBlocks({
   const allowedBase = normalizeWindows(constraints?.workingHoursWindows || [{ startMin: 0, endMin: 1440 }]);
   const forbidden = normalizeWindows(constraints?.forbiddenTimeWindows || []);
   const existingBusy = busyFromAcceptedBlocks(acceptedBlocks, timeZone);
+  const placedBusyByDay: Record<string, TimeWindow[]> = {};
+  const startIsoCache = new Map<string, string | null>();
 
   const dailyCounts: Record<string, number> = {};
   const weeklyCounts: Record<string, number> = {};
@@ -336,7 +337,8 @@ function scheduleHorizonBlocks({
       allowedBase,
       forbidden,
       existingBusy,
-      placed,
+      placedBusyByDay,
+      startIsoCache,
       dailyCounts,
       weeklyCounts,
       constraints
@@ -370,12 +372,15 @@ function scheduleHorizonBlocks({
     if (draft.identityKey) {
       seenIdentityKeys.add(draft.identityKey);
     }
+    const slotStartMin = minutesFromISO(slot.startISO, timeZone);
+    if (!placedBusyByDay[slot.dayKey]) placedBusyByDay[slot.dayKey] = [];
+    placedBusyByDay[slot.dayKey].push({ startMin: slotStartMin, endMin: slotStartMin + draft.durationMinutes });
     dailyCounts[slot.dayKey] = (dailyCounts[slot.dayKey] || 0) + 1;
     const weekKey = weekKeyForDay(slot.dayKey);
     weeklyCounts[weekKey] = (weeklyCounts[weekKey] || 0) + 1;
   });
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (isRuntimeEnvFlagEnabled('JERICHO_DEBUG_SCHEDULER')) {
     // eslint-disable-next-line no-console
     console.log('placed dayKeys', placed.filter((d) => d?.dayKey).map((d) => d.dayKey).sort());
   }
@@ -623,7 +628,8 @@ function findSlotForDraft({
   allowedBase,
   forbidden,
   existingBusy,
-  placed,
+  placedBusyByDay,
+  startIsoCache,
   dailyCounts,
   weeklyCounts,
   constraints
@@ -634,7 +640,8 @@ function findSlotForDraft({
   allowedBase: TimeWindow[];
   forbidden: TimeWindow[];
   existingBusy: Record<string, TimeWindow[]>;
-  placed: Array<{ dayKey: string; startISO: string; durationMinutes: number }>;
+  placedBusyByDay: Record<string, TimeWindow[]>;
+  startIsoCache: Map<string, string | null>;
   dailyCounts: Record<string, number>;
   weeklyCounts: Record<string, number>;
   constraints: Constraints;
@@ -646,35 +653,41 @@ function findSlotForDraft({
   let overlapOnly = true;
   const explicitWeeklyWindows = hasExplicitWeeklyWindows(constraints);
   const dayEndAtMin = parseHHMMToMinutes(constraints?.dayEndAtHHMM || '23:59');
-
-  const dayScanOrder = orderDayKeysForDraft(dayKeys, draft?.targetDayKey);
   const preferredStartMinutes = parseHHMMToMinutes(draft?.preferredStartTime || '');
-
-  for (const dayKey of dayScanOrder) {
+  const resolveStartISO = (dayKey: string, startMin: number) => {
+    const cacheKey = `${dayKey}:${startMin}`;
+    if (startIsoCache.has(cacheKey)) {
+      return startIsoCache.get(cacheKey) || null;
+    }
+    const startISO = buildLocalStartISO(dayKey, minutesToTime(startMin), timeZone).startISO || null;
+    startIsoCache.set(cacheKey, startISO);
+    return startISO;
+  };
+  const tryDayKey = (dayKey: string) => {
     const allowed = explicitWeeklyWindows
       ? subtractWindows(
           normalizeHHMMWindows(constraints?.weeklyWindows?.[dayCodeFromDayKey(dayKey, timeZone)] || [], dayEndAtMin),
           forbidden
         )
       : subtractWindows(allowedBase, forbidden);
-    if (!allowed.length) continue;
+    if (!allowed.length) return null;
     foundAnyWindows = true;
     const dayBusy = [
       ...(existingBusy[dayKey] || []),
-      ...busyFromPlaced(placed, dayKey, timeZone)
+      ...(placedBusyByDay[dayKey] || [])
     ];
     const weekKey = weekKeyForDay(dayKey);
     if ((dailyCounts[dayKey] || 0) + 1 > maxPerDay) {
       draft.failCode = 'EXCEEDS_MAX_PER_DAY';
       draft.failDayKey = dayKey;
       draft.recoveryOptions = [{ kind: 'INCREASE_MAX_PER_DAY', detail: `Increase max per day above ${maxPerDay}.` }];
-      continue;
+      return null;
     }
     if ((weeklyCounts[weekKey] || 0) + 1 > maxPerWeek) {
       draft.failCode = 'EXCEEDS_MAX_PER_WEEK';
       draft.failDayKey = dayKey;
       draft.recoveryOptions = [{ kind: 'INCREASE_MAX_PER_WEEK', detail: `Increase max per week above ${maxPerWeek}.` }];
-      continue;
+      return null;
     }
     for (const window of allowed) {
       if (preferredStartMinutes > 0 && preferredStartMinutes + draft.durationMinutes <= window.endMin) {
@@ -687,7 +700,7 @@ function findSlotForDraft({
           !overlapsAny(preferredCandidate, dayBusy)
         ) {
           overlapOnly = false;
-          const startISO = buildLocalStartISO(dayKey, minutesToTime(preferredCandidate.startMin), timeZone).startISO;
+          const startISO = resolveStartISO(dayKey, preferredCandidate.startMin);
           if (startISO) {
             return { dayKey, startISO };
           }
@@ -697,11 +710,35 @@ function findSlotForDraft({
         const candidate = { startMin, endMin: startMin + draft.durationMinutes };
         if (!overlapsAny(candidate, dayBusy)) {
           overlapOnly = false;
-          const startISO = buildLocalStartISO(dayKey, minutesToTime(startMin), timeZone).startISO;
+          const startISO = resolveStartISO(dayKey, startMin);
           if (!startISO) continue;
           return { dayKey, startISO };
         }
       }
+    }
+    return null;
+  };
+
+  const targetDayKey = draft?.targetDayKey;
+  const targetIndex = targetDayKey ? dayKeys.indexOf(targetDayKey) : -1;
+  if (targetIndex >= 0) {
+    for (let offset = 0; offset < dayKeys.length; offset += 1) {
+      const right = targetIndex + offset;
+      if (right >= 0 && right < dayKeys.length) {
+        const match = tryDayKey(dayKeys[right]);
+        if (match) return match;
+      }
+      if (offset === 0) continue;
+      const left = targetIndex - offset;
+      if (left >= 0 && left < dayKeys.length) {
+        const match = tryDayKey(dayKeys[left]);
+        if (match) return match;
+      }
+    }
+  } else {
+    for (const dayKey of dayKeys) {
+      const match = tryDayKey(dayKey);
+      if (match) return match;
     }
   }
 
@@ -716,27 +753,6 @@ function findSlotForDraft({
     draft.recoveryOptions = [{ kind: 'EXTEND_HORIZON', detail: 'Extend horizon or reduce sessions.' }];
   }
   return null;
-}
-
-function orderDayKeysForDraft(dayKeys: string[], targetDayKey?: string) {
-  if (!Array.isArray(dayKeys) || dayKeys.length <= 1) return dayKeys || [];
-  if (!targetDayKey) return dayKeys;
-  const targetIndex = dayKeys.indexOf(targetDayKey);
-  if (targetIndex < 0) return dayKeys;
-
-  const ordered: string[] = [];
-  for (let offset = 0; ordered.length < dayKeys.length; offset += 1) {
-    const right = targetIndex + offset;
-    if (right >= 0 && right < dayKeys.length) {
-      ordered.push(dayKeys[right]);
-    }
-    if (offset === 0) continue;
-    const left = targetIndex - offset;
-    if (left >= 0 && left < dayKeys.length) {
-      ordered.push(dayKeys[left]);
-    }
-  }
-  return ordered;
 }
 
 function normalizeSessionPlanEntries(
@@ -977,15 +993,6 @@ function busyFromAcceptedBlocks(blocks: Array<{ startISO: string; durationMinute
     byDay[dayKey] = normalizeWindows(byDay[dayKey]);
   });
   return byDay;
-}
-
-function busyFromPlaced(placed: Array<{ dayKey: string; startISO: string; durationMinutes: number }>, dayKey: string, timeZone: string) {
-  return (placed || [])
-    .filter((b) => b.dayKey === dayKey)
-    .map((b) => {
-      const startMin = minutesFromISO(b.startISO, timeZone);
-      return { startMin, endMin: startMin + (b.durationMinutes || 0) };
-    });
 }
 
 function minutesFromISO(iso: string, timeZone: string) {

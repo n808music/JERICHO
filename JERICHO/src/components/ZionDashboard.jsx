@@ -3,7 +3,6 @@ import BlockColumn from './zion/BlockColumn.jsx';
 import PlanningPanel from './zion/PlanningPanel.jsx';
 import BlockDetailsPanel from './zion/BlockDetailsPanel.jsx';
 import Workspace from './zion/Workspace.jsx';
-import { PatternLens } from './zion/Workspace.jsx';
 import AssistantPanel from './zion/AssistantPanel.jsx';
 import MissionSetupFlow from './zion/MissionSetupFlow.jsx';
 import { StructurePageConsolidated } from './zion/StructurePageConsolidated.jsx';
@@ -19,10 +18,13 @@ import { computeDayMetricsMap, normalizeBlocks } from '../state/metrics.js';
 import { localStartFromDayAndTime } from './zion/timeUtils.js';
 import { addDays, dayKeyFromISO, isValidISO, assertValidISO, nowDayKey } from '../state/time/time.ts';
 import { formatProbabilityWindowLabel, getProbabilityWindowSpec } from '../state/engine/probabilityWindow.ts';
-import { projectSuggestionHistory } from '../state/suggestionHistory.js';
 import { projectCyclesIndex } from '../state/engine/cycleIndex.ts';
-import { DELIVERABLE_DOMAINS, getDeliverablesForCycle, getSuggestionLinkForCycle } from '../state/deliverables.ts';
 import { deriveWhatMovedToday } from '../state/whatMovedToday.ts';
+import {
+  getCanonicalCycleContract,
+  getCanonicalCycleDeliverables,
+  getCanonicalProposedBlocks
+} from '../state/cycleSelectors.js';
 import {
   getContractStartDayKey,
   getContractDeadlineDayKey
@@ -38,8 +40,8 @@ import {
   shiftAnchorDayKey
 } from '../state/time/window.ts';
 import { getDayStats, getMonthStats, getQuarterStats } from '../state/time/viewAggregates.ts';
+import { buildStabilityEndToEndSummary } from '../state/contracts/stabilityEndToEndVerification';
 
-const DOMAINS = ['Body', 'Resources', 'Creation', 'Focus'];
 const DOMAIN_ENUM = ['BODY', 'RESOURCES', 'CREATION', 'FOCUS'];
 
 const TAB_CONFIG = [
@@ -57,7 +59,15 @@ const ZION_VIEW_TABS = [
 
 const POS_REASON_LABELS = {
   POS_NO_PLAN: 'No plan available',
+  POS_THROUGHPUT_MODEL_MISSING: 'Throughput model missing',
+  POS_FEASIBILITY_INPUT_MISSING: 'Feasibility input missing',
   POS_UNSCHEDULABLE: 'Unschedulable',
+  POS_TRAJECTORY_ON_TRACK: 'Trajectory on track',
+  POS_TRAJECTORY_RECOVERABLE_DRIFT: 'Recoverable drift detected',
+  POS_TRAJECTORY_AT_RISK: 'Trajectory at risk',
+  POS_TRAJECTORY_INFEASIBLE: 'Infeasible trajectory',
+  POS_REQUIRED_WEEKLY_THROUGHPUT_UP: 'Required weekly throughput increased',
+  POS_TERMINAL_DRIFT_EXPIRED: 'Expired blocks indicate terminal drift',
   POS_DOWN_MISSED_WORK: 'Missed work increased',
   POS_DOWN_LATE_COMPLETION: 'Late completions increased',
   POS_UP_ON_TIME_COMPLETION: 'On-time completions increased',
@@ -67,6 +77,19 @@ const POS_REASON_LABELS = {
   POS_DOWN_FEASIBILITY_DECREASE: 'Feasibility decreased',
   POS_UP_FEASIBILITY_INCREASE: 'Feasibility increased',
 };
+
+const CONTRACT_FAILURE_LABELS = {
+  ON_TRACK: 'On track',
+  RECOVERABLE_DRIFT: 'Recoverable drift',
+  OVERLOADED_CURRENT_CONTRACT: 'Overloaded current contract',
+  INFEASIBLE_CURRENT_CONTRACT: 'Infeasible current contract',
+  DEADLINE_FAILED_RENEGOTIATION_REQUIRED: 'Deadline failed, renegotiation required',
+};
+
+const RECOVERY_STATE_LABELS = {
+  RECOVERY_WITHIN_CONTRACT: 'Recovery fits current contract',
+  RECOVERY_RENEGOTIATION_REQUIRED: 'Recovery requires renegotiation',
+};
 // Dev note: activeDayKey is the only anchor for UI dates; avoid new Date/Date.now for display-critical state.
 
 function useZionState() {
@@ -74,10 +97,7 @@ function useZionState() {
     today,
     currentWeek,
     cycle,
-    planDraft,
-    planCalibration,
-    correctionSignals,
-    suggestionEvents,
+    lastPlanError,
     proposedBlocks,
     suggestedBlocks,
     deliverablesByCycleId,
@@ -91,11 +111,14 @@ function useZionState() {
     probabilityByGoal,
     feasibilityByGoal,
     profileLearning,
+    planRecovery,
+    pendingPlanConfirmation,
     setActiveCycle,
     deleteCycle,
     startNewCycle,
     startNewCycleWithDecision,
     generateScheduleForActiveCycle,
+    generatePlanWithLLM,
     completeBlock,
     setDefiniteGoal,
     setPatternTargets,
@@ -106,7 +129,6 @@ function useZionState() {
     setActiveDayKey,
     jumpToToday,
     tickNow,
-    setCalibrationDays,
     acceptSuggestedBlock,
     acceptSuggestedBlockWithPlacement,
     rejectSuggestedBlock,
@@ -122,16 +144,14 @@ function useZionState() {
     assignSuggestionLink,
     generatePlan,
     commitPreviewItems,
-    applyPlan
+    applyPlan,
+    applyRenegotiationOption
   } = useIdentityStore();
   return {
     today,
     currentWeek,
     cycle,
-    planDraft,
-    planCalibration,
-    correctionSignals,
-    suggestionEvents,
+    lastPlanError,
     proposedBlocks,
     suggestedBlocks,
     deliverablesByCycleId,
@@ -143,6 +163,8 @@ function useZionState() {
     activeCycleId,
     probabilityByGoal,
     feasibilityByGoal,
+    planRecovery,
+    pendingPlanConfirmation,
     actions: {
       completeBlock,
       setDefiniteGoal,
@@ -154,7 +176,6 @@ function useZionState() {
       setActiveDayKey,
       jumpToToday,
       tickNow,
-      setCalibrationDays,
       acceptSuggestedBlock,
       acceptSuggestedBlockWithPlacement,
       rejectSuggestedBlock,
@@ -165,6 +186,7 @@ function useZionState() {
       startNewCycle,
       startNewCycleWithDecision,
       generateScheduleForActiveCycle,
+      generatePlanWithLLM,
       createDeliverable,
       updateDeliverable,
       deleteDeliverable,
@@ -175,7 +197,8 @@ function useZionState() {
       assignSuggestionLink,
       generatePlan,
       commitPreviewItems,
-      applyPlan
+      applyPlan,
+      applyRenegotiationOption
     }
   };
 }
@@ -194,10 +217,6 @@ export default function ZionDashboard({
     today,
     currentWeek,
     cycle,
-    planDraft,
-    planCalibration,
-    correctionSignals,
-    suggestionEvents,
     proposedBlocks,
     suggestedBlocks,
     deliverablesByCycleId,
@@ -205,22 +224,32 @@ export default function ZionDashboard({
     appTime,
     goalWorkById,
     constraints,
+    lastPlanError,
     cyclesById,
     activeCycleId,
     goalExecutionContract,
     probabilityByGoal,
     feasibilityByGoal,
     profileLearning,
+    planRecovery,
+    pendingPlanConfirmation,
     actions
   } = useZionState();
   const activeCycle = activeCycleId && cyclesById ? cyclesById[activeCycleId] : null;
-  const goalId = goalExecutionContract?.goalId || activeCycle?.goalContract?.goalId || null;
+  const canonicalContract = getCanonicalCycleContract(activeCycle, goalExecutionContract);
+  const goalId = canonicalContract?.goalId || null;
+  const renderGoalId =
+    goalId ||
+    activeCycle?.goalContract?.goalId ||
+    activeCycle?.goalGovernanceContract?.goalId ||
+    activeCycle?.contract?.goalId ||
+    null;
   const admissionRecord = goalId ? goalAdmissionByGoal?.[goalId] || activeCycle?.goalAdmission : activeCycle?.goalAdmission;
-  const isGoalAdmitted = !admissionRecord || admissionRecord.status === 'ADMITTED';
   const hasAdmittedGoal = Boolean(activeCycle?.goalContract);
-  const admissionReason = admissionRecord && admissionRecord.status !== 'ADMITTED'
-    ? (admissionRecord.reasonCodes || []).join(', ') || admissionRecord.status
-    : '';
+  const normalizedAdmissionStatus = String(admissionRecord?.status || '').trim().toUpperCase();
+  const isGoalAdmitted =
+    hasAdmittedGoal &&
+    (!admissionRecord || !normalizedAdmissionStatus || normalizedAdmissionStatus === 'ADMITTED' || normalizedAdmissionStatus === 'ACTIVE');
 
   function emitAction(name, payload, fn) {
     if (!fn) {
@@ -234,14 +263,10 @@ export default function ZionDashboard({
     .trim()
     .toLowerCase();
   const cycleMode = normalizedCycleStatus === 'active' ? 'active' : 'review';
-  const isReviewMode = cycleMode === 'review';
   const isCycleReadOnly = cycleMode !== 'active';
-  const coldPlanForecast = activeCycle?.coldPlan?.forecastByDayKey || {};
-  const dailyProjectionForecast = activeCycle?.coldPlan?.dailyProjection?.forecastByDayKey || {};
-  const autoAsanaPlan = activeCycle?.autoAsanaPlan || null;
   const deliverables = useMemo(
-    () => getDeliverablesForCycle(deliverablesByCycleId, activeCycleId),
-    [deliverablesByCycleId, activeCycleId]
+    () => getCanonicalCycleDeliverables(deliverablesByCycleId, activeCycleId, activeCycle),
+    [deliverablesByCycleId, activeCycleId, activeCycle]
   );
   const deliverablesWorkspace = useMemo(
     () => (activeCycleId && deliverablesByCycleId ? deliverablesByCycleId[activeCycleId] : null),
@@ -317,12 +342,44 @@ export default function ZionDashboard({
     if (initialView !== null && initialView !== undefined) return initialView;
     return 'today';
   });
+  useEffect(() => {
+    const errorCode = String(lastPlanError?.code || '').trim().toUpperCase();
+    const requiredRecovery = String(planRecovery?.required || '').trim().toUpperCase();
+    if (errorCode === 'MISSING_GOAL_DRAFT' || requiredRecovery === 'GOAL_DRAFT_CONTEXT') {
+      setView('structure');
+    }
+  }, [lastPlanError?.code, planRecovery?.required]);
   // If there is no active cycle, route the UI to Structure for goal intake
   useEffect(() => {
     if (!activeCycleId) {
       setView('structure');
     }
   }, [activeCycleId]);
+  // Sync hash changes to view state (e.g., when user navigates via URL)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const syncHashToView = () => {
+      const currentHash = window.location.hash || '';
+      if (currentHash.startsWith('#/structure')) {
+        setView('structure');
+      } else if (currentHash.startsWith('#/today')) {
+        setView('today');
+      } else if (currentHash.startsWith('#/stability')) {
+        setView('stability');
+      }
+    };
+
+    // Sync on mount
+    syncHashToView();
+
+    // Listen for hash changes (clicking back/forward, manual URL edits, etc.)
+    window.addEventListener('hashchange', syncHashToView);
+
+    return () => {
+      window.removeEventListener('hashchange', syncHashToView);
+    };
+  }, []);
   const [assistantVisible, setAssistantVisible] = useState(assistantOpen);
   const [isCycleTransitionModalOpen, setCycleTransitionModalOpen] = useState(false);
   const [selectedBlockId, setSelectedBlockId] = useState(null);
@@ -347,6 +404,9 @@ export default function ZionDashboard({
   };
   const viewDayKey = zionView === 'day' ? anchorDayKey : null;
   const contractStartDateValue =
+    activeCycle?.startedAtDayKey ||
+    activeCycle?.goalGovernanceContract?.activeFromISO ||
+    activeCycle?.goalContract?.startDayKey ||
     activeCycle?.goalContract?.startDateISO ||
     activeCycle?.goalContract?.startDate ||
     activeCycle?.goalContract?.temporalBinding?.startDayKey ||
@@ -358,7 +418,20 @@ export default function ZionDashboard({
   const suppressSuggestionsForPreStartDay =
     Boolean(contractStartDayKey && viewDayKey && viewDayKey < contractStartDayKey);
   const suppressDrafts = suppressSuggestionsForPreStartDay;
-  const normalizedBlocks = useMemo(() => normalizeBlocks(getAllBlocks({ today, currentWeek, cycle })), [today, currentWeek, cycle]);
+  const canGenerateSchedule = Boolean(!isCycleReadOnly && !suppressDrafts && hasAdmittedGoal && isGoalAdmitted);
+  const allRenderedBlocks = useMemo(() => {
+    const rawBlocks = getAllBlocks({ today, currentWeek, cycle });
+    return normalizeBlocks(rawBlocks);
+  }, [today, currentWeek, cycle]);
+  const normalizedBlocks = useMemo(() => {
+    if (!activeCycleId || !isGoalAdmitted) return [];
+    const filtered = (allRenderedBlocks || []).filter(
+      (block) =>
+        block?.cycleId === activeCycleId &&
+        (!renderGoalId || !block?.goalId || block?.goalId === renderGoalId)
+    );
+    return filtered;
+  }, [allRenderedBlocks, activeCycleId, renderGoalId, isGoalAdmitted]);
   const dayBlocksMap = useMemo(() => {
     const map = new Map();
     (normalizedBlocks || []).forEach((b) => {
@@ -373,23 +446,20 @@ export default function ZionDashboard({
   const windowSpec = buildWindowSpec(zionView, anchorISO, timeZone);
   const windowLabel = formatWindowLabel(windowSpec, timeZone);
   const monthDays = useMemo(() => {
-    const blocks = getAllBlocks({ today, currentWeek, cycle });
     const anchor = activeDayKey || today?.date || currentWeek?.weekStart || nowDayKey(timeZone);
-    return projectMonthDays({ monthKey: anchor, blocks, includePadding: true });
-  }, [today, currentWeek, cycle, activeDayKey, timeZone]);
-  const getRouteCountForDay = (dayKey) => coldPlanForecast?.[dayKey]?.totalBlocks || 0;
-  const getRouteCountForDays = (dayKeys = []) =>
-    (dayKeys || []).reduce((sum, key) => sum + (coldPlanForecast?.[key]?.totalBlocks || 0), 0);
-  const getSuggestionDayKey = (s) => {
-    if (s?.dayKey) return s.dayKey;
-    const iso = s?.startISO || s?.start || '';
-    if (iso) return dayKeyFromISO(iso, timeZone);
-    return '';
-  };
-  const scheduleSource = proposedBlocks || suggestedBlocks || [];
+    return projectMonthDays({ monthKey: anchor, blocks: normalizedBlocks, includePadding: true });
+  }, [today, currentWeek, activeDayKey, timeZone, normalizedBlocks]);
+  const scheduleSource = getCanonicalProposedBlocks(proposedBlocks, suggestedBlocks);
   const suggestedActive = useMemo(
-    () => (scheduleSource || []).filter((s) => s && s.status === 'suggested'),
-    [scheduleSource]
+    () =>
+      (scheduleSource || []).filter((s) => {
+        if (!s || s.status !== 'suggested') return false;
+        if (!activeCycleId || !isGoalAdmitted) return false;
+        if (s?.cycleId && s.cycleId !== activeCycleId) return false;
+        if (!renderGoalId || !s?.goalId) return true;
+        return s?.goalId === renderGoalId;
+      }),
+    [scheduleSource, activeCycleId, renderGoalId, isGoalAdmitted]
   );
   const deliverableTitleById = useMemo(() => {
     const map = new Map();
@@ -407,9 +477,9 @@ export default function ZionDashboard({
     });
     return map;
   }, [deliverables]);
-  const contract = activeCycle?.goalContract || goalExecutionContract || null;
+  const contract = canonicalContract;
   const deadlineDayKey = getContractDeadlineDayKey(contract);
-  const proposedScheduleItems = useMemo(() => {
+  const proposedScheduleItemsAll = useMemo(() => {
     const items = (suggestedActive || []).filter((item) => {
       const dayKey = item?.dayKey || dayKeyFromISO(item?.startISO || '', timeZone);
       if (!dayKey) return false;
@@ -417,69 +487,32 @@ export default function ZionDashboard({
       if (deadlineDayKey && dayKey > deadlineDayKey) return false;
       return true;
     });
-    if (!viewDayKey) return items;
-    return items.filter((item) => {
+    return items;
+  }, [suggestedActive, contractStartDayKey, deadlineDayKey, timeZone]);
+  const proposedScheduleItems = useMemo(() => {
+    if (!viewDayKey) return proposedScheduleItemsAll;
+    return proposedScheduleItemsAll.filter((item) => {
       const dayKey = item?.dayKey || dayKeyFromISO(item?.startISO || '', timeZone);
       return dayKey === viewDayKey;
     });
-  }, [suggestedActive, contractStartDayKey, deadlineDayKey, viewDayKey, timeZone]);
-  const progressStats = useMemo(() => {
-    const blocks = selectedDayBlocks || [];
-    const progressBlocks = blocks.filter((b) => b?.deliverableId).length;
-    const capacityBlocks = blocks.length - progressBlocks;
-    return { progressBlocks, capacityBlocks, total: blocks.length };
-  }, [selectedDayBlocks]);
-  const showCalibration =
-    !isCycleReadOnly &&
-    planDraft &&
-    planDraft.status !== 'calibrated' &&
-    ((planCalibration?.confidence || 0) < 0.7 ||
-      (planCalibration?.missingInfo || []).includes('daysPerWeek'));
-  const [calibrationBanner, setCalibrationBanner] = useState('');
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [historyTypeFilter, setHistoryTypeFilter] = useState([]);
-  const [historyDomainFilter, setHistoryDomainFilter] = useState([]);
-  const [historyReasonFilter, setHistoryReasonFilter] = useState([]);
-  const [highlightSuggestionId, setHighlightSuggestionId] = useState(null);
-  const [controlPanelsOpen, setControlPanelsOpen] = useState(false);
+  }, [proposedScheduleItemsAll, viewDayKey, timeZone]);
+  const proposedScheduleItemsGrouped = useMemo(
+    () =>
+      Object.entries(
+        proposedScheduleItemsAll.reduce((acc, item) => {
+          const dayKey = item?.dayKey || dayKeyFromISO(item?.startISO || item?.start || item?.date || '', timeZone);
+          if (!dayKey) return acc;
+          if (!acc[dayKey]) acc[dayKey] = [];
+          acc[dayKey].push(item);
+          return acc;
+        }, {})
+      ).sort(([a], [b]) => (a < b ? -1 : 1)),
+    [proposedScheduleItemsAll, timeZone]
+  );
   const [pendingPlacement, setPendingPlacement] = useState(null);
-  const [cycleHistoryOpen, setCycleHistoryOpen] = useState(false);
   const [addBlockError, setAddBlockError] = useState('');
   const [strictProgressMode, setStrictProgressMode] = useState(true);
-  const [deliverableDraft, setDeliverableDraft] = useState({
-    domain: 'CREATION',
-    title: '',
-    weight: 1,
-    dueDayKey: ''
-  });
-  const [criterionDrafts, setCriterionDrafts] = useState({});
-
-  const handleCalibrationSelect = (daysPerWeek, uncertain = false) => {
-    if (isCycleReadOnly) return;
-    actions.setCalibrationDays?.(daysPerWeek, uncertain);
-    setCalibrationBanner(`Rebalanced to ${daysPerWeek} days/week`);
-    window.setTimeout(() => setCalibrationBanner(''), 2400);
-  };
-  const isProgressDomain = (domain) =>
-    ['CREATION', 'FOCUS', 'RESOURCES'].includes((domain || '').toString().toUpperCase());
-
-  const openPlacement = (suggestion) => {
-    if (isCycleReadOnly) return;
-    if (!suggestion) return;
-    const suggestionDayKey = getSuggestionDayKey(suggestion) || activeDayKey;
-    const link = getSuggestionLinkForCycle(deliverablesByCycleId, activeCycleId, suggestion.id);
-    setPendingPlacement({
-      suggestionId: suggestion.id,
-      title: suggestion.title,
-      domain: suggestion.domain,
-      date: suggestionDayKey,
-      time: '09:00',
-      durationMinutes: suggestion.durationMinutes || 30,
-      deliverableId: link?.deliverableId || suggestion.deliverableId || '',
-      criterionId: link?.criterionId || suggestion.criterionId || '',
-      isProgress: true
-    });
-  };
+  const [renegotiationFeedback, setRenegotiationFeedback] = useState('');
 
   function addMinutesToISO(iso, minutes) {
     const startMs = Date.parse(iso);
@@ -494,7 +527,6 @@ export default function ZionDashboard({
     if (
       strictProgressMode &&
       pendingPlacement.isProgress &&
-      isProgressDomain(pendingPlacement.domain) &&
       !pendingPlacement.criterionId
     ) {
       setAddBlockError('Strict mode: progress blocks need a linked criterion.');
@@ -528,7 +560,7 @@ export default function ZionDashboard({
         start: startISO,
         durationMinutes: pendingPlacement.durationMinutes,
         domain: applyDomainEnum(pendingPlacement.domain),
-        title: pendingPlacement.title || 'Block',
+        title: pendingPlacement.title || 'Untitled task',
         surface: 'today',
         timeZone,
         deliverableId: pendingPlacement.isProgress ? (pendingPlacement.deliverableId || null) : null,
@@ -552,7 +584,7 @@ export default function ZionDashboard({
           start: startISO,
           durationMinutes: pendingPlacement.durationMinutes,
           domain: applyDomainEnum(pendingPlacement.domain),
-          title: pendingPlacement.title || 'Block',
+          title: pendingPlacement.title || 'Untitled task',
           surface: 'today',
           timeZone
         });
@@ -572,42 +604,6 @@ export default function ZionDashboard({
     }, actions.toggleCriterionDone);
   };
 
-  const signalLabel = (value) => {
-    if (value >= 0.6) return 'high';
-    if (value >= 0.3) return 'moderate';
-    if (value > 0) return 'low';
-    return 'none';
-  };
-
-  const filteredHistory = useMemo(() => {
-    const suggestionsById = new Map((suggestedBlocks || []).map((s) => [s.id, s]));
-    return projectSuggestionHistory({
-      suggestionEvents,
-      suggestionsById,
-      nowDayKey: activeDayKey,
-      timeZone,
-      windowDays: 14,
-      filters: {
-        types: historyTypeFilter,
-        domains: historyDomainFilter,
-        reasons: historyReasonFilter
-      }
-    });
-  }, [suggestionEvents, suggestedBlocks, historyTypeFilter, historyDomainFilter, historyReasonFilter, activeDayKey, timeZone]);
-
-  const formatHistoryDate = (dayKey) => {
-    return formatDayKeyLabel(dayKey);
-  };
-
-  const formatCycleISO = (iso) => {
-    if (!iso) return '—';
-    const dayKey = dayKeyFromISO(iso, timeZone);
-    return dayKey ? formatDayKeyLabel(dayKey) : iso.slice(0, 10);
-  };
-
-  const toggleFilterValue = (current, value, setter) => {
-    setter(current.includes(value) ? current.filter((v) => v !== value) : [...current, value]);
-  };
   const monthDayMetrics = useMemo(() => computeDayMetricsMap({ blocks: normalizedBlocks, dayKeys: (monthDays || []).map((d) => d.date) }), [normalizedBlocks, monthDays]);
   const monthDaysWithMetrics = useMemo(
     () =>
@@ -651,7 +647,6 @@ export default function ZionDashboard({
     if (
       strictProgressMode &&
       isProgress &&
-      isProgressDomain(domain) &&
       !criterionId
     ) {
       setAddBlockError('Strict mode: progress blocks need a linked criterion.');
@@ -689,10 +684,10 @@ export default function ZionDashboard({
       start: startISO,
       durationMinutes: durationMinutes || 30,
       domain: applyDomainEnum(domain),
-      title: title || 'Block',
+      title: title || 'Untitled task',
       surface: 'today',
       origin: 'manual',
-      goalId: linkToGoal === false ? null : goalExecutionContract?.goalId || null,
+      goalId: linkToGoal === false ? null : goalId || null,
       linkToGoal,
       deliverableId: isProgress ? (deliverableId || null) : null,
       criterionId: isProgress ? (criterionId || null) : null
@@ -780,6 +775,88 @@ export default function ZionDashboard({
     actions.jumpToToday?.();
   };
 
+  const handleGenerateSchedule = () => {
+    if (isCycleReadOnly || suppressDrafts) return;
+    const cycleId = activeCycleId || null;
+    if (!hasAdmittedGoal || !isGoalAdmitted) {
+      traceAction('schedule.generate.blocked.missing-goal', { cycleId, goalId: goalId || null });
+      setView('structure');
+      return;
+    }
+    traceAction('schedule.generate.click', { cycleId });
+    if (typeof actions.generateScheduleForActiveCycle === 'function') {
+      actions.generateScheduleForActiveCycle();
+      return;
+    }
+    if (typeof actions.generatePlanWithLLM === 'function') {
+      actions.generatePlanWithLLM({ cycleId });
+      return;
+    }
+    actions.generatePlan?.({ cycleId });
+  };
+
+  const handleApplySchedule = () => {
+    if (isCycleReadOnly || suppressDrafts || proposedScheduleItemsAll.length === 0) return;
+    const cycleId = activeCycleId || null;
+    traceAction('schedule.apply.click', { cycleId, count: proposedScheduleItemsAll.length });
+    if (typeof actions.applyPlan === 'function') {
+      actions.applyPlan({ cycleId });
+      const firstBlock = proposedScheduleItemsAll
+        .slice()
+        .sort((a, b) => {
+          const left = a?.startISO || a?.start || a?.date || '';
+          const right = b?.startISO || b?.start || b?.date || '';
+          return left < right ? -1 : 1;
+        })[0];
+      if (firstBlock) {
+        const firstDayKey = dayKeyFromISO(firstBlock?.startISO || firstBlock?.start || firstBlock?.date || '', timeZone);
+        if (firstDayKey) {
+          setAnchorDayKey(firstDayKey);
+          if (zionView === 'day') {
+            setZionView('week');
+          }
+        }
+      }
+      return;
+    }
+    actions.commitPreviewItems?.({
+      cycleId,
+      items: proposedScheduleItemsAll.map((item) => ({
+        id: item.id,
+        dayKey: item.dayKey || dayKeyFromISO(item.startISO || '', timeZone),
+        startISO: item.startISO,
+        minutes: item.durationMinutes,
+        title: item.title,
+        domainKey: item.domain
+      }))
+    });
+  };
+
+  const handleApplyRenegotiationOption = (option, index) => {
+    if (isCycleReadOnly || !option) return;
+    const optionType = String(option?.type || '').trim().toUpperCase();
+    const isSupported = optionType === 'EXTEND_DEADLINE' || optionType === 'INCREASE_THROUGHPUT';
+    if (!isSupported) {
+      setRenegotiationFeedback(`Option ${optionType || 'UNKNOWN'} is analysis-only in this build.`);
+      return;
+    }
+    setRenegotiationFeedback(`Applying ${optionType}...`);
+    traceAction('renegotiation.apply', {
+      cycleId: activeCycleId,
+      goalId,
+      optionType,
+      optionIndex: index,
+      delta: Number.isFinite(Number(option?.delta)) ? Number(option.delta) : null,
+    });
+    actions.applyRenegotiationOption?.({
+      cycleId: activeCycleId,
+      goalId,
+      optionType,
+      optionIndex: Number.isInteger(index) ? index : null,
+      option,
+    });
+  };
+
   useEffect(() => {
     const handler = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -794,12 +871,12 @@ export default function ZionDashboard({
 
   const probability = goalId ? probabilityByGoal?.[goalId] : null;
   const feasibility = goalId ? feasibilityByGoal?.[goalId] : null;
-  const cycleStartKey = goalExecutionContract?.startDayKey || null;
-  const cycleEndKey = goalExecutionContract?.endDayKey || null;
+  const cycleStartKey = canonicalContract?.startDayKey || null;
+  const cycleEndKey = canonicalContract?.endDayKey || null;
   const daysToDeadline = cycleEndKey ? dayKeyDistance(activeDayKey, cycleEndKey, timeZone) : null;
   const fallbackNowISO = activeDayKey ? `${activeDayKey}T12:00:00.000Z` : '';
   const probabilityWindowSpec = getProbabilityWindowSpec({
-    activeContract: goalExecutionContract,
+    activeContract: canonicalContract,
     nowISO: appTime?.nowISO || fallbackNowISO,
     timeZone,
     scoringWindowDays: probability?.scoringSummary?.K
@@ -812,6 +889,15 @@ export default function ZionDashboard({
   const integrityScoreCycle =
     Number.isFinite(cycleMetrics.integrityScore) ? Number(cycleMetrics.integrityScore) : null;
   const safeStability = stabilityView || {};
+  const stabilityE2E = useMemo(() => buildStabilityEndToEndSummary(), []);
+  const stabilityRecoverySummary = useMemo(() => {
+    const lanes = stabilityE2E?.laneVerifications || [];
+    return {
+      withSignals: lanes.filter((lane) => lane.recovery.signalCount > 0).length,
+      noRecoveryNeeded: lanes.filter((lane) => lane.recovery.signalCount === 0).length,
+      confirmationRequired: lanes.filter((lane) => lane.recovery.recommendation.confirmationRequired).length,
+    };
+  }, [stabilityE2E]);
   const stabilityScoreRaw = Math.min(
     Number.isFinite(safeStability.completionRate) ? safeStability.completionRate : 0,
     Number.isFinite(safeStability.driftScore) ? safeStability.driftScore : 0,
@@ -833,6 +919,8 @@ export default function ZionDashboard({
   const posExplanation = cycleMetrics?.posExplanation || null;
   const posReasons = Array.isArray(posExplanation?.reasons) ? posExplanation.reasons : [];
   const hasNoPlanReason = posReasons.some((reason) => reason?.code === 'POS_NO_PLAN');
+  const hasThroughputModelMissingReason = posReasons.some((reason) => reason?.code === 'POS_THROUGHPUT_MODEL_MISSING');
+  const hasFeasibilityInputMissingReason = posReasons.some((reason) => reason?.code === 'POS_FEASIBILITY_INPUT_MISSING');
   const hasUnschedulableReason = posReasons.some((reason) => reason?.code === 'POS_UNSCHEDULABLE');
   const unschedulableConflicts = Array.isArray(posExplanation?.conflicts)
     ? posExplanation.conflicts.slice(0, 2)
@@ -858,8 +946,42 @@ export default function ZionDashboard({
     if (probability?.status === 'NO_EVIDENCE') return 'No completion evidence yet; showing initial forecast cap.';
     return 'Insufficient data to compute probability yet.';
   })();
-  const requiredPerWeek = feasibility?.requiredBlocksPerDay ? feasibility.requiredBlocksPerDay * 7 : null;
+  const requiredPerWeek = Number.isFinite(cycleMetrics?.requiredWeeklyThroughput)
+    ? cycleMetrics.requiredWeeklyThroughput
+    : feasibility?.requiredBlocksPerDay
+      ? feasibility.requiredBlocksPerDay * 7
+      : null;
   const avgPerWeek = probability?.scoringSummary?.mu ? probability.scoringSummary.mu * 7 : null;
+  const workableDaysRemaining = Number.isFinite(cycleMetrics?.workableDaysRemaining)
+    ? cycleMetrics.workableDaysRemaining
+    : feasibility?.workableDaysRemaining;
+  const contractFailureState = String(cycleMetrics?.contractFailureState || '').trim().toUpperCase() || null;
+  const contractFailureLabel = contractFailureState
+    ? CONTRACT_FAILURE_LABELS[contractFailureState] || contractFailureState
+    : null;
+  const contractFailureReasons = Array.isArray(cycleMetrics?.contractFailureReasons)
+    ? cycleMetrics.contractFailureReasons
+    : [];
+  const contractRenegotiationRequired = Boolean(cycleMetrics?.contractRenegotiationRequired);
+  const recoveryState = String(cycleMetrics?.recoveryState || '').trim().toUpperCase() || null;
+  const recoveryStateLabel = recoveryState ? RECOVERY_STATE_LABELS[recoveryState] || recoveryState : null;
+  const recoveryReasons = Array.isArray(cycleMetrics?.recoveryReasons) ? cycleMetrics.recoveryReasons : [];
+  const recoveryMetrics = cycleMetrics?.recoveryMetrics || {};
+  const recoveryOptions = Array.isArray(cycleMetrics?.renegotiationOptions) ? cycleMetrics.renegotiationOptions : [];
+  const recoveryRenegotiationRequired = Boolean(cycleMetrics?.renegotiationRequired);
+  const renegotiationApplyResult = cycleMetrics?.renegotiationApplyResult || null;
+  const lastRenegotiationApplied = activeCycle?.lastRenegotiationApplied || null;
+
+  useEffect(() => {
+    if (!renegotiationApplyResult?.status) return;
+    if (renegotiationApplyResult.status === 'APPLIED') {
+      setRenegotiationFeedback(`Renegotiation applied: ${renegotiationApplyResult.optionType || 'OPTION'}.`);
+      return;
+    }
+    if (renegotiationApplyResult.status === 'UNSUPPORTED') {
+      setRenegotiationFeedback(renegotiationApplyResult.reason || 'Renegotiation option is analysis-only.');
+    }
+  }, [renegotiationApplyResult?.status, renegotiationApplyResult?.optionType, renegotiationApplyResult?.reason]);
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
@@ -957,10 +1079,12 @@ export default function ZionDashboard({
 
       <div className={`mt-2 grid gap-8 ${assistantVisible ? 'grid-cols-[minmax(0,1fr)_340px]' : 'grid-cols-1'}`}>
         <div className="space-y-5">
-          <div>
-            <span className="text-xs uppercase tracking-[0.14em] text-muted">System Loop</span>
-            <p className="text-[11px] text-muted mt-1">Identity → Discipline → Project Management → Data Analysis</p>
-          </div>
+          {view !== 'structure' ? (
+            <div>
+              <span className="text-xs uppercase tracking-[0.14em] text-muted">System Loop</span>
+              <p className="text-[11px] text-muted mt-1">Identity → Discipline → Project Management → Data Analysis</p>
+            </div>
+          ) : null}
 
           {view === 'today' ? (
             <div className="space-y-4">
@@ -1031,41 +1155,67 @@ export default function ZionDashboard({
                       <div className="flex flex-wrap gap-2">
                         <button
                           className="rounded-full border border-jericho-accent px-3 py-1 text-jericho-accent hover:bg-jericho-accent/10"
-                          onClick={() => emitAction('suggestedPath.generatePlan', { cycleId: activeCycleId }, actions.generateScheduleForActiveCycle)}
-                          disabled={isCycleReadOnly || !isGoalAdmitted || suppressDrafts}
+                          onClick={handleGenerateSchedule}
+                          disabled={!canGenerateSchedule}
                         >
                           Generate schedule
                         </button>
                         <button
                           className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent"
-                          onClick={() =>
-                            emitAction(
-                              'draftSchedule.commit',
-                              {
-                                cycleId: activeCycleId,
-                                items: proposedScheduleItems.map((item) => ({
-                                  id: item.id,
-                                  dayKey: item.dayKey || dayKeyFromISO(item.startISO || '', timeZone),
-                                  startISO: item.startISO,
-                                  minutes: item.durationMinutes,
-                                  title: item.title,
-                                  domainKey: item.domain
-                                }))
-                              },
-                              actions.commitPreviewItems
-                            )
-                          }
-                          disabled={isCycleReadOnly || !isGoalAdmitted || proposedScheduleItems.length === 0 || suppressDrafts}
+                          onClick={handleApplySchedule}
+                          disabled={isCycleReadOnly || proposedScheduleItemsAll.length === 0 || suppressDrafts}
                         >
                           Apply schedule
                         </button>
                       </div>
+                      {pendingPlanConfirmation ? (
+                        <p className="text-[11px] text-amber-600">
+                          Proposed schedule is awaiting confirmation. Review the draft, then apply to commit it.
+                        </p>
+                      ) : null}
                       {isCycleReadOnly ? (
                         <p className="text-[11px] text-amber-600">Cycle ended/read-only. Generate and apply are disabled.</p>
+                      ) : !hasAdmittedGoal || !isGoalAdmitted ? (
+                        <p className="text-[11px] text-amber-600">
+                          Complete goal setup in Structure before generating a schedule.
+                        </p>
                       ) : null}
                       {suppressDrafts && contractStartDayKey ? (
                         <p className="text-[11px] text-amber-600">
                           Drafts begin on {formatDayKeyLabel(contractStartDayKey)}. Nothing before that date.
+                        </p>
+                      ) : proposedScheduleItemsAll.length > 0 && proposedScheduleItems.length === 0 ? (
+                        <div className="space-y-3">
+                          <p className="text-xs text-muted">
+                            {proposedScheduleItemsAll.length} block(s) proposed across your plan window. Showing full
+                            schedule preview:
+                          </p>
+                          {proposedScheduleItemsGrouped.map(([dayKey, items]) => (
+                            <div key={dayKey} className="space-y-2">
+                              <p className="text-[11px] font-semibold text-muted">{formatDayKeyLabel(dayKey)}</p>
+                              {items.map((item) => (
+                                <div
+                                  key={item.id || item.blockId}
+                                  className="rounded-md border border-line/40 bg-jericho-bg px-3 py-2 text-[11px] space-y-1"
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-medium text-jericho-text">{item.title}</span>
+                                    <span className="text-muted">
+                                      {item.durationMinutes || 30}m
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-muted">
+                                    {formatTime(item.startISO)}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      ) : lastPlanError?.code ? (
+                        <p className="text-[11px] text-red-600">
+                          Generate failed: {lastPlanError.code}
+                          {lastPlanError?.reasonCodes?.length ? ` (${lastPlanError.reasonCodes.join(', ')})` : ''}
                         </p>
                       ) : proposedScheduleItems.length ? (
                         proposedScheduleItems.map((item) => (
@@ -1080,7 +1230,7 @@ export default function ZionDashboard({
                               </span>
                             </div>
                             <p className="text-[11px] text-muted">
-                              {formatTime(item.startISO)} · {item.domain}
+                              {formatTime(item.startISO)}
                             </p>
                           </div>
                         ))
@@ -1122,7 +1272,6 @@ export default function ZionDashboard({
                         return {
                           dayKey,
                           label: formatDayKeyLabel(dayKey),
-                          routeCount: getRouteCountForDay(dayKey),
                           ...stats
                         };
                       })}
@@ -1134,7 +1283,9 @@ export default function ZionDashboard({
                     <ZionMonthView
                       days={getMonthDayKeys(anchorISO, timeZone).map((dayKey) => {
                         const stats = getDayStats(dayKey, dayBlocksMap);
-                        const titles = (stats.blocks || []).slice(0, 2).map((b) => b.label || `${b.practice || b.domain} block`);
+                        const titles = (stats.blocks || [])
+                          .slice(0, 2)
+                          .map((b) => b.title || b.label || 'Untitled task');
                         return {
                           date: dayKey,
                           dayNumber: Number(dayKey.slice(8, 10)),
@@ -1142,7 +1293,6 @@ export default function ZionDashboard({
                           plannedCount: stats.plannedCount,
                           completedCount: stats.completedCount,
                           completionRate: stats.completionRate,
-                          routeCount: getRouteCountForDay(dayKey),
                           titles,
                           moreCount: Math.max(0, (stats.blocks || []).length - titles.length)
                         };
@@ -1155,14 +1305,12 @@ export default function ZionDashboard({
                       months={getQuarterMonths(anchorISO, timeZone).map((monthKey) => {
                         const monthDays = getMonthDayKeys(monthKey, timeZone).filter((dayKey) => dayKey.slice(0, 7) === monthKey.slice(0, 7));
                         const stats = getMonthStats(monthDays, dayBlocksMap);
-                        const routeTotal = getRouteCountForDays(monthDays);
                         return {
                           anchorDayKey: monthKey,
                           label: formatWindowLabel(buildWindowSpec('month', `${monthKey}T12:00:00.000Z`, timeZone), timeZone),
                           plannedCount: stats.plannedCount,
                           completedCount: stats.completedCount,
-                          completionRate: stats.completionRate,
-                          routeTotal
+                          completionRate: stats.completionRate
                         };
                       })}
                       summary={(() => {
@@ -1170,11 +1318,7 @@ export default function ZionDashboard({
                           const monthDays = getMonthDayKeys(monthKey, timeZone).filter((dayKey) => dayKey.slice(0, 7) === monthKey.slice(0, 7));
                           return getMonthStats(monthDays, dayBlocksMap);
                         });
-                        const routeTotal = getQuarterMonths(anchorISO, timeZone).reduce((sum, monthKey) => {
-                          const monthDays = getMonthDayKeys(monthKey, timeZone).filter((dayKey) => dayKey.slice(0, 7) === monthKey.slice(0, 7));
-                          return sum + getRouteCountForDays(monthDays);
-                        }, 0);
-                        return { ...getQuarterStats(monthStats), routeTotal };
+                        return getQuarterStats(monthStats);
                       })()}
                       onSelectMonth={(monthKey) => {
                         setAnchorDayKey(monthKey);
@@ -1187,14 +1331,12 @@ export default function ZionDashboard({
                       months={getYearMonths(anchorISO, timeZone).map((monthKey) => {
                         const monthDays = getMonthDayKeys(monthKey, timeZone).filter((dayKey) => dayKey.slice(0, 7) === monthKey.slice(0, 7));
                         const stats = getMonthStats(monthDays, dayBlocksMap);
-                        const routeTotal = getRouteCountForDays(monthDays);
                         return {
                           anchorDayKey: monthKey,
                           label: formatWindowLabel(buildWindowSpec('month', `${monthKey}T12:00:00.000Z`, timeZone), timeZone),
                           plannedCount: stats.plannedCount,
                           completedCount: stats.completedCount,
-                          completionRate: stats.completionRate,
-                          routeTotal
+                          completionRate: stats.completionRate
                         };
                       })}
                       onSelectMonth={(monthKey) => {
@@ -1218,212 +1360,21 @@ export default function ZionDashboard({
                 </div>
               )}
 
-              <div className="flex items-center justify-between">
-                <p className="text-xs uppercase tracking-[0.14em] text-muted">Control panels</p>
-                <button
-                  className="text-[11px] text-muted hover:text-jericho-accent"
-                  onClick={() => setControlPanelsOpen((prev) => !prev)}
-                >
-                  {controlPanelsOpen ? 'Hide' : 'Show'}
-                </button>
-              </div>
-              {controlPanelsOpen ? (
-                <div className="space-y-3">
-                  {isCycleReadOnly ? (
-                    <div className="rounded-md border border-line/60 bg-jericho-surface/90 px-3 py-2 text-xs text-muted">
-                      Review mode: calibration and corrections are read-only for ended cycles.
-                    </div>
-                  ) : null}
-                  {showCalibration ? (
-                    <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4 space-y-3">
-                      <div>
-                        <p className="text-sm font-semibold text-jericho-text">Calibrate capacity</p>
-                        <p className="text-xs text-muted">
-                          How many days per week can you realistically execute blocks for this goal?
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {[3, 4, 5, 6, 7].map((days) => (
-                          <button
-                            key={days}
-                            className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent hover:border-jericho-accent/60"
-                            onClick={() => handleCalibrationSelect(days)}
-                          >
-                            {days} days
-                          </button>
-                        ))}
-                        <button
-                          className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent hover:border-jericho-accent/60"
-                          onClick={() => handleCalibrationSelect(4, true)}
-                        >
-                          Not sure
-                        </button>
-                      </div>
-                      {calibrationBanner ? (
-                        <div className="text-[11px] text-emerald-600">{calibrationBanner}</div>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  {correctionSignals ? (
-                    <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4 space-y-2">
-                      <p className="text-xs uppercase tracking-[0.14em] text-muted">Correction signals (14d)</p>
-                      {correctionSignals.totalRejections > 0 ? (
-                        <>
-                          <p className="text-xs text-muted">
-                            Capacity pressure: {signalLabel(correctionSignals.signals.capacityPressure)} (
-                            OVERCOMMITTED {correctionSignals.byReason.OVERCOMMITTED}/{correctionSignals.totalRejections})
-                          </p>
-                          <p className="text-xs text-muted">
-                            Duration mismatch: {signalLabel(correctionSignals.signals.durationMismatch)} (
-                            TOO_LONG {correctionSignals.byReason.TOO_LONG}/{correctionSignals.totalRejections})
-                          </p>
-                          <p className="text-xs text-muted">
-                            Timing mismatch: {signalLabel(correctionSignals.signals.timingMismatch)} (
-                            WRONG_TIME {correctionSignals.byReason.WRONG_TIME}/{correctionSignals.totalRejections})
-                          </p>
-                          <p className="text-xs text-muted">
-                            Energy mismatch: {signalLabel(correctionSignals.signals.energyMismatch)} (
-                            LOW_ENERGY {correctionSignals.byReason.LOW_ENERGY}/{correctionSignals.totalRejections})
-                          </p>
-                          <p className="text-xs text-muted">
-                            Relevance mismatch: {signalLabel(correctionSignals.signals.relevanceMismatch)} (
-                            NOT_RELEVANT {correctionSignals.byReason.NOT_RELEVANT}/{correctionSignals.totalRejections})
-                          </p>
-                          <p className="text-xs text-muted">
-                            Prereq debt: {signalLabel(correctionSignals.signals.prereqDebt)} (
-                            MISSING_PREREQ {correctionSignals.byReason.MISSING_PREREQ}/{correctionSignals.totalRejections})
-                          </p>
-                          {correctionSignals.signals.capacityPressure >= 0.6 ? (
-                            <p className="text-[11px] text-muted">
-                              Recommend: lower days/week or blocks/week target.
-                            </p>
-                          ) : correctionSignals.signals.durationMismatch >= 0.6 ? (
-                            <p className="text-[11px] text-muted">
-                              Recommend: shorten template durations.
-                            </p>
-                          ) : null}
-                        </>
-                      ) : (
-                        <p className="text-xs text-muted">No rejection signals yet.</p>
-                      )}
-                    </div>
-                  ) : null}
-
-                  <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs uppercase tracking-[0.14em] text-muted">Suggestion history (14d)</p>
-                      <button
-                        className="text-[11px] text-muted hover:text-jericho-accent"
-                        onClick={() => setHistoryOpen((prev) => !prev)}
-                      >
-                        {historyOpen ? 'Hide' : 'Show'}
-                      </button>
-                    </div>
-                    {historyOpen ? (
-                      <>
-                        <div className="flex flex-wrap gap-2 text-[11px]">
-                          {['CREATED', 'ACCEPTED', 'REJECTED', 'IGNORED', 'DISMISSED'].map((type) => (
-                            <button
-                              key={type}
-                              className={`rounded-full border px-3 py-1 ${
-                                historyTypeFilter.includes(type)
-                                  ? 'border-jericho-accent text-jericho-accent'
-                                  : 'border-line/60 text-muted'
-                              }`}
-                              onClick={() => toggleFilterValue(historyTypeFilter, type, setHistoryTypeFilter)}
-                            >
-                              {type.toLowerCase()}
-                            </button>
-                          ))}
-                          {DOMAINS.map((domain) => (
-                            <button
-                              key={domain}
-                              className={`rounded-full border px-3 py-1 ${
-                                historyDomainFilter.includes(domain)
-                                  ? 'border-jericho-accent text-jericho-accent'
-                                  : 'border-line/60 text-muted'
-                              }`}
-                              onClick={() => toggleFilterValue(historyDomainFilter, domain, setHistoryDomainFilter)}
-                            >
-                              {domain}
-                            </button>
-                          ))}
-                          {['TOO_LONG', 'WRONG_TIME', 'LOW_ENERGY', 'NOT_RELEVANT', 'MISSING_PREREQ', 'OVERCOMMITTED'].map((reason) => (
-                            <button
-                              key={reason}
-                              className={`rounded-full border px-3 py-1 ${
-                                historyReasonFilter.includes(reason)
-                                  ? 'border-jericho-accent text-jericho-accent'
-                                  : 'border-line/60 text-muted'
-                              }`}
-                              onClick={() => toggleFilterValue(historyReasonFilter, reason, setHistoryReasonFilter)}
-                            >
-                              {reason.replace('_', ' ').toLowerCase()}
-                            </button>
-                          ))}
-                          {historyTypeFilter.length || historyDomainFilter.length || historyReasonFilter.length ? (
-                            <button
-                              className="rounded-full border border-line/60 px-3 py-1 text-muted hover:text-jericho-accent"
-                              onClick={() => {
-                                setHistoryTypeFilter([]);
-                                setHistoryDomainFilter([]);
-                                setHistoryReasonFilter([]);
-                              }}
-                            >
-                              Clear filters
-                            </button>
-                          ) : null}
-                        </div>
-                        <div className="space-y-2 text-xs">
-                          {filteredHistory.length ? (
-                            filteredHistory.map((item) => (
-                              <button
-                                key={item.id}
-                                className="w-full text-left rounded-md border border-line/40 px-3 py-2 hover:border-jericho-accent/60"
-                                onClick={() => {
-                                  if (item.archived || !item.suggestionId) return;
-                                  setHighlightSuggestionId(item.suggestionId);
-                                }}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span>
-                                    {formatHistoryDate(item.dayKey)} — {item.type.toLowerCase()}
-                                    {item.reason ? ` (${item.reason})` : ''} — {item.title || item.suggestionId || 'Suggestion'}
-                                    {item.domain ? ` — ${item.domain}` : ''}
-                                  </span>
-                                  {item.archived ? <span className="text-[11px] text-muted">archived</span> : null}
-                                </div>
-                              </button>
-                            ))
-                          ) : (
-                            <p className="text-xs text-muted">No history in this window.</p>
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      <p className="text-xs text-muted">Hidden.</p>
-                    )}
-                  </div>
-                </div>
-              ) : null}
             </div>
           ) : null}
 
           {view === 'structure' && (
-            <StructurePageConsolidated onStartNewCycleRequest={() => setCycleTransitionModalOpen(true)} />
+            <StructurePageConsolidated
+              onStartNewCycleRequest={() => setCycleTransitionModalOpen(true)}
+              onOpenToday={() => {
+                setView('today');
+                setZionView('day');
+              }}
+            />
           )}
 
           {view === 'stability' ? (
             <div className="space-y-4">
-              <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4 space-y-3">
-                <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-[0.14em] text-muted">Pattern</p>
-                  <p className="text-sm text-muted">Read-only diagnostics derived from completion history.</p>
-                </div>
-                <PatternLens activeCycle={activeCycle} cycleDays={cycle} today={today} />
-              </div>
-
               <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4 space-y-3">
                 <div className="space-y-1">
                   <p className="text-xs uppercase tracking-[0.14em] text-muted">Probability of Success</p>
@@ -1437,6 +1388,18 @@ export default function ZionDashboard({
                       {posValue !== null ? `${posValue}%` : posFallbackZero ? '0%' : shouldShowPosDash ? '—' : '—'}
                     </p>
                     <p className="text-xs text-muted">Status: {probabilityStatusLabel}</p>
+                    {contractFailureLabel ? (
+                      <p className="text-xs text-muted">Contract state: {contractFailureLabel}</p>
+                    ) : null}
+                    {contractRenegotiationRequired ? (
+                      <p className="text-[11px] text-amber-600">Renegotiation required</p>
+                    ) : null}
+                    {recoveryStateLabel ? (
+                      <p className="text-xs text-muted">Recovery: {recoveryStateLabel}</p>
+                    ) : null}
+                    {recoveryRenegotiationRequired ? (
+                      <p className="text-[11px] text-amber-600">Recovery renegotiation required</p>
+                    ) : null}
                     {shouldRenderFeasibilityWarning ? (
                       <p className="text-[11px] text-amber-600">FEASIBILITY_MISSING_FOR_PLAN</p>
                     ) : null}
@@ -1455,7 +1418,7 @@ export default function ZionDashboard({
                   <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
                     <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Workable days remaining</p>
                     <p className="text-sm text-jericho-text">
-                      {Number.isFinite(feasibility?.workableDaysRemaining) ? feasibility.workableDaysRemaining : '—'}
+                      {Number.isFinite(workableDaysRemaining) ? workableDaysRemaining : '—'}
                     </p>
                   </div>
                   <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
@@ -1476,6 +1439,10 @@ export default function ZionDashboard({
                     <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Why it changed</p>
                     {hasNoPlanReason ? (
                       <p>Generate a plan to see P.O.S.</p>
+                    ) : hasThroughputModelMissingReason ? (
+                      <p>Throughput model missing; set required work and capacity to compute P.O.S.</p>
+                    ) : hasFeasibilityInputMissingReason ? (
+                      <p>Feasibility inputs are missing; refresh plan and deadline inputs.</p>
                     ) : hasUnschedulableReason ? (
                       <div className="space-y-1">
                         <p>Unschedulable under current windows.</p>
@@ -1499,6 +1466,82 @@ export default function ZionDashboard({
                         })}
                       </div>
                     )}
+                  </div>
+                ) : null}
+                {contractFailureReasons.length > 0 ? (
+                  <div className="text-[11px] text-muted">
+                    Contract reasons: {contractFailureReasons.slice(0, 3).join(', ')}
+                  </div>
+                ) : null}
+                {recoveryReasons.length > 0 ? (
+                  <div className="text-[11px] text-muted">
+                    Recovery reasons: {recoveryReasons.slice(0, 3).join(', ')}
+                  </div>
+                ) : null}
+                {recoveryState ? (
+                  <div className="grid md:grid-cols-3 gap-3 text-xs text-muted">
+                    <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
+                      <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Recovery burden</p>
+                      <p className="text-sm text-jericho-text">
+                        {Number.isFinite(recoveryMetrics.remainingRequiredBurden)
+                          ? `${recoveryMetrics.remainingRequiredBurden} blocks`
+                          : '—'}
+                      </p>
+                    </div>
+                    <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
+                      <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Projected slack</p>
+                      <p className="text-sm text-jericho-text">
+                        {Number.isFinite(recoveryMetrics.projectedSlackAfterRecovery)
+                          ? `${recoveryMetrics.projectedSlackAfterRecovery} blocks`
+                          : '—'}
+                      </p>
+                    </div>
+                    <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
+                      <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Required/week after recovery</p>
+                      <p className="text-sm text-jericho-text">
+                        {Number.isFinite(recoveryMetrics.requiredWeeklyThroughputAfterRecovery)
+                          ? `${recoveryMetrics.requiredWeeklyThroughputAfterRecovery} blocks/week`
+                          : '—'}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+                {recoveryOptions.length > 0 ? (
+                  <div className="space-y-2 text-[11px] text-muted">
+                    <p>Recovery options</p>
+                    <div className="space-y-1">
+                      {recoveryOptions.slice(0, 3).map((option, index) => {
+                        const optionType = String(option?.type || '').trim().toUpperCase();
+                        const isSupported = optionType === 'EXTEND_DEADLINE' || optionType === 'INCREASE_THROUGHPUT';
+                        return (
+                          <div key={`recovery-option-${optionType}-${index}`} className="rounded-md border border-line/50 px-2 py-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span>{option?.summary || optionType}</span>
+                              <button
+                                className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                                  isSupported
+                                    ? 'border-jericho-accent text-jericho-accent hover:bg-jericho-accent/10'
+                                    : 'border-line/60 text-muted cursor-not-allowed'
+                                }`}
+                                disabled={!isSupported || isCycleReadOnly}
+                                onClick={() => handleApplyRenegotiationOption(option, index)}
+                              >
+                                {isSupported ? 'Apply' : 'Unsupported'}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+                {renegotiationFeedback ? (
+                  <div className="text-[11px] text-muted">{renegotiationFeedback}</div>
+                ) : null}
+                {lastRenegotiationApplied?.status === 'APPLIED' ? (
+                  <div className="text-[11px] text-muted">
+                    Last renegotiation: {lastRenegotiationApplied.optionType} at{' '}
+                    {lastRenegotiationApplied.atISO ? new Date(lastRenegotiationApplied.atISO).toLocaleString() : '—'}
                   </div>
                 ) : null}
                 <div className="text-[11px] text-muted">
@@ -1546,6 +1589,93 @@ export default function ZionDashboard({
                     <p className="text-sm text-jericho-text">{Math.round((safeStability.momentumScore || 0) * 100)}%</p>
                   </div>
                 </div>
+              </div>
+
+              <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-muted">1.0 End-to-End Validation</p>
+                    <p className="text-sm text-muted">
+                      Goal input to Stability trace coverage across all canonical subtype lanes.
+                    </p>
+                  </div>
+                  <p className="text-sm font-semibold text-jericho-text">{stabilityE2E.totalLanes} lanes</p>
+                </div>
+                <div className="grid md:grid-cols-4 gap-3 text-xs text-muted">
+                  <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
+                    <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Pass</p>
+                    <p className="text-sm text-jericho-text">{stabilityE2E.passCount}</p>
+                  </div>
+                  <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
+                    <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Warn</p>
+                    <p className="text-sm text-jericho-text">{stabilityE2E.warnCount}</p>
+                  </div>
+                  <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
+                    <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Fail</p>
+                    <p className="text-sm text-jericho-text">{stabilityE2E.failCount}</p>
+                  </div>
+                  <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
+                    <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Context coverage</p>
+                    <p className="text-sm text-jericho-text">
+                      {stabilityE2E.contextCoverage.authoredLaneCount}/{stabilityE2E.contextCoverage.canonicalLaneCount}
+                    </p>
+                  </div>
+                </div>
+                <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2 text-xs text-muted space-y-1">
+                  <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Weakest dimensions</p>
+                  <p>
+                    Output: {stabilityE2E.weakestDimensions.outputQuality.length} · Action:{' '}
+                    {stabilityE2E.weakestDimensions.actionQuality.length} · Schedule:{' '}
+                    {stabilityE2E.weakestDimensions.scheduleQuality.length}
+                  </p>
+                  <p>
+                    Correction: {stabilityE2E.weakestDimensions.correctionQuality.length} · Progress:{' '}
+                    {stabilityE2E.weakestDimensions.progressTrackingQuality.length}
+                  </p>
+                </div>
+                <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2 text-xs text-muted space-y-1">
+                  <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Recovery status</p>
+                  <p>
+                    No recovery needed: {stabilityRecoverySummary.noRecoveryNeeded} · Drift detected:{' '}
+                    {stabilityRecoverySummary.withSignals}
+                  </p>
+                  <p>Confirmation required: {stabilityRecoverySummary.confirmationRequired}</p>
+                </div>
+                <details className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2 text-[11px] text-muted">
+                  <summary className="cursor-pointer uppercase tracking-[0.12em] text-[10px] text-muted">
+                    Lane confirmations (all {stabilityE2E.totalLanes})
+                  </summary>
+                  <div className="mt-2 space-y-2">
+                    {stabilityE2E.laneVerifications.map((lane) => (
+                      <div key={lane.laneKey} className="rounded-md border border-line/60 px-2 py-2 space-y-1">
+                        <p className="text-jericho-text">
+                          {lane.archetype} · {lane.subtype} · {lane.quality.overall.toUpperCase()}
+                        </p>
+                        <p>
+                          Admission: {lane.admission.detectedArchetype} / {lane.admission.detectedSubtype} · confidence {lane.admission.confidence}
+                        </p>
+                        <p>
+                          Context: required asked {lane.context.requiredQuestionsAsked} · answers {lane.context.answersProvided} · defaults {lane.context.defaultsApplied} · confirmation{' '}
+                          {lane.context.confirmationRequired ? 'required' : 'not required'}
+                        </p>
+                        <p>
+                          Compile: canonical {lane.compilation.canonicalPathUsed ? 'yes' : 'no'} · outputs {lane.compilation.outputCount} ({lane.compilation.outputTypes.join(', ') || 'none'}) · actions{' '}
+                          {lane.compilation.actionCount} · sessions {lane.compilation.estimatedSessionCount} · schedule {lane.compilation.scheduleGenerationStatus}
+                        </p>
+                        <p>
+                          Runtime: fallback {lane.runtimeIntegrity.fallbackUsed ? 'used' : 'none'} · missing fields{' '}
+                          {lane.runtimeIntegrity.missingFields.length > 0 ? lane.runtimeIntegrity.missingFields.join(', ') : 'none'} · issues{' '}
+                          {lane.runtimeIntegrity.issues.length > 0 ? lane.runtimeIntegrity.issues.join(', ') : 'none'}
+                        </p>
+                        <p>
+                          Recovery: signals {lane.recovery.signalCount} · failure class {lane.recovery.primaryFailureClass || 'NONE'} · confirmation{' '}
+                          {lane.recovery.recommendation.confirmationRequired ? 'required' : 'not required'}
+                        </p>
+                        <p>Recovery adjustment: {lane.recovery.recommendation.proposedAdjustment}</p>
+                      </div>
+                    ))}
+                  </div>
+                </details>
               </div>
             </div>
           ) : null}
@@ -1605,17 +1735,6 @@ export default function ZionDashboard({
                     min={1}
                     onChange={(e) => setPendingPlacement((prev) => ({ ...prev, durationMinutes: Math.max(1, Number(e.target.value) || 1) }))}
                   />
-                  <select
-                    className="rounded border border-line/60 bg-transparent px-2 py-1"
-                    value={pendingPlacement.domain}
-                    onChange={(e) => setPendingPlacement((prev) => ({ ...prev, domain: e.target.value }))}
-                  >
-                    {DOMAIN_ENUM.map((d) => (
-                      <option key={d} value={d}>
-                        {d.charAt(0) + d.slice(1).toLowerCase()}
-                      </option>
-                    ))}
-                  </select>
                 </div>
                 {deliverables.length ? (
                   <div className="flex flex-wrap gap-2 items-center text-[11px] text-muted">

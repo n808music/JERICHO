@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { getCanonicalCycleContract, getCanonicalProposedBlocks } from '../../state/cycleSelectors.js';
 
 /**
  * MissionSetupFlow: Single onboarding pipeline for Structure tab
@@ -24,6 +25,7 @@ export default function MissionSetupFlow({
   goalExecutionContract,
   proposedBlocks,
   suggestedBlocks,
+  pendingPlanConfirmation = false,
   actions,
   emitAction
 }) {
@@ -34,12 +36,13 @@ export default function MissionSetupFlow({
   }
 
   // Extract goal and plan state
-  const goalId = goalExecutionContract?.goalId || activeCycle?.goalContract?.goalId;
+  const contract = getCanonicalCycleContract(activeCycle, goalExecutionContract);
+  const goalId = contract?.goalId || null;
   const definiteGoal = activeCycle?.definiteGoal;
   const feasibility = goalId ? feasibilityByGoal?.[goalId] : null;
   const probability = goalId ? probabilityByGoal?.[goalId] : null;
   const autoAsanaPlan = activeCycle?.autoAsanaPlan || null;
-  const scheduleSource = proposedBlocks || suggestedBlocks || [];
+  const scheduleSource = getCanonicalProposedBlocks(proposedBlocks, suggestedBlocks);
   const proposedBlockCount = (scheduleSource || []).filter((s) => s && s.status === 'suggested').length;
   
   // Determine stage gating
@@ -147,6 +150,11 @@ export default function MissionSetupFlow({
                 <p className="uppercase tracking-[0.12em] text-[10px] text-muted mb-1">Proposed blocks</p>
                 <p className="text-sm font-semibold text-jericho-text">{proposedBlockCount || autoAsanaPlan?.horizonBlocks?.length || 0}</p>
               </div>
+              {pendingPlanConfirmation ? (
+                <p className="text-[11px] text-amber-600">
+                  Schedule preview is awaiting confirmation. Use Stage 4 to commit it to the calendar.
+                </p>
+              ) : null}
               <p className="text-[11px] text-muted">Review proposed blocks on the Today view. Proceed to apply when ready.</p>
             </>
           )}

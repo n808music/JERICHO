@@ -81,8 +81,9 @@ describe('GENERATE_PLAN materializes blocks or explains why', () => {
     });
 
     const next = computeDerivedState(buildState(), { type: 'GENERATE_PLAN', payload: { cycleId: 'cycle-1' } });
-    expect((next.proposedBlocks || []).some((b) => b?.status === 'accepted')).toBe(true);
-    expect(next.scheduleApplied).toBe(true);
+    expect((next.proposedBlocks || []).some((b) => b?.status === 'suggested')).toBe(true);
+    expect(next.scheduleApplied).toBe(false);
+    expect(next.pendingPlanConfirmation).toBe(true);
     expect(next.lastPlanError).toBeNull();
   });
 });

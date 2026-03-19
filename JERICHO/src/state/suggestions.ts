@@ -1,5 +1,6 @@
 import { addDays } from './time/time.ts';
 import { buildLocalStartISO, assertValidISO } from './time/time.ts';
+import { IS_PRODUCTION } from '../utils/runtimeEnv.js';
 
 type SuggestionTemplate = {
   title: string;
@@ -51,7 +52,7 @@ export function generateSuggestions({
   reservedIds = new Set(),
   timeZone
 }: GenerateSuggestionsInput): Suggestion[] {
-  if (process.env.NODE_ENV !== 'production') {
+  if (!IS_PRODUCTION) {
     console.group('JERICHO_SUGGESTION_TRACE');
     console.log({
       traceId: `trace-suggest-${goalId}-${startDayKey || 'no-anchor'}`,
@@ -121,7 +122,7 @@ export function generateSuggestions({
     sequence += 1;
   }
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (!IS_PRODUCTION) {
     console.group('JERICHO_SUGGESTION_TRACE');
     console.log({
       traceId: `trace-suggest-${goalId}-${startDayKey || 'no-anchor'}`,

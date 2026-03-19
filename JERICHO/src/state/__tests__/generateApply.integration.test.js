@@ -105,19 +105,25 @@ describe('generate/apply integration', () => {
     vi.useRealTimers();
   });
 
-  it('GENERATE_PLAN auto-commits in normal flow - blocks accepted without explicit apply', () => {
+  it('GENERATE_PLAN leaves a pending confirmation boundary in normal flow', () => {
     const compiled = buildCompiledState();
+    const createdBeforeGenerate = (compiled.executionEvents || []).filter(
+      (e) => e?.kind === 'create' && e?.origin === 'auto_asana'
+    ).length;
     const planned = computeDerivedState(compiled, { type: 'GENERATE_PLAN' });
 
-    expect(planned.scheduleApplied).toBe(true);
-    expect((planned.executionEvents || []).filter((e) => e?.kind === 'create').length).toBeGreaterThan(0);
-    expect((planned.proposedBlocks || []).some((b) => b?.status === 'accepted')).toBe(true);
+    expect(planned.scheduleApplied).toBe(false);
+    expect(planned.pendingPlanConfirmation).toBe(true);
+    expect(
+      (planned.executionEvents || []).filter((e) => e?.kind === 'create' && e?.origin === 'auto_asana').length
+    ).toBe(createdBeforeGenerate);
+    expect((planned.proposedBlocks || []).some((b) => b?.status === 'suggested')).toBe(true);
 
     const cycle = planned.cyclesById[planned.activeCycleId];
-    expect(cycle.autoAsanaPlan).toBeNull();
+    expect(cycle.autoAsanaPlan).toBeTruthy();
   });
 
-  it('RENEGOTIATION_APPLY source preserves preview state - APPLY_PLAN commits from autoAsanaPlan', () => {
+  it('RENEGOTIATION_APPLY source preserves preview state - APPLY_PLAN commits from reviewed draft proposals', () => {
     const compiled = buildCompiledState();
     const previewed = computeDerivedState(compiled, {
       type: 'GENERATE_PLAN',
@@ -127,10 +133,13 @@ describe('generate/apply integration', () => {
     const cycleAfterPreview = previewed.cyclesById[previewed.activeCycleId];
     expect(cycleAfterPreview.autoAsanaPlan).toBeTruthy();
     expect(previewed.scheduleApplied).toBeFalsy();
+    expect(previewed.pendingPlanConfirmation).toBe(true);
     expect((previewed.proposedBlocks || []).some((b) => b?.status === 'suggested')).toBe(true);
 
     const applied = computeDerivedState(previewed, { type: 'APPLY_PLAN' });
-    const created = (applied.executionEvents || []).filter((e) => e?.kind === 'create' && e?.origin === 'auto_asana');
+    const created = (applied.executionEvents || []).filter((e) => e?.kind === 'create');
     expect(created.length).toBeGreaterThan(0);
+    expect(applied.pendingPlanConfirmation).toBe(false);
+    expect(applied.scheduleApplied).toBe(true);
   });
 });

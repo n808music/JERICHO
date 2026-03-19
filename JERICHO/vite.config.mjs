@@ -6,6 +6,17 @@ import { fileURLToPath } from 'node:url';
 export default defineConfig({
   plugins: [react()],
   root: '.',
+  define: {
+    process: {
+      env: {
+        NODE_ENV: process.env.NODE_ENV || 'development',
+        JERICHO_DISABLE_GENERATE_TRACE: process.env.JERICHO_DISABLE_GENERATE_TRACE || '',
+        JERICHO_DEBUG_PERF_ACTIONS: process.env.JERICHO_DEBUG_PERF_ACTIONS || '',
+        JERICHO_DEBUG_SCHEDULER: process.env.JERICHO_DEBUG_SCHEDULER || '',
+        VITE_REDUCE_UI: process.env.VITE_REDUCE_UI || ''
+      }
+    }
+  },
   build: {
     outDir: 'dist'
   },

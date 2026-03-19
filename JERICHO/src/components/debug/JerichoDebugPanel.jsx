@@ -21,6 +21,7 @@ function useTraceCapture() {
   const originalGroup = useRef(null);
   const originalLog = useRef(null);
   const buffer = useRef(null);
+  const sequence = useRef(0);
 
   useEffect(() => {
     originalGroup.current = console.group;
@@ -36,14 +37,17 @@ function useTraceCapture() {
 
     console.log = (...args) => {
       if (buffer.current && args[0] && typeof args[0] === "object") {
+        const activeBuffer = buffer.current;
+        buffer.current = null;
         const data = args[0];
         setTraces((prev) => {
+          sequence.current += 1;
           const entry = {
             ...data,
             _capturedAt: Date.now(),
-            _traceType: buffer.current.type,
+            _traceType: activeBuffer?.type || null,
+            _sequence: sequence.current,
           };
-          buffer.current = null;
           return [entry, ...prev].slice(0, 50);
         });
       }
@@ -618,7 +622,7 @@ export default function JerichoDebugPanel() {
           ) : (
             filtered.map((trace, i) => (
               <TraceRow
-                key={`${trace.traceId}-${trace._capturedAt}`}
+                key={`${trace.traceId}-${trace._capturedAt}-${trace._sequence || i}`}
                 trace={trace}
                 isSelected={selected === i || (selected === null && i === 0)}
                 onClick={() => setSelected(i)}

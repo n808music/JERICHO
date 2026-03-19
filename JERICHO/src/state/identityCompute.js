@@ -27,6 +27,7 @@ import { computeProfileLearning } from './learning.ts';
 import { computeTerminalConvergence } from './convergenceTerminal.ts';
 import { rolloverAtMidnight, shouldRollover } from '../core/engine/rollover.ts';
 import { buildPolicyAndQualityDiagnostics } from './draftSchedule.js';
+import { IS_PRODUCTION, isRuntimeEnvFlagEnabled } from '../utils/runtimeEnv.js';
 import {
   getCanonicalCycleActions,
   getCanonicalCycleContract,
@@ -60,6 +61,7 @@ export function computeDerivedState(state, action) {
   if (!next.meta) next.meta = { version: '1.0.0', onboardingComplete: false };
   if (!next.recurringPatterns) next.recurringPatterns = [];
   if (!next.ledger) next.ledger = [];
+  if (typeof next.pendingPlanConfirmation !== 'boolean') next.pendingPlanConfirmation = false;
   ensureCycleStructures(next);
   ensureAdmissionStores(next);
   ensureDeliverablesStore(next);
@@ -70,6 +72,8 @@ export function computeDerivedState(state, action) {
   const previousTodayBlocks = next.today?.blocks ? [...next.today.blocks] : [];
 
   const prevSuggestion = next.nextSuggestion;
+  const debugPerfActions = isRuntimeEnvFlagEnabled('JERICHO_DEBUG_PERF_ACTIONS');
+  const perfActionStart = debugPerfActions ? Date.now() : 0;
 
   switch (action.type) {
     case 'BEGIN_BLOCK':
@@ -411,6 +415,31 @@ export function computeDerivedState(state, action) {
     case 'CLEAR_PLAN_RECOVERY':
       next.planRecovery = null;
       break;
+    /*
+     * MODULE CONTRACT — Schedule Proposal Generation
+     *
+     * Preconditions:
+     *   - valid canonical goal contract must exist
+     *   - action graph / planning proof must be compiled (COMPILE_GOAL_EQUATION)
+     *   - COMPLETE_ONBOARDING alone is not sufficient
+     *
+     * Canonical output:
+     *   - writes to state.proposedBlocks via setCycleProposedBlocks()
+     *   - writes preview metadata to state.planPreview and cycle.autoAsanaPlan
+     *
+     * Behavior branches:
+     *   - normal flow: may auto-commit proposals after generation
+     *   - preview flow: payload.source === 'RENEGOTIATION_APPLY'
+     *       proposals remain in 'suggested' state, no auto-commit
+     *
+     * Canonical read source for downstream modules:
+     *   - state.proposedBlocks (not suggestedBlocks)
+     *
+     * Scope boundary:
+     *   - this module generates proposals only
+     *   - commit/persistence is Module 8 (APPLY_DRAFT_SCHEDULE)
+     *   - do not add commit logic here
+     */
     case 'GENERATE_PLAN':
       generatePlan(next, action.payload || {});
       break;
@@ -418,7 +447,9 @@ export function computeDerivedState(state, action) {
       generatePlan(next, action.payload || {});
       break;
     case 'APPLY_PLAN':
-      applyGeneratedPlan(next);
+      // The user-facing "Apply schedule" action must commit the reviewed draft
+      // proposal, not bypass preview by replaying the legacy auto-plan branch.
+      applyDraftSchedule(next, action.payload || {});
       break;
     case 'APPLY_DRAFT_SCHEDULE':
       applyDraftSchedule(next, action.payload || {});
@@ -532,10 +563,16 @@ export function computeDerivedState(state, action) {
       break;
   }
 
+  const perfApplyEventsStart = debugPerfActions ? Date.now() : 0;
   applyExecutionEvents(next);
+  const perfApplyEventsMs = debugPerfActions ? Date.now() - perfApplyEventsStart : 0;
   const survivingPriorBlocks = previousTodayBlocks.filter((block) => !block?.cycleId || block?.cycleId === next.activeCycleId);
+  const perfMergeStart = debugPerfActions ? Date.now() : 0;
   mergePriorTodayBlocks(next, survivingPriorBlocks);
+  const perfMergeMs = debugPerfActions ? Date.now() - perfMergeStart : 0;
+  const perfRecomputeStart = debugPerfActions ? Date.now() : 0;
   recomputeSummaries(next);
+  const perfRecomputeMs = debugPerfActions ? Date.now() - perfRecomputeStart : 0;
   next.vector = recalculateIdentityVector(next);
   const allowAdapt =
     action.type === 'COMPLETE_BLOCK' || action.type === 'BEGIN_BLOCK' || action.type === 'RESCHEDULE_BLOCK';
@@ -553,6 +590,17 @@ export function computeDerivedState(state, action) {
   applySuggestionGovernance(next, prevSuggestion, governed);
   normalizeActiveCycleExecutionGraph(next);
   applyGoalDirective(next);
+  if (debugPerfActions) {
+    next.debug = next.debug || {};
+    next.debug.lastPerfAction = {
+      type: action.type,
+      totalMs: Date.now() - perfActionStart,
+      applyExecutionEventsMs: perfApplyEventsMs,
+      mergePriorTodayBlocksMs: perfMergeMs,
+      recomputeSummariesMs: perfRecomputeMs,
+      applyDraftSchedulePhases: next.debug?.applyDraftSchedulePhases || null,
+    };
+  }
   applyProbabilityEligibility(next);
   applyProbabilityScoring(next);
   applyFeasibility(next);
@@ -917,7 +965,8 @@ function logGenerateDiagnostics({
   outputSummary,
   reasonCodes,
 }) {
-  if (process.env.NODE_ENV === 'production') return;
+  if (IS_PRODUCTION) return;
+  if (isRuntimeEnvFlagEnabled('JERICHO_DISABLE_GENERATE_TRACE')) return;
   const firstThree = (proposedBlocks || []).slice(0, 3).map((block) => ({
     id: block?.id || null,
     dayKey: block?.dayKey || null,
@@ -2015,6 +2064,103 @@ function resolveCycleForGoal(state, goalId) {
     cycles.find((cycle) => cycle?.contract?.goalId === goalId) ||
     null
   );
+}
+
+function inferGoalIdForCycle(state, cycle = null) {
+  const directGoalId =
+    cycle?.goalContract?.goalId ||
+    cycle?.goalGovernanceContract?.goalId ||
+    cycle?.contract?.goalId ||
+    state?.goalExecutionContract?.goalId ||
+    state?.activeGoalId ||
+    state?.planDraft?.goalId ||
+    null;
+  if (directGoalId) return directGoalId;
+
+  const goalWorkIds = Object.keys(state?.goalWorkById || {}).filter(Boolean);
+  if (goalWorkIds.length === 1) return goalWorkIds[0];
+
+  const admissionIds = Object.keys(state?.goalAdmissionByGoal || {}).filter(Boolean);
+  if (admissionIds.length === 1) return admissionIds[0];
+
+  if (cycle?.id) return `goal-${cycle.id}`;
+
+  return null;
+}
+
+function recoverCanonicalContractForCycle(state, cycle = null, contract = null) {
+  if (!cycle) return contract;
+  if (contract?.goalId) return contract;
+
+  const inferredGoalId = inferGoalIdForCycle(state, cycle);
+  if (!inferredGoalId) return contract;
+
+  const startDayKey =
+    cycle?.startedAtDayKey ||
+    contract?.startDayKey ||
+    state?.goalExecutionContract?.startDayKey ||
+    state?.today?.date ||
+    nowDayKey(state?.appTime?.timeZone || APP_TIME_ZONE);
+  const endDayKey =
+    cycle?.definiteGoal?.deadlineDayKey ||
+    contract?.endDayKey ||
+    state?.goalExecutionContract?.endDayKey ||
+    addDays(startDayKey, 90, state?.appTime?.timeZone || APP_TIME_ZONE);
+  const goalText =
+    cycle?.definiteGoal?.outcome ||
+    state?.goalExecutionContract?.goalText ||
+    state?.lenses?.aim?.description ||
+    '';
+
+  const repairedContract = {
+    ...(contract || {}),
+    goalId: inferredGoalId,
+    goalText: contract?.goalText || goalText || null,
+    goalLabel: contract?.goalLabel || goalText || null,
+    startDayKey: contract?.startDayKey || startDayKey || null,
+    endDayKey: contract?.endDayKey || endDayKey || null,
+    deadlineISO: contract?.deadlineISO || endDayKey || null,
+  };
+
+  cycle.goalContract = {
+    ...(cycle?.goalContract || {}),
+    ...repairedContract
+  };
+  cycle.goalGovernanceContract = cycle.goalGovernanceContract || {
+    contractId: `gov-${inferredGoalId}`,
+    version: 1,
+    goalId: inferredGoalId,
+    activeFromISO: startDayKey,
+    activeUntilISO: endDayKey,
+    scope: {
+      domainsAllowed: [],
+      timeHorizon: 'week',
+      timezone: state?.appTime?.timeZone || 'UTC'
+    },
+    governance: {
+      suggestionsEnabled: true,
+      probabilityEnabled: true,
+      minEvidenceEvents: 1,
+      cooldowns: { resuggestMinutes: 30, maxSuggestionsPerDay: 6 }
+    },
+    constraints: {
+      forbiddenDirectives: ['repair'],
+      maxActiveBlocks: 6
+    }
+  };
+  state.goalExecutionContract = {
+    ...(state.goalExecutionContract || {}),
+    goalId: inferredGoalId,
+    goalText: state?.goalExecutionContract?.goalText || goalText || null,
+    startDayKey: state?.goalExecutionContract?.startDayKey || startDayKey || null,
+    endDayKey: state?.goalExecutionContract?.endDayKey || endDayKey || null,
+  };
+  state.activeGoalId = state.activeGoalId || inferredGoalId;
+  if (cycle?.id && state?.cyclesById?.[cycle.id]) {
+    state.cyclesById[cycle.id] = cycle;
+  }
+
+  return cycle.goalContract;
 }
 
 function clampUnitScore(value) {
@@ -3371,7 +3517,12 @@ export function getAllBlocks(state) {
       if (!b || !b.id) return;
       const existing = union.find((u) => u.id === b.id);
       if (existing) {
-        if (process.env.NODE_ENV !== 'production' && existing.status !== b.status && !divergeWarned.has(b.id)) {
+        if (
+          !IS_PRODUCTION &&
+          !isRuntimeEnvFlagEnabled('JERICHO_DISABLE_GENERATE_TRACE') &&
+          existing.status !== b.status &&
+          !divergeWarned.has(b.id)
+        ) {
           console.warn('Block status divergence detected', b.id, { incoming: b.status, existing: existing.status, source });
           divergeWarned.add(b.id);
         }
@@ -5099,6 +5250,8 @@ function archiveAndCloneCycle(state, cycleId, overrides = {}) {
 }
 
 function generatePlan(state, payload = {}) {
+  const debugPerfActions = isRuntimeEnvFlagEnabled('JERICHO_DEBUG_PERF_ACTIONS');
+  const perfGenerateStart = debugPerfActions ? Date.now() : 0;
   const explicitCycleId = payload?.cycleId || null;
   const targetCycleId = explicitCycleId || state.activeCycleId || null;
   const cycle = explicitCycleId ? state?.cyclesById?.[explicitCycleId] || null : getTargetCycle(state, targetCycleId);
@@ -5107,9 +5260,14 @@ function generatePlan(state, payload = {}) {
   const llmActionCount = Number(cycle?.llmActionGraph?.actions?.length || 0);
   const cycleActionCount = Number(cycle?.actions?.length || 0);
   const actionCount = Math.max(llmActionCount, cycleActionCount);
-  const contract = getCanonicalCycleContract(cycle, state.goalExecutionContract, cycle?.contract || null);
+  const contract = recoverCanonicalContractForCycle(
+    state,
+    cycle,
+    getCanonicalCycleContract(cycle, state.goalExecutionContract, cycle?.contract || null)
+  );
   state.draftScheduleAppliedAtISO = null;
   state.scheduleApplied = false;
+  state.pendingPlanConfirmation = false;
   if (!cycle) {
     state.lastPlanError = {
       code: 'CYCLE_TARGET_INVALID',
@@ -5196,6 +5354,21 @@ function generatePlan(state, payload = {}) {
     return;
   }
   if (!contract.goalId) {
+    const recoverySnapshot = {
+      cycleId: cycle.id || targetCycleId,
+      activeGoalId: state?.activeGoalId || null,
+      goalExecutionContractGoalId: state?.goalExecutionContract?.goalId || null,
+      planDraftGoalId: state?.planDraft?.goalId || null,
+      cycleGoalContractGoalId: cycle?.goalContract?.goalId || null,
+      cycleGovernanceGoalId: cycle?.goalGovernanceContract?.goalId || null,
+      cycleLegacyContractGoalId: cycle?.contract?.goalId || null,
+      singleGoalWorkId: Object.keys(state?.goalWorkById || {}).filter(Boolean),
+      admissionGoalIds: Object.keys(state?.goalAdmissionByGoal || {}).filter(Boolean),
+      deliverableWorkspaceCycleIds: Object.keys(state?.deliverablesByCycleId || {}).filter(Boolean),
+      definiteGoalOutcome: cycle?.definiteGoal?.outcome || null,
+      definiteGoalDeadlineDayKey: cycle?.definiteGoal?.deadlineDayKey || null,
+      startedAtDayKey: cycle?.startedAtDayKey || null,
+    };
     setCycleProposedBlocks(state, cycle.id || targetCycleId, []);
     state.lastPlanError = {
       code: 'GOAL_ID_MISSING',
@@ -5203,7 +5376,10 @@ function generatePlan(state, payload = {}) {
       cycleId: cycle.id || targetCycleId,
       reasonCodes: ['GOAL_ID_MISSING'],
       conflicts: [],
-      meta: baseErrorMeta
+      meta: {
+        ...baseErrorMeta,
+        recoverySnapshot
+      }
     };
     setGenerateHeartbeat(state, cycle.id || targetCycleId, 0, 'GOAL_ID_MISSING');
     logGenerateDiagnostics({
@@ -5214,6 +5390,7 @@ function generatePlan(state, payload = {}) {
       normalizedCandidateWindowCount,
       proposedBlocks: state.proposedBlocks || [],
       lastPlanErrorCode: 'GOAL_ID_MISSING',
+      inputSummary: recoverySnapshot,
     });
     return;
   }
@@ -5336,6 +5513,7 @@ function generatePlan(state, payload = {}) {
         : Math.max(1, Math.min(2, resolvedMaxPerWeek));
   constraints.maxBlocksPerWeek = resolvedMaxPerWeek;
   constraints.maxBlocksPerDay = resolvedMaxPerDay;
+  const perfCompileStart = debugPerfActions ? Date.now() : 0;
   const compiledPlan = compileAutoAsanaPlan({
     goalId: contract.goalId,
     cycleId: cycle.id,
@@ -5347,6 +5525,7 @@ function generatePlan(state, payload = {}) {
     actionSequence: actionSequenceWithDeliverableIds,
     sessionPlan: Array.isArray(cycle?.llmSessionPlan) ? cycle.llmSessionPlan : []
   });
+  const perfCompileMs = debugPerfActions ? Date.now() - perfCompileStart : 0;
   logGenerateDiagnostics({
     traceId: `trace-${cycle.id}-propose`,
     cycleId: cycle.id,
@@ -5393,6 +5572,7 @@ function generatePlan(state, payload = {}) {
     goalId: contract.goalId,
     atISO: nowISO
   });
+  const perfPreviewStart = debugPerfActions ? Date.now() : 0;
   state.planPreview = computePlanPreview({
     suggestedBlocks: state.proposedBlocks || [],
     planDraft: state.planDraft,
@@ -5401,6 +5581,7 @@ function generatePlan(state, payload = {}) {
     historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
     timeZone: state.appTime?.timeZone || APP_TIME_ZONE,
   });
+  const perfPreviewMs = debugPerfActions ? Date.now() - perfPreviewStart : 0;
   const suggestedCount = (state.proposedBlocks || []).filter((item) => item?.status === 'suggested').length;
   if (suggestedCount === 0) {
     const conflictCodes = Array.from(new Set(
@@ -5471,15 +5652,18 @@ function generatePlan(state, payload = {}) {
     lastPlanErrorCode: state.lastPlanError?.code || null,
     reasonCodes: state.lastPlanError?.reasonCodes || [],
   });
-  const generationSource = payload?.source || null;
-  if (
-    suggestedCount > 0 &&
-    !state.scheduleApplied &&
-    generationSource !== 'RENEGOTIATION_APPLY' &&
-    generationSource !== 'RECOVERY'
-  ) {
-    applyDraftSchedule(state, { cycleId: cycle.id, goalId: contract.goalId });
+  const autoApplyAuthorized = payload?.authorizeAutoApply === true;
+  if (suggestedCount > 0) {
+    state.pendingPlanConfirmation = !autoApplyAuthorized;
+  }
+  if (suggestedCount > 0 && autoApplyAuthorized && !state.scheduleApplied) {
+    applyDraftSchedule(state, {
+      cycleId: cycle.id,
+      goalId: contract.goalId,
+      source: payload?.source || 'AUTHORIZED_AUTO_APPLY'
+    });
     state.scheduleApplied = true;
+    state.pendingPlanConfirmation = false;
     logGenerateDiagnostics({
       traceId: `trace-${cycle.id}-commit`,
       cycleId: cycle.id,
@@ -5501,12 +5685,24 @@ function generatePlan(state, payload = {}) {
       reasonCodes: state.lastPlanError?.reasonCodes || [],
     });
   }
+  if (debugPerfActions) {
+    state.debug = state.debug || {};
+    state.debug.generatePlanPhases = {
+      totalMs: Date.now() - perfGenerateStart,
+      compileAutoAsanaPlanMs: perfCompileMs,
+      computePlanPreviewMs: perfPreviewMs,
+      suggestedCount,
+      acceptedBlocksCount: acceptedBlocks.length,
+      actionSequenceCount: actionSequenceWithDeliverableIds.length,
+    };
+  }
   state.cyclesById[cycle.id] = cycle;
 }
 
-function applyGeneratedPlan(state) {
-  const cycle = getActiveCycle(state);
-  const contract = state.goalExecutionContract;
+function applyGeneratedPlan(state, payload = {}) {
+  const targetCycleId = payload?.cycleId || state.activeCycleId || null;
+  const cycle = targetCycleId ? getTargetCycle(state, targetCycleId) : getActiveCycle(state);
+  const contract = getCanonicalCycleContract(cycle, state.goalExecutionContract, cycle?.contract || null);
   if (!cycle || !contract || !cycle.autoAsanaPlan) return;
   const admission = state.goalAdmissionByGoal?.[contract.goalId] || cycle.goalAdmission;
   if (admission && admission.status !== 'ADMITTED') {
@@ -5557,6 +5753,9 @@ function applyGeneratedPlan(state) {
     policyVersion: plan.audit?.policyVersion || 'auto_asana_v1'
   });
   cycle.lastPlanAppliedAtISO = nowISO;
+  state.pendingPlanConfirmation = false;
+  state.scheduleApplied = true;
+  state.lastPlanError = null;
   state.cyclesById[cycle.id] = cycle;
 }
 
@@ -5595,6 +5794,8 @@ function recordDraftPolicyParity(state, appliedPreview) {
 }
 
 function applyDraftSchedule(state, payload = {}) {
+  const debugPerfActions = isRuntimeEnvFlagEnabled('JERICHO_DEBUG_PERF_ACTIONS');
+  const perfStart = debugPerfActions ? Date.now() : 0;
   const targetCycleId = payload?.cycleId || state.activeCycleId || null;
   const cycle = getTargetCycle(state, targetCycleId);
   const contract = getCanonicalCycleContract(cycle, state.goalExecutionContract, cycle?.contract || null);
@@ -5612,14 +5813,16 @@ function applyDraftSchedule(state, payload = {}) {
   const sourceBlocks = state.proposedBlocks || [];
   const suggestedBlocks = sourceBlocks.filter((block) => !block?.cycleId || block?.cycleId === cycle.id);
   const timeZone = state.appTime?.timeZone || 'UTC';
-  const appliedPreview = computePlanPreview({
-    suggestedBlocks,
-    planDraft: state.planDraft,
-    contract,
-    policyState: cycle.policyState || null,
-    historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
-    timeZone,
-  });
+  const appliedPreview =
+    state.planPreview ||
+    computePlanPreview({
+      suggestedBlocks,
+      planDraft: state.planDraft,
+      contract,
+      policyState: cycle.policyState || null,
+      historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
+      timeZone,
+    });
   let proposedItems = (suggestedBlocks || []).filter((item) => item?.status === 'suggested');
   const appliedPolicyId = recordDraftPolicyParity(state, appliedPreview);
   if (!proposedItems.length) {
@@ -5652,26 +5855,15 @@ function applyDraftSchedule(state, payload = {}) {
     });
     return;
   }
-  proposedItems.forEach((item) => {
-    if (!item?.startISO) return;
-    const duration = Number.isFinite(item.durationMinutes) ? Number(item.durationMinutes) : 30;
-    const startDate = new Date(item.startISO);
-    if (!Number.isFinite(startDate.getTime())) return;
-    createBlock(state, {
-      cycleId: cycle.id,
-      goalId: contract.goalId,
-      startISO: item.startISO,
-      durationMinutes: duration,
-      domain: item.domain || item.domainKey || state.planDraft?.primaryDomain || 'FOCUS',
-      title: item.title || 'Scheduled action',
-      origin: 'suggested_apply',
-      surface: 'today',
-      suggestionId: item.id,
-      deliverableId: item.payload?.deliverableId ?? null,
-      criterionId: item.payload?.criterionId ?? null,
-      timeZone,
-    });
+  const perfCreateStart = debugPerfActions ? Date.now() : 0;
+  appendSuggestedApplyBlocks(state, proposedItems, {
+    cycleId: cycle.id,
+    goalId: contract.goalId,
+    timeZone,
+    defaultDomain: state.planDraft?.primaryDomain || 'FOCUS',
   });
+  const perfCreateMs = debugPerfActions ? Date.now() - perfCreateStart : 0;
+  const perfAcceptStart = debugPerfActions ? Date.now() : 0;
   const acceptedSuggestionIds = new Set(proposedItems.map((item) => item.id));
   const nextSuggestions = sourceBlocks.map((item) => {
     if (!acceptedSuggestionIds.has(item?.id)) return item;
@@ -5693,6 +5885,7 @@ function applyDraftSchedule(state, payload = {}) {
       atISO: state.appTime?.nowISO || new Date().toISOString(),
     });
   });
+  const perfAcceptMs = debugPerfActions ? Date.now() - perfAcceptStart : 0;
   const priorState = cycle.policyState || null;
   const changedPolicy = priorState?.currentPolicyId !== appliedPolicyId;
   const policySetAtDayKey = changedPolicy ? nowDay : priorState?.policySetAtDayKey || nowDay;
@@ -5722,12 +5915,23 @@ function applyDraftSchedule(state, payload = {}) {
     atISO: state.appTime?.nowISO || new Date().toISOString(),
   });
   state.draftScheduleAppliedAtISO = state.appTime?.nowISO || new Date().toISOString();
+  state.pendingPlanConfirmation = false;
+  state.scheduleApplied = true;
   state.planDraft = null;
   state.planPreview = null;
   cycle.autoAsanaPlan = null;
   cycle.coldPlan = { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } };
   cycle.lastPolicySelectionDecision = previewDecisionBeforeApply || appliedPreview.policySelectionDecision || null;
   state.cyclesById[cycle.id] = cycle;
+  if (debugPerfActions) {
+    state.debug = state.debug || {};
+    state.debug.applyDraftSchedulePhases = {
+      totalMs: Date.now() - perfStart,
+      createBlocksMs: perfCreateMs,
+      acceptSuggestionsMs: perfAcceptMs,
+      proposedCount: proposedItems.length,
+    };
+  }
   logGenerateDiagnostics({
     traceId: `trace-${cycle.id}-apply`,
     cycleId: cycle.id,
@@ -6237,7 +6441,7 @@ function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
     timeZone: state.appTime?.timeZone
   });
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (!IS_PRODUCTION) {
     console.group('JERICHO_SUGGESTION_TRACE');
     console.log({
       traceId: `trace-calibration-handoff-${contract.goalId}`,
@@ -6778,6 +6982,11 @@ function createBlock(state, payload = {}) {
   });
   if (!canEmitExecutionEvent(state.executionEvents || [], event)) return;
   appendExecutionEvent(state, event);
+  const skipProjectionWrites = payload.skipProjectionWrites === true;
+  if (skipProjectionWrites) {
+    upsertCanonicalBlock(state, newBlock);
+    return newBlock;
+  }
   const ensureDay = (arr = []) => {
     const existing = arr.find((d) => d.date === date);
     if (existing) return arr.map((d) => (d.date === date ? { ...d, blocks: [...(d.blocks || []), newBlock] } : d));
@@ -6795,6 +7004,63 @@ function createBlock(state, payload = {}) {
   };
   upsertCanonicalBlock(state, newBlock);
   return newBlock;
+}
+
+function appendSuggestedApplyBlocks(state, items = [], { cycleId = null, goalId = null, timeZone = 'UTC', defaultDomain = 'FOCUS' } = {}) {
+  if (!items.length) return 0;
+  const existingBlockIds = new Set((state.executionEvents || []).map((event) => event?.blockId).filter(Boolean));
+  let created = 0;
+  items.forEach((item) => {
+    if (!item?.startISO) return;
+    const startDate = new Date(item.startISO);
+    if (!Number.isFinite(startDate.getTime())) return;
+    const duration = Number.isFinite(item.durationMinutes) ? Number(item.durationMinutes) : 30;
+    const minutes = clampDurationMinutes(duration);
+    const endDate = item.endISO ? new Date(item.endISO) : new Date(startDate.getTime() + minutes * 60000);
+    if (!Number.isFinite(endDate.getTime())) return;
+    const { domain, practice } = normalizeDomainValue(item.domain || item.domainKey || defaultDomain || 'FOCUS');
+    const blockId = nextDeterministicId(state, 'blk');
+    if (existingBlockIds.has(blockId)) return;
+    existingBlockIds.add(blockId);
+    const newBlock = {
+      id: blockId,
+      cycleId,
+      goalId,
+      origin: 'suggested_apply',
+      suggestionId: item.id || null,
+      deliverableId: item.payload?.deliverableId ?? null,
+      criterionId: item.payload?.criterionId ?? null,
+      lockedUntilDayKey: item.payload?.lockedUntilDayKey ?? null,
+      practice,
+      domain,
+      title: item.title || 'Scheduled action',
+      label: item.title || 'Scheduled action',
+      start: startDate.toISOString(),
+      end: endDate.toISOString(),
+      status: normalizeStatus(item.status, 'today'),
+      optional: Boolean(item.optional),
+      objectiveId: state.today?.primaryObjectiveId || null,
+    };
+    const dateISO = dayKeyFromISO(newBlock.start, timeZone) || deriveDateFromStart(startDate);
+    appendExecutionEvent(
+      state,
+      buildExecutionEventFromBlock(newBlock, {
+        dateISO,
+        kind: 'create',
+        completed: false,
+        cycleId,
+        goalId,
+        origin: 'suggested_apply',
+        suggestionId: item.id || null,
+        deliverableId: item.payload?.deliverableId ?? null,
+        criterionId: item.payload?.criterionId ?? null,
+        lockedUntilDayKey: item.payload?.lockedUntilDayKey ?? null,
+      })
+    );
+    upsertCanonicalBlock(state, newBlock);
+    created += 1;
+  });
+  return created;
 }
 
 function updateBlock(state, payload = {}) {

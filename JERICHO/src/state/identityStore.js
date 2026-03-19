@@ -9,6 +9,7 @@ import { validateGoalAdmission } from '../domain/goal/GoalAdmissionPolicy.ts';
 import { GoalRejectionCode } from '../domain/goal/GoalRejectionCode.ts';
 import { buildAutoDeliverablesFromGoalContract, detectCompoundGoal } from '../domain/autoStrategy.ts';
 import { createGeneratePlanWithLLM } from './storeLLMActions.ts';
+import { IS_PRODUCTION } from '../utils/runtimeEnv.js';
 
 const STATE_VERSION = '1.0.0';
 
@@ -23,70 +24,7 @@ function emptyWorkWindows() {
   }, {});
 }
 
-const seedState = buildInitialIdentityState();
-
-function buildInitialIdentityState() {
-  const persisted = loadPersisted();
-  if (persisted && persisted.meta?.version === STATE_VERSION) {
-    const withTemplates = ensureTemplates(persisted);
-    const hydrated = computeDerivedState(withTemplates, {
-      type: 'SET_VIEW_DATE',
-      date: withTemplates.viewDate || withTemplates.today?.date || withTemplates.cycle?.[0]?.date
-    });
-    persistState(hydrated);
-    return hydrated;
-  }
-
-  const deviceTimeZone =
-    typeof Intl !== 'undefined' && Intl.DateTimeFormat().resolvedOptions
-      ? Intl.DateTimeFormat().resolvedOptions().timeZone
-      : 'UTC';
-  const nowISO = new Date().toISOString();
-  const todayDate = dayKeyFromISO(nowISO, deviceTimeZone);
-  const activeDayKey = dayKeyFromISO(nowISO, deviceTimeZone);
-  const blocks = [
-    {
-      id: 'b1',
-      practice: 'Creation',
-      label: 'Assign capabilities',
-      start: `${todayDate}T09:00:00.000Z`,
-      end: `${todayDate}T10:30:00.000Z`,
-      status: 'in_progress'
-    },
-    {
-      id: 'b2',
-      practice: 'Focus',
-      label: 'Pipeline build',
-      start: `${todayDate}T11:00:00.000Z`,
-      end: `${todayDate}T12:00:00.000Z`,
-      status: 'planned'
-    }
-  ];
-
-  const vector = {
-    day: 6,
-    direction: 'Grow revenue to $10k/month',
-    stability: 'steady',
-    drift: 'contained',
-    momentum: 'active'
-  };
-
-  const lenses = {
-    aim: { description: 'Grow revenue to $10k/month', horizon: '90d' },
-    pattern: {
-      routines: { Body: [], Resources: [], Creation: [], Focus: [] },
-      dailyTargets: [
-        { name: 'Body', minutes: 30 },
-        { name: 'Resources', minutes: 45 },
-        { name: 'Creation', minutes: 120 },
-        { name: 'Focus', minutes: 60 }
-      ],
-      defaultMinutes: 30
-    },
-    flow: { streams: ['Client work', 'Content', 'Pipeline'] }
-  };
-
-  const practices = buildPracticesFromTargets(lenses.pattern.dailyTargets);
+function buildDefaultSeedGoalArtifacts(todayDate) {
   const contractDeadline = addDays(todayDate, 30);
   const goalContract = {
     goalId: 'goal-1',
@@ -177,6 +115,126 @@ function buildInitialIdentityState() {
       }
     ]
   };
+
+  return { contractDeadline, goalContract, goalGovernanceContract, goalWorkById };
+}
+
+function buildRecoveredGoalArtifacts({
+  goalId,
+  startDayKey,
+  endDayKey,
+  goalText,
+  timeZone,
+}) {
+  if (!goalId || !startDayKey || !endDayKey) return null;
+  return {
+    goalContract: {
+      goalId,
+      goalLabel: goalText || null,
+      goalText: goalText || null,
+      status: 'active',
+      activationDateISO: startDayKey,
+      startDayKey,
+      deadlineISO: endDayKey,
+      endDayKey,
+      success: [],
+      requirements: {
+        requiredDomains: [],
+        minimumCadencePerDomain: {},
+        expectedDomainMix: {},
+        maxAllowedVariance: 0.2
+      }
+    },
+    goalGovernanceContract: {
+      contractId: `gov-${goalId}`,
+      version: 1,
+      goalId,
+      activeFromISO: startDayKey,
+      activeUntilISO: endDayKey,
+      scope: {
+        domainsAllowed: [],
+        timeHorizon: 'week',
+        timezone: timeZone || 'UTC'
+      },
+      governance: {
+        suggestionsEnabled: true,
+        probabilityEnabled: true,
+        minEvidenceEvents: 1,
+        cooldowns: { resuggestMinutes: 30, maxSuggestionsPerDay: 6 }
+      },
+      constraints: {
+        forbiddenDirectives: ['repair'],
+        maxActiveBlocks: 6
+      }
+    }
+  };
+}
+
+const seedState = buildInitialIdentityState();
+
+function buildInitialIdentityState() {
+  const persisted = loadPersisted();
+  if (persisted && persisted.meta?.version === STATE_VERSION) {
+    const withTemplates = ensureTemplates(persisted);
+    const hydrated = computeDerivedState(withTemplates, {
+      type: 'SET_VIEW_DATE',
+      date: withTemplates.viewDate || withTemplates.today?.date || withTemplates.cycle?.[0]?.date
+    });
+    persistState(hydrated);
+    return hydrated;
+  }
+
+  const deviceTimeZone =
+    typeof Intl !== 'undefined' && Intl.DateTimeFormat().resolvedOptions
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : 'UTC';
+  const nowISO = new Date().toISOString();
+  const todayDate = dayKeyFromISO(nowISO, deviceTimeZone);
+  const activeDayKey = dayKeyFromISO(nowISO, deviceTimeZone);
+  const blocks = [
+    {
+      id: 'b1',
+      practice: 'Creation',
+      label: 'Assign capabilities',
+      start: `${todayDate}T09:00:00.000Z`,
+      end: `${todayDate}T10:30:00.000Z`,
+      status: 'in_progress'
+    },
+    {
+      id: 'b2',
+      practice: 'Focus',
+      label: 'Pipeline build',
+      start: `${todayDate}T11:00:00.000Z`,
+      end: `${todayDate}T12:00:00.000Z`,
+      status: 'planned'
+    }
+  ];
+
+  const vector = {
+    day: 6,
+    direction: 'Grow revenue to $10k/month',
+    stability: 'steady',
+    drift: 'contained',
+    momentum: 'active'
+  };
+
+  const lenses = {
+    aim: { description: 'Grow revenue to $10k/month', horizon: '90d' },
+    pattern: {
+      routines: { Body: [], Resources: [], Creation: [], Focus: [] },
+      dailyTargets: [
+        { name: 'Body', minutes: 30 },
+        { name: 'Resources', minutes: 45 },
+        { name: 'Creation', minutes: 120 },
+        { name: 'Focus', minutes: 60 }
+      ],
+      defaultMinutes: 30
+    },
+    flow: { streams: ['Client work', 'Content', 'Pipeline'] }
+  };
+
+  const practices = buildPracticesFromTargets(lenses.pattern.dailyTargets);
+  const { contractDeadline, goalContract, goalGovernanceContract, goalWorkById } = buildDefaultSeedGoalArtifacts(todayDate);
 
   const today = {
     date: todayDate,
@@ -582,7 +640,7 @@ export function IdentityProvider({ children, initialState }) {
   const [activeLens, setActiveLens] = React.useState(null);
   const stateRef = React.useRef(state);
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (!IS_PRODUCTION) {
     assertEngineAuthority(state);
   }
 
@@ -670,7 +728,7 @@ export function IdentityProvider({ children, initialState }) {
     [generatePlanWithLLMAsync, state.activeCycleId]
   );
   const commitPreviewItems = useCallback((payload) => dispatch({ type: 'COMMIT_PREVIEW_ITEMS', payload }), []);
-  const applyPlan = useCallback(() => dispatch({ type: 'APPLY_PLAN' }), []);
+  const applyPlan = useCallback((payload = {}) => dispatch({ type: 'APPLY_PLAN', payload }), []);
   const applyDraftSchedule = useCallback(
     (payload = {}) =>
       dispatch({
@@ -1005,11 +1063,87 @@ export function ensureTemplates(state) {
   const activeCycleId = state.activeCycleId || null;
   if (activeCycleId && state.cyclesById?.[activeCycleId]) {
     const activeCycle = state.cyclesById[activeCycleId];
+    const activeTodayDayKey = activeCycle?.startedAtDayKey || state.today?.date || nowDayKey(state.appTime?.timeZone || 'UTC');
+    const {
+      contractDeadline: repairedDeadline,
+      goalContract: repairedGoalContract,
+      goalGovernanceContract: repairedGoalGovernanceContract,
+      goalWorkById: repairedGoalWorkById
+    } = buildDefaultSeedGoalArtifacts(activeTodayDayKey);
     if (!activeCycle.goalContract && state.goalExecutionContract) {
       activeCycle.goalContract = structuredClone
         ? structuredClone(state.goalExecutionContract)
         : JSON.parse(JSON.stringify(state.goalExecutionContract));
       state.cyclesById[activeCycleId] = activeCycle;
+    } else if (!activeCycle.goalContract && activeCycleId === 'cycle-1') {
+      activeCycle.definiteGoal =
+        activeCycle.definiteGoal || { outcome: 'Grow revenue to $10k/month', deadlineDayKey: repairedDeadline };
+      activeCycle.goalContract = structuredClone
+        ? structuredClone(repairedGoalContract)
+        : JSON.parse(JSON.stringify(repairedGoalContract));
+      activeCycle.goalGovernanceContract = structuredClone
+        ? structuredClone(repairedGoalGovernanceContract)
+        : JSON.parse(JSON.stringify(repairedGoalGovernanceContract));
+      state.goalExecutionContract = state.goalExecutionContract || (structuredClone
+        ? structuredClone(repairedGoalContract)
+        : JSON.parse(JSON.stringify(repairedGoalContract)));
+      state.activeGoalId = state.activeGoalId || repairedGoalGovernanceContract.goalId;
+      state.goalWorkById = {
+        ...(state.goalWorkById || {}),
+        ...repairedGoalWorkById
+      };
+      state.cyclesById[activeCycleId] = activeCycle;
+    }
+    if (!activeCycle.goalContract) {
+      const fallbackGoalIds = Object.keys(state.goalWorkById || {}).filter(Boolean);
+      const recoveredGoalId =
+        state.goalExecutionContract?.goalId ||
+        activeCycle.goalGovernanceContract?.goalId ||
+        activeCycle.contract?.goalId ||
+        state.activeGoalId ||
+        state.planDraft?.goalId ||
+        (fallbackGoalIds.length === 1 ? fallbackGoalIds[0] : null);
+      const recoveredStartDayKey =
+        activeCycle.startedAtDayKey ||
+        state.goalExecutionContract?.startDayKey ||
+        state.today?.date ||
+        nowDayKey(state.appTime?.timeZone || 'UTC');
+      const recoveredEndDayKey =
+        activeCycle.definiteGoal?.deadlineDayKey ||
+        state.goalExecutionContract?.endDayKey ||
+        addDays(recoveredStartDayKey, 90, state.appTime?.timeZone || 'UTC');
+      const recoveredGoalText =
+        activeCycle.definiteGoal?.outcome ||
+        state.goalExecutionContract?.goalText ||
+        state.lenses?.aim?.description ||
+        '';
+      const recoveredArtifacts = buildRecoveredGoalArtifacts({
+        goalId: recoveredGoalId,
+        startDayKey: recoveredStartDayKey,
+        endDayKey: recoveredEndDayKey,
+        goalText: recoveredGoalText,
+        timeZone: state.appTime?.timeZone || 'UTC'
+      });
+      if (recoveredArtifacts) {
+        activeCycle.definiteGoal =
+          activeCycle.definiteGoal || { outcome: recoveredGoalText || 'Definite goal', deadlineDayKey: recoveredEndDayKey };
+        activeCycle.goalContract = structuredClone
+          ? structuredClone(recoveredArtifacts.goalContract)
+          : JSON.parse(JSON.stringify(recoveredArtifacts.goalContract));
+        activeCycle.goalGovernanceContract = activeCycle.goalGovernanceContract || (structuredClone
+          ? structuredClone(recoveredArtifacts.goalGovernanceContract)
+          : JSON.parse(JSON.stringify(recoveredArtifacts.goalGovernanceContract)));
+        state.goalExecutionContract = state.goalExecutionContract || {
+          goalId: recoveredGoalId,
+          goalText: recoveredGoalText,
+          startDayKey: recoveredStartDayKey,
+          endDayKey: recoveredEndDayKey,
+          domains: [],
+          successDefinition: recoveredGoalText || 'success'
+        };
+        state.activeGoalId = state.activeGoalId || recoveredGoalId;
+        state.cyclesById[activeCycleId] = activeCycle;
+      }
     }
   }
 
