@@ -1,18 +1,17 @@
 /**
  * GoalAdmissionPolicy: Hard constraints enforcement
- * 
+ *
  * This is the gate. Either a contract passes all hard validations or it does not.
  * No exceptions. No warnings. No "close enough".
- * 
+ *
  * Validation proceeds in order of likelihood to fail:
  * 1. Inscription integrity (cannot be compromised)
  * 2. Terminal outcome (must exist, be concrete)
  * 3. Deadline (must be valid, not in past, min 3 days away)
- * 4. Sacrifice (must be real and costly)
- * 5. Temporal binding (must be consistent, >= 3 days/week)
- * 6. Causal chain (must be complete, acyclic)
- * 7. Reinforcement (daily exposure non-negotiable)
- * 8. Meta (no duplicates, no aspirational)
+ * 4. Temporal binding (must be consistent, >= 3 days/week)
+ * 5. Causal chain (must be complete, acyclic)
+ * 6. Reinforcement (daily exposure non-negotiable)
+ * 7. Meta (no duplicates, no aspirational)
  */
 
 import {
@@ -21,6 +20,7 @@ import {
   normalizeTerminalOutcome,
   normalizeSacrifice,
   normalizeCausalChain,
+  normalizeWorkWindows,
   normalizeInscription,
 } from './GoalExecutionContract';
 
@@ -41,15 +41,14 @@ export function validateGoalAdmission(
 ): GoalAdmissionResult {
   const rejectionCodes: GoalRejectionCode[] = [];
   const candidateHash = computeContractHash(contract);
-  const isDuplicateInActiveScope = () =>
-    activeGoalSignatures.some((signature) => signature === candidateHash);
+  const isDuplicateInActiveScope = () => activeGoalSignatures.some((signature) => signature === candidateHash);
 
   // Phase 0: Plan generation mechanism (Phase 3 requirement)
-  // Phase 3 v1 only supports GENERIC_DETERMINISTIC
+  // Phase 3 v1 supports deterministic generic and typed LLM intake mechanisms.
+  const SUPPORTED_MECHANISMS = ['GENERIC_DETERMINISTIC', 'LLM_TYPED'];
   if (!contract.planGenerationMechanismClass) {
     rejectionCodes.push(GoalRejectionCode.PLAN_GENERATION_MECHANISM_MISSING);
-  } else if (contract.planGenerationMechanismClass !== 'GENERIC_DETERMINISTIC') {
-    // Phase 3 v1: only GENERIC_DETERMINISTIC is implemented
+  } else if (!SUPPORTED_MECHANISMS.includes(contract.planGenerationMechanismClass as string)) {
     rejectionCodes.push(GoalRejectionCode.PLAN_GENERATION_MECHANISM_UNSUPPORTED);
   }
 
@@ -78,7 +77,10 @@ export function validateGoalAdmission(
     if (!contract.terminalOutcome.isConcrete) {
       rejectionCodes.push(GoalRejectionCode.TERMINAL_OUTCOME_IMMEASURABLE);
     }
-    if (!contract.terminalOutcome.verificationCriteria || contract.terminalOutcome.verificationCriteria.trim().length < 3) {
+    if (
+      !contract.terminalOutcome.verificationCriteria ||
+      contract.terminalOutcome.verificationCriteria.trim().length < 3
+    ) {
       rejectionCodes.push(GoalRejectionCode.TERMINAL_OUTCOME_IMMEASURABLE);
     }
   }
@@ -108,48 +110,23 @@ export function validateGoalAdmission(
     }
   }
 
-  // Phase 4: Sacrifice validation
-  if (!contract.sacrifice) {
-    rejectionCodes.push(GoalRejectionCode.SACRIFICE_MISSING);
-  } else {
-    const sacrifice = contract.sacrifice;
-    if (!sacrifice.whatIsGivenUp?.trim() || sacrifice.whatIsGivenUp.trim().length < 3) {
-      rejectionCodes.push(GoalRejectionCode.SACRIFICE_VAGUE);
-    }
-    if (!sacrifice.quantifiedImpact?.trim() || sacrifice.quantifiedImpact.trim().length < 2) {
-      rejectionCodes.push(GoalRejectionCode.SACRIFICE_VAGUE);
-    }
-
-    // Check if sacrifice is binding (not trivial)
-    const trivialPatterns = ['maybe', 'might', 'could', 'possibly', 'no sacrifice', 'nothing'];
-    const lowerSacrifice = sacrifice.whatIsGivenUp.toLowerCase();
-    if (trivialPatterns.some((p) => lowerSacrifice.includes(p))) {
-      rejectionCodes.push(GoalRejectionCode.SACRIFICE_NOT_BINDING);
-    }
+  // Phase 4: Work windows validation
+  const workWindows = contract.workWindows;
+  const hasAnyWindow = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].some((day) => {
+    const dayWindows = workWindows?.[day] || [];
+    return (
+      Array.isArray(dayWindows) &&
+      dayWindows.some((window) => {
+        if (!window?.start || !window?.end) return false;
+        return String(window.start) < String(window.end);
+      })
+    );
+  });
+  if (!hasAnyWindow) {
+    rejectionCodes.push(GoalRejectionCode.NO_WORK_WINDOWS);
   }
 
-  // Phase 5: Temporal binding validation
-  if (!contract.temporalBinding) {
-    rejectionCodes.push(GoalRejectionCode.TEMPORAL_BINDING_INVALID);
-  } else {
-    const binding = contract.temporalBinding;
-    if (!Number.isInteger(binding.daysPerWeek) || binding.daysPerWeek < 3 || binding.daysPerWeek > 7) {
-      rejectionCodes.push(GoalRejectionCode.TEMPORAL_BINDING_INSUFFICIENT);
-    }
-    if (!binding.activationTime || binding.activationTime.length < 4) {
-      rejectionCodes.push(GoalRejectionCode.TEMPORAL_BINDING_INVALID);
-    }
-    if (!binding.sessionDurationMinutes || binding.sessionDurationMinutes < 15) {
-      rejectionCodes.push(GoalRejectionCode.TEMPORAL_BINDING_INVALID);
-    }
-    // Validate startDayKey format (YYYY-MM-DD)
-    const dayKeyPattern = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dayKeyPattern.test(binding.startDayKey)) {
-      rejectionCodes.push(GoalRejectionCode.TEMPORAL_BINDING_INVALID);
-    }
-  }
-
-  // Phase 6: Causal chain validation
+  // Phase 5: Causal chain validation
   if (!contract.causalChain) {
     rejectionCodes.push(GoalRejectionCode.CAUSAL_CHAIN_INCOMPLETE);
   } else {
@@ -164,7 +141,7 @@ export function validateGoalAdmission(
     }
   }
 
-  // Phase 7: Reinforcement disclosure validation
+  // Phase 6: Reinforcement disclosure validation
   if (!contract.reinforcement) {
     rejectionCodes.push(GoalRejectionCode.REINFORCEMENT_NOT_DECLARED);
   } else {
@@ -176,12 +153,15 @@ export function validateGoalAdmission(
     if (reinforcement.dailyExposureEnabled && !reinforcement.dailyMechanism?.trim()) {
       rejectionCodes.push(GoalRejectionCode.REINFORCEMENT_CONTRADICTION);
     }
-    if (!reinforcement.checkInFrequency || !['DAILY', 'WEEKLY', 'ON_PROGRESS'].includes(reinforcement.checkInFrequency)) {
+    if (
+      !reinforcement.checkInFrequency ||
+      !['DAILY', 'WEEKLY', 'ON_PROGRESS'].includes(reinforcement.checkInFrequency)
+    ) {
       rejectionCodes.push(GoalRejectionCode.REINFORCEMENT_NOT_DECLARED);
     }
   }
 
-  // Phase 8: Meta validations
+  // Phase 7: Meta validations
   if (contract.isAspirational) {
     rejectionCodes.push(GoalRejectionCode.ASPIRATIONAL_ONLY);
   }
@@ -225,9 +205,7 @@ export function computeContractHash(contract: GoalExecutionContract): string {
   const parts = [
     contract.terminalOutcome ? normalizeTerminalOutcome(contract.terminalOutcome) : '',
     contract.deadline?.dayKey || '',
-    contract.sacrifice ? normalizeSacrifice(contract.sacrifice) : '',
-    contract.temporalBinding?.daysPerWeek.toString() || '',
-    contract.temporalBinding?.activationTime || '',
+    normalizeWorkWindows(contract.workWindows),
     contract.causalChain ? normalizeCausalChain(contract.causalChain) : '',
     contract.reinforcement?.dailyExposureEnabled.toString() || '',
     contract.reinforcement?.checkInFrequency || '',

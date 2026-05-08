@@ -13,22 +13,23 @@ export default defineConfig({
         JERICHO_DISABLE_GENERATE_TRACE: process.env.JERICHO_DISABLE_GENERATE_TRACE || '',
         JERICHO_DEBUG_PERF_ACTIONS: process.env.JERICHO_DEBUG_PERF_ACTIONS || '',
         JERICHO_DEBUG_SCHEDULER: process.env.JERICHO_DEBUG_SCHEDULER || '',
-        VITE_REDUCE_UI: process.env.VITE_REDUCE_UI || ''
-      }
-    }
+        VITE_REDUCE_UI: process.env.VITE_REDUCE_UI || '',
+      },
+    },
   },
   build: {
-    outDir: 'dist'
+    outDir: 'dist',
   },
   resolve: {
     alias: {
-      src: path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'src')
-    }
+      src: path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'src'),
+    },
   },
   test: {
     threads: false,
     globals: true,
     environment: 'jsdom',
-    include: ['src/**/*.{test,spec}.{js,jsx,ts,tsx}', 'tests/**/*.{test,spec}.{js,jsx,ts,tsx}']
-  }
+    setupFiles: ['./tests/setup.ts'],
+    include: ['src/**/*.{test,spec}.{js,jsx,ts,tsx}', 'tests/**/*.{test,spec}.{js,jsx,ts,tsx}'],
+  },
 });

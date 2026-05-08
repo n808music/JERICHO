@@ -1,19 +1,23 @@
 # CI/CD Configuration
 
-This directory contains GitHub Actions workflows for automated testing, security scanning, deployment, and quality assurance.
+This directory contains GitHub Actions workflows for automated testing, security
+scanning, deployment, and quality assurance.
 
 ## 🔄 Workflows Overview
 
 ### 🧪 Testing & Quality
 
 - **[testing.yml](testing.yml)** - Comprehensive test suite execution
-- **[static-analysis.yml](static-analysis.yml)** - Code quality and static analysis
+- **[static-analysis.yml](static-analysis.yml)** - Code quality and static
+  analysis
 - **[quality-gate.yml](quality-gate.yml)** - Quality gate enforcement for PRs
 
 ### 🔒 Security & Compliance
 
-- **[security.yml](security.yml)** - Security vulnerability scanning and CodeQL analysis
-- **[dependencies.yml](dependencies.yml)** - Dependency management and license compliance
+- **[security.yml](security.yml)** - Security vulnerability scanning and CodeQL
+  analysis
+- **[dependencies.yml](dependencies.yml)** - Dependency management and license
+  compliance
 
 ### 🚀 Deployment
 
@@ -242,4 +246,5 @@ When modifying workflows:
 4. **Maintain backward compatibility** where possible
 5. **Document new secrets** if required
 
-This CI/CD setup ensures code quality, security, and reliable deployment for the JERICHO project. 🎯
+This CI/CD setup ensures code quality, security, and reliable deployment for the
+JERICHO project. 🎯

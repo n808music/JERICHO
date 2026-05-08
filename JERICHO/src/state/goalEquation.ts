@@ -1,10 +1,7 @@
 import { addDays, buildLocalStartISO, nowDayKey as nowDayKeyFn } from './time/time.ts';
 
 export type GoalFamily = 'BODY' | 'SKILL' | 'OUTPUT';
-export type GoalObjective =
-  | 'LOSE_WEIGHT_LBS'
-  | 'PRACTICE_HOURS_TOTAL'
-  | 'PUBLISH_COUNT';
+export type GoalObjective = 'LOSE_WEIGHT_LBS' | 'PRACTICE_HOURS_TOTAL' | 'PUBLISH_COUNT';
 
 export type DeadlineType = 'HARD' | 'SOFT';
 export type WorkWindow = 'EARLY' | 'MID' | 'LATE' | 'VARIABLE';
@@ -82,27 +79,27 @@ const WINDOW_TIMES: Record<DayWindow, string> = {
   MORNING: '07:30',
   MIDDAY: '12:00',
   AFTERNOON: '16:00',
-  EVENING: '19:30'
+  EVENING: '19:30',
 };
 
 const WINDOW_HOURS: Record<DayWindow, number> = {
   MORNING: 7,
   MIDDAY: 12,
   AFTERNOON: 16,
-  EVENING: 19
+  EVENING: 19,
 };
 
 const WORK_START_HOUR: Record<WorkWindow, number> = {
   EARLY: 5,
   MID: 9,
   LATE: 12,
-  VARIABLE: 9
+  VARIABLE: 9,
 };
 const WORK_END_HOUR: Record<WorkWindow, number> = {
   EARLY: 13,
   MID: 17,
   LATE: 21,
-  VARIABLE: 17
+  VARIABLE: 17,
 };
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -182,7 +179,7 @@ function computeGoalRequirements(equation: GoalEquationInput, workableDays: numb
       totalMinutes,
       requiredMinutesPerDay,
       weeklyRequired,
-      sessionsPerWeek
+      sessionsPerWeek,
     };
   }
   const minutesPerUnit = requiredMinutesPerUnit(equation);
@@ -196,7 +193,7 @@ function computeGoalRequirements(equation: GoalEquationInput, workableDays: numb
     totalMinutes,
     requiredMinutesPerDay,
     blockDuration,
-    blocksPerDay
+    blocksPerDay,
   };
 }
 
@@ -205,13 +202,13 @@ function feasibilityFromRequirement(requiredMinutesPerDay: number, maxMinutesPer
   if (requiredMinutesPerDay > maxMinutesPerDay * 1.2) {
     return {
       verdict: 'INFEASIBLE' as FeasibilityVerdict,
-      changes: ['Increase max daily minutes or extend deadline.']
+      changes: ['Increase max daily minutes or extend deadline.'],
     };
   }
   if (requiredMinutesPerDay > maxMinutesPerDay) {
     return {
       verdict: 'FEASIBLE_WITH_CHANGES' as FeasibilityVerdict,
-      changes: ['Increase max daily minutes or add weekend availability.']
+      changes: ['Increase max daily minutes or add weekend availability.'],
     };
   }
   return { verdict: 'FEASIBLE' as FeasibilityVerdict, changes: [] };
@@ -227,7 +224,7 @@ function scheduleBlocks({
   workableDays,
   requiredMinutesPerDay,
   timeZone,
-  lockUntilDayKey
+  lockUntilDayKey,
 }: {
   cycleId: string;
   equation: GoalEquationInput;
@@ -251,7 +248,7 @@ function scheduleBlocks({
           durationMinutes: 20,
           kind: 'PREP',
           title: 'Prep & setup',
-          locked: firstDay <= lockUntilDayKey
+          locked: firstDay <= lockUntilDayKey,
         });
       }
     }
@@ -272,7 +269,7 @@ function scheduleBlocks({
           durationMinutes: 20,
           kind: 'REVIEW',
           title: 'Weekly review',
-          locked: dayKey <= lockUntilDayKey
+          locked: dayKey <= lockUntilDayKey,
         });
       }
     });
@@ -296,7 +293,7 @@ function scheduleBlocks({
           durationMinutes: nutritionDuration,
           kind: 'NUTRITION',
           title: 'Nutrition check',
-          locked: dayKey <= lockUntilDayKey
+          locked: dayKey <= lockUntilDayKey,
         });
       }
       const dow = weekdayIndex(dayKey, timeZone);
@@ -311,7 +308,7 @@ function scheduleBlocks({
             durationMinutes: trainingDuration,
             kind: 'EXECUTION',
             title: 'Training session',
-            locked: dayKey <= lockUntilDayKey
+            locked: dayKey <= lockUntilDayKey,
           });
         }
       }
@@ -338,7 +335,7 @@ function scheduleBlocks({
           durationMinutes: duration,
           kind: 'EXECUTION',
           title: equation.objective === 'PUBLISH_COUNT' ? 'Publish unit' : 'Practice session',
-          locked: dayKey <= lockUntilDayKey
+          locked: dayKey <= lockUntilDayKey,
         });
       }
       minutesRemaining -= duration;
@@ -362,9 +359,15 @@ export function compileGoalEquationPlan({ equation, nowDayKey, timeZone, cycleId
         weeklyMinutes: 0,
         constraintsSummary: ['No workable days in window.'],
         failureConditions: ['No workable days available.'],
-        status: equation.acceptsDailyMinimum && equation.acceptsFixedSchedule && equation.acceptsNoRenegotiation7d && equation.acceptsAutomaticCatchUp ? 'SUBMITTED' : 'DRAFT'
+        status:
+          equation.acceptsDailyMinimum &&
+          equation.acceptsFixedSchedule &&
+          equation.acceptsNoRenegotiation7d &&
+          equation.acceptsAutomaticCatchUp
+            ? 'SUBMITTED'
+            : 'DRAFT',
       },
-      scheduleBlocks: []
+      scheduleBlocks: [],
     };
   }
   const requirements = computeGoalRequirements(equation, workableDays.length);
@@ -373,7 +376,7 @@ export function compileGoalEquationPlan({ equation, nowDayKey, timeZone, cycleId
   const constraintsSummary = [
     `Workable days: ${workableDays.length}`,
     `Max daily minutes: ${maxMinutesPerDay}`,
-    `Weekend allowed: ${equation.weekendsAllowed ? 'yes' : 'no'}`
+    `Weekend allowed: ${equation.weekendsAllowed ? 'yes' : 'no'}`,
   ];
   if (equation.workingFullTime) constraintsSummary.push('Full-time work schedule applied.');
   if (equation.hasWeeklyRestDay) constraintsSummary.push('Weekly rest day honored.');
@@ -392,7 +395,7 @@ export function compileGoalEquationPlan({ equation, nowDayKey, timeZone, cycleId
     workableDays,
     requiredMinutesPerDay: requirements.requiredMinutesPerDay,
     timeZone,
-    lockUntilDayKey
+    lockUntilDayKey,
   });
   const weeklyMinutes = Math.ceil(requirements.totalMinutes / Math.max(1, Math.ceil(workableDays.length / 7)));
   const planProof: PlanProof = {
@@ -404,10 +407,10 @@ export function compileGoalEquationPlan({ equation, nowDayKey, timeZone, cycleId
     constraintsSummary,
     failureConditions,
     changeList: feasibility.changes,
-    status
+    status,
   };
   return {
     planProof,
-    scheduleBlocks: scheduledBlocks
+    scheduleBlocks: scheduledBlocks,
   };
 }

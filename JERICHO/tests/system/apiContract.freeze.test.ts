@@ -26,7 +26,11 @@ function collectPaths(value: any, prefix = ''): string[] {
 
 describe('api contract freeze', () => {
   it('locks core schema paths (plan draft, diagnostics, policy, history, checkpoints)', () => {
-    const seeded = seedScenario({ autoPolicySelection: true, enableHistoryPolicySelection: true, enableMilestonePacing: true });
+    const seeded = seedScenario({
+      autoPolicySelection: true,
+      enableHistoryPolicySelection: true,
+      enableMilestonePacing: true,
+    });
     const policy = getQualityPolicy('BALANCED');
     const history = buildHistoryProfile(Object.values(seeded.historySignalsByCycleId || {}), { windowCycles: 5 });
     const checkpoints = injectCheckpoints({

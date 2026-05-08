@@ -10,9 +10,16 @@ function buildBaseState() {
     lenses: {
       aim: { description: '', horizon: '90d', narrative: '' },
       pattern: { routines: { Body: [], Resources: [], Creation: [], Focus: [] }, dailyTargets: [], defaultMinutes: 30 },
-      flow: { streams: [] }
+      flow: { streams: [] },
     },
-    today: { date: FIXED_DAY, blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
+    today: {
+      date: FIXED_DAY,
+      blocks: [],
+      completionRate: 0,
+      driftSignal: 'contained',
+      loadByPractice: {},
+      practices: [],
+    },
     currentWeek: { weekStart: FIXED_DAY, days: [], metrics: {} },
     cycle: [],
     viewDate: FIXED_DAY,
@@ -25,7 +32,7 @@ function buildBaseState() {
       lastActiveDate: FIXED_DAY,
       scenarioLabel: '',
       demoScenarioEnabled: false,
-      showHints: false
+      showHints: false,
     },
     recurringPatterns: [],
     lastSessionChange: null,
@@ -36,8 +43,8 @@ function buildBaseState() {
       timeZone: 'UTC',
       nowISO: `${FIXED_DAY}T12:00:00.000Z`,
       activeDayKey: FIXED_DAY,
-      isFollowingNow: true
-    }
+      isFollowingNow: true,
+    },
   };
 }
 
@@ -53,8 +60,8 @@ describe('cycle switching', () => {
         narrative: '',
         focusAreas: ['Creation'],
         successDefinition: 'A shipped',
-        minimumDaysPerWeek: 4
-      }
+        minimumDaysPerWeek: 4,
+      },
     });
 
     const goalAId = cycleA.goalExecutionContract?.goalId;
@@ -65,17 +72,15 @@ describe('cycle switching', () => {
         ...cycleA.cyclesById,
         [cycleAId]: {
           ...cycleA.cyclesById[cycleAId],
-          executionEvents: [
-            { goalId: goalAId, dateISO: FIXED_DAY, completed: true, kind: 'complete', minutes: 30 }
-          ]
-        }
-      }
+          executionEvents: [{ goalId: goalAId, dateISO: FIXED_DAY, completed: true, kind: 'complete', minutes: 30 }],
+        },
+      },
     };
     const hydratedA = computeDerivedState(withEvents, { type: 'NO_OP' });
 
     const cycleB = computeDerivedState(hydratedA, {
       type: 'START_NEW_CYCLE',
-      payload: { goalText: 'Goal B', deadlineDayKey: '2026-02-10' }
+      payload: { goalText: 'Goal B', deadlineDayKey: '2026-02-10' },
     });
     const goalBId = cycleB.goalExecutionContract?.goalId;
     const probabilityB = cycleB.probabilityByGoal?.[goalBId];
@@ -97,13 +102,13 @@ describe('cycle switching', () => {
         narrative: '',
         focusAreas: ['Creation'],
         successDefinition: 'A shipped',
-        minimumDaysPerWeek: 4
-      }
+        minimumDaysPerWeek: 4,
+      },
     });
     const cycleAId = cycleA.activeCycleId;
     const cycleB = computeDerivedState(cycleA, {
       type: 'START_NEW_CYCLE',
-      payload: { goalText: 'Goal B', deadlineDayKey: '2026-02-10' }
+      payload: { goalText: 'Goal B', deadlineDayKey: '2026-02-10' },
     });
     const deleted = computeDerivedState(cycleB, { type: 'DELETE_CYCLE', cycleId: cycleAId });
     const index = projectCyclesIndex({ cyclesById: deleted.cyclesById, goalWorkById: deleted.goalWorkById || {} });

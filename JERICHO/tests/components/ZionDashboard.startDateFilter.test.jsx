@@ -8,14 +8,14 @@ const stubAction = vi.fn();
 const actionsProxy = new Proxy(
   {},
   {
-    get: () => stubAction
+    get: () => stubAction,
   }
 );
 
 let mockStore = {};
 
 vi.mock('../../src/state/identityStore', () => ({
-  useIdentityStore: () => mockStore
+  useIdentityStore: () => mockStore,
 }));
 
 const buildStore = (suggestedBlocks = [], activeDayKey = '2026-01-20') => ({
@@ -26,9 +26,14 @@ const buildStore = (suggestedBlocks = [], activeDayKey = '2026-01-20') => ({
   planCalibration: null,
   correctionSignals: null,
   suggestionEvents: [],
+  proposedBlocks: suggestedBlocks.map((block) => ({
+    cycleId: 'cycle-1',
+    goalId: 'goal-1',
+    ...block,
+  })),
   suggestedBlocks,
   deliverablesByCycleId: {},
-  goalAdmissionByGoal: {},
+  goalAdmissionByGoal: { 'goal-1': { status: 'ADMITTED', reasonCodes: [] } },
   appTime: { nowISO: '2026-01-20T00:00:00.000Z', activeDayKey, timeZone: 'UTC' },
   goalWorkById: {},
   constraints: {},
@@ -36,21 +41,17 @@ const buildStore = (suggestedBlocks = [], activeDayKey = '2026-01-20') => ({
     'cycle-1': {
       id: 'cycle-1',
       status: 'active',
-      goalContract: { startDateISO: '2026-01-20T00:00:00.000Z' }
-    }
+      goalContract: { goalId: 'goal-1', startDateISO: '2026-01-20T00:00:00.000Z' },
+    },
   },
   activeCycleId: 'cycle-1',
-  goalExecutionContract: { startDateISO: '2026-01-20T00:00:00.000Z' },
+  goalExecutionContract: { goalId: 'goal-1', startDateISO: '2026-01-20T00:00:00.000Z' },
   probabilityByGoal: {},
   feasibilityByGoal: {},
   profileLearning: {},
   commitPreviewItems: stubAction,
   actions: actionsProxy,
   deliverables: [],
-  suggestionEvents: [],
-  planDraft: null,
-  planCalibration: null,
-  correctionSignals: null
 });
 
 describe('ZionDashboard start date guard', () => {
@@ -63,7 +64,7 @@ describe('ZionDashboard start date guard', () => {
         domain: 'CREATION',
         durationMinutes: 30,
         status: 'suggested',
-        startISO: '2026-01-19T09:00:00.000Z'
+        startISO: '2026-01-19T09:00:00.000Z',
       },
       {
         id: 's-start',
@@ -71,8 +72,8 @@ describe('ZionDashboard start date guard', () => {
         domain: 'CREATION',
         durationMinutes: 30,
         status: 'suggested',
-        startISO: '2026-01-20T09:00:00.000Z'
-      }
+        startISO: '2026-01-20T09:00:00.000Z',
+      },
     ]);
   });
 
@@ -85,7 +86,7 @@ describe('ZionDashboard start date guard', () => {
           domain: 'CREATION',
           durationMinutes: 30,
           status: 'suggested',
-          startISO: '2026-01-19T09:00:00.000Z'
+          startISO: '2026-01-19T09:00:00.000Z',
         },
         {
           id: 's-start',
@@ -93,8 +94,8 @@ describe('ZionDashboard start date guard', () => {
           domain: 'CREATION',
           durationMinutes: 30,
           status: 'suggested',
-          startISO: '2026-01-20T09:00:00.000Z'
-        }
+          startISO: '2026-01-20T09:00:00.000Z',
+        },
       ],
       '2026-01-19'
     );
@@ -113,7 +114,7 @@ describe('ZionDashboard start date guard', () => {
           domain: 'CREATION',
           durationMinutes: 30,
           status: 'suggested',
-          startISO: '2026-01-19T09:00:00.000Z'
+          startISO: '2026-01-19T09:00:00.000Z',
         },
         {
           id: 's-start',
@@ -121,19 +122,17 @@ describe('ZionDashboard start date guard', () => {
           domain: 'CREATION',
           durationMinutes: 30,
           status: 'suggested',
-          startISO: '2026-01-20T09:00:00.000Z'
-        }
+          startISO: '2026-01-20T09:00:00.000Z',
+        },
       ],
       '2026-01-20'
     );
-    render(
-      <ZionDashboard initialView="today" initialZionView="day" initialAnchorDayKey="2026-01-20" />
-    );
+    render(<ZionDashboard initialView="today" initialZionView="day" initialAnchorDayKey="2026-01-20" />);
     expect(screen.getAllByText(/On start suggestion/i).length > 0).toBe(true);
     expect(screen.queryByText(/Drafts begin on Jan 20/i)).not.toBeInTheDocument();
   });
 
-  it('renders ghost blocks when the draft is within the start window', () => {
+  it('renders draft schedule items when the draft is within the start window', () => {
     mockStore = buildStore(
       [
         {
@@ -142,14 +141,13 @@ describe('ZionDashboard start date guard', () => {
           domain: 'CREATION',
           durationMinutes: 45,
           status: 'suggested',
-          startISO: '2026-01-20T09:30:00.000Z'
-        }
+          startISO: '2026-01-20T09:30:00.000Z',
+        },
       ],
       '2026-01-20'
     );
-    render(
-      <ZionDashboard initialView="today" initialZionView="day" initialAnchorDayKey="2026-01-20" />
-    );
-    expect(screen.getByTestId('ghost-suggested:s-start')).toBeInTheDocument();
+    render(<ZionDashboard initialView="today" initialZionView="day" initialAnchorDayKey="2026-01-20" />);
+    expect(screen.getAllByText(/On start suggestion/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Drafts begin on Jan 20/i)).not.toBeInTheDocument();
   });
 });

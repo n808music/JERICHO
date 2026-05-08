@@ -3,7 +3,7 @@ import { useIdentityStore } from '../../state/identityStore.js';
 import { traceAction, traceNoop } from '../../dev/uiWiringTrace.ts';
 
 const MODULES = {
-  'Definite Goal': GoalLens
+  'Definite Goal': GoalLens,
 };
 
 export default function Workspace({ modules = [] }) {
@@ -20,14 +20,10 @@ export default function Workspace({ modules = [] }) {
     rebaseColdPlan,
     appTime,
     cycle,
-    today
+    today,
   } = useIdentityStore();
-  const activeCycle =
-    activeCycleId && cyclesById ? cyclesById[activeCycleId] : null;
-  const cycleAspirations =
-    activeCycleId && aspirationsByCycleId
-      ? aspirationsByCycleId[activeCycleId] || []
-      : [];
+  const activeCycle = activeCycleId && cyclesById ? cyclesById[activeCycleId] : null;
+  const cycleAspirations = activeCycleId && aspirationsByCycleId ? aspirationsByCycleId[activeCycleId] || [] : [];
   const activeStart = activeCycle?.startedAtDayKey || '—';
   const activeGoal = activeCycle?.definiteGoal?.outcome || '—';
   const activeDeadline = activeCycle?.definiteGoal?.deadlineDayKey || '—';
@@ -44,9 +40,7 @@ export default function Workspace({ modules = [] }) {
       </p>
       <div className="grid gap-3">
         {modules.map((m) => {
-          const Renderer =
-            MODULES[m] ||
-            (() => <div className="text-sm text-muted">Module</div>);
+          const Renderer = MODULES[m] || (() => <div className="text-sm text-muted">Module</div>);
           const anchorId = m.replace(' ', '-').toLowerCase();
           return (
             <React.Fragment key={m}>
@@ -92,34 +86,15 @@ export default function Workspace({ modules = [] }) {
   );
 }
 
-function StrategyPanel({
-  cycle,
-  timeZone,
-  onSetStrategy,
-  onGenerate,
-  onRebase,
-  readOnly = false
-}) {
+function StrategyPanel({ cycle, timeZone, onSetStrategy, onGenerate, onRebase, readOnly = false }) {
   const strategy = cycle?.strategy;
   const coldPlan = cycle?.coldPlan;
-  const [routeOption, setRouteOption] = useState(
-    strategy?.routeOption || 'FLAT'
-  );
-  const [deliverables, setDeliverables] = useState(
-    strategy?.deliverables || []
-  );
-  const [maxPerDay, setMaxPerDay] = useState(
-    strategy?.constraints?.maxBlocksPerDay || ''
-  );
-  const [maxPerWeek, setMaxPerWeek] = useState(
-    strategy?.constraints?.maxBlocksPerWeek || ''
-  );
-  const [preferredDays, setPreferredDays] = useState(
-    strategy?.constraints?.preferredDaysOfWeek || []
-  );
-  const [blackouts, setBlackouts] = useState(
-    (strategy?.constraints?.blackoutDayKeys || []).join(', ')
-  );
+  const [routeOption, setRouteOption] = useState(strategy?.routeOption || 'FLAT');
+  const [deliverables, setDeliverables] = useState(strategy?.deliverables || []);
+  const [maxPerDay, setMaxPerDay] = useState(strategy?.constraints?.maxBlocksPerDay || '');
+  const [maxPerWeek, setMaxPerWeek] = useState(strategy?.constraints?.maxBlocksPerWeek || '');
+  const [preferredDays, setPreferredDays] = useState(strategy?.constraints?.preferredDaysOfWeek || []);
+  const [blackouts, setBlackouts] = useState((strategy?.constraints?.blackoutDayKeys || []).join(', '));
 
   useEffect(() => {
     setRouteOption(strategy?.routeOption || 'FLAT');
@@ -131,16 +106,11 @@ function StrategyPanel({
   }, [strategy?.routeOption, strategy?.deliverables, strategy?.constraints]);
 
   const updateDeliverable = (idx, patch) => {
-    setDeliverables((prev) =>
-      prev.map((d, i) => (i === idx ? { ...d, ...patch } : d))
-    );
+    setDeliverables((prev) => prev.map((d, i) => (i === idx ? { ...d, ...patch } : d)));
   };
 
   const addDeliverable = () => {
-    setDeliverables((prev) => [
-      ...prev,
-      { id: `deliv-${prev.length + 1}`, title: '', requiredBlocks: 0 }
-    ]);
+    setDeliverables((prev) => [...prev, { id: `deliv-${prev.length + 1}`, title: '', requiredBlocks: 0 }]);
   };
 
   const removeDeliverable = (idx) => {
@@ -148,25 +118,16 @@ function StrategyPanel({
   };
 
   const togglePreferredDay = (day) => {
-    setPreferredDays((prev) =>
-      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
-    );
+    setPreferredDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]));
   };
 
-  const totalBlocks = deliverables.reduce(
-    (sum, d) => sum + (Number(d.requiredBlocks) || 0),
-    0
-  );
+  const totalBlocks = deliverables.reduce((sum, d) => sum + (Number(d.requiredBlocks) || 0), 0);
 
   return (
     <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4 space-y-3">
       <div>
-        <p className="text-xs uppercase tracking-[0.14em] text-muted">
-          Cold Plan Strategy
-        </p>
-        <p className="text-[11px] text-muted">
-          Route-based forecast map (not evidence).
-        </p>
+        <p className="text-xs uppercase tracking-[0.14em] text-muted">Cold Plan Strategy</p>
+        <p className="text-[11px] text-muted">Route-based forecast map (not evidence).</p>
       </div>
       <div className="grid gap-2 text-xs">
         <label className="text-muted">Route option</label>
@@ -190,9 +151,7 @@ function StrategyPanel({
               className="rounded border border-line/60 bg-transparent px-2 py-1 flex-1 min-w-[160px]"
               value={d.title || ''}
               placeholder="Deliverable title"
-              onChange={(e) =>
-                updateDeliverable(idx, { title: e.target.value })
-              }
+              onChange={(e) => updateDeliverable(idx, { title: e.target.value })}
               disabled={readOnly}
             />
             <input
@@ -202,7 +161,7 @@ function StrategyPanel({
               value={d.requiredBlocks || 0}
               onChange={(e) =>
                 updateDeliverable(idx, {
-                  requiredBlocks: Number(e.target.value) || 0
+                  requiredBlocks: Number(e.target.value) || 0,
                 })
               }
               disabled={readOnly}
@@ -224,15 +183,11 @@ function StrategyPanel({
           >
             Add deliverable
           </button>
-          <span className="text-[11px] text-muted">
-            Total blocks: {totalBlocks}
-          </span>
+          <span className="text-[11px] text-muted">Total blocks: {totalBlocks}</span>
         </div>
       </div>
       <div className="space-y-2 text-xs">
-        <p className="text-muted font-semibold">
-          Constraints (advisory for plan generation)
-        </p>
+        <p className="text-muted font-semibold">Constraints (advisory for plan generation)</p>
         <div className="flex flex-wrap gap-2">
           <input
             type="number"
@@ -258,9 +213,7 @@ function StrategyPanel({
             <button
               key={d}
               className={`rounded-full border px-2 py-1 ${
-                preferredDays.includes(d)
-                  ? 'border-jericho-accent text-jericho-accent'
-                  : 'border-line/60 text-muted'
+                preferredDays.includes(d) ? 'border-jericho-accent text-jericho-accent' : 'border-line/60 text-muted'
               }`}
               onClick={() => togglePreferredDay(d)}
               disabled={readOnly}
@@ -269,9 +222,7 @@ function StrategyPanel({
             </button>
           ))}
         </div>
-        <p className="text-[11px] text-muted">
-          Preferred days (used for route generation only).
-        </p>
+        <p className="text-[11px] text-muted">Preferred days (used for route generation only).</p>
         <input
           className="w-full rounded border border-line/60 bg-transparent px-2 py-1"
           placeholder="Blackout dayKeys (plan generation, comma-separated)"
@@ -292,15 +243,13 @@ function StrategyPanel({
                   constraints: {
                     tz: timeZone,
                     maxBlocksPerDay: maxPerDay ? Number(maxPerDay) : undefined,
-                    maxBlocksPerWeek: maxPerWeek
-                      ? Number(maxPerWeek)
-                      : undefined,
+                    maxBlocksPerWeek: maxPerWeek ? Number(maxPerWeek) : undefined,
                     preferredDaysOfWeek: preferredDays,
                     blackoutDayKeys: blackouts
                       .split(',')
                       .map((v) => v.trim())
-                      .filter(Boolean)
-                  }
+                      .filter(Boolean),
+                  },
                 }))
               : traceNoop('strategy.save', 'handler missing')
           }
@@ -312,8 +261,7 @@ function StrategyPanel({
           className="rounded-full border border-line/60 px-3 py-1 text-muted hover:text-jericho-accent"
           onClick={() =>
             onGenerate
-              ? (traceAction('strategy.regenerate', { cycleId: cycle?.id }),
-                onGenerate())
+              ? (traceAction('strategy.regenerate', { cycleId: cycle?.id }), onGenerate())
               : traceNoop('strategy.regenerate', 'handler missing')
           }
           disabled={readOnly}
@@ -324,8 +272,7 @@ function StrategyPanel({
           className="rounded-full border border-line/60 px-3 py-1 text-muted hover:text-jericho-accent"
           onClick={() =>
             onRebase
-              ? (traceAction('strategy.rebase', { cycleId: cycle?.id }),
-                onRebase())
+              ? (traceAction('strategy.rebase', { cycleId: cycle?.id }), onRebase())
               : traceNoop('strategy.rebase', 'handler missing')
           }
           disabled={readOnly}
@@ -336,12 +283,10 @@ function StrategyPanel({
       <div className="text-[11px] text-muted">
         {coldPlan ? (
           <>
-            Cold plan v{coldPlan.version} · Strategy {coldPlan.strategyId} ·
-            Assumptions {coldPlan.assumptionsHash}
+            Cold plan v{coldPlan.version} · Strategy {coldPlan.strategyId} · Assumptions {coldPlan.assumptionsHash}
             {coldPlan.infeasible ? (
               <div className="text-amber-600">
-                Infeasible: {coldPlan.infeasible.reason} (need{' '}
-                {coldPlan.infeasible.requiredCapacityPerWeek}/week, cap{' '}
+                Infeasible: {coldPlan.infeasible.reason} (need {coldPlan.infeasible.requiredCapacityPerWeek}/week, cap{' '}
                 {coldPlan.infeasible.availableCapacityPerWeek}/week)
               </div>
             ) : null}
@@ -354,110 +299,48 @@ function StrategyPanel({
   );
 }
 
-function GoalLens({
-  activeCycle,
-  aspirations = [],
-  onSetGoal,
-  onStartNewCycle,
-  onCompileGoalEquation
-}) {
+function GoalLens({ activeCycle, aspirations = [], onSetGoal, onStartNewCycle, onCompileGoalEquation }) {
   const equation = activeCycle?.goalEquation;
   const planProof = activeCycle?.goalPlan?.planProof || null;
   const scheduleBlocks = activeCycle?.goalPlan?.scheduleBlocks || [];
   const [label, setLabel] = useState(equation?.label || '');
   const [family, setFamily] = useState(equation?.family || 'BODY');
-  const [objective, setObjective] = useState(
-    equation?.objective || 'LOSE_WEIGHT_LBS'
-  );
-  const [objectiveValue, setObjectiveValue] = useState(
-    equation?.objectiveValue || 10
-  );
-  const [mechanismClass, setMechanismClass] = useState(
-    equation?.mechanismClass || 'GENERIC_DETERMINISTIC'
-  );
+  const [objective, setObjective] = useState(equation?.objective || 'LOSE_WEIGHT_LBS');
+  const [objectiveValue, setObjectiveValue] = useState(equation?.objectiveValue || 10);
+  const [mechanismClass, setMechanismClass] = useState(equation?.mechanismClass || 'GENERIC_DETERMINISTIC');
   const [deadlineDayKey, setDeadlineDayKey] = useState(
     equation?.deadlineDayKey || activeCycle?.definiteGoal?.deadlineDayKey || ''
   );
-  const [deadlineType, setDeadlineType] = useState(
-    equation?.deadlineType || 'HARD'
-  );
-  const [workingFullTime, setWorkingFullTime] = useState(
-    equation?.workingFullTime ?? true
-  );
-  const [workDaysPerWeek, setWorkDaysPerWeek] = useState(
-    equation?.workDaysPerWeek || 5
-  );
-  const [workStartWindow, setWorkStartWindow] = useState(
-    equation?.workStartWindow || 'MID'
-  );
-  const [workEndWindow, setWorkEndWindow] = useState(
-    equation?.workEndWindow || 'MID'
-  );
-  const [minSleepHours, setMinSleepHours] = useState(
-    equation?.minSleepHours || 8
-  );
-  const [sleepFixedWindow, setSleepFixedWindow] = useState(
-    equation?.sleepFixedWindow ?? false
-  );
-  const [sleepStartWindow, setSleepStartWindow] = useState(
-    equation?.sleepStartWindow || 'LATE'
-  );
-  const [sleepEndWindow, setSleepEndWindow] = useState(
-    equation?.sleepEndWindow || 'EARLY'
-  );
-  const [hasWeeklyRestDay, setHasWeeklyRestDay] = useState(
-    equation?.hasWeeklyRestDay ?? true
-  );
+  const [deadlineType, setDeadlineType] = useState(equation?.deadlineType || 'HARD');
+  const [workingFullTime, setWorkingFullTime] = useState(equation?.workingFullTime ?? true);
+  const [workDaysPerWeek, setWorkDaysPerWeek] = useState(equation?.workDaysPerWeek || 5);
+  const [workStartWindow, setWorkStartWindow] = useState(equation?.workStartWindow || 'MID');
+  const [workEndWindow, setWorkEndWindow] = useState(equation?.workEndWindow || 'MID');
+  const [minSleepHours, setMinSleepHours] = useState(equation?.minSleepHours || 8);
+  const [sleepFixedWindow, setSleepFixedWindow] = useState(equation?.sleepFixedWindow ?? false);
+  const [sleepStartWindow, setSleepStartWindow] = useState(equation?.sleepStartWindow || 'LATE');
+  const [sleepEndWindow, setSleepEndWindow] = useState(equation?.sleepEndWindow || 'EARLY');
+  const [hasWeeklyRestDay, setHasWeeklyRestDay] = useState(equation?.hasWeeklyRestDay ?? true);
   const [restDay, setRestDay] = useState(equation?.restDay ?? 0);
-  const [blackoutBlocks, setBlackoutBlocks] = useState(
-    equation?.blackoutBlocks || []
-  );
-  const [hasGymAccess, setHasGymAccess] = useState(
-    equation?.hasGymAccess ?? true
-  );
-  const [canCookMostDays, setCanCookMostDays] = useState(
-    equation?.canCookMostDays ?? true
-  );
-  const [hasTransportLimitation, setHasTransportLimitation] = useState(
-    equation?.hasTransportLimitation ?? false
-  );
-  const [currentlyInjured, setCurrentlyInjured] = useState(
-    equation?.currentlyInjured ?? false
-  );
-  const [beginnerLevel, setBeginnerLevel] = useState(
-    equation?.beginnerLevel ?? false
-  );
-  const [maxDailyWorkMinutes, setMaxDailyWorkMinutes] = useState(
-    equation?.maxDailyWorkMinutes || 120
-  );
-  const [noEveningWork, setNoEveningWork] = useState(
-    equation?.noEveningWork ?? false
-  );
-  const [noMorningWork, setNoMorningWork] = useState(
-    equation?.noMorningWork ?? false
-  );
-  const [weekendsAllowed, setWeekendsAllowed] = useState(
-    equation?.weekendsAllowed ?? true
-  );
-  const [travelThisPeriod, setTravelThisPeriod] = useState(
-    equation?.travelThisPeriod || 'NONE'
-  );
-  const [acceptsDailyMinimum, setAcceptsDailyMinimum] = useState(
-    equation?.acceptsDailyMinimum ?? false
-  );
-  const [acceptsFixedSchedule, setAcceptsFixedSchedule] = useState(
-    equation?.acceptsFixedSchedule ?? false
-  );
-  const [acceptsNoRenegotiation7d, setAcceptsNoRenegotiation7d] = useState(
-    equation?.acceptsNoRenegotiation7d ?? false
-  );
-  const [acceptsAutomaticCatchUp, setAcceptsAutomaticCatchUp] = useState(
-    equation?.acceptsAutomaticCatchUp ?? false
-  );
+  const [blackoutBlocks, setBlackoutBlocks] = useState(equation?.blackoutBlocks || []);
+  const [hasGymAccess, setHasGymAccess] = useState(equation?.hasGymAccess ?? true);
+  const [canCookMostDays, setCanCookMostDays] = useState(equation?.canCookMostDays ?? true);
+  const [hasTransportLimitation, setHasTransportLimitation] = useState(equation?.hasTransportLimitation ?? false);
+  const [currentlyInjured, setCurrentlyInjured] = useState(equation?.currentlyInjured ?? false);
+  const [beginnerLevel, setBeginnerLevel] = useState(equation?.beginnerLevel ?? false);
+  const [maxDailyWorkMinutes, setMaxDailyWorkMinutes] = useState(equation?.maxDailyWorkMinutes || 120);
+  const [noEveningWork, setNoEveningWork] = useState(equation?.noEveningWork ?? false);
+  const [noMorningWork, setNoMorningWork] = useState(equation?.noMorningWork ?? false);
+  const [weekendsAllowed, setWeekendsAllowed] = useState(equation?.weekendsAllowed ?? true);
+  const [travelThisPeriod, setTravelThisPeriod] = useState(equation?.travelThisPeriod || 'NONE');
+  const [acceptsDailyMinimum, setAcceptsDailyMinimum] = useState(equation?.acceptsDailyMinimum ?? false);
+  const [acceptsFixedSchedule, setAcceptsFixedSchedule] = useState(equation?.acceptsFixedSchedule ?? false);
+  const [acceptsNoRenegotiation7d, setAcceptsNoRenegotiation7d] = useState(equation?.acceptsNoRenegotiation7d ?? false);
+  const [acceptsAutomaticCatchUp, setAcceptsAutomaticCatchUp] = useState(equation?.acceptsAutomaticCatchUp ?? false);
   const [errors, setErrors] = useState({
     objectiveValue: '',
     deadline: '',
-    mechanismClass: ''
+    mechanismClass: '',
   });
   const [compiledAtISO, setCompiledAtISO] = useState('');
   const admission = activeCycle?.goalAdmission || null;
@@ -472,11 +355,7 @@ function GoalLens({
     setObjective(equation?.objective || 'LOSE_WEIGHT_LBS');
     setObjectiveValue(equation?.objectiveValue || 10);
     setMechanismClass(equation?.mechanismClass || '');
-    setDeadlineDayKey(
-      equation?.deadlineDayKey ||
-        activeCycle?.definiteGoal?.deadlineDayKey ||
-        ''
-    );
+    setDeadlineDayKey(equation?.deadlineDayKey || activeCycle?.definiteGoal?.deadlineDayKey || '');
     setDeadlineType(equation?.deadlineType || 'HARD');
     setWorkingFullTime(equation?.workingFullTime ?? true);
     setWorkDaysPerWeek(equation?.workDaysPerWeek || 5);
@@ -506,33 +385,17 @@ function GoalLens({
   }, [equation, activeCycle?.definiteGoal?.deadlineDayKey]);
 
   const objectiveOptions =
-    family === 'BODY'
-      ? ['LOSE_WEIGHT_LBS']
-      : family === 'SKILL'
-        ? ['PRACTICE_HOURS_TOTAL']
-        : ['PUBLISH_COUNT'];
-  const formattedDeadline = deadlineDayKey
-    ? formatDayKeyLong(deadlineDayKey)
-    : '—';
+    family === 'BODY' ? ['LOSE_WEIGHT_LBS'] : family === 'SKILL' ? ['PRACTICE_HOURS_TOTAL'] : ['PUBLISH_COUNT'];
+  const formattedDeadline = deadlineDayKey ? formatDayKeyLong(deadlineDayKey) : '—';
   const objectiveUnit =
-    objective === 'LOSE_WEIGHT_LBS'
-      ? 'lbs'
-      : objective === 'PRACTICE_HOURS_TOTAL'
-        ? 'hours'
-        : 'count';
+    objective === 'LOSE_WEIGHT_LBS' ? 'lbs' : objective === 'PRACTICE_HOURS_TOTAL' ? 'hours' : 'count';
 
   const compile = () => {
     const nextErrors = { objectiveValue: '', deadline: '', mechanismClass: '' };
-    if (!objectiveValue || Number(objectiveValue) <= 0)
-      nextErrors.objectiveValue = 'Objective value is required.';
+    if (!objectiveValue || Number(objectiveValue) <= 0) nextErrors.objectiveValue = 'Objective value is required.';
     if (!deadlineDayKey) nextErrors.deadline = 'Deadline is required.';
-    if (!mechanismClass)
-      nextErrors.mechanismClass = 'Mechanism class is required.';
-    if (
-      nextErrors.objectiveValue ||
-      nextErrors.deadline ||
-      nextErrors.mechanismClass
-    ) {
+    if (!mechanismClass) nextErrors.mechanismClass = 'Mechanism class is required.';
+    if (nextErrors.objectiveValue || nextErrors.deadline || nextErrors.mechanismClass) {
       setErrors(nextErrors);
       setCompiledAtISO('');
       return;
@@ -570,8 +433,8 @@ function GoalLens({
         acceptsDailyMinimum,
         acceptsFixedSchedule,
         acceptsNoRenegotiation7d,
-        acceptsAutomaticCatchUp
-      }
+        acceptsAutomaticCatchUp,
+      },
     };
     if (onCompileGoalEquation) {
       traceAction('goal.compile', payload.equation);
@@ -603,11 +466,7 @@ function GoalLens({
                 const next = e.target.value;
                 setFamily(next);
                 const nextObjective =
-                  next === 'BODY'
-                    ? 'LOSE_WEIGHT_LBS'
-                    : next === 'SKILL'
-                      ? 'PRACTICE_HOURS_TOTAL'
-                      : 'PUBLISH_COUNT';
+                  next === 'BODY' ? 'LOSE_WEIGHT_LBS' : next === 'SKILL' ? 'PRACTICE_HOURS_TOTAL' : 'PUBLISH_COUNT';
                 setObjective(nextObjective);
               }}
             >
@@ -617,9 +476,7 @@ function GoalLens({
             </select>
           </label>
           <label className="space-y-1">
-            <span className="text-[11px] text-muted">
-              Plan generation mechanism
-            </span>
+            <span className="text-[11px] text-muted">Plan generation mechanism</span>
             <select
               className="w-full rounded border border-line/60 bg-transparent px-2 py-1"
               value={mechanismClass}
@@ -659,9 +516,7 @@ function GoalLens({
             </select>
           </label>
           <label className="space-y-1">
-            <span className="text-[11px] text-muted">
-              Target value ({objectiveUnit})
-            </span>
+            <span className="text-[11px] text-muted">Target value ({objectiveUnit})</span>
             <input
               type="number"
               min={1}
@@ -671,12 +526,8 @@ function GoalLens({
             />
           </label>
         </div>
-        {errors.objectiveValue ? (
-          <p className="text-[11px] text-amber-600">{errors.objectiveValue}</p>
-        ) : null}
-        {errors.mechanismClass ? (
-          <p className="text-[11px] text-amber-600">{errors.mechanismClass}</p>
-        ) : null}
+        {errors.objectiveValue ? <p className="text-[11px] text-amber-600">{errors.objectiveValue}</p> : null}
+        {errors.mechanismClass ? <p className="text-[11px] text-amber-600">{errors.mechanismClass}</p> : null}
         <div className="grid sm:grid-cols-2 gap-2">
           <label className="space-y-1">
             <span className="text-[11px] text-muted">Deadline</span>
@@ -700,9 +551,7 @@ function GoalLens({
           </label>
         </div>
         <p className="text-[11px] text-muted">Deadline: {formattedDeadline}</p>
-        {errors.deadline ? (
-          <p className="text-[11px] text-amber-600">{errors.deadline}</p>
-        ) : null}
+        {errors.deadline ? <p className="text-[11px] text-amber-600">{errors.deadline}</p> : null}
       </div>
       {admissionError ? (
         <div className="rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-700">
@@ -715,8 +564,7 @@ function GoalLens({
           <ul className="mt-2 space-y-1">
             {aspirations.slice(-3).map((asp) => (
               <li key={asp.aspirationId}>
-                {asp.draft?.label || asp.draft?.objective || 'Draft'} ·{' '}
-                {asp.admissionStatus}
+                {asp.draft?.label || asp.draft?.objective || 'Draft'} · {asp.admissionStatus}
               </li>
             ))}
           </ul>
@@ -724,16 +572,10 @@ function GoalLens({
       ) : null}
 
       <div className="rounded-md border border-line/60 bg-jericho-surface/80 p-3 space-y-2 text-xs">
-        <p className="text-[11px] uppercase tracking-[0.14em] text-muted">
-          Time budget & availability
-        </p>
+        <p className="text-[11px] uppercase tracking-[0.14em] text-muted">Time budget & availability</p>
         <div className="grid sm:grid-cols-3 gap-2">
           <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={workingFullTime}
-              onChange={(e) => setWorkingFullTime(e.target.checked)}
-            />
+            <input type="checkbox" checked={workingFullTime} onChange={(e) => setWorkingFullTime(e.target.checked)} />
             Working full-time
           </label>
           <label className="space-y-1">
@@ -751,9 +593,7 @@ function GoalLens({
             </select>
           </label>
           <label className="space-y-1">
-            <span className="text-[11px] text-muted">
-              Max daily work minutes
-            </span>
+            <span className="text-[11px] text-muted">Max daily work minutes</span>
             <select
               className="w-full rounded border border-line/60 bg-transparent px-2 py-1"
               value={maxDailyWorkMinutes}
@@ -813,19 +653,11 @@ function GoalLens({
             </select>
           </label>
           <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={sleepFixedWindow}
-              onChange={(e) => setSleepFixedWindow(e.target.checked)}
-            />
+            <input type="checkbox" checked={sleepFixedWindow} onChange={(e) => setSleepFixedWindow(e.target.checked)} />
             Sleep fixed window
           </label>
           <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={hasWeeklyRestDay}
-              onChange={(e) => setHasWeeklyRestDay(e.target.checked)}
-            />
+            <input type="checkbox" checked={hasWeeklyRestDay} onChange={(e) => setHasWeeklyRestDay(e.target.checked)} />
             Weekly rest day
           </label>
         </div>
@@ -866,46 +698,30 @@ function GoalLens({
               onChange={(e) => setRestDay(Number(e.target.value))}
               disabled={!hasWeeklyRestDay}
             >
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(
-                (label, idx) => (
-                  <option key={label} value={idx}>
-                    {label}
-                  </option>
-                )
-              )}
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((label, idx) => (
+                <option key={label} value={idx}>
+                  {label}
+                </option>
+              ))}
             </select>
           </label>
         </div>
         <div className="grid sm:grid-cols-2 gap-2">
           <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={noMorningWork}
-              onChange={(e) => setNoMorningWork(e.target.checked)}
-            />
+            <input type="checkbox" checked={noMorningWork} onChange={(e) => setNoMorningWork(e.target.checked)} />
             No morning work
           </label>
           <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={noEveningWork}
-              onChange={(e) => setNoEveningWork(e.target.checked)}
-            />
+            <input type="checkbox" checked={noEveningWork} onChange={(e) => setNoEveningWork(e.target.checked)} />
             No evening work
           </label>
         </div>
         <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={weekendsAllowed}
-            onChange={(e) => setWeekendsAllowed(e.target.checked)}
-          />
+          <input type="checkbox" checked={weekendsAllowed} onChange={(e) => setWeekendsAllowed(e.target.checked)} />
           Weekends allowed
         </label>
         <div className="space-y-1">
-          <span className="text-[11px] text-muted">
-            Blackout blocks (fixed)
-          </span>
+          <span className="text-[11px] text-muted">Blackout blocks (fixed)</span>
           <div className="grid sm:grid-cols-3 gap-2 text-[11px]">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
               <div key={day} className="space-y-1">
@@ -917,15 +733,11 @@ function GoalLens({
                     <button
                       key={key}
                       className={`w-full rounded border px-2 py-1 ${
-                        active
-                          ? 'border-jericho-accent text-jericho-accent'
-                          : 'border-line/60 text-muted'
+                        active ? 'border-jericho-accent text-jericho-accent' : 'border-line/60 text-muted'
                       }`}
                       onClick={() =>
                         setBlackoutBlocks((prev) =>
-                          prev.includes(key)
-                            ? prev.filter((v) => v !== key)
-                            : [...prev, key]
+                          prev.includes(key) ? prev.filter((v) => v !== key) : [...prev, key]
                         )
                       }
                     >
@@ -940,24 +752,14 @@ function GoalLens({
       </div>
 
       <div className="rounded-md border border-line/60 bg-jericho-surface/80 p-3 space-y-2 text-xs">
-        <p className="text-[11px] uppercase tracking-[0.14em] text-muted">
-          Constraints & non-negotiables
-        </p>
+        <p className="text-[11px] uppercase tracking-[0.14em] text-muted">Constraints & non-negotiables</p>
         <div className="grid sm:grid-cols-3 gap-2">
           <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={hasGymAccess}
-              onChange={(e) => setHasGymAccess(e.target.checked)}
-            />
+            <input type="checkbox" checked={hasGymAccess} onChange={(e) => setHasGymAccess(e.target.checked)} />
             Gym access
           </label>
           <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={canCookMostDays}
-              onChange={(e) => setCanCookMostDays(e.target.checked)}
-            />
+            <input type="checkbox" checked={canCookMostDays} onChange={(e) => setCanCookMostDays(e.target.checked)} />
             Can cook most days
           </label>
           <label className="flex items-center gap-2">
@@ -969,19 +771,11 @@ function GoalLens({
             Transport limitation
           </label>
           <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={currentlyInjured}
-              onChange={(e) => setCurrentlyInjured(e.target.checked)}
-            />
+            <input type="checkbox" checked={currentlyInjured} onChange={(e) => setCurrentlyInjured(e.target.checked)} />
             Currently injured
           </label>
           <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={beginnerLevel}
-              onChange={(e) => setBeginnerLevel(e.target.checked)}
-            />
+            <input type="checkbox" checked={beginnerLevel} onChange={(e) => setBeginnerLevel(e.target.checked)} />
             Beginner level
           </label>
           <label className="space-y-1">
@@ -1002,9 +796,7 @@ function GoalLens({
       </div>
 
       <div className="rounded-md border border-line/60 bg-jericho-surface/80 p-3 space-y-2 text-xs">
-        <p className="text-[11px] uppercase tracking-[0.14em] text-muted">
-          Commitment contract
-        </p>
+        <p className="text-[11px] uppercase tracking-[0.14em] text-muted">Commitment contract</p>
         <div className="grid sm:grid-cols-2 gap-2">
           <label className="flex items-center gap-2">
             <input
@@ -1057,27 +849,23 @@ function GoalLens({
             }
             traceAction('cycle.new', {
               goalText: label || objective,
-              deadlineDayKey
+              deadlineDayKey,
             });
             onStartNewCycle({
               goalText: label || objective,
-              deadlineDayKey
+              deadlineDayKey,
             });
           }}
         >
           Start new goal (new cycle)
         </button>
         {compiledAtISO ? (
-          <span className="text-[11px] text-emerald-600">
-            Plan proof compiled · {formatAtISO(compiledAtISO)}
-          </span>
+          <span className="text-[11px] text-emerald-600">Plan proof compiled · {formatAtISO(compiledAtISO)}</span>
         ) : null}
       </div>
 
       <div className="rounded-md border border-line/60 bg-jericho-surface/90 p-3 text-xs space-y-2">
-        <p className="text-[11px] uppercase tracking-[0.14em] text-muted">
-          Plan proof
-        </p>
+        <p className="text-[11px] uppercase tracking-[0.14em] text-muted">Plan proof</p>
         {planProof ? (
           <>
             <p className="text-jericho-text">
@@ -1095,33 +883,22 @@ function GoalLens({
               <div>Weekly minutes: {planProof.weeklyMinutes}</div>
             </div>
             {planProof.changeList?.length ? (
-              <div className="text-[11px] text-amber-600">
-                Changes: {planProof.changeList.join(' · ')}
-              </div>
+              <div className="text-[11px] text-amber-600">Changes: {planProof.changeList.join(' · ')}</div>
             ) : null}
-            <div className="text-[11px] text-muted">
-              Constraints: {planProof.constraintsSummary.join(' · ')}
-            </div>
-            <div className="text-[11px] text-muted">
-              Failure conditions: {planProof.failureConditions.join(' · ')}
-            </div>
+            <div className="text-[11px] text-muted">Constraints: {planProof.constraintsSummary.join(' · ')}</div>
+            <div className="text-[11px] text-muted">Failure conditions: {planProof.failureConditions.join(' · ')}</div>
           </>
         ) : (
-          <p className="text-[11px] text-muted">
-            Plan proof will appear after compile.
-          </p>
+          <p className="text-[11px] text-muted">Plan proof will appear after compile.</p>
         )}
       </div>
 
       <div className="rounded-md border border-line/60 bg-jericho-surface/90 p-3 text-xs space-y-2">
-        <p className="text-[11px] uppercase tracking-[0.14em] text-muted">
-          Scheduled blocks (preview)
-        </p>
+        <p className="text-[11px] uppercase tracking-[0.14em] text-muted">Scheduled blocks (preview)</p>
         {scheduleBlocks.length ? (
           scheduleBlocks.slice(0, 6).map((b) => (
             <div key={b.id} className="text-[11px] text-muted">
-              {formatDayKeyLong(b.dayKey)} · {b.title} · {b.durationMinutes}m{' '}
-              {b.locked ? '· locked' : ''}
+              {formatDayKeyLong(b.dayKey)} · {b.title} · {b.durationMinutes}m {b.locked ? '· locked' : ''}
             </div>
           ))
         ) : (
@@ -1143,9 +920,7 @@ function TruthPanel({ today }) {
   const [savedAtISO, setSavedAtISO] = useState('');
 
   const toggleConstraint = (value) => {
-    setConstraints((prev) =>
-      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]
-    );
+    setConstraints((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]));
   };
 
   const handleSave = () => {
@@ -1153,11 +928,7 @@ function TruthPanel({ today }) {
       .map((v) => v.trim())
       .filter(Boolean)
       .slice(0, 3);
-    const hasContent =
-      constraints.length ||
-      assumptions.trim() ||
-      trimmedNonNegotiables.length ||
-      reality.trim();
+    const hasContent = constraints.length || assumptions.trim() || trimmedNonNegotiables.length || reality.trim();
     if (!hasContent) return;
     const atISO = `${dayKey}T12:00:00.000Z`;
     const existingCount = Array.isArray(truthEntries) ? truthEntries.length : 0;
@@ -1169,7 +940,7 @@ function TruthPanel({ today }) {
       constraintNotes: { ...constraintNotes },
       assumptions: assumptions.trim(),
       nonNegotiables: trimmedNonNegotiables,
-      reality: reality.trim()
+      reality: reality.trim(),
     };
     if (addTruthEntry) {
       traceAction('truthPanel.addEntry', { dayKey, constraints });
@@ -1199,28 +970,17 @@ function TruthPanel({ today }) {
     <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4 space-y-3">
       <div>
         <p className="text-sm font-semibold text-jericho-text">Truth Panel</p>
-        <p className="text-[11px] text-muted">
-          Record constraints and assumptions for later reflection.
-        </p>
+        <p className="text-[11px] text-muted">Record constraints and assumptions for later reflection.</p>
       </div>
       <div className="space-y-2 text-xs text-muted">
         <div className="space-y-1">
-          <p className="text-[11px] uppercase tracking-[0.12em] text-muted">
-            Constraints
-          </p>
+          <p className="text-[11px] uppercase tracking-[0.12em] text-muted">Constraints</p>
           <div className="flex flex-wrap gap-2">
-            {[
-              'TIME_AVAILABILITY',
-              'MONEY_RESOURCES',
-              'ENVIRONMENT',
-              'HEALTH'
-            ].map((c) => (
+            {['TIME_AVAILABILITY', 'MONEY_RESOURCES', 'ENVIRONMENT', 'HEALTH'].map((c) => (
               <button
                 key={c}
                 className={`rounded-full border px-3 py-1 ${
-                  constraints.includes(c)
-                    ? 'border-jericho-accent text-jericho-accent'
-                    : 'border-line/60 text-muted'
+                  constraints.includes(c) ? 'border-jericho-accent text-jericho-accent' : 'border-line/60 text-muted'
                 }`}
                 onClick={() => toggleConstraint(c)}
               >
@@ -1239,7 +999,7 @@ function TruthPanel({ today }) {
                   onChange={(e) =>
                     setConstraintNotes((prev) => ({
                       ...prev,
-                      [c]: e.target.value
+                      [c]: e.target.value,
                     }))
                   }
                 />
@@ -1248,9 +1008,7 @@ function TruthPanel({ today }) {
           ) : null}
         </div>
         <div className="space-y-1">
-          <p className="text-[11px] uppercase tracking-[0.12em] text-muted">
-            Assumptions
-          </p>
+          <p className="text-[11px] uppercase tracking-[0.12em] text-muted">Assumptions</p>
           <textarea
             className="w-full rounded border border-line/60 bg-transparent px-2 py-1 text-xs"
             value={assumptions}
@@ -1259,27 +1017,19 @@ function TruthPanel({ today }) {
           />
         </div>
         <div className="space-y-1">
-          <p className="text-[11px] uppercase tracking-[0.12em] text-muted">
-            Non-negotiables (max 3)
-          </p>
+          <p className="text-[11px] uppercase tracking-[0.12em] text-muted">Non-negotiables (max 3)</p>
           {nonNegotiables.map((value, idx) => (
             <input
               key={idx}
               className="w-full rounded border border-line/60 bg-transparent px-2 py-1 text-xs"
               value={value}
-              onChange={(e) =>
-                setNonNegotiables((prev) =>
-                  prev.map((v, i) => (i === idx ? e.target.value : v))
-                )
-              }
+              onChange={(e) => setNonNegotiables((prev) => prev.map((v, i) => (i === idx ? e.target.value : v)))}
               placeholder={`Non-negotiable ${idx + 1}`}
             />
           ))}
         </div>
         <div className="space-y-1">
-          <p className="text-[11px] uppercase tracking-[0.12em] text-muted">
-            Current reality
-          </p>
+          <p className="text-[11px] uppercase tracking-[0.12em] text-muted">Current reality</p>
           <input
             className="w-full rounded border border-line/60 bg-transparent px-2 py-1 text-xs"
             value={reality}
@@ -1294,49 +1044,31 @@ function TruthPanel({ today }) {
           >
             Add entry
           </button>
-          {savedAtISO ? (
-            <span className="text-[11px] text-emerald-600">
-              Saved · {formatAtISO(savedAtISO)}
-            </span>
-          ) : null}
+          {savedAtISO ? <span className="text-[11px] text-emerald-600">Saved · {formatAtISO(savedAtISO)}</span> : null}
         </div>
       </div>
       <div className="space-y-2 text-xs text-muted">
-        <p className="text-[11px] uppercase tracking-[0.12em] text-muted">
-          Recent entries
-        </p>
+        <p className="text-[11px] uppercase tracking-[0.12em] text-muted">Recent entries</p>
         {groupedEntries.length ? (
           groupedEntries.map(([groupKey, list]) => (
             <div key={groupKey} className="space-y-2">
-              <p className="text-[11px] text-muted">
-                {formatDayKeyLong(groupKey)}
-              </p>
+              <p className="text-[11px] text-muted">{formatDayKeyLong(groupKey)}</p>
               {list.map((entry) => (
                 <div
                   key={entry.id}
                   className="rounded-md border border-line/40 bg-jericho-surface/80 px-3 py-2 space-y-1"
                 >
-                  <p className="text-[11px] text-muted">
-                    {formatAtISO(entry.atISO)}
-                  </p>
+                  <p className="text-[11px] text-muted">{formatAtISO(entry.atISO)}</p>
                   {entry.constraints.length ? (
                     <p>
                       Constraints:{' '}
                       {entry.constraints
-                        .map((c) =>
-                          entry.constraintNotes?.[c]
-                            ? `${c} (${entry.constraintNotes[c]})`
-                            : c
-                        )
+                        .map((c) => (entry.constraintNotes?.[c] ? `${c} (${entry.constraintNotes[c]})` : c))
                         .join(', ')}
                     </p>
                   ) : null}
-                  {entry.assumptions ? (
-                    <p>Assumptions: {entry.assumptions}</p>
-                  ) : null}
-                  {entry.nonNegotiables.length ? (
-                    <p>Non-negotiables: {entry.nonNegotiables.join(', ')}</p>
-                  ) : null}
+                  {entry.assumptions ? <p>Assumptions: {entry.assumptions}</p> : null}
+                  {entry.nonNegotiables.length ? <p>Non-negotiables: {entry.nonNegotiables.join(', ')}</p> : null}
                   {entry.reality ? <p>Reality: {entry.reality}</p> : null}
                 </div>
               ))}
@@ -1358,13 +1090,13 @@ function PatternLens({ activeCycle, cycleDays = [], today }) {
     Body: 'Physical',
     Resources: 'External',
     Creation: 'Output',
-    Focus: 'Input'
+    Focus: 'Input',
   };
   const examples = {
     Body: 'sleep, training, nutrition, recovery, mobility',
     Creation: 'building, writing, recording, shipping, publishing',
     Focus: 'reading, studying, research, listening, skill acquisition',
-    Resources: 'money, tools, relationships, logistics, access'
+    Resources: 'money, tools, relationships, logistics, access',
   };
   const minutesFromBlocks = (blocks = []) =>
     blocks.reduce(
@@ -1401,7 +1133,7 @@ function PatternLens({ activeCycle, cycleDays = [], today }) {
   const totalCompleted = totals.reduce((sum, d) => sum + d.completed, 0) || 1;
   const distribution = totals.map((d) => ({
     name: d.name,
-    percent: Math.round((d.completed / totalCompleted) * 100)
+    percent: Math.round((d.completed / totalCompleted) * 100),
   }));
   const last7 = (cycleDays || [])
     .filter((d) => d?.date)
@@ -1413,36 +1145,25 @@ function PatternLens({ activeCycle, cycleDays = [], today }) {
       <p>Pattern: Read-only diagnostics derived from completion history.</p>
       <div className="grid grid-cols-2 gap-3">
         {totals.map((t) => (
-          <div
-            key={t.name}
-            className="rounded-lg border border-line/60 bg-jericho-surface/80 p-3 space-y-1"
-          >
-            <p className="text-xs uppercase tracking-[0.12em] text-muted">
-              {t.name}
-            </p>
+          <div key={t.name} className="rounded-lg border border-line/60 bg-jericho-surface/80 p-3 space-y-1">
+            <p className="text-xs uppercase tracking-[0.12em] text-muted">{t.name}</p>
             <p className="text-[11px] text-muted">{definitions[t.name]}</p>
             <p className="text-[11px] text-muted">Scheduled: {t.scheduled}m</p>
             <p className="text-[11px] text-muted">Completed: {t.completed}m</p>
             <p className="text-[11px] text-muted">Gap: {t.gap}m</p>
             <button
               className="text-[11px] text-jericho-accent hover:underline"
-              onClick={() =>
-                setExpanded((prev) => ({ ...prev, [t.name]: !prev[t.name] }))
-              }
+              onClick={() => setExpanded((prev) => ({ ...prev, [t.name]: !prev[t.name] }))}
             >
               What counts?
             </button>
-            {expanded[t.name] ? (
-              <p className="text-[11px] text-muted">{examples[t.name]}</p>
-            ) : null}
+            {expanded[t.name] ? <p className="text-[11px] text-muted">{examples[t.name]}</p> : null}
           </div>
         ))}
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-lg border border-line/60 bg-jericho-surface/80 p-3 space-y-1">
-          <p className="text-xs uppercase tracking-[0.12em] text-muted">
-            Distribution (completed)
-          </p>
+          <p className="text-xs uppercase tracking-[0.12em] text-muted">Distribution (completed)</p>
           <ul className="space-y-1 text-[11px]">
             {distribution.map((d) => (
               <li key={d.name}>
@@ -1452,20 +1173,12 @@ function PatternLens({ activeCycle, cycleDays = [], today }) {
           </ul>
         </div>
         <div className="rounded-lg border border-line/60 bg-jericho-surface/80 p-3 space-y-1">
-          <p className="text-xs uppercase tracking-[0.12em] text-muted">
-            Trend
-          </p>
-          <p className="text-[11px] text-muted">
-            Last 7 completion: {last7.join('% · ')}%
-          </p>
-          <p className="text-[11px] text-muted">
-            Streak (100% days in last 7): {streak}
-          </p>
+          <p className="text-xs uppercase tracking-[0.12em] text-muted">Trend</p>
+          <p className="text-[11px] text-muted">Last 7 completion: {last7.join('% · ')}%</p>
+          <p className="text-[11px] text-muted">Streak (100% days in last 7): {streak}</p>
         </div>
       </div>
-      {applied ? (
-        <span className="text-[11px] text-emerald-600">Updated</span>
-      ) : null}
+      {applied ? <span className="text-[11px] text-emerald-600">Updated</span> : null}
     </div>
   );
 }
@@ -1475,26 +1188,8 @@ function formatDayKeyLong(dayKey = '') {
   const [year, month, day] = dayKey.split('-');
   const monthIndex = Number(month) - 1;
   const dayNum = Number(day);
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec'
-  ];
-  if (
-    !Number.isFinite(monthIndex) ||
-    !Number.isFinite(dayNum) ||
-    !months[monthIndex]
-  )
-    return dayKey;
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  if (!Number.isFinite(monthIndex) || !Number.isFinite(dayNum) || !months[monthIndex]) return dayKey;
   return `${months[monthIndex]} ${dayNum}, ${year}`;
 }
 

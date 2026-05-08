@@ -12,7 +12,7 @@ describe('probability metric contract', () => {
       { goalId, dateISO: '2026-01-08', completed: false, kind: 'create', minutes: 30 },
       { goalId, dateISO: '2026-01-08', completed: false, kind: 'reschedule', minutes: 15 },
       { goalId, dateISO: '2026-01-07', completed: true, kind: 'complete', minutes: 45 },
-      { goalId: 'goal-2', dateISO: '2026-01-08', completed: true, kind: 'complete', minutes: 60 }
+      { goalId: 'goal-2', dateISO: '2026-01-08', completed: true, kind: 'complete', minutes: 60 },
     ];
 
     const result = computeCompletedThroughput({ events, goalId, dayKeys });
@@ -26,7 +26,7 @@ describe('probability metric contract', () => {
     const events = [
       { goalId, dateISO: '2026-01-08', completed: false, kind: 'reschedule', minutes: 30 },
       { goalId, dateISO: '2026-01-08', completed: false, kind: 'delete', minutes: 0 },
-      { goalId, dateISO: '2026-01-07', completed: false, kind: 'update', minutes: 15 }
+      { goalId, dateISO: '2026-01-07', completed: false, kind: 'update', minutes: 15 },
     ];
 
     const result = computeCompletedThroughput({ events, goalId, dayKeys });
@@ -38,7 +38,7 @@ describe('probability metric contract', () => {
   it('does not count missed plans in the past', () => {
     const events = [
       { goalId, dateISO: '2026-01-07', completed: false, kind: 'create', minutes: 30 },
-      { goalId, dateISO: '2026-01-07', completed: false, kind: 'update', minutes: 30 }
+      { goalId, dateISO: '2026-01-07', completed: false, kind: 'update', minutes: 30 },
     ];
 
     const result = computeCompletedThroughput({ events, goalId, dayKeys });
@@ -50,7 +50,7 @@ describe('probability metric contract', () => {
     const events = [
       { goalId, dateISO: '2026-01-07', completed: false, kind: 'create', minutes: 30 },
       { goalId, dateISO: '2026-01-07', completed: false, kind: 'reschedule', minutes: 30 },
-      { goalId, dateISO: '2026-01-08', completed: true, kind: 'complete', minutes: 30 }
+      { goalId, dateISO: '2026-01-08', completed: true, kind: 'complete', minutes: 30 },
     ];
 
     const result = computeCompletedThroughput({ events, goalId, dayKeys });

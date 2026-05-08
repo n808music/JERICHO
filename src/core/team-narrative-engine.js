@@ -74,7 +74,7 @@ export function compileTeamNarrative({
   team = {},
   tasks = [],
   teamGovernance = {},
-  sessionMeta = {},
+  sessionMeta: _sessionMeta = {},
   integrityScores = {}
 } = {}) {
   const mode = teamGovernance?.summary?.teamLoadStatus || 'execute';

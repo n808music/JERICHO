@@ -1,13 +1,14 @@
 # Blocker: `APPLY_PLAN` contract decision
 
-> **Status**: Active blocker. Discovered during `generateApply.integration.test.js` triage.
-> **Blocks**: `generateApply.integration.test.js` rewrite.
-> **Does not block**: remaining failing tests — triage continues independently.
+> **Status**: Active blocker. Discovered during
+> `generateApply.integration.test.js` triage. **Blocks**:
+> `generateApply.integration.test.js` rewrite. **Does not block**: remaining
+> failing tests — triage continues independently.
 
 ## What was found
 
-`APPLY_PLAN` is a distinct reducer case with its own function `applyGeneratedPlan`.
-It is not an alias for `APPLY_DRAFT_SCHEDULE`.
+`APPLY_PLAN` is a distinct reducer case with its own function
+`applyGeneratedPlan`. It is not an alias for `APPLY_DRAFT_SCHEDULE`.
 
 ```js
 case 'APPLY_PLAN':
@@ -19,6 +20,7 @@ case 'APPLY_PLAN':
 calls `createBlock` per block.
 
 It guards on:
+
 - `cycle.autoAsanaPlan` present
 - admission status
 - conflicts
@@ -34,6 +36,7 @@ Normal-flow `GENERATE_PLAN` now auto-commits through `applyDraftSchedule`, which
 clears `cycle.autoAsanaPlan = null` at the end of its run.
 
 This means:
+
 - `GENERATE_PLAN` (normal flow) -> `cycle.autoAsanaPlan` is null after dispatch
 - `APPLY_PLAN` -> guards on `cycle.autoAsanaPlan` present -> returns silently
 
@@ -50,14 +53,17 @@ src/state/__tests__/generateApply.gating.test.js:104:    const applied = compute
 src/state/__tests__/generateApply.integration.test.js:101:    const applied = computeDerivedState(planned, { type: 'APPLY_PLAN' });
 ```
 
-So Option 2 ("retire `APPLY_PLAN` immediately") is off the table until callers are migrated.
+So Option 2 ("retire `APPLY_PLAN` immediately") is off the table until callers
+are migrated.
 
 ## Preferred decision
 
 **Option 3** is preferred:
+
 - keep `APPLY_PLAN`
 - make its contract explicit
-- emit a deterministic error when `cycle.autoAsanaPlan` is absent instead of silently returning
+- emit a deterministic error when `cycle.autoAsanaPlan` is absent instead of
+  silently returning
 
 Suggested guard:
 
@@ -65,7 +71,8 @@ Suggested guard:
 if (!cycle?.autoAsanaPlan) {
   state.lastPlanError = {
     code: 'NO_AUTO_ASANA_PLAN',
-    reason: 'APPLY_PLAN requires cycle.autoAsanaPlan to be present. Use a preview-only GENERATE_PLAN source.',
+    reason:
+      'APPLY_PLAN requires cycle.autoAsanaPlan to be present. Use a preview-only GENERATE_PLAN source.',
     cycleId: cycle?.id || null,
   };
   return;
@@ -74,8 +81,9 @@ if (!cycle?.autoAsanaPlan) {
 
 ## Remaining input needed
 
-- [ ] Confirm whether preview-only `GENERATE_PLAN` sources such as `RENEGOTIATION_APPLY`
-  preserve `cycle.autoAsanaPlan` by skipping `applyDraftSchedule`
+- [ ] Confirm whether preview-only `GENERATE_PLAN` sources such as
+      `RENEGOTIATION_APPLY` preserve `cycle.autoAsanaPlan` by skipping
+      `applyDraftSchedule`
 
-That answer determines whether `APPLY_PLAN` still has a reachable preview-source path
-in the current system.
+That answer determines whether `APPLY_PLAN` still has a reachable preview-source
+path in the current system.

@@ -8,7 +8,7 @@ function buildState({
   constraints = {},
   milestones = [],
   defaultBufferMinutes = 0,
-  draftItems = []
+  draftItems = [],
 } = {}) {
   const cycleId = 'cycle-sticky-invalidation';
   return {
@@ -34,21 +34,23 @@ function buildState({
             temporalBinding: {
               daysPerWeek: 7,
               specificDays: 'mon,tue,wed,thu,fri,sat,sun',
-              sessionDurationMinutes: 30
-            }
+              sessionDurationMinutes: 30,
+            },
           },
-          coldPlan: { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } }
-        }
+          coldPlan: { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } },
+        },
       },
-      deliverablesByCycleId: { [cycleId]: { cycleId, deliverables: [] } }
+      deliverablesByCycleId: { [cycleId]: { cycleId, deliverables: [] } },
     },
-    cycleId
+    cycleId,
   };
 }
 
 describe('draftSchedule sticky invalidation', () => {
   it('invalidates preserved chunks when caps become tighter', () => {
-    const actions = [{ id: 'a', title: 'A', detail: 'A', category: 'Focus', estimateMin: 60, deps: [], topoIndex: 0, priority: 1 }];
+    const actions = [
+      { id: 'a', title: 'A', detail: 'A', category: 'Focus', estimateMin: 60, deps: [], topoIndex: 0, priority: 1 },
+    ];
     const draftItems = [
       {
         id: 'draft-a-0',
@@ -62,7 +64,7 @@ describe('draftSchedule sticky invalidation', () => {
         minutes: 30,
         chunkIndex: 0,
         chunkCount: 2,
-        allocatedMin: 30
+        allocatedMin: 30,
       },
       {
         id: 'draft-a-1',
@@ -76,14 +78,14 @@ describe('draftSchedule sticky invalidation', () => {
         minutes: 30,
         chunkIndex: 1,
         chunkCount: 2,
-        allocatedMin: 30
-      }
+        allocatedMin: 30,
+      },
     ];
 
     const { state, cycleId } = buildState({
       actions,
       constraints: { maxScheduledMinutesPerDay: 30 },
-      draftItems
+      draftItems,
     });
 
     let captured = null;
@@ -95,7 +97,7 @@ describe('draftSchedule sticky invalidation', () => {
       defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' },
       captureStats: (stats) => {
         captured = stats;
-      }
+      },
     });
 
     expect(captured.droppedChunkCount).toBeGreaterThan(0);
@@ -105,7 +107,7 @@ describe('draftSchedule sticky invalidation', () => {
   it('invalidates preserved dependent chunk when dependency buffer is violated', () => {
     const actions = [
       { id: 'a', title: 'A', detail: 'A', category: 'Focus', estimateMin: 30, deps: [], topoIndex: 0, priority: 1 },
-      { id: 'b', title: 'B', detail: 'B', category: 'Focus', estimateMin: 30, deps: ['a'], topoIndex: 1, priority: 2 }
+      { id: 'b', title: 'B', detail: 'B', category: 'Focus', estimateMin: 30, deps: ['a'], topoIndex: 1, priority: 2 },
     ];
     const draftItems = [
       {
@@ -120,7 +122,7 @@ describe('draftSchedule sticky invalidation', () => {
         minutes: 30,
         chunkIndex: 0,
         chunkCount: 1,
-        allocatedMin: 30
+        allocatedMin: 30,
       },
       {
         id: 'draft-a',
@@ -134,8 +136,8 @@ describe('draftSchedule sticky invalidation', () => {
         minutes: 30,
         chunkIndex: 0,
         chunkCount: 1,
-        allocatedMin: 30
-      }
+        allocatedMin: 30,
+      },
     ];
 
     const { state, cycleId } = buildState({ actions, defaultBufferMinutes: 60, draftItems });
@@ -148,22 +150,33 @@ describe('draftSchedule sticky invalidation', () => {
       defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' },
       captureStats: (stats) => {
         captured = stats;
-      }
+      },
     });
 
     expect(captured.churnReasonsCount.DEP_BUFFER_VIOLATION || 0).toBeGreaterThan(0);
   });
 
   it('invalidates preserved window-bound chunk outside hard window', () => {
-    const actions = [{ id: 'm', title: 'Milestone', detail: 'M', category: 'Focus', estimateMin: 30, deps: [], topoIndex: 0, priority: 1 }];
+    const actions = [
+      {
+        id: 'm',
+        title: 'Milestone',
+        detail: 'M',
+        category: 'Focus',
+        estimateMin: 30,
+        deps: [],
+        topoIndex: 0,
+        priority: 1,
+      },
+    ];
     const milestones = [
       {
         id: 'm-1',
         actionIds: ['m'],
         checkpointActionIds: [],
         windowStartDayKey: '2026-01-02',
-        windowEndDayKey: '2026-01-02'
-      }
+        windowEndDayKey: '2026-01-02',
+      },
     ];
     const draftItems = [
       {
@@ -178,15 +191,15 @@ describe('draftSchedule sticky invalidation', () => {
         minutes: 30,
         chunkIndex: 0,
         chunkCount: 1,
-        allocatedMin: 30
-      }
+        allocatedMin: 30,
+      },
     ];
 
     const { state, cycleId } = buildState({
       actions,
       milestones,
       constraints: { maxScheduledMinutesPerDay: 120 },
-      draftItems
+      draftItems,
     });
     let captured = null;
     buildDraftScheduleItems(state, cycleId, {
@@ -197,7 +210,7 @@ describe('draftSchedule sticky invalidation', () => {
       defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' },
       captureStats: (stats) => {
         captured = stats;
-      }
+      },
     });
 
     expect(captured.milestoneWindowConstraintMode).toBe('hard');

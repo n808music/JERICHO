@@ -21,7 +21,7 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     scope: 'cycle',
     writes: ['identityStore:compileGoalEquation'],
     enforcedBy: ['goalEquation:compileGoalEquationPlan'],
-    notes: 'Equation survey input; compiled on submit.'
+    notes: 'Equation survey input; compiled on submit.',
   },
   'goal.intake.target': {
     id: 'goal.intake.target',
@@ -30,7 +30,7 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     unit: 'goal.target',
     scope: 'cycle',
     writes: ['identityStore:compileGoalEquation'],
-    enforcedBy: ['goalEquation:compileGoalEquationPlan']
+    enforcedBy: ['goalEquation:compileGoalEquationPlan'],
   },
   'goal.intake.deadline': {
     id: 'goal.intake.deadline',
@@ -39,7 +39,7 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     unit: 'dayKey',
     scope: 'cycle',
     writes: ['identityStore:compileGoalEquation'],
-    enforcedBy: ['goalEquation:compileGoalEquationPlan']
+    enforcedBy: ['goalEquation:compileGoalEquationPlan'],
   },
   'goal.intake.constraints': {
     id: 'goal.intake.constraints',
@@ -48,7 +48,7 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     unit: 'constraint flags',
     scope: 'cycle',
     writes: ['identityStore:compileGoalEquation'],
-    enforcedBy: ['goalEquation:compileGoalEquationPlan']
+    enforcedBy: ['goalEquation:compileGoalEquationPlan'],
   },
   'goal.intake.submit': {
     id: 'goal.intake.submit',
@@ -56,49 +56,49 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     authority: 'AUTHORITATIVE',
     scope: 'cycle',
     writes: ['identityStore:compileGoalEquation'],
-    enforcedBy: ['goalEquation:compileGoalEquationPlan']
+    enforcedBy: ['goalEquation:compileGoalEquationPlan'],
   },
   'tabs.structure': {
     id: 'tabs.structure',
     label: 'Structure tab',
     authority: 'AUTHORITATIVE',
     scope: 'ui',
-    writes: ['ZionDashboard:setZionView']
+    writes: ['ZionDashboard:setZionView'],
   },
   'tabs.today': {
     id: 'tabs.today',
     label: 'Today tab',
     authority: 'AUTHORITATIVE',
     scope: 'ui',
-    writes: ['ZionDashboard:setZionView']
+    writes: ['ZionDashboard:setZionView'],
   },
   'tabs.stability': {
     id: 'tabs.stability',
     label: 'Stability tab',
     authority: 'AUTHORITATIVE',
     scope: 'ui',
-    writes: ['ZionDashboard:setZionView']
+    writes: ['ZionDashboard:setZionView'],
   },
   'today.nav.prev': {
     id: 'today.nav.prev',
     label: 'Prev day/week/month/year',
     authority: 'AUTHORITATIVE',
     scope: 'day',
-    writes: ['ZionDashboard:shiftAnchor']
+    writes: ['ZionDashboard:shiftAnchor'],
   },
   'today.nav.next': {
     id: 'today.nav.next',
     label: 'Next day/week/month/year',
     authority: 'AUTHORITATIVE',
     scope: 'day',
-    writes: ['ZionDashboard:shiftAnchor']
+    writes: ['ZionDashboard:shiftAnchor'],
   },
   'today.nav.today': {
     id: 'today.nav.today',
     label: 'Jump to today',
     authority: 'AUTHORITATIVE',
     scope: 'day',
-    writes: ['ZionDashboard:jumpToAnchorToday']
+    writes: ['ZionDashboard:jumpToAnchorToday'],
   },
   'addBlock.submit': {
     id: 'addBlock.submit',
@@ -108,7 +108,7 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     scope: 'day',
     reads: ['AddBlockBar:formState'],
     writes: ['identityStore:createBlock'],
-    enforcedBy: ['identityCompute:createBlock']
+    enforcedBy: ['identityCompute:createBlock'],
   },
   'addBlock.linkGoal': {
     id: 'addBlock.linkGoal',
@@ -116,14 +116,14 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     authority: 'ADVISORY',
     scope: 'goal',
     reads: ['AddBlockBar:linkToGoal'],
-    notes: 'Determines goalId inclusion on block payload.'
+    notes: 'Determines goalId inclusion on block payload.',
   },
   'addBlock.linkDeliverable': {
     id: 'addBlock.linkDeliverable',
     label: 'Link to deliverable / criterion',
     authority: 'ADVISORY',
     scope: 'deliverable',
-    reads: ['AddBlockBar:deliverableId', 'AddBlockBar:criterionId']
+    reads: ['AddBlockBar:deliverableId', 'AddBlockBar:criterionId'],
   },
   'suggestedPath.generatePlan': {
     id: 'suggestedPath.generatePlan',
@@ -133,7 +133,7 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     scope: 'cycle',
     reads: ['identityCompute:planDraft', 'identityCompute:goalExecutionContract'],
     writes: ['identityStore:generatePlan'],
-    enforcedBy: ['identityCompute:generatePlan']
+    enforcedBy: ['identityCompute:generatePlan'],
   },
   'suggestedPath.applyPlan': {
     id: 'suggestedPath.applyPlan',
@@ -143,7 +143,7 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     scope: 'cycle',
     reads: ['identityCompute:autoAsanaPlan'],
     writes: ['identityStore:applyPlan'],
-    enforcedBy: ['identityCompute:applyGeneratedPlan']
+    enforcedBy: ['identityCompute:applyGeneratedPlan'],
   },
   'proposedBlocks.panel': {
     id: 'proposedBlocks.panel',
@@ -151,7 +151,7 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     authority: 'REFLECTIVE',
     unit: 'blocks',
     scope: 'cycle',
-    reads: ['identityCompute:suggestedBlocks', 'identityCompute:autoAsanaPlan']
+    reads: ['identityCompute:suggestedBlocks', 'identityCompute:autoAsanaPlan'],
   },
   'suggestedPath.accept': {
     id: 'suggestedPath.accept',
@@ -160,7 +160,7 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     unit: 'blocks',
     scope: 'cycle',
     writes: ['identityStore:acceptSuggestedBlock'],
-    enforcedBy: ['identityCompute:acceptSuggestedBlock']
+    enforcedBy: ['identityCompute:acceptSuggestedBlock'],
   },
   'suggestedPath.ignore': {
     id: 'suggestedPath.ignore',
@@ -169,7 +169,7 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     unit: 'suggestions',
     scope: 'cycle',
     writes: ['identityStore:ignoreSuggestedBlock'],
-    enforcedBy: ['identityCompute:ignoreSuggestedBlock']
+    enforcedBy: ['identityCompute:ignoreSuggestedBlock'],
   },
   'suggestedPath.dismiss': {
     id: 'suggestedPath.dismiss',
@@ -178,7 +178,7 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     unit: 'suggestions',
     scope: 'cycle',
     writes: ['identityStore:dismissSuggestedBlock'],
-    enforcedBy: ['identityCompute:dismissSuggestedBlock']
+    enforcedBy: ['identityCompute:dismissSuggestedBlock'],
   },
   'acceptedBlocks.panel': {
     id: 'acceptedBlocks.panel',
@@ -186,7 +186,7 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     authority: 'REFLECTIVE',
     unit: 'blocks',
     scope: 'cycle',
-    reads: ['todayAuthority:materializeBlocksFromEvents']
+    reads: ['todayAuthority:materializeBlocksFromEvents'],
   },
   'acceptedBlocks.complete': {
     id: 'acceptedBlocks.complete',
@@ -195,7 +195,7 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     unit: 'events',
     scope: 'day',
     writes: ['identityStore:completeBlock'],
-    enforcedBy: ['identityCompute:completeBlock']
+    enforcedBy: ['identityCompute:completeBlock'],
   },
   'acceptedBlocks.reschedule': {
     id: 'acceptedBlocks.reschedule',
@@ -204,7 +204,7 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     unit: 'events',
     scope: 'day',
     writes: ['identityStore:rescheduleBlock'],
-    enforcedBy: ['identityCompute:rescheduleBlock']
+    enforcedBy: ['identityCompute:rescheduleBlock'],
   },
   'acceptedBlocks.delete': {
     id: 'acceptedBlocks.delete',
@@ -213,21 +213,21 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     unit: 'events',
     scope: 'day',
     writes: ['identityStore:deleteBlock'],
-    enforcedBy: ['identityCompute:deleteBlock']
+    enforcedBy: ['identityCompute:deleteBlock'],
   },
   'progress.strictMode': {
     id: 'progress.strictMode',
     label: 'Strict progress mode',
     authority: 'ADVISORY',
     scope: 'ui',
-    notes: 'Enforces criterion linkage in UI only.'
+    notes: 'Enforces criterion linkage in UI only.',
   },
   'whatMovedToday.panel': {
     id: 'whatMovedToday.panel',
     label: 'What moved today',
     authority: 'REFLECTIVE',
     scope: 'day',
-    reads: ['whatMovedToday:deriveWhatMovedToday']
+    reads: ['whatMovedToday:deriveWhatMovedToday'],
   },
   'deliverables.panel': {
     id: 'deliverables.panel',
@@ -240,15 +240,15 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
       'identityStore:deleteDeliverable',
       'identityStore:createCriterion',
       'identityStore:toggleCriterionDone',
-      'identityStore:deleteCriterion'
-    ]
+      'identityStore:deleteCriterion',
+    ],
   },
   'criteria.panel': {
     id: 'criteria.panel',
     label: 'Criteria editor',
     authority: 'AUTHORITATIVE',
     scope: 'cycle',
-    writes: ['identityStore:createCriterion', 'identityStore:toggleCriterionDone', 'identityStore:deleteCriterion']
+    writes: ['identityStore:createCriterion', 'identityStore:toggleCriterionDone', 'identityStore:deleteCriterion'],
   },
   'goal.compile': {
     id: 'goal.compile',
@@ -256,7 +256,7 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     authority: 'AUTHORITATIVE',
     scope: 'cycle',
     writes: ['identityStore:compileGoalEquation'],
-    enforcedBy: ['goalEquation:compileGoalEquationPlan']
+    enforcedBy: ['goalEquation:compileGoalEquationPlan'],
   },
   'strategy.save': {
     id: 'strategy.save',
@@ -264,7 +264,7 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     authority: 'AUTHORITATIVE',
     scope: 'cycle',
     writes: ['identityStore:setStrategy'],
-    enforcedBy: ['coldPlan:buildAssumptionsHash']
+    enforcedBy: ['coldPlan:buildAssumptionsHash'],
   },
   'strategy.regenerate': {
     id: 'strategy.regenerate',
@@ -272,7 +272,7 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     authority: 'AUTHORITATIVE',
     scope: 'cycle',
     writes: ['identityStore:generateColdPlan'],
-    enforcedBy: ['coldPlan:generateColdPlan']
+    enforcedBy: ['coldPlan:generateColdPlan'],
   },
   'strategy.rebase': {
     id: 'strategy.rebase',
@@ -280,62 +280,62 @@ export const UI_AUTHORITY_MAP: Record<string, UIAuthorityEntry> = {
     authority: 'AUTHORITATIVE',
     scope: 'cycle',
     writes: ['identityStore:rebaseColdPlan'],
-    enforcedBy: ['coldPlan:generateColdPlan']
+    enforcedBy: ['coldPlan:generateColdPlan'],
   },
   'truthPanel.addEntry': {
     id: 'truthPanel.addEntry',
     label: 'Truth panel add entry',
     authority: 'AUTHORITATIVE',
     scope: 'cycle',
-    writes: ['identityStore:addTruthEntry']
+    writes: ['identityStore:addTruthEntry'],
   },
   'patternLens.panel': {
     id: 'patternLens.panel',
     label: 'Pattern lens',
     authority: 'REFLECTIVE',
     scope: 'cycle',
-    reads: ['todayAuthority:materializeBlocksFromEvents']
+    reads: ['todayAuthority:materializeBlocksFromEvents'],
   },
   'stability.panel': {
     id: 'stability.panel',
     label: 'Stability tab',
     authority: 'REFLECTIVE',
     scope: 'cycle',
-    reads: ['identityCompute:stability', 'probabilityScore']
+    reads: ['identityCompute:stability', 'probabilityScore'],
   },
   'proof.planProof': {
     id: 'proof.planProof',
     label: 'Plan proof panel',
     authority: 'REFLECTIVE',
     scope: 'cycle',
-    reads: ['goalEquation:compileGoalEquationPlan', 'engine:planProof']
+    reads: ['goalEquation:compileGoalEquationPlan', 'engine:planProof'],
   },
   'proof.probability': {
     id: 'proof.probability',
     label: 'Probability report panel',
     authority: 'REFLECTIVE',
     scope: 'cycle',
-    reads: ['engine:probabilityScore']
+    reads: ['engine:probabilityScore'],
   },
   'proof.conflicts': {
     id: 'proof.conflicts',
     label: 'Plan conflicts and recovery options',
     authority: 'REFLECTIVE',
     scope: 'cycle',
-    reads: ['engine:autoAsanaPlan']
+    reads: ['engine:autoAsanaPlan'],
   },
   'cycle.switch': {
     id: 'cycle.switch',
     label: 'Cycle switcher',
     authority: 'AUTHORITATIVE',
     scope: 'cycle',
-    writes: ['identityStore:setActiveCycle']
+    writes: ['identityStore:setActiveCycle'],
   },
   'cycle.new': {
     id: 'cycle.new',
     label: 'New cycle',
     authority: 'AUTHORITATIVE',
     scope: 'cycle',
-    writes: ['identityStore:startNewCycle']
-  }
+    writes: ['identityStore:startNewCycle'],
+  },
 };

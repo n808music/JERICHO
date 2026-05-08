@@ -65,7 +65,8 @@ export function admitGoal(draft: GoalEquationInput | null, ctx: AdmissionContext
   }
 
   if (!draft.family) reasons.push('MISSING_GOAL_FAMILY');
-  if (!Number.isFinite(draft.objectiveValue) || Number(draft.objectiveValue) <= 0) reasons.push('MISSING_NUMERIC_TARGET');
+  if (!Number.isFinite(draft.objectiveValue) || Number(draft.objectiveValue) <= 0)
+    reasons.push('MISSING_NUMERIC_TARGET');
   if (!draft.deadlineDayKey) reasons.push('MISSING_DEADLINE');
   if (!draft.mechanismClass) reasons.push('MISSING_MECHANISM_CLASS');
 
@@ -86,7 +87,12 @@ export function admitGoal(draft: GoalEquationInput | null, ctx: AdmissionContext
   }
 
   const planProof = derivePlanProof(draft, { nowDayKey: nowKey, timeZone: ctx.timeZone });
-  const plan = compileGoalEquationPlan({ equation: draft, nowDayKey: nowKey, timeZone: ctx.timeZone, cycleId: ctx.cycleId });
+  const plan = compileGoalEquationPlan({
+    equation: draft,
+    nowDayKey: nowKey,
+    timeZone: ctx.timeZone,
+    cycleId: ctx.cycleId,
+  });
 
   if (plan?.planProof?.verdict === 'INFEASIBLE') {
     const infeasibleReasons: AdmissionReasonCode[] = [];
@@ -107,7 +113,7 @@ export function admitGoal(draft: GoalEquationInput | null, ctx: AdmissionContext
     return {
       status: 'REJECTED_INFEASIBLE',
       reasonCodes: infeasibleReasons.length ? infeasibleReasons : ['NO_WORKABLE_DAYS'],
-      planProof
+      planProof,
     };
   }
 
@@ -119,7 +125,7 @@ export function admitGoal(draft: GoalEquationInput | null, ctx: AdmissionContext
     reasonCodes: [],
     planProof,
     coldPlan,
-    schedulability
+    schedulability,
   };
 }
 
@@ -135,7 +141,11 @@ export function selectGoalAdmission(state: any, goalId: string) {
   return state?.goalAdmissionByGoal?.[goalId] || null;
 }
 
-function deriveSchedulability(draft: GoalEquationInput, ctx: AdmissionContext, planProof: ReturnType<typeof derivePlanProof>) {
+function deriveSchedulability(
+  draft: GoalEquationInput,
+  ctx: AdmissionContext,
+  planProof: ReturnType<typeof derivePlanProof>
+) {
   const constraints = ctx.constraints || {};
   const autoPlan = compileAutoAsanaPlan({
     goalId: 'goal',
@@ -151,18 +161,18 @@ function deriveSchedulability(draft: GoalEquationInput, ctx: AdmissionContext, p
       forbiddenTimeWindows: constraints.forbiddenTimeWindows,
       forbiddenDayKeys: constraints.forbiddenDayKeys,
       minSessionMinutes: constraints.minSessionMinutes,
-      calendarCommittedBlocksByDate: constraints.calendarCommittedBlocksByDate
+      calendarCommittedBlocksByDate: constraints.calendarCommittedBlocksByDate,
     },
     nowISO: ctx.nowISO,
     horizonDays: 14,
-    acceptedBlocks: ctx.acceptedBlocks || []
+    acceptedBlocks: ctx.acceptedBlocks || [],
   });
   const reasonCodes = mapConflictCodes(autoPlan.conflicts || []);
   return {
     status: reasonCodes.length ? 'UNSCHEDULABLE' : 'SCHEDULABLE',
     reasonCodes,
     conflicts: autoPlan.conflicts || [],
-    recoveryOptions: autoPlan.recoveryOptions || []
+    recoveryOptions: autoPlan.recoveryOptions || [],
   };
 }
 
@@ -196,16 +206,16 @@ function buildColdPlanSkeleton(draft: GoalEquationInput) {
       {
         id: `deliv-${draft.family.toLowerCase()}`,
         title: `${draft.family} objective`,
-        required: true
-      }
+        required: true,
+      },
     ],
     criteria: [
       {
         id: `crit-${draft.objective.toLowerCase()}`,
         deliverableId: `deliv-${draft.family.toLowerCase()}`,
-        required: true
-      }
-    ]
+        required: true,
+      },
+    ],
   };
 }
 

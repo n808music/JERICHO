@@ -35,10 +35,7 @@ function blockMinutesForObjective(objective: GoalEquationInput['objective']) {
 
 export function derivePlanProof(
   equation: GoalEquationInput,
-  {
-    nowDayKey: nowKey,
-    timeZone
-  }: { nowDayKey?: string; timeZone?: string } = {}
+  { nowDayKey: nowKey, timeZone }: { nowDayKey?: string; timeZone?: string } = {}
 ): PlanProof {
   const startKey = nowKey || nowDayKey(timeZone);
   const endKey = equation.deadlineDayKey;
@@ -76,7 +73,7 @@ export function derivePlanProof(
     slackRatio,
     intensityRatio,
     feasibilityStatus,
-    feasibilityReasons
+    feasibilityReasons,
   };
 }
 

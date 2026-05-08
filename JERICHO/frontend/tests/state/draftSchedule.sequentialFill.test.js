@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { buildDraftScheduleItems } from '../../src/state/draftSchedule.js';
 
-function buildState({ actionsCount = 24, startDay = '2026-01-05', deadlineDay = '2026-01-31', days = 20, blocksPerDay = 5 } = {}) {
+function buildState({
+  actionsCount = 24,
+  startDay = '2026-01-05',
+  deadlineDay = '2026-01-31',
+  days = 20,
+  blocksPerDay = 5,
+} = {}) {
   const cycleId = 'cycle-1';
   const actions = Array.from({ length: actionsCount }).map((_, i) => ({
     id: `a-${i + 1}`,
@@ -13,7 +19,7 @@ function buildState({ actionsCount = 24, startDay = '2026-01-05', deadlineDay = 
     deps: [],
     status: 'todo',
     topoIndex: i,
-    priority: 1
+    priority: 1,
   }));
   const forecastByDayKey = {};
   for (let i = 0; i < days; i += 1) {
@@ -36,11 +42,11 @@ function buildState({ actionsCount = 24, startDay = '2026-01-05', deadlineDay = 
           goalId: 'goal-1',
           startDate: startDay,
           deadline: { dayKey: deadlineDay },
-          temporalBinding: { daysPerWeek: 7, activationTime: '09:00', sessionDurationMinutes: 90 }
+          temporalBinding: { daysPerWeek: 7, activationTime: '09:00', sessionDurationMinutes: 90 },
         },
-        coldPlan: { forecastByDayKey, dailyProjection: { forecastByDayKey: {} } }
-      }
-    }
+        coldPlan: { forecastByDayKey, dailyProjection: { forecastByDayKey: {} } },
+      },
+    },
   };
 }
 
@@ -50,7 +56,7 @@ describe('draft schedule sequential fill', () => {
     const items = buildDraftScheduleItems(state, 'cycle-1', {
       startDateISO: state.appTime.activeDayKey,
       actions: state.actionsByCycleId['cycle-1'].actions,
-      scheduleMode: 'FULL_PLAN'
+      scheduleMode: 'FULL_PLAN',
     });
 
     expect(items).toHaveLength(24);
@@ -68,4 +74,3 @@ describe('draft schedule sequential fill', () => {
     expect(uniqueActions.size).toBe(24);
   });
 });
-

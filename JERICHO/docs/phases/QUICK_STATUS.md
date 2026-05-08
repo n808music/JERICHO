@@ -5,24 +5,29 @@
 ### ✅ COMPLETED (Ready for Production)
 
 **Task 1: Repo Scan**
+
 - Foundation analysis complete
 
-**Task 2: MechanismClass Enum** 
+**Task 2: MechanismClass Enum**
+
 - GENERIC_DETERMINISTIC locked as v1 default
 - Validation enforced at admission
 - 20 tests passing
 
 **Task 3: Canonical Date Normalization**
+
 - YYYY-MM-DD format enforced at admission
 - Eliminates post-admission DEADLINE_INVALID
 - 16 tests passing
 
 **Task 4: Generic Deterministic Plan Generator**
+
 - Pure function, reproducible output
 - Auto-deliverables: 3-tier model or causal chain
 - 21 tests passing
 
 **Task 5: Store Wiring** ← JUST COMPLETED THIS SESSION
+
 - Integrated into GENERATE_COLD_PLAN action
 - Adapter function converts to ColdPlanV1 format
 - 17 integration tests passing
@@ -30,15 +35,18 @@
 ### ⏳ PENDING (UI Layer)
 
 **Task 6: UI Adjustments**
+
 - Add mechanism class dropdown selector
 - Update error display
 - Fix 'Regenerate Route' button behavior
 
 **Task 7: Cleanup**
+
 - Status: NO TEMPORARY CODE FOUND
 - Production ready
 
 **Task 8: Acceptance Checklist**
+
 - Ready for manual verification
 - All non-negotiables met
 
@@ -109,6 +117,7 @@ UI updates with forecastByDayKey
 ## 🎬 What Works Now
 
 Users can:
+
 - Submit goal with mechanism class GENERIC_DETERMINISTIC
 - Automatic deterministic plan generation after admission
 - Reproducible block allocation

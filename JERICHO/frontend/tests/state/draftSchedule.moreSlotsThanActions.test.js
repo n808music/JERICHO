@@ -15,7 +15,7 @@ function buildState() {
     deps: [],
     status: 'todo',
     topoIndex: i,
-    priority: 1
+    priority: 1,
   }));
   const forecastByDayKey = {};
   for (let i = 0; i < 15; i += 1) {
@@ -38,11 +38,11 @@ function buildState() {
           goalId: 'goal-1',
           startDate: startDay,
           deadline: { dayKey: deadlineDay },
-          temporalBinding: { daysPerWeek: 7, activationTime: '09:00', sessionDurationMinutes: 90 }
+          temporalBinding: { daysPerWeek: 7, activationTime: '09:00', sessionDurationMinutes: 90 },
         },
-        coldPlan: { forecastByDayKey, dailyProjection: { forecastByDayKey: {} } }
-      }
-    }
+        coldPlan: { forecastByDayKey, dailyProjection: { forecastByDayKey: {} } },
+      },
+    },
   };
 }
 
@@ -53,7 +53,7 @@ describe('draft schedule more slots than actions', () => {
     const items = buildDraftScheduleItems(state, cycleId, {
       startDateISO: state.appTime.activeDayKey,
       actions: state.actionsByCycleId[cycleId].actions,
-      scheduleMode: 'FULL_PLAN'
+      scheduleMode: 'FULL_PLAN',
     });
     expect(items).toHaveLength(10);
     const diagnostics = getDraftDiagnostics({
@@ -64,7 +64,7 @@ describe('draft schedule more slots than actions', () => {
       fullDraftItems: items,
       scheduleMode: 'FULL_PLAN',
       startDateISO: `${state.appTime.activeDayKey}T00:00:00.000Z`,
-      deadlineISO: '2026-01-20T23:59:59.000Z'
+      deadlineISO: '2026-01-20T23:59:59.000Z',
     });
     expect(diagnostics.reasonCode).toBe('FULL_PLAN_PLACED_TO_DEADLINE');
     expect(diagnostics.requiredSlotsWeighted).toBe(10);

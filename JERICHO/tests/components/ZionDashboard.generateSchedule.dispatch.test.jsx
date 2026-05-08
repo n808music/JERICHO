@@ -92,4 +92,15 @@ describe('ZionDashboard schedule generation dispatch wiring', () => {
 
     expect(generateScheduleForActiveCycle).toHaveBeenCalledTimes(1);
   });
+
+  it('treats ACTIVE admission status as schedulable and does not block generation', async () => {
+    mockStore.goalAdmissionByGoal = { 'goal-1': { status: 'ACTIVE', reasonCodes: [] } };
+
+    render(<ZionDashboard initialView="today" initialZionView="day" />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /generate schedule/i }));
+
+    expect(generateScheduleForActiveCycle).toHaveBeenCalledTimes(1);
+  });
 });

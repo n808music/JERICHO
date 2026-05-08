@@ -35,7 +35,7 @@ const baseDraft = {
   acceptsDailyMinimum: true,
   acceptsFixedSchedule: true,
   acceptsNoRenegotiation7d: true,
-  acceptsAutomaticCatchUp: true
+  acceptsAutomaticCatchUp: true,
 };
 
 const ctx = {
@@ -44,8 +44,8 @@ const ctx = {
   cycleId: 'cycle-1',
   constraints: {
     maxBlocksPerDay: 4,
-    maxBlocksPerWeek: 16
-  }
+    maxBlocksPerWeek: 16,
+  },
 };
 
 const admit = (draft) => admitGoal(draft, ctx);
@@ -76,7 +76,12 @@ describe('goal admission policy', () => {
   });
 
   it('rejects missing constraints', () => {
-    const res = admit({ ...baseDraft, maxDailyWorkMinutes: undefined, workDaysPerWeek: undefined, weekendsAllowed: undefined });
+    const res = admit({
+      ...baseDraft,
+      maxDailyWorkMinutes: undefined,
+      workDaysPerWeek: undefined,
+      weekendsAllowed: undefined,
+    });
     expect(res.status).toBe('REJECTED_MISSING_CONSTRAINTS');
     expect(res.reasonCodes).toContain('MISSING_CONSTRAINTS');
   });
@@ -93,7 +98,7 @@ describe('goal admission policy', () => {
       objectiveValue: 300,
       deadlineDayKey: '2026-01-03',
       maxDailyWorkMinutes: 30,
-      workDaysPerWeek: 3
+      workDaysPerWeek: 3,
     });
     expect(res.status).toBe('REJECTED_INFEASIBLE');
     expect(res.reasonCodes).toContain('REQUIRED_PACE_EXCEEDS_MAX_PER_DAY');

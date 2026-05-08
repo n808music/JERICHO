@@ -1,24 +1,32 @@
 # Architecture Documentation
 
-This section contains the technical architecture and design specifications for JERICHO.
+This section contains the technical architecture and design specifications for
+JERICHO.
 
 ## 🏛️ System Architecture
 
 ### Core Components
 
-- **[Execution Plan](EXECUTION_PLAN.md)** - High-level system design and implementation steps
-- **[UI Authority Map](UI_AUTHORITY_MAP.md)** - UI component authority and interaction patterns
-- **[Probability Authority Map](PROBABILITY_AUTHORITY_MAP.md)** - Probability calculations and metrics
-- **[MVP3 Audit Notes](MVP3_AUDIT_NOTES.md)** - System audit and architectural review
+- **[Execution Plan](EXECUTION_PLAN.md)** - High-level system design and
+  implementation steps
+- **[UI Authority Map](UI_AUTHORITY_MAP.md)** - UI component authority and
+  interaction patterns
+- **[Probability Authority Map](PROBABILITY_AUTHORITY_MAP.md)** - Probability
+  calculations and metrics
+- **[MVP3 Audit Notes](MVP3_AUDIT_NOTES.md)** - System audit and architectural
+  review
 
 ### User Interface Design
 
-- **[UI Audit Report](UI_AUDIT_REPORT.md)** - Comprehensive UI analysis and recommendations
-- **[Structure Tab Redesign](STRUCTURE_TAB_REDESIGN.md)** - UI component redesign specifications
+- **[UI Audit Report](UI_AUDIT_REPORT.md)** - Comprehensive UI analysis and
+  recommendations
+- **[Structure Tab Redesign](STRUCTURE_TAB_REDESIGN.md)** - UI component
+  redesign specifications
 
 ### Core Specifications
 
-- **[Probability Specification](probabilitySpec.md)** - Mathematical models and probability calculations
+- **[Probability Specification](probabilitySpec.md)** - Mathematical models and
+  probability calculations
 
 ## 🎯 Key Architectural Principles
 
@@ -219,4 +227,5 @@ src/
 - [Phase History](../phases/) - Development progression
 - [API Documentation](../api/) - Backend specifications
 
-This architecture ensures JERICHO provides deterministic, efficient, and user-friendly goal planning and execution. 🎯
+This architecture ensures JERICHO provides deterministic, efficient, and
+user-friendly goal planning and execution. 🎯

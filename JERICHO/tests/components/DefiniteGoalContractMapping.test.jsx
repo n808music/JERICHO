@@ -7,7 +7,7 @@ import { StructurePageConsolidated } from '../../src/components/zion/StructurePa
 let mockStore = {};
 
 vi.mock('../../src/state/identityStore', () => ({
-  useIdentityStore: () => mockStore
+  useIdentityStore: () => mockStore,
 }));
 
 const buildStore = (override = {}) => ({
@@ -23,14 +23,14 @@ const buildStore = (override = {}) => ({
         target: {
           count: 6,
           unit: 'songs recorded (rough takes)',
-          definitionOfDone: 'rough vocal take + bounce exported'
+          definitionOfDone: 'rough vocal take + bounce exported',
         },
         capacity: {
           daysPerWeek: 5,
-          minutesPerDay: 90
-        }
-      }
-    }
+          minutesPerDay: 90,
+        },
+      },
+    },
   },
   aspirations: [],
   appTime: new Date().toISOString(),
@@ -43,16 +43,18 @@ const buildStore = (override = {}) => ({
   attemptGoalAdmission: vi.fn(),
   archiveAndCloneCycle: vi.fn(),
   deliverablesByCycleId: {},
-  ...override
+  ...override,
 });
 
 const formatTestDate = (iso) => {
   const result = new Date(iso);
-  if (Number.isNaN(result.getTime())) return iso;
+  if (Number.isNaN(result.getTime())) {
+    return iso;
+  }
   return result.toLocaleDateString(undefined, {
     year: 'numeric',
     month: '2-digit',
-    day: '2-digit'
+    day: '2-digit',
   });
 };
 
@@ -84,10 +86,10 @@ describe('Definite Goal contract UI mapping', () => {
           goalContract: {
             goalLabel: 'Launch pipeline',
             startDateISO: '2026-02-01T00:00:00.000Z',
-            deadlineISO: '2026-03-01T00:00:00.000Z'
-          }
-        }
-      }
+            deadlineISO: '2026-03-01T00:00:00.000Z',
+          },
+        },
+      },
     });
     mockStore = fallbackStore;
     render(<StructurePageConsolidated />);
@@ -96,8 +98,41 @@ describe('Definite Goal contract UI mapping', () => {
     expect(screen.queryByText(/Target:/i)).toBeNull();
     expect(screen.queryByText(/Capacity:/i)).toBeNull();
     const outcomeLine = screen.getByText(/Outcome:/i).parentElement;
-    const costLine = screen.getByText(/Cost:/i).parentElement;
     expect(outcomeLine).toHaveTextContent('Outcome: —');
-    expect(costLine).toHaveTextContent('Cost: —');
+    expect(screen.queryByText(/Cost:/i)).toBeNull();
+  });
+
+  it('renders canonical day-key dates instead of shifting midnight UTC ISO values backward', () => {
+    mockStore = buildStore({
+      goalExecutionContract: {
+        startDayKey: '2026-04-06',
+        endDayKey: '2026-05-06',
+      },
+      cyclesById: {
+        'cycle-1': {
+          id: 'cycle-1',
+          status: 'active',
+          startedAtDayKey: '2026-04-06',
+          goalContract: {
+            goalLabel: 'Build job-ready SQL and dashboard skills',
+            startDayKey: '2026-04-06',
+            startDateISO: '2026-04-06T00:00:00.000Z',
+            deadline: { dayKey: '2026-05-06', isHardDeadline: true },
+            deadlineISO: '2026-05-06T23:59:59.000Z',
+          },
+        },
+      },
+    });
+
+    render(<StructurePageConsolidated />);
+
+    const planWindowLine = screen.getByText(/Plan window:/i).parentElement;
+    const startLine = screen.getByText(/Start date:/i).parentElement;
+    const deadlineLine = screen.getByText(/Deadline:/i).parentElement;
+
+    expect(planWindowLine).toHaveTextContent('04/06/2026');
+    expect(planWindowLine).toHaveTextContent('05/06/2026');
+    expect(startLine).toHaveTextContent('04/06/2026');
+    expect(deadlineLine).toHaveTextContent('05/06/2026');
   });
 });

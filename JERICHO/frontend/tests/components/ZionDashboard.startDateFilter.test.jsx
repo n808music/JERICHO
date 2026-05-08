@@ -8,14 +8,14 @@ const stubAction = vi.fn();
 const actionsProxy = new Proxy(
   {},
   {
-    get: () => stubAction
+    get: () => stubAction,
   }
 );
 
 let mockStore = {};
 
 vi.mock('../../src/state/identityStore', () => ({
-  useIdentityStore: () => mockStore
+  useIdentityStore: () => mockStore,
 }));
 
 const buildStore = (suggestedBlocks = [], activeDayKey = '2026-01-20') => ({
@@ -36,8 +36,8 @@ const buildStore = (suggestedBlocks = [], activeDayKey = '2026-01-20') => ({
     'cycle-1': {
       id: 'cycle-1',
       status: 'active',
-      goalContract: { startDateISO: '2026-01-20T00:00:00.000Z' }
-    }
+      goalContract: { startDateISO: '2026-01-20T00:00:00.000Z' },
+    },
   },
   activeCycleId: 'cycle-1',
   goalExecutionContract: { startDateISO: '2026-01-20T00:00:00.000Z' },
@@ -50,7 +50,7 @@ const buildStore = (suggestedBlocks = [], activeDayKey = '2026-01-20') => ({
   suggestionEvents: [],
   planDraft: null,
   planCalibration: null,
-  correctionSignals: null
+  correctionSignals: null,
 });
 
 describe('ZionDashboard start date guard', () => {
@@ -63,7 +63,7 @@ describe('ZionDashboard start date guard', () => {
         domain: 'CREATION',
         durationMinutes: 30,
         status: 'suggested',
-        startISO: '2026-01-19T09:00:00.000Z'
+        startISO: '2026-01-19T09:00:00.000Z',
       },
       {
         id: 's-start',
@@ -71,8 +71,8 @@ describe('ZionDashboard start date guard', () => {
         domain: 'CREATION',
         durationMinutes: 30,
         status: 'suggested',
-        startISO: '2026-01-20T09:00:00.000Z'
-      }
+        startISO: '2026-01-20T09:00:00.000Z',
+      },
     ]);
   });
 
@@ -85,7 +85,7 @@ describe('ZionDashboard start date guard', () => {
           domain: 'CREATION',
           durationMinutes: 30,
           status: 'suggested',
-          startISO: '2026-01-19T09:00:00.000Z'
+          startISO: '2026-01-19T09:00:00.000Z',
         },
         {
           id: 's-start',
@@ -93,8 +93,8 @@ describe('ZionDashboard start date guard', () => {
           domain: 'CREATION',
           durationMinutes: 30,
           status: 'suggested',
-          startISO: '2026-01-20T09:00:00.000Z'
-        }
+          startISO: '2026-01-20T09:00:00.000Z',
+        },
       ],
       '2026-01-19'
     );
@@ -113,7 +113,7 @@ describe('ZionDashboard start date guard', () => {
           domain: 'CREATION',
           durationMinutes: 30,
           status: 'suggested',
-          startISO: '2026-01-19T09:00:00.000Z'
+          startISO: '2026-01-19T09:00:00.000Z',
         },
         {
           id: 's-start',
@@ -121,14 +121,12 @@ describe('ZionDashboard start date guard', () => {
           domain: 'CREATION',
           durationMinutes: 30,
           status: 'suggested',
-          startISO: '2026-01-20T09:00:00.000Z'
-        }
+          startISO: '2026-01-20T09:00:00.000Z',
+        },
       ],
       '2026-01-20'
     );
-    render(
-      <ZionDashboard initialView="today" initialZionView="day" initialAnchorDayKey="2026-01-20" />
-    );
+    render(<ZionDashboard initialView="today" initialZionView="day" initialAnchorDayKey="2026-01-20" />);
     expect(screen.queryByText(/Drafts begin on Jan 20/i)).not.toBeInTheDocument();
   });
 
@@ -141,14 +139,12 @@ describe('ZionDashboard start date guard', () => {
           domain: 'CREATION',
           durationMinutes: 45,
           status: 'suggested',
-          startISO: '2026-01-20T09:30:00.000Z'
-        }
+          startISO: '2026-01-20T09:30:00.000Z',
+        },
       ],
       '2026-01-20'
     );
-    render(
-      <ZionDashboard initialView="today" initialZionView="day" initialAnchorDayKey="2026-01-20" />
-    );
+    render(<ZionDashboard initialView="today" initialZionView="day" initialAnchorDayKey="2026-01-20" />);
     expect(screen.queryByText(/Drafts begin on Jan 20/i)).not.toBeInTheDocument();
   });
 });

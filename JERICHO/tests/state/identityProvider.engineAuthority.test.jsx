@@ -18,7 +18,7 @@ describe('IdentityProvider engine authority invariant', () => {
   it('does not throw when goalDirective references an eligible goal', () => {
     const okState = {
       goalDirective: { goalId: 'g1' },
-      directiveEligibilityByGoal: { g1: { allowed: true, reasons: [] } }
+      directiveEligibilityByGoal: { g1: { allowed: true, reasons: [] } },
     };
     expect(() => {
       ReactDOMServer.renderToString(

@@ -10,7 +10,7 @@ import {
   getQuarterMonths,
   getWeekDayKeys,
   getYearMonths,
-  shiftAnchorDayKey
+  shiftAnchorDayKey,
 } from '../../src/state/time/window.ts';
 import { addDays } from '../../src/state/time/time.ts';
 
@@ -34,7 +34,7 @@ function buildState(blockLabel = 'Anchor block') {
     lenses: {
       aim: { description: '', horizon: '90d' },
       pattern: { routines: { Body: [], Resources: [], Creation: [], Focus: [] }, dailyTargets: [], defaultMinutes: 30 },
-      flow: { streams: [] }
+      flow: { streams: [] },
     },
     activeCycleId: 'cycle-1',
     cyclesById: {
@@ -42,19 +42,33 @@ function buildState(blockLabel = 'Anchor block') {
         id: 'cycle-1',
         status: 'active',
         startedAtDayKey: '2026-02-01',
-        definiteGoal: { outcome: 'Test goal', deadlineDayKey: '2026-12-31' }
-      }
+        definiteGoal: { outcome: 'Test goal', deadlineDayKey: '2026-12-31' },
+      },
     },
     goalExecutionContract: {
       goalId: 'goal-1',
       goalText: 'Test goal',
       startDayKey: '2026-02-01',
-      endDayKey: '2026-12-31'
+      endDayKey: '2026-12-31',
     },
-    today: { date: ANCHOR_DAY, blocks: [block], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
+    today: {
+      date: ANCHOR_DAY,
+      blocks: [block],
+      completionRate: 0,
+      driftSignal: 'contained',
+      loadByPractice: {},
+      practices: [],
+    },
     currentWeek: { weekStart: ANCHOR_DAY, days: [], metrics: {} },
     cycle: [
-      { date: ANCHOR_DAY, blocks: [block], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] }
+      {
+        date: ANCHOR_DAY,
+        blocks: [block],
+        completionRate: 0,
+        driftSignal: 'contained',
+        loadByPractice: {},
+        practices: [],
+      },
     ],
     templates: { objectives: {} },
     stability: { headline: '', actionLine: '' },
@@ -65,8 +79,15 @@ function buildState(blockLabel = 'Anchor block') {
     executionEvents: [],
     goalDirective: null,
     directiveEligibilityByGoal: {},
-    suggestionHistory: { dayKey: ANCHOR_DAY, count: 0, lastSuggestedAtISO: null, lastSuggestedAtISOByGoal: {}, dailyCountByGoal: {}, denials: [] },
-    appTime: { timeZone: TIME_ZONE, nowISO: ANCHOR_ISO, activeDayKey: ANCHOR_DAY, isFollowingNow: true }
+    suggestionHistory: {
+      dayKey: ANCHOR_DAY,
+      count: 0,
+      lastSuggestedAtISO: null,
+      lastSuggestedAtISOByGoal: {},
+      dailyCountByGoal: {},
+      denials: [],
+    },
+    appTime: { timeZone: TIME_ZONE, nowISO: ANCHOR_ISO, activeDayKey: ANCHOR_DAY, isFollowingNow: true },
   };
 }
 

@@ -13,47 +13,49 @@ export function buildValidGoalContract(overrides: Partial<GoalExecutionContract>
       text: 'Complete the JERICHO implementation',
       hash: hashField('Complete the JERICHO implementation'),
       verificationCriteria: 'All modules deployed and tested in production',
-      isConcrete: true
+      isConcrete: true,
     },
     deadline: {
       dayKey: DEADLINE_VALID,
-      isHardDeadline: true
+      isHardDeadline: true,
     },
     sacrifice: {
       whatIsGivenUp: 'Free time on weekends',
       duration: '6 weeks',
       quantifiedImpact: '8 hours/week',
       rationale: 'Weekend time needed for focused development',
-      hash: hashField('Free time on weekends')
+      hash: hashField('Free time on weekends'),
     },
-    temporalBinding: {
-      daysPerWeek: 5,
-      activationTime: '09:00',
-      sessionDurationMinutes: 120,
-      weeklyMinutes: 600,
-      startDayKey: '2026-01-10'
+    workWindows: {
+      mon: [{ start: '09:00', end: '11:00' }],
+      tue: [{ start: '09:00', end: '11:00' }],
+      wed: [{ start: '09:00', end: '11:00' }],
+      thu: [{ start: '09:00', end: '11:00' }],
+      fri: [{ start: '09:00', end: '11:00' }],
+      sat: [],
+      sun: [],
     },
     causalChain: {
       steps: [
         { sequence: 1, description: 'Design API schema', approximateDayOffset: 7 },
         { sequence: 2, description: 'Implement core services', approximateDayOffset: 14 },
         { sequence: 3, description: 'Build UI components', approximateDayOffset: 21 },
-        { sequence: 4, description: 'Deploy to production', approximateDayOffset: 35 }
+        { sequence: 4, description: 'Deploy to production', approximateDayOffset: 35 },
       ],
-      hash: hashField('design-implement-build-deploy')
+      hash: hashField('design-implement-build-deploy'),
     },
     reinforcement: {
       dailyExposureEnabled: true,
       dailyMechanism: 'Calendar block title + dashboard banner',
       checkInFrequency: 'DAILY',
-      triggerDescription: 'Every morning at 6 AM'
+      triggerDescription: 'Every morning at 6 AM',
     },
     inscription: {
       contractHash: 'abc123def456',
       inscribedAtISO: NOW_ISO,
       acknowledgment: 'I understand this is binding',
       acknowledgmentHash: hashField('I understand this is binding'),
-      isCompromised: false
+      isCompromised: false,
     },
     admissionStatus: 'PENDING',
     admissionAttemptCount: 0,
@@ -61,11 +63,11 @@ export function buildValidGoalContract(overrides: Partial<GoalExecutionContract>
     createdAtISO: NOW_ISO,
     isAspirational: false,
     commitmentDisclosureAccepted: true,
-    commitmentDisclosureAcceptedAtISO: NOW_ISO
+    commitmentDisclosureAcceptedAtISO: NOW_ISO,
   };
   const contract = {
     ...base,
-    ...overrides
+    ...overrides,
   } as GoalExecutionContract;
   if (contract.inscription) {
     contract.inscription.contractHash = computeContractHash(contract);

@@ -27,11 +27,12 @@ export function computeProfileLearning(cyclesById: Record<string, any> = {}): Pr
   const summaries = learnableCycles.map((cycle: any) => summarizeCycle(cycle));
   const totalCompletionCount = summaries.reduce((sum, s) => sum + (s.completionCount || 0), 0);
   const averageCompletionRate =
-    summaries.reduce((sum, s) => sum + (Number.isFinite(s.completionRate) ? s.completionRate : 0), 0) / summaries.length;
+    summaries.reduce((sum, s) => sum + (Number.isFinite(s.completionRate) ? s.completionRate : 0), 0) /
+    summaries.length;
 
   return {
     cycleCount: learnableCycles.length,
     totalCompletionCount,
-    averageCompletionRate
+    averageCompletionRate,
   };
 }

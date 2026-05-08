@@ -12,9 +12,16 @@ function buildBaseState() {
     lenses: {
       aim: { description: '', horizon: '90d', narrative: '' },
       pattern: { routines: { Body: [], Resources: [], Creation: [], Focus: [] }, dailyTargets: [], defaultMinutes: 30 },
-      flow: { streams: [] }
+      flow: { streams: [] },
     },
-    today: { date: FIXED_DAY, blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
+    today: {
+      date: FIXED_DAY,
+      blocks: [],
+      completionRate: 0,
+      driftSignal: 'contained',
+      loadByPractice: {},
+      practices: [],
+    },
     currentWeek: { weekStart: FIXED_DAY, days: [], metrics: {} },
     cycle: [],
     viewDate: FIXED_DAY,
@@ -27,7 +34,7 @@ function buildBaseState() {
       lastActiveDate: FIXED_DAY,
       scenarioLabel: '',
       demoScenarioEnabled: false,
-      showHints: false
+      showHints: false,
     },
     recurringPatterns: [],
     lastSessionChange: null,
@@ -38,8 +45,8 @@ function buildBaseState() {
       timeZone: 'UTC',
       nowISO: `${FIXED_DAY}T12:00:00.000Z`,
       activeDayKey: FIXED_DAY,
-      isFollowingNow: true
-    }
+      isFollowingNow: true,
+    },
   };
 }
 
@@ -57,8 +64,8 @@ describe('MVP 3.0 End-to-End Smoke Test', () => {
         narrative: 'Validate cold plan first + convergence + learning gate',
         focusAreas: ['Creation'],
         successDefinition: 'MVP3 delivered',
-        minimumDaysPerWeek: 4
-      }
+        minimumDaysPerWeek: 4,
+      },
     });
 
     expect(onboarded.activeCycleId).toBeTruthy();
@@ -68,7 +75,7 @@ describe('MVP 3.0 End-to-End Smoke Test', () => {
     const normalized = seededId
       ? computeDerivedState(onboarded, {
           type: 'DELETE_DELIVERABLE',
-          payload: { cycleId, deliverableId: seededId }
+          payload: { cycleId, deliverableId: seededId },
         })
       : onboarded;
 
@@ -82,8 +89,8 @@ describe('MVP 3.0 End-to-End Smoke Test', () => {
       payload: {
         cycleId,
         title: 'Design Phase',
-        requiredBlocks: 2
-      }
+        requiredBlocks: 2,
+      },
     });
 
     const withDeliv2 = computeDerivedState(withDeliv1, {
@@ -91,8 +98,8 @@ describe('MVP 3.0 End-to-End Smoke Test', () => {
       payload: {
         cycleId,
         title: 'Implementation',
-        requiredBlocks: 3
-      }
+        requiredBlocks: 3,
+      },
     });
 
     const deliverables = withDeliv2.deliverablesByCycleId?.[cycleId]?.deliverables || [];
@@ -118,8 +125,8 @@ describe('MVP 3.0 End-to-End Smoke Test', () => {
           title: `Block ${i + 1}`,
           timeZone: 'UTC',
           linkToGoal: true,
-          deliverableId: delivId
-        }
+          deliverableId: delivId,
+        },
       });
 
       blocks.push(state.today.blocks[state.today.blocks.length - 1]);
@@ -133,7 +140,7 @@ describe('MVP 3.0 End-to-End Smoke Test', () => {
         kind: 'complete',
         dateISO: FIXED_DAY,
         minutes: 30,
-        deliverableId: delivId
+        deliverableId: delivId,
       });
     });
 
@@ -144,9 +151,9 @@ describe('MVP 3.0 End-to-End Smoke Test', () => {
         ...state.cyclesById,
         [cycleId]: {
           ...state.cyclesById[cycleId],
-          executionEvents: [...(state.executionEvents || []), ...completedEvents]
-        }
-      }
+          executionEvents: [...(state.executionEvents || []), ...completedEvents],
+        },
+      },
     };
 
     // Step 5: End cycle and verify convergence
@@ -170,8 +177,8 @@ describe('MVP 3.0 End-to-End Smoke Test', () => {
       type: 'START_NEW_CYCLE',
       payload: {
         goalText: 'Next iteration',
-        deadlineDayKey: '2026-03-08'
-      }
+        deadlineDayKey: '2026-03-08',
+      },
     });
 
     const cycle2Id = newCycle.activeCycleId;

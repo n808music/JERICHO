@@ -45,7 +45,7 @@ function buildBaseState(date = FIXED_DAY, timeZone = 'UTC') {
     lenses: {
       aim: { description: '', horizon: '90d', narrative: '' },
       pattern: { routines: { Body: [], Resources: [], Creation: [], Focus: [] }, dailyTargets: [], defaultMinutes: 30 },
-      flow: { streams: [] }
+      flow: { streams: [] },
     },
     today: { date, blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
     currentWeek: { weekStart: date, days: [], metrics: {} },
@@ -64,10 +64,10 @@ function buildBaseState(date = FIXED_DAY, timeZone = 'UTC') {
       timeZone,
       nowISO,
       activeDayKey: date,
-      isFollowingNow: true
+      isFollowingNow: true,
     },
     directiveEligibilityByGoal: {},
-    goalDirective: null
+    goalDirective: null,
   };
 }
 
@@ -82,8 +82,8 @@ function seedOnboardingState() {
       horizon: '30d',
       narrative: '',
       focusAreas: ['Creation', 'Focus'],
-      successDefinition: 'MVP shipped'
-    }
+      successDefinition: 'MVP shipped',
+    },
   });
   const compiled = computeDerivedState(onboarded, {
     type: 'COMPILE_GOAL_EQUATION',

@@ -63,14 +63,22 @@ const TIEBREAK_CHAIN = [
   'creation_cadence',
   'constraint_fit',
   'low_context_switch',
-  'stable_tiebreak'
+  'stable_tiebreak',
 ];
 
-export function selectGuidance(goal: { goalId: string; deadlineISO: string }, state: any, constraints: Constraints, nowISO: string): GuidanceResult {
+export function selectGuidance(
+  goal: { goalId: string; deadlineISO: string },
+  state: any,
+  constraints: Constraints,
+  nowISO: string
+): GuidanceResult {
   const timezone = constraints?.timezone || 'UTC';
   const todayLocalDate = dayKeyFromISO(nowISO, timezone);
   const workItems: WorkItem[] = (state?.goalWorkById && state.goalWorkById[goal.goalId]) || [];
-  const remainingBlocksTotal = workItems.reduce((sum, item) => sum + Math.max(0, Number(item?.blocksRemaining) || 0), 0);
+  const remainingBlocksTotal = workItems.reduce(
+    (sum, item) => sum + Math.max(0, Number(item?.blocksRemaining) || 0),
+    0
+  );
 
   if (!remainingBlocksTotal) {
     return emptyResult(goal.goalId, nowISO, ['GOAL_HAS_NO_REMAINING_WORK'], todayLocalDate);
@@ -83,7 +91,12 @@ export function selectGuidance(goal: { goalId: string; deadlineISO: string }, st
   if (feasibility.status === 'INFEASIBLE') {
     const recovery = pickRecoveryBlock(workItems, goal.deadlineISO, timezone);
     if (!recovery) {
-      return emptyResult(goal.goalId, nowISO, ['GOAL_INFEASIBLE_ONLY_RECOVERY_ALLOWED', 'NO_CANDIDATES'], todayLocalDate);
+      return emptyResult(
+        goal.goalId,
+        nowISO,
+        ['GOAL_INFEASIBLE_ONLY_RECOVERY_ALLOWED', 'NO_CANDIDATES'],
+        todayLocalDate
+      );
     }
     return {
       goalId: goal.goalId,
@@ -95,8 +108,8 @@ export function selectGuidance(goal: { goalId: string; deadlineISO: string }, st
       debug: {
         todayLocalDate,
         tieBreakChain: TIEBREAK_CHAIN,
-        candidatesConsidered: 1
-      }
+        candidatesConsidered: 1,
+      },
     };
   }
 
@@ -114,11 +127,19 @@ export function selectGuidance(goal: { goalId: string; deadlineISO: string }, st
   });
 
   const remainingItems = workItems.filter((item) => (Number(item.blocksRemaining) || 0) > 0);
-  const dependencyBlocked = remainingItems.filter((item) => isBlockedByDependencies(item, itemsById) && !item.unblockType);
+  const dependencyBlocked = remainingItems.filter(
+    (item) => isBlockedByDependencies(item, itemsById) && !item.unblockType
+  );
   const dependencyFree = remainingItems.filter((item) => !dependencyBlocked.includes(item) || item.unblockType);
 
   if (!dependencyFree.length) {
-    return emptyResult(goal.goalId, nowISO, ['BLOCKED_BY_DEPENDENCIES'], todayLocalDate, dependencyMapHasCycle(dependencyMap));
+    return emptyResult(
+      goal.goalId,
+      nowISO,
+      ['BLOCKED_BY_DEPENDENCIES'],
+      todayLocalDate,
+      dependencyMapHasCycle(dependencyMap)
+    );
   }
 
   const constraintFiltered = dependencyFree.filter((item) => passesConstraints(item, constraints));
@@ -143,7 +164,9 @@ export function selectGuidance(goal: { goalId: string; deadlineISO: string }, st
   }
 
   const cooldownMinutes = constraints?.cooldowns?.resuggestMinutes;
-  const cooldownBlocked = constraintFiltered.filter((item) => !isCooldownActive(state, goal.goalId, item.workItemId, nowISO, cooldownMinutes));
+  const cooldownBlocked = constraintFiltered.filter(
+    (item) => !isCooldownActive(state, goal.goalId, item.workItemId, nowISO, cooldownMinutes)
+  );
   if (!cooldownBlocked.length) {
     return emptyResult(goal.goalId, nowISO, ['COOLDOWN_BLOCKED'], todayLocalDate);
   }
@@ -160,9 +183,26 @@ export function selectGuidance(goal: { goalId: string; deadlineISO: string }, st
   );
 
   const primaryItem = ranked[0];
-  const primary = buildSelectedBlock(primaryItem, goal.deadlineISO, timezone, creationBehind, dependentsCount, constraints, lastContext);
+  const primary = buildSelectedBlock(
+    primaryItem,
+    goal.deadlineISO,
+    timezone,
+    creationBehind,
+    dependentsCount,
+    constraints,
+    lastContext
+  );
 
-  const fallback = pickFallback(primaryItem, ranked.slice(1), constraints, goal.deadlineISO, timezone, creationBehind, dependentsCount, lastContext);
+  const fallback = pickFallback(
+    primaryItem,
+    ranked.slice(1),
+    constraints,
+    goal.deadlineISO,
+    timezone,
+    creationBehind,
+    dependentsCount,
+    lastContext
+  );
 
   return {
     goalId: goal.goalId,
@@ -174,12 +214,18 @@ export function selectGuidance(goal: { goalId: string; deadlineISO: string }, st
     debug: {
       todayLocalDate,
       tieBreakChain: TIEBREAK_CHAIN,
-      candidatesConsidered: ranked.length
-    }
+      candidatesConsidered: ranked.length,
+    },
   };
 }
 
-function emptyResult(goalId: string, nowISO: string, reasons: string[], todayLocalDate: string, hasCycle = false): GuidanceResult {
+function emptyResult(
+  goalId: string,
+  nowISO: string,
+  reasons: string[],
+  todayLocalDate: string,
+  hasCycle = false
+): GuidanceResult {
   const finalReasons = [...reasons];
   if (hasCycle && !finalReasons.includes('BLOCKED_BY_DEPENDENCIES')) finalReasons.push('BLOCKED_BY_DEPENDENCIES');
   return {
@@ -192,8 +238,8 @@ function emptyResult(goalId: string, nowISO: string, reasons: string[], todayLoc
     debug: {
       todayLocalDate,
       tieBreakChain: TIEBREAK_CHAIN,
-      candidatesConsidered: 0
-    }
+      candidatesConsidered: 0,
+    },
   };
 }
 
@@ -216,7 +262,7 @@ function pickRecoveryBlock(items: WorkItem[], deadlineISO: string, timezone: str
     energyCost: recovery.energyCost,
     producesOutput: recovery.producesOutput,
     unblockType: recovery.unblockType || null,
-    reasonCodes: recovery.unblockType ? ['CRITICAL_PATH_UNBLOCK', 'STABLE_TIEBREAK'] : ['STABLE_TIEBREAK']
+    reasonCodes: recovery.unblockType ? ['CRITICAL_PATH_UNBLOCK', 'STABLE_TIEBREAK'] : ['STABLE_TIEBREAK'],
   };
 }
 
@@ -231,9 +277,11 @@ function isBlockedByDependencies(item: WorkItem, itemsById: Map<string, WorkItem
 function passesConstraints(item: WorkItem, constraints: Constraints) {
   if (!item) return false;
   const allowedCategories = constraints?.allowedCategories;
-  if (Array.isArray(allowedCategories) && allowedCategories.length && !allowedCategories.includes(item.category)) return false;
+  if (Array.isArray(allowedCategories) && allowedCategories.length && !allowedCategories.includes(item.category))
+    return false;
   const allowedFocusModes = constraints?.allowedFocusModes;
-  if (Array.isArray(allowedFocusModes) && allowedFocusModes.length && !allowedFocusModes.includes(item.focusMode)) return false;
+  if (Array.isArray(allowedFocusModes) && allowedFocusModes.length && !allowedFocusModes.includes(item.focusMode))
+    return false;
   if (item.energyCost === 'high' && typeof constraints?.maxHighEnergyBlocksPerDay === 'number') {
     const current = Number(constraints.currentHighEnergyBlocksToday || 0);
     if (current >= constraints.maxHighEnergyBlocksPerDay) return false;
@@ -268,7 +316,9 @@ function isCooldownActive(state: any, goalId: string, workItemId: string, nowISO
 
 function countCompletedByCategory(state: any, goalId: string, todayLocalDate: string, category: WorkItem['category']) {
   const events = state?.executionEvents || [];
-  return events.filter((e: any) => e?.goalId === goalId && e?.completed && e?.dateISO === todayLocalDate && e?.domain === category).length;
+  return events.filter(
+    (e: any) => e?.goalId === goalId && e?.completed && e?.dateISO === todayLocalDate && e?.domain === category
+  ).length;
 }
 
 function lastCompletedContext(state: any, goalId: string, todayLocalDate: string) {
@@ -353,7 +403,8 @@ function buildSelectedBlock(
   if (item.mustFinishByISO && deadlineKey) reasons.push('SUBDEADLINE_SOON');
   if (item.unblockType || (dependents[item.workItemId] || 0) > 0) reasons.push('CRITICAL_PATH_UNBLOCK');
   if (creationBehind && item.category === 'Creation' && item.producesOutput) reasons.push('CREATION_CADENCE_BEHIND');
-  if (constraints?.preferredFocusMode && item.focusMode === constraints.preferredFocusMode) reasons.push('BEST_CONSTRAINT_FIT');
+  if (constraints?.preferredFocusMode && item.focusMode === constraints.preferredFocusMode)
+    reasons.push('BEST_CONSTRAINT_FIT');
   if (lastContext?.category && item.category === lastContext.category) reasons.push('LOW_CONTEXT_SWITCH');
   reasons.push('STABLE_TIEBREAK');
 
@@ -365,7 +416,7 @@ function buildSelectedBlock(
     energyCost: item.energyCost,
     producesOutput: item.producesOutput,
     unblockType: item.unblockType || null,
-    reasonCodes: reasons
+    reasonCodes: reasons,
   };
 }
 

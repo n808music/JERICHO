@@ -11,9 +11,16 @@ function buildBaseState() {
     lenses: {
       aim: { description: '', horizon: '90d', narrative: '' },
       pattern: { routines: { Body: [], Resources: [], Creation: [], Focus: [] }, dailyTargets: [], defaultMinutes: 30 },
-      flow: { streams: [] }
+      flow: { streams: [] },
     },
-    today: { date: FIXED_DAY, blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
+    today: {
+      date: FIXED_DAY,
+      blocks: [],
+      completionRate: 0,
+      driftSignal: 'contained',
+      loadByPractice: {},
+      practices: [],
+    },
     currentWeek: { weekStart: FIXED_DAY, days: [], metrics: {} },
     cycle: [],
     viewDate: FIXED_DAY,
@@ -30,11 +37,11 @@ function buildBaseState() {
       timeZone: 'UTC',
       nowISO: NOW_ISO,
       activeDayKey: FIXED_DAY,
-      isFollowingNow: true
+      isFollowingNow: true,
     },
     constraints: {
-      maxBlocksPerDay: 4
-    }
+      maxBlocksPerDay: 4,
+    },
   };
 }
 
@@ -48,8 +55,8 @@ function seedOnboarding(state) {
       narrative: '',
       focusAreas: ['Creation'],
       successDefinition: 'Ship A',
-      minimumDaysPerWeek: 4
-    }
+      minimumDaysPerWeek: 4,
+    },
   });
 }
 
@@ -59,7 +66,16 @@ describe('probability initial report', () => {
     const goalId = base.goalExecutionContract?.goalId;
     const cycleId = base.activeCycleId;
     base.goalWorkById = {
-      [goalId]: [{ workItemId: 'work-1', blocksRemaining: 10, category: 'Focus', focusMode: 'deep', energyCost: 'low', producesOutput: true }]
+      [goalId]: [
+        {
+          workItemId: 'work-1',
+          blocksRemaining: 10,
+          category: 'Focus',
+          focusMode: 'deep',
+          energyCost: 'low',
+          producesOutput: true,
+        },
+      ],
     };
     base.cyclesById[cycleId].goalPlan = {
       planProof: {
@@ -72,10 +88,10 @@ describe('probability initial report', () => {
         slackRatio: 0,
         intensityRatio: 1,
         feasibilityStatus: 'INFEASIBLE',
-        feasibilityReasons: ['MAX_PER_DAY_ZERO']
+        feasibilityReasons: ['MAX_PER_DAY_ZERO'],
       },
       scheduleBlocks: [],
-      generatedAtISO: NOW_ISO
+      generatedAtISO: NOW_ISO,
     };
 
     const result = scoreGoalSuccessProbability(goalId, base, { timezone: 'UTC', maxBlocksPerDay: 4 }, NOW_ISO);
@@ -88,7 +104,16 @@ describe('probability initial report', () => {
     const goalId = base.goalExecutionContract?.goalId;
     const cycleId = base.activeCycleId;
     base.goalWorkById = {
-      [goalId]: [{ workItemId: 'work-2', blocksRemaining: 10, category: 'Focus', focusMode: 'deep', energyCost: 'low', producesOutput: true }]
+      [goalId]: [
+        {
+          workItemId: 'work-2',
+          blocksRemaining: 10,
+          category: 'Focus',
+          focusMode: 'deep',
+          energyCost: 'low',
+          producesOutput: true,
+        },
+      ],
     };
     base.cyclesById[cycleId].goalPlan = {
       planProof: {
@@ -101,10 +126,10 @@ describe('probability initial report', () => {
         slackRatio: 0.5,
         intensityRatio: 0.2,
         feasibilityStatus: 'FEASIBLE',
-        feasibilityReasons: []
+        feasibilityReasons: [],
       },
       scheduleBlocks: [],
-      generatedAtISO: NOW_ISO
+      generatedAtISO: NOW_ISO,
     };
 
     const result = scoreGoalSuccessProbability(goalId, base, { timezone: 'UTC', maxBlocksPerDay: 4 }, NOW_ISO);

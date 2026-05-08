@@ -5,12 +5,12 @@ export const UnknownPolicy = {
   includeInOverall: true,
   includeInPracticeLoad: false,
   includeInDrift: false,
-  label: 'Unclassified'
+  label: 'Unclassified',
 };
 
 export const PlanSource = {
   SCHEDULED: 'scheduled',
-  TARGETS: 'targets'
+  TARGETS: 'targets',
 };
 
 // Drift contract:

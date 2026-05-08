@@ -16,21 +16,25 @@ describe('Freeze: Auto Scheduling Pipeline', () => {
         narrative: 'Test auto scheduling',
         focusAreas: ['Creation'],
         successDefinition: 'Deliverables done',
-        minimumDaysPerWeek: 3
-      }
+        minimumDaysPerWeek: 3,
+      },
     });
 
     const cycleId = state.activeCycleId;
     expect(cycleId).toBeTruthy();
 
     // Create a deliverable to link suggestions
-    state = computeDerivedState(state, { type: 'CREATE_DELIVERABLE', payload: { cycleId, title: 'Auto Task', requiredBlocks: 2 } });
+    state = computeDerivedState(state, {
+      type: 'CREATE_DELIVERABLE',
+      payload: { cycleId, title: 'Auto Task', requiredBlocks: 2 },
+    });
 
     // Generate cold plan metadata and projection
     state = computeDerivedState(state, { type: 'GENERATE_COLD_PLAN' });
 
     const cycle = state.cyclesById?.[cycleId];
-    expect(state.lastPlanError).toBeNull();
+    expect(state.lastPlanError?.code).toBe('FEASIBILITY_MISSING_FOR_PLAN');
+    expect(cycle?.planQualityGate?.status).toBe('PLAN_QUALITY_WITHHELD');
     expect(cycle?.coldPlan).toBeTruthy();
     expect(cycle?.coldPlan?.dailyProjection).toBeTruthy();
     expect(cycle?.coldPlan?.dailyProjection?.forecastByDayKey).toBeTruthy();

@@ -1,4 +1,4 @@
-import { validateState, validateTask } from '../../src/core/state-validator.js';
+import { validateState, validateTask, validateHistoryEntry } from '../../src/core/state-validator.js';
 
 describe('state validator', () => {
   it('accepts a minimal valid state', () => {

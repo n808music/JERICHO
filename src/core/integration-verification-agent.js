@@ -1,3 +1,5 @@
+import { validateMaterializedBlockDependencies } from './schedule-dependency-enforcement.js';
+
 /**
  * Integration Verification Agent
  *
@@ -660,8 +662,7 @@ function validateScheduleProposal(proposal) {
 
 function checkDependencyViolations(proposal) {
   if (!proposal || !proposal.proposedBlocks) return false;
-  // Simplified: assume no violations for now
-  return false;
+  return validateMaterializedBlockDependencies(proposal.proposedBlocks).length > 0;
 }
 
 function validateCommittedBlocks(committed, proposal) {

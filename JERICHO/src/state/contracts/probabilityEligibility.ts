@@ -20,12 +20,20 @@ export function deriveProbabilityStatus({
   nowISO,
   executionEventCount,
   contracts,
-  executionEvents = []
+  executionEvents = [],
 }: {
   goalId: string;
   nowISO: string;
   executionEventCount: number;
-  contracts: Array<{ goalId: string; contractId: string; version: number; activeFromISO?: string; activeUntilISO?: string; scope: any; governance: any }>;
+  contracts: Array<{
+    goalId: string;
+    contractId: string;
+    version: number;
+    activeFromISO?: string;
+    activeUntilISO?: string;
+    scope: any;
+    governance: any;
+  }>;
   executionEvents?: Array<{ dateISO?: string; completed?: boolean }>;
 }): ProbabilityEligibilityResult {
   const evidenceSummary = buildEvidenceSummary(executionEvents);
@@ -37,26 +45,26 @@ export function deriveProbabilityStatus({
       reasons: [resolution.reasonCode],
       contractId: null,
       requiredEvents,
-      evidenceSummary
+      evidenceSummary,
     };
   }
 
   const gate = authorizeProbability(resolution.contract as any, {
     nowISO,
-    executionEventCount
+    executionEventCount,
   });
   if (!gate.allowed) {
     const status = gate.reasons.includes('inactive')
       ? 'disabled'
       : gate.reasons.includes('insufficient_evidence')
-      ? 'insufficient_evidence'
-      : 'disabled';
+        ? 'insufficient_evidence'
+        : 'disabled';
     return {
       status,
       reasons: gate.reasons,
       contractId: resolution.contract.contractId,
       requiredEvents,
-      evidenceSummary
+      evidenceSummary,
     };
   }
 
@@ -65,7 +73,7 @@ export function deriveProbabilityStatus({
     reasons: [],
     contractId: resolution.contract.contractId,
     requiredEvents,
-    evidenceSummary
+    evidenceSummary,
   };
 }
 
@@ -76,6 +84,6 @@ function buildEvidenceSummary(events: Array<{ dateISO?: string; completed?: bool
   return {
     totalEvents,
     completedCount,
-    daysCovered: dayKeys.size
+    daysCovered: dayKeys.size,
   };
 }

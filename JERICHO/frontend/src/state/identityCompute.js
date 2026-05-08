@@ -2,7 +2,17 @@ import structuredClone from '@ungap/structured-clone';
 import { PRACTICE_KEYS } from './metricsPolicy.js';
 import { normalizeDomain } from './domain.js';
 import { normalizeBlocksDomain } from './normalizeBlock.js';
-import { addDays, dayKeyFromDate, dayKeyFromISO, dayKeyFromParts, nowDayKey, buildLocalStartISO, assertValidISO, isValidISO, APP_TIME_ZONE } from './time/time.ts';
+import {
+  addDays,
+  dayKeyFromDate,
+  dayKeyFromISO,
+  dayKeyFromParts,
+  nowDayKey,
+  buildLocalStartISO,
+  assertValidISO,
+  isValidISO,
+  APP_TIME_ZONE,
+} from './time/time.ts';
 import { buildDefaultStrategy, generateColdPlan, generateDailyProjection } from './coldPlan.ts';
 import { compileGoalEquationPlan } from './goalEquation.ts';
 import { admitGoal, isAdmitted } from './goalAdmission.ts';
@@ -14,7 +24,11 @@ import { generateAutoDeliverables, debugAutoDeliverablesGeneration } from '../co
 import { getDeadlineDayKey } from '../core/deadline.ts';
 import { generateDeterministicPlan } from '../core/deterministicPlanGenerator.ts';
 import { canEmitExecutionEvent } from './engine/executionContract.ts';
-import { appendExecutionEvent, buildExecutionEventFromBlock, materializeBlocksFromEvents } from './engine/todayAuthority.ts';
+import {
+  appendExecutionEvent,
+  buildExecutionEventFromBlock,
+  materializeBlocksFromEvents,
+} from './engine/todayAuthority.ts';
 import { derivePlanProof } from './engine/planProof.ts';
 import { resolveActiveContract } from './contracts/goalContract.resolve.ts';
 import { authorizeSuggestion } from './contracts/goalContract.validate.ts';
@@ -36,7 +50,7 @@ import {
   computeReadyActions,
   getActionBlockers,
   hasUnblockAction,
-  validateActionGraph
+  validateActionGraph,
 } from '../domain/actions/actionSelectors.ts';
 
 /**
@@ -87,9 +101,7 @@ export function computeDerivedState(state, action) {
       if (withoutPractice.practice) delete withoutPractice.practice;
       next.lenses = { ...next.lenses, ...withoutPractice };
       ensureCycleStructures(next);
-      const patternTargets = sanitizePatternTargets(
-        (next.lenses.pattern && next.lenses.pattern.dailyTargets) || []
-      );
+      const patternTargets = sanitizePatternTargets((next.lenses.pattern && next.lenses.pattern.dailyTargets) || []);
       if (next.activeCycleId && next.cyclesById?.[next.activeCycleId]) {
         next.cyclesById[next.activeCycleId].pattern = { dailyTargets: patternTargets };
         next.cyclesById[next.activeCycleId].aim = { text: next.lenses.aim?.description || '' };
@@ -121,13 +133,17 @@ export function computeDerivedState(state, action) {
         type: action.mode || 'REBALANCE_TODAY',
         timestamp: new Date().toISOString(),
         beforeSummary,
-        afterSummary: next.today?.summaryLine || ''
+        afterSummary: next.today?.summaryLine || '',
       };
       break;
     }
     case 'COMPLETE_ONBOARDING':
       applyOnboardingInputs(next, action.onboarding);
-      next.meta = { ...(next.meta || {}), onboardingComplete: true, scenarioLabel: action.onboarding?.scenarioLabel || next.meta?.scenarioLabel || '' };
+      next.meta = {
+        ...(next.meta || {}),
+        onboardingComplete: true,
+        scenarioLabel: action.onboarding?.scenarioLabel || next.meta?.scenarioLabel || '',
+      };
       break;
     case 'START_NEW_CYCLE':
       startNewCycle(next, action.payload);
@@ -194,7 +210,9 @@ export function computeDerivedState(state, action) {
       const baseBlocks = next.today?.blocks || [];
       baseBlocks.forEach((block) => {
         if (!block?.id) return;
-        const existingCreate = (next.executionEvents || []).some((event) => event.blockId === block.id && event.kind === 'create');
+        const existingCreate = (next.executionEvents || []).some(
+          (event) => event.blockId === block.id && event.kind === 'create'
+        );
         if (existingCreate) return;
         const event = buildExecutionEventFromBlock(block, {
           id: `base-create-${block.id}`,
@@ -203,7 +221,7 @@ export function computeDerivedState(state, action) {
           dateISO: dayKeyFromISO(block.start || block.date, timezone) || currentDayKey,
           startISO: block.start,
           endISO: block.end,
-          status: block.status || 'in_progress'
+          status: block.status || 'in_progress',
         });
         if (canEmitExecutionEvent(next.executionEvents || [], event)) {
           appendExecutionEvent(next, event);
@@ -214,7 +232,7 @@ export function computeDerivedState(state, action) {
         const { eventsEmitted, lastRolloverDayISO } = rolloverAtMidnight({
           state: next,
           nowISO,
-          timezone
+          timezone,
         });
         if (eventsEmitted?.length) {
           eventsEmitted.forEach((event) => appendExecutionEvent(next, event));
@@ -226,7 +244,7 @@ export function computeDerivedState(state, action) {
         ...next.appTime,
         nowISO,
         timeZone: timezone,
-        activeDayKey: currentDayKey || next.appTime?.activeDayKey
+        activeDayKey: currentDayKey || next.appTime?.activeDayKey,
       };
       if (!next.today) next.today = {};
       next.today.date = currentDayKey;
@@ -288,14 +306,14 @@ export function computeDerivedState(state, action) {
       if (!cycle) {
         next.lastPlanError = {
           code: 'CYCLE_NOT_FOUND',
-          reason: 'Active cycle missing for commit.'
+          reason: 'Active cycle missing for commit.',
         };
         break;
       }
       if (items.length === 0) {
         next.lastPlanError = {
           code: 'NO_PROPOSED_BLOCKS',
-          reason: 'No preview items to commit.'
+          reason: 'No preview items to commit.',
         };
         break;
       }
@@ -306,7 +324,7 @@ export function computeDerivedState(state, action) {
         if (requiresActionContext && (!item?.actionId || !item?.title || !item?.detail)) {
           next.lastPlanError = {
             code: 'MISSING_ACTION_CONTEXT',
-            reason: `Automated preview item ${index + 1} missing action context.`
+            reason: `Automated preview item ${index + 1} missing action context.`,
           };
           if (process.env.NODE_ENV === 'development') {
             throw new Error(
@@ -316,12 +334,16 @@ export function computeDerivedState(state, action) {
           break;
         }
         const startISO = item.startISO || (item.dayKey ? `${item.dayKey}T09:00:00.000Z` : null);
-        const minutes = Number.isFinite(item.minutes) ? item.minutes : Number.isFinite(item.durationMin) ? item.durationMin : 30;
+        const minutes = Number.isFinite(item.minutes)
+          ? item.minutes
+          : Number.isFinite(item.durationMin)
+            ? item.durationMin
+            : 30;
         const title = item.title?.trim() ? item.title.trim() : `Planned work ${index + 1}`;
         if (!startISO || !title) {
           next.lastPlanError = {
             code: 'INVALID_PREVIEW_ITEM',
-            reason: `Preview item ${index + 1} missing required metadata.`
+            reason: `Preview item ${index + 1} missing required metadata.`,
           };
           break;
         }
@@ -332,7 +354,11 @@ export function computeDerivedState(state, action) {
       for (let index = 0; index < items.length; index += 1) {
         const item = items[index];
         const startISO = item.startISO || (item.dayKey ? `${item.dayKey}T09:00:00.000Z` : null);
-        const minutes = Number.isFinite(item.minutes) ? item.minutes : Number.isFinite(item.durationMin) ? item.durationMin : 30;
+        const minutes = Number.isFinite(item.minutes)
+          ? item.minutes
+          : Number.isFinite(item.durationMin)
+            ? item.durationMin
+            : 30;
         const title = item.title?.trim() ? item.title.trim() : `Planned work ${index + 1}`;
         createBlock(next, {
           cycleId,
@@ -347,7 +373,7 @@ export function computeDerivedState(state, action) {
           deliverableId: item?.payload?.deliverableId ?? null,
           criterionId: item?.payload?.criterionId ?? null,
           origin: 'preview_commit',
-          surface: 'today'
+          surface: 'today',
         });
         if (process.env.NODE_ENV !== 'production') {
           const event = next.executionEvents?.[next.executionEvents.length - 1];
@@ -369,7 +395,7 @@ export function computeDerivedState(state, action) {
       if (!cycle) {
         next.lastPlanError = {
           code: 'CYCLE_NOT_FOUND',
-          reason: 'Active cycle missing for rebuild.'
+          reason: 'Active cycle missing for rebuild.',
         };
         break;
       }
@@ -387,7 +413,7 @@ export function computeDerivedState(state, action) {
       purgeContextlessForecastBlocks(next, action.payload);
       break;
     }
-  case 'SET_STRATEGY':
+    case 'SET_STRATEGY':
       setStrategy(next, action.payload);
       break;
     case 'GENERATE_COLD_PLAN':
@@ -437,7 +463,7 @@ export function computeDerivedState(state, action) {
   }
   next.stability = {
     headline: buildStabilityHeadline(next.vector, next.currentWeek),
-    actionLine: buildStabilityAction(next.vector)
+    actionLine: buildStabilityAction(next.vector),
   };
   const governed = computeNextSuggestion(next);
   next.nextSuggestion = governed.suggestion;
@@ -452,7 +478,7 @@ export function computeDerivedState(state, action) {
     next.planPreview = computePlanPreview({
       suggestedBlocks: next.suggestedBlocks,
       planDraft: next.planDraft,
-      contract: next.goalExecutionContract
+      contract: next.goalExecutionContract,
     });
   }
   next.correctionSignals = computeCorrectionSignals(next, 14);
@@ -478,7 +504,8 @@ export function hydrateActiveCycleState(state) {
   state.suggestionEvents = cycle.suggestionEvents || [];
   state.suggestedBlocks = cycle.suggestedBlocks || [];
   state.planDraft = cycle.planDraft || null;
-  state.planCalibration = cycle.calibration || state.planCalibration || { confidence: 0, assumptions: [], missingInfo: [] };
+  state.planCalibration = cycle.calibration ||
+    state.planCalibration || { confidence: 0, assumptions: [], missingInfo: [] };
   state.planPreview = cycle.planPreview || null;
   state.correctionSignals = cycle.correctionSignals || null;
   state.goalExecutionContract = cycle.contract || state.goalExecutionContract || null;
@@ -489,7 +516,7 @@ export function hydrateActiveCycleState(state) {
   state.actionsByCycleId[cycle.id] = {
     cycleId: cycle.id,
     goalId: cycle.goalContract?.goalId || state.goalExecutionContract?.goalId || null,
-    actions: cycleActions
+    actions: cycleActions,
   };
   if (!cycleActions.length) {
     syncCycleActions(state);
@@ -518,13 +545,7 @@ export function persistActiveCycleState(state) {
 }
 
 function getActiveCycleId(state) {
-  return (
-    state.activeCycleId ||
-    state.cycles?.activeId ||
-    state.cycle?.id ||
-    state.activeCycle?.id ||
-    null
-  );
+  return state.activeCycleId || state.cycles?.activeId || state.cycle?.id || state.activeCycle?.id || null;
 }
 
 function enforceActiveCycleTodayBlocks(state, hadCycleRecords = false) {
@@ -573,7 +594,7 @@ function applySuggestionGovernance(state, previousSuggestion, governed) {
     lastSuggestedAtISO: null,
     lastSuggestedAtISOByGoal: {},
     dailyCountByGoal: {},
-    denials: []
+    denials: [],
   };
   state.suggestionEligibility = governed.eligibilityByGoal || {};
 
@@ -601,7 +622,7 @@ function applySuggestionGovernance(state, previousSuggestion, governed) {
     count: history.dayKey === nowISO ? history.count : 0,
     lastSuggestedAtISO: history.lastSuggestedAtISO,
     lastSuggestedAtISOByGoal: perGoalLast,
-    dailyCountByGoal: perGoalDaily
+    dailyCountByGoal: perGoalDaily,
   };
   if (governed.denials?.length) {
     const denials = [...(history.denials || [])];
@@ -702,7 +723,7 @@ function syncCycleActions(state) {
     cycleId,
     goal,
     goalId,
-    existingActions: showWriting ? [] : existingActions
+    existingActions: showWriting ? [] : existingActions,
   });
 
   const byActionId = new Map();
@@ -729,8 +750,8 @@ function syncCycleActions(state) {
       const status = completedActionIds.has(action.id)
         ? 'done'
         : previousStatus === 'done'
-        ? 'done'
-        : normalizeActionStatusFromBlocks(linkedBlocks);
+          ? 'done'
+          : normalizeActionStatusFromBlocks(linkedBlocks);
       return { ...action, status };
     })
     .sort((a, b) => {
@@ -751,7 +772,7 @@ function syncCycleActions(state) {
     cycleId,
     previousActionCount,
     nextActionCount: synced.length,
-    force: false
+    force: false,
   });
 }
 
@@ -766,7 +787,11 @@ function generateCycleActions(state, payload = {}) {
   if (!goal || !goalId || !goalContext?.goalText) return;
   const showWriting = isShowWritingCycle(goalContext, goal);
   const previousActionCount = (state.actionsByCycleId?.[cycleId]?.actions || cycle.actions || []).length;
-  const existing = showWriting ? [] : payload?.force ? [] : state.actionsByCycleId?.[cycleId]?.actions || cycle.actions || [];
+  const existing = showWriting
+    ? []
+    : payload?.force
+      ? []
+      : state.actionsByCycleId?.[cycleId]?.actions || cycle.actions || [];
   const nextActions = ensureActionsForCycle({ cycleId, goal, goalId, existingActions: existing });
 
   const validation = applyActionGraphValidation(state, cycleId, nextActions);
@@ -781,7 +806,7 @@ function generateCycleActions(state, payload = {}) {
     cycleId,
     previousActionCount,
     nextActionCount: nextActions.length,
-    force: Boolean(payload?.force)
+    force: Boolean(payload?.force),
   });
 }
 
@@ -793,13 +818,13 @@ function applyActionGraphValidation(state, cycleId, actions = []) {
       code: 'ACTION_GRAPH_INVALID',
       reason: reasons[0] || 'Action dependency graph is invalid.',
       reasons,
-      cycleId
+      cycleId,
     };
     if (process.env.NODE_ENV !== 'production') {
       console.warn('ACTION_GRAPH_INVALID', {
         cycleId,
         errorCount: validation.errors.length,
-        errors: validation.errors
+        errors: validation.errors,
       });
     }
     return validation;
@@ -825,7 +850,7 @@ function getInvalidActionGraphDetails(state, cycleId) {
   return {
     cycleId,
     actions,
-    errors: validation.errors
+    errors: validation.errors,
   };
 }
 
@@ -838,14 +863,14 @@ function blockSchedulingOnInvalidActionGraph(state, cycleId, actionType) {
     reason: reasons[0] || `Action graph invalid during ${actionType}.`,
     reasons,
     cycleId: details.cycleId,
-    actionType
+    actionType,
   };
   if (process.env.NODE_ENV !== 'production') {
     console.warn('ACTION_GRAPH_INVALID gate', {
       cycleId: details.cycleId,
       actionType,
       errorCount: details.errors.length,
-      errors: details.errors
+      errors: details.errors,
     });
   }
   return true;
@@ -856,7 +881,7 @@ function createUnblockAction(state, payload = {}) {
   if (!cycleId) {
     state.lastPlanError = {
       code: 'UNBLOCK_NOT_ALLOWED',
-      reason: 'Cannot create unblock action without an active cycle.'
+      reason: 'Cannot create unblock action without an active cycle.',
     };
     return;
   }
@@ -868,7 +893,7 @@ function createUnblockAction(state, payload = {}) {
   if (!cycle) {
     state.lastPlanError = {
       code: 'UNBLOCK_NOT_ALLOWED',
-      reason: 'Cannot create unblock action: cycle not found.'
+      reason: 'Cannot create unblock action: cycle not found.',
     };
     return;
   }
@@ -882,13 +907,12 @@ function createUnblockAction(state, payload = {}) {
   if (!hasActionPlan || readyActions.length > 0 || routeSlots <= 0) {
     state.lastPlanError = {
       code: 'UNBLOCK_NOT_ALLOWED',
-      reason:
-        !hasActionPlan
-          ? 'Cannot create unblock action without an action plan.'
-          : readyActions.length > 0
+      reason: !hasActionPlan
+        ? 'Cannot create unblock action without an action plan.'
+        : readyActions.length > 0
           ? 'Unblock action is only allowed when no actions are dependency-ready.'
           : 'Unblock action is only allowed when forecast route slots exist.',
-      cycleId
+      cycleId,
     };
     return;
   }
@@ -897,7 +921,7 @@ function createUnblockAction(state, payload = {}) {
     state.lastPlanError = {
       code: 'UNBLOCK_ALREADY_EXISTS',
       reason: 'An unblock action already exists for this cycle.',
-      cycleId
+      cycleId,
     };
     return;
   }
@@ -907,17 +931,18 @@ function createUnblockAction(state, payload = {}) {
     state.lastPlanError = {
       code: 'UNBLOCK_NO_BLOCKERS',
       reason: 'No blockers found; unblock action was not created.',
-      cycleId
+      cycleId,
     };
     return;
   }
 
-  const goalId = workspace?.goalId || cycle.goalContract?.goalId || state.goalExecutionContract?.goalId || state.activeGoalId;
+  const goalId =
+    workspace?.goalId || cycle.goalContract?.goalId || state.goalExecutionContract?.goalId || state.activeGoalId;
   if (!goalId) {
     state.lastPlanError = {
       code: 'UNBLOCK_NOT_ALLOWED',
       reason: 'Cannot create unblock action without a goal ID.',
-      cycleId
+      cycleId,
     };
     return;
   }
@@ -984,13 +1009,13 @@ function updateGoalAchievementStatus(state, cycleId) {
     if (cycle.goalCompletion.status !== 'ACHIEVED') {
       cycle.goalCompletion = {
         status: 'ACHIEVED',
-        achievedAtISO: nowISO
+        achievedAtISO: nowISO,
       };
     }
   } else if (cycle.goalCompletion.status !== 'INCOMPLETE') {
     cycle.goalCompletion = {
       status: 'INCOMPLETE',
-      achievedAtISO: null
+      achievedAtISO: null,
     };
   }
   state.cyclesById[cycleId] = cycle;
@@ -1015,7 +1040,7 @@ function syncCriteriaCompletionFromEvents(state) {
           ...criterion,
           isDone,
           doneAtISO: isDone ? criterion.doneAtISO || state.appTime?.nowISO || new Date().toISOString() : null,
-          doneAtDayKey: isDone ? criterion.doneAtDayKey || state.appTime?.activeDayKey || nowDayKey() : null
+          doneAtDayKey: isDone ? criterion.doneAtDayKey || state.appTime?.activeDayKey || nowDayKey() : null,
         };
       });
       return { ...deliverable, criteria: nextCriteria };
@@ -1037,7 +1062,7 @@ function getDeliverableWorkspace(state, cycleId) {
       cycleId,
       deliverables: [],
       suggestionLinks: {},
-      lastUpdatedAtISO: nowISO
+      lastUpdatedAtISO: nowISO,
     };
   }
   const workspace = state.deliverablesByCycleId[cycleId];
@@ -1073,7 +1098,7 @@ function flagDraftBlocks(state) {
   if (!state.today?.blocks?.length) return;
   state.today.blocks = state.today.blocks.map((block) => ({
     ...block,
-    isDraft: block.origin === 'draft' ? true : block.isDraft || false
+    isDraft: block.origin === 'draft' ? true : block.isDraft || false,
   }));
 }
 
@@ -1089,7 +1114,7 @@ function mergePriorTodayBlocks(state, previousBlocks = []) {
     .filter((block) => block?.id && !existingIds.has(block.id) && !deletedIds.has(block.id))
     .map((block) => ({
       ...block,
-      placementState: block.placementState === 'COMMITTED' ? 'in_progress' : block.placementState || 'in_progress'
+      placementState: block.placementState === 'COMMITTED' ? 'in_progress' : block.placementState || 'in_progress',
     }));
   if (!missing.length) return;
   state.today.blocks = [...missing, ...(state.today?.blocks || [])];
@@ -1105,7 +1130,7 @@ function syncPlacementStateFromEvents(state) {
   });
   state.today.blocks = state.today.blocks.map((block) => ({
     ...block,
-    placementState: placementStateByBlock.get(block.id) || block.placementState || 'in_progress'
+    placementState: placementStateByBlock.get(block.id) || block.placementState || 'in_progress',
   }));
 }
 
@@ -1121,7 +1146,8 @@ function setStrategy(state, payload = {}) {
   if (!cycle) return;
   const timeZone = state.appTime?.timeZone || payload?.constraints?.tz;
   const goalId = cycle.goalContract?.goalId || cycle.contract?.goalId || state.activeGoalId || 'goal';
-  const deadlineISO = payload.deadlineISO || cycle.goalContract?.deadlineISO || cycle.definiteGoal?.deadlineDayKey || '';
+  const deadlineISO =
+    payload.deadlineISO || cycle.goalContract?.deadlineISO || cycle.definiteGoal?.deadlineDayKey || '';
   const deliverables = normalizeDeliverables(payload.deliverables || cycle.strategy?.deliverables || []);
   const base = cycle.strategy || buildDefaultStrategy({ goalId, deadlineISO, timeZone, deliverables });
   const next = {
@@ -1132,9 +1158,9 @@ function setStrategy(state, payload = {}) {
     constraints: {
       ...(base.constraints || {}),
       ...(payload.constraints || {}),
-      tz: timeZone || base.constraints?.tz
+      tz: timeZone || base.constraints?.tz,
     },
-    milestoneProfile: payload.milestoneProfile || base.milestoneProfile || null
+    milestoneProfile: payload.milestoneProfile || base.milestoneProfile || null,
   };
   next.assumptionsHash = buildAssumptionsHash(next);
   cycle.strategy = next;
@@ -1159,8 +1185,8 @@ function adaptDeterministicResultToColdPlan(result, strategy, nowISO) {
       infeasible: {
         reason: result.error?.message || 'Plan generation is infeasible',
         requiredCapacityPerWeek: 0,
-        availableCapacityPerWeek: 0
-      }
+        availableCapacityPerWeek: 0,
+      },
     };
   }
 
@@ -1170,11 +1196,11 @@ function adaptDeterministicResultToColdPlan(result, strategy, nowISO) {
     if (!forecastByDayKey[block.dayKey]) {
       forecastByDayKey[block.dayKey] = {
         totalBlocks: 0,
-        byDeliverable: {}
+        byDeliverable: {},
       };
     }
     forecastByDayKey[block.dayKey].totalBlocks += 1;
-    
+
     if (!forecastByDayKey[block.dayKey].byDeliverable[block.deliverableId]) {
       forecastByDayKey[block.dayKey].byDeliverable[block.deliverableId] = 0;
     }
@@ -1188,7 +1214,7 @@ function adaptDeterministicResultToColdPlan(result, strategy, nowISO) {
     assumptionsHash: strategy.assumptionsHash,
     createdAtISO: nowISO,
     forecastByDayKey,
-    infeasible: undefined
+    infeasible: undefined,
   };
 }
 
@@ -1198,11 +1224,11 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
     state.lastPlanError = {
       code: 'NO_ACTIVE_CYCLE',
       reasons: ['No active cycle found'],
-      timestamp: state.appTime?.nowISO || new Date().toISOString()
+      timestamp: state.appTime?.nowISO || new Date().toISOString(),
     };
     return;
   }
-  
+
   const timeZone = state.appTime?.timeZone || cycle.strategy?.constraints?.tz;
   const nowISO = state.appTime?.nowISO || '';
   const contractStartRaw =
@@ -1216,26 +1242,32 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
     typeof contractStartRaw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(contractStartRaw)
       ? contractStartRaw
       : contractStartRaw
-      ? dayKeyFromISO(contractStartRaw, timeZone)
-      : null;
+        ? dayKeyFromISO(contractStartRaw, timeZone)
+        : null;
   const startDayKey = resolvedContractStart || cycle.startedAtDayKey || dayKeyFromISO(nowISO, timeZone);
-  
+
   if (!cycle.strategy) {
     const goalId = cycle.goalContract?.goalId || cycle.contract?.goalId || state.activeGoalId || 'goal';
     const deadlineDayKey = getDeadlineDayKey(cycle.goalContract, timeZone);
     const deliverables = normalizeDeliverables(cycle.strategy?.deliverables || []);
-    cycle.strategy = buildDefaultStrategy({ goalId, deadlineISO: deadlineDayKey ? `${deadlineDayKey}T00:00:00Z` : '', timeZone, deliverables });
+    cycle.strategy = buildDefaultStrategy({
+      goalId,
+      deadlineISO: deadlineDayKey ? `${deadlineDayKey}T00:00:00Z` : '',
+      timeZone,
+      deliverables,
+    });
   }
-  
+
   // Extract deadline consistently from goalContract using canonical helper
-  const deadlineKey = getDeadlineDayKey(cycle.goalContract, timeZone) || 
-                       cycle.definiteGoal?.deadlineDayKey || 
-                       cycle.strategy?.deadlineISO?.slice(0, 10);
-  
+  const deadlineKey =
+    getDeadlineDayKey(cycle.goalContract, timeZone) ||
+    cycle.definiteGoal?.deadlineDayKey ||
+    cycle.strategy?.deadlineISO?.slice(0, 10);
+
   // STEP 3: Auto-seed deliverables if they're empty instead of failing
   let deliverables = normalizeDeliverables(cycle.strategy?.deliverables || []);
   let totalRequired = deliverables.reduce((sum, d) => sum + d.requiredBlocks, 0);
-  
+
   // If no deliverables in strategy, check workspace (set at admission time)
   if (deliverables.length === 0 || totalRequired === 0) {
     const workspace = getDeliverableWorkspace(state, cycle.id);
@@ -1260,7 +1292,7 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
           console.warn('[PLAN_GEN] mechanism-class generation failed, trying Phase 1 fallback', err?.message);
         }
       }
-      
+
       // FALLBACK: If mechanism-class didn't work, use Phase 1 approach
       if (!deliverables || deliverables.length === 0) {
         const autoResult = buildAutoDeliverablesFromGoalContract(cycle.goalContract, startDayKey, timeZone);
@@ -1268,12 +1300,12 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
         totalRequired = deliverables.reduce((sum, d) => sum + d.requiredBlocks, 0);
         autoStrategy = { method: 'phase1-autostrategy', ...autoResult };
       }
-      
+
       // Update strategy with auto-seeded deliverables
       if (deliverables.length > 0) {
         cycle.strategy.deliverables = deliverables;
         cycle.strategy.assumptionsHash = buildAssumptionsHash(cycle.strategy);
-        
+
         // Persist to workspace
         const newWorkspace = getDeliverableWorkspace(state, cycle.id);
         if (newWorkspace && (!newWorkspace.deliverables || newWorkspace.deliverables.length === 0)) {
@@ -1286,19 +1318,21 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
       }
     }
   }
-  
+
   // PHASE 1A: Quick diagnostic checks for common failure modes (post-admission)
   const diagnosticReasons = [];
-  
+
   // Check 1: Deliverables (after auto-seed attempt)
   if (deliverables.length === 0 || totalRequired === 0) {
-    diagnosticReasons.push('NO_DELIVERABLES: Could not generate deliverables; deadline or execution constraints may be infeasible');
+    diagnosticReasons.push(
+      'NO_DELIVERABLES: Could not generate deliverables; deadline or execution constraints may be infeasible'
+    );
   }
-  
+
   // NOTE: Deadline format validation is ENFORCED AT ADMISSION (Phase 3)
   // Post-admission, deadlineKey is guaranteed valid YYYY-MM-DD format
   // Remove this check to prevent false post-admission errors
-  
+
   // If we have critical diagnostics, set error and return early
   if (diagnosticReasons.length > 0) {
     state.lastPlanError = {
@@ -1309,36 +1343,37 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
         totalRequired,
         startDayKey,
         deadlineKey,
-        timeZone
+        timeZone,
       },
-      timestamp: nowISO || new Date().toISOString()
+      timestamp: nowISO || new Date().toISOString(),
     };
     return;
   }
-  
+
   const startISO = buildLocalStartISO(startDayKey, '00:00', timeZone);
-  const deadlineISO = cycle.strategy?.deadlineISO || (deadlineKey ? buildLocalStartISO(deadlineKey, '23:59', timeZone).startISO : '');
+  const deadlineISO =
+    cycle.strategy?.deadlineISO || (deadlineKey ? buildLocalStartISO(deadlineKey, '23:59', timeZone).startISO : '');
   const strategy = {
     ...cycle.strategy,
     deadlineISO,
     constraints: {
       ...(cycle.strategy.constraints || {}),
-      tz: timeZone || cycle.strategy.constraints?.tz
-    }
+      tz: timeZone || cycle.strategy.constraints?.tz,
+    },
   };
   strategy.assumptionsHash = buildAssumptionsHash(strategy);
   cycle.strategy = strategy;
   const completedCountToDate = countCompletedBlocks(cycle.executionEvents || [], state.today?.date);
-  
+
   // PHASE 3: Use deterministic generator if contract specifies GENERIC_DETERMINISTIC
   let nextPlan;
   const mechanismClass = cycle.goalContract?.planGenerationMechanismClass || 'GENERIC_DETERMINISTIC';
-  
+
   if (mechanismClass === 'GENERIC_DETERMINISTIC') {
     // Use Phase 3 deterministic generator
     const nowDayKey = dayKeyFromISO(nowISO, timeZone);
     const execMode = rebaseMode === 'REMAINING_FROM_TODAY' ? 'REBASE_FROM_TODAY' : 'REGENERATE';
-    
+
     const deterministicResult = generateDeterministicPlan({
       contractDeadlineDayKey: deadlineKey,
       contractStartDayKey: startDayKey,
@@ -1349,11 +1384,11 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
         maxBlocksPerWeek: cycle.strategy?.constraints?.maxBlocksPerWeek || 16,
         preferredDaysOfWeek: cycle.strategy?.constraints?.preferredDaysOfWeek,
         blackoutDayKeys: cycle.strategy?.constraints?.blackoutDayKeys,
-        timezone: timeZone
+        timezone: timeZone,
       },
-      mode: execMode
+      mode: execMode,
     });
-    
+
     nextPlan = adaptDeterministicResultToColdPlan(deterministicResult, strategy, nowISO);
   } else {
     // Fall back to v1 generator for non-GENERIC_DETERMINISTIC (placeholder for future)
@@ -1362,10 +1397,10 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
       nowISO,
       strategy,
       completedCountToDate,
-      rebaseMode
+      rebaseMode,
     });
   }
-  
+
   const shouldVersion =
     !cycle.coldPlan ||
     cycle.coldPlan.assumptionsHash !== nextPlan.assumptionsHash ||
@@ -1378,7 +1413,7 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
       version,
       strategyId: nextPlan.strategyId,
       assumptionsHash: nextPlan.assumptionsHash,
-      createdAtISO: nextPlan.createdAtISO
+      createdAtISO: nextPlan.createdAtISO,
     });
   }
 
@@ -1398,9 +1433,9 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
       details: {
         totalRequired,
         constraints: cycle.strategy?.constraints,
-        infeasibleDetails: nextPlan.infeasible
+        infeasibleDetails: nextPlan.infeasible,
       },
-      timestamp: nowISO || new Date().toISOString()
+      timestamp: nowISO || new Date().toISOString(),
     };
   } else {
     // Clear error if plan succeeded
@@ -1418,7 +1453,10 @@ function refreshColdPlanDailyProjection(state) {
   if (!timeZone || !nowISO) return;
   const asOfDayKey = dayKeyFromISO(nowISO, timeZone);
   const existing = cycle.coldPlan.dailyProjection;
-  if (existing?.asOfDayKey === asOfDayKey && existing?.derivedFrom?.assumptionsHash === cycle.strategy.assumptionsHash) {
+  if (
+    existing?.asOfDayKey === asOfDayKey &&
+    existing?.derivedFrom?.assumptionsHash === cycle.strategy.assumptionsHash
+  ) {
     return;
   }
   if (cycle.strategy.assumptionsHash !== cycle.coldPlan.assumptionsHash) {
@@ -1430,14 +1468,14 @@ function refreshColdPlanDailyProjection(state) {
       derivedFrom: {
         strategyId: cycle.strategy.strategyId,
         assumptionsHash: cycle.strategy.assumptionsHash,
-        coldPlanVersion: cycle.coldPlan.version
+        coldPlanVersion: cycle.coldPlan.version,
       },
       forecastByDayKey: {},
       infeasible: {
         reason: 'assumptions_changed',
         requiredCapacityPerWeek: 0,
-        availableCapacityPerWeek: 0
-      }
+        availableCapacityPerWeek: 0,
+      },
     };
     return;
   }
@@ -1446,7 +1484,7 @@ function refreshColdPlanDailyProjection(state) {
     nowISO,
     strategy: cycle.strategy,
     completedCountToDate,
-    coldPlanVersion: cycle.coldPlan.version
+    coldPlanVersion: cycle.coldPlan.version,
   });
 }
 
@@ -1462,7 +1500,7 @@ function sanitizePatternTargets(targets = []) {
     Body: 0,
     Resources: 0,
     Creation: 0,
-    Focus: 0
+    Focus: 0,
   };
   targets.forEach((t) => {
     if (!t?.name) return;
@@ -1492,7 +1530,7 @@ function enforceSafeDefaults(state) {
   state.cycle = Array.isArray(state.cycle) ? state.cycle : [];
   state.cycle = state.cycle.map((day) => ({
     ...day,
-    completionRate: Number.isFinite(day.completionRate) ? day.completionRate : 0
+    completionRate: Number.isFinite(day.completionRate) ? day.completionRate : 0,
   }));
   state.currentWeek = state.currentWeek || { days: [] };
   state.currentWeek.days = Array.isArray(state.currentWeek.days) ? state.currentWeek.days : [];
@@ -1504,12 +1542,12 @@ function enforceSafeDefaults(state) {
     state.currentWeek.metrics.driftLabel || state.vector?.driftLabel || 'contained';
   state.currentWeek.summaryLine = state.currentWeek.summaryLine || buildWeekSummary(state.currentWeek);
   state.stability = state.stability || {};
-  state.stability.headline =
-    state.stability.headline || 'Stability read based on current cycle.';
+  state.stability.headline = state.stability.headline || 'Stability read based on current cycle.';
   state.stability.actionLine =
     state.stability.actionLine || 'Rebalance by adding one underweight practice block before 18:00.';
   if (!state.currentWeek.metrics) state.currentWeek.metrics = {};
-  state.currentWeek.metrics.driftLabel = state.currentWeek.metrics.driftLabel || state.vector?.driftLabel || 'contained';
+  state.currentWeek.metrics.driftLabel =
+    state.currentWeek.metrics.driftLabel || state.vector?.driftLabel || 'contained';
   state.currentWeek.metrics.completionRate = Number.isFinite(state.currentWeek.metrics.completionRate)
     ? state.currentWeek.metrics.completionRate
     : 0;
@@ -1521,7 +1559,7 @@ function enforceSafeDefaults(state) {
       lastSuggestedAtISO: null,
       lastSuggestedAtISOByGoal: {},
       dailyCountByGoal: {},
-      denials: []
+      denials: [],
     };
   }
   if (!state.suggestionEligibility) state.suggestionEligibility = {};
@@ -1551,7 +1589,7 @@ function computeNextSuggestion(state) {
     lastSuggestedAtISO: null,
     lastSuggestedAtISOByGoal: {},
     dailyCountByGoal: {},
-    denials: []
+    denials: [],
   };
   const activeBlocksCount = blocks.filter((b) => b.status !== 'completed').length;
   const executionEventCount = (state.executionEvents || []).length;
@@ -1579,12 +1617,12 @@ function computeNextSuggestion(state) {
       lastSuggestedAtISO,
       suggestionsTodayCount: dailyCount,
       directiveTags: candidate ? [candidate.type] : [],
-      directiveDomain
+      directiveDomain,
     });
     eligibilityByGoal[goalId] = {
       allowed: gate.allowed,
       reasons: gate.reasons,
-      contractId: resolution.contract.contractId
+      contractId: resolution.contract.contractId,
     };
     if (!gate.allowed) {
       denials.push({ goalId, reasons: gate.reasons, atISO: nowTimestampISO });
@@ -1625,7 +1663,7 @@ function applyProbabilityEligibility(state) {
       nowISO,
       executionEventCount: (state.executionEvents || []).length,
       executionEvents: state.executionEvents || [],
-      contracts
+      contracts,
     });
   });
   state.probabilityStatusByGoal = statuses;
@@ -1651,7 +1689,7 @@ function applyProbabilityScoring(state) {
       blackoutDates: state?.constraints?.blackoutDates,
       dailyCapacityOverrides: state?.constraints?.dailyCapacityOverrides,
       calendarCommittedBlocksByDate: state?.constraints?.calendarCommittedBlocksByDate,
-      scoringWindowDays: state?.constraints?.scoringWindowDays
+      scoringWindowDays: state?.constraints?.scoringWindowDays,
     };
     probabilityByGoal[goalId] = scoreGoalSuccessProbability(goalId, state, constraints, nowISO);
   });
@@ -1672,7 +1710,7 @@ function applyFeasibility(state) {
       workableDayPolicy: state?.constraints?.workableDayPolicy,
       blackoutDates: state?.constraints?.blackoutDates,
       dailyCapacityOverrides: state?.constraints?.dailyCapacityOverrides,
-      calendarCommittedBlocksByDate: state?.constraints?.calendarCommittedBlocksByDate
+      calendarCommittedBlocksByDate: state?.constraints?.calendarCommittedBlocksByDate,
     };
     const deadlineISO = resolveGoalDeadline(goalId, state) || nowISO;
     feasibilityByGoal[goalId] = computeFeasibility({ goalId, deadlineISO }, state, constraints, nowISO);
@@ -1695,7 +1733,7 @@ function applyProgressCredit(state) {
       progressByGoal[goalId] = {
         creditedUnits: 0,
         activityUnits: 0,
-        completedUnitsTotal: 0
+        completedUnitsTotal: 0,
       };
     }
     const entry = progressByGoal[goalId];
@@ -1739,7 +1777,7 @@ function applyGoalDirective(state) {
     lastSuggestedAtISO: null,
     lastSuggestedAtISOByGoal: {},
     dailyCountByGoal: {},
-    denials: []
+    denials: [],
   };
   const activeBlocksCount = (state.today?.blocks || []).filter((b) => b.status !== 'completed').length;
   const executionEventCount = (state.executionEvents || []).length;
@@ -1754,7 +1792,11 @@ function applyGoalDirective(state) {
     }
     const directive = computeGoalDirective(ctx.goalText, ctx.deadlineISO, ctx.blocks, [], nowISO);
     if (!directive) {
-      eligibilityByGoal[ctx.goalId] = { allowed: false, reasons: ['no_directive'], contractId: resolution.contract.contractId };
+      eligibilityByGoal[ctx.goalId] = {
+        allowed: false,
+        reasons: ['no_directive'],
+        contractId: resolution.contract.contractId,
+      };
       return;
     }
     const lastSuggestedAtISO = history.lastSuggestedAtISOByGoal?.[ctx.goalId] || null;
@@ -1767,12 +1809,12 @@ function applyGoalDirective(state) {
       lastSuggestedAtISO,
       suggestionsTodayCount: dailyCount,
       directiveTags: [directive.type],
-      directiveDomain: directive.domain
+      directiveDomain: directive.domain,
     });
     eligibilityByGoal[ctx.goalId] = {
       allowed: gate.allowed,
       reasons: gate.reasons,
-      contractId: resolution.contract.contractId
+      contractId: resolution.contract.contractId,
     };
     if (gate.allowed) {
       candidates.push({ goalId: ctx.goalId, directive: { ...directive, goalId: ctx.goalId } });
@@ -1809,7 +1851,7 @@ function buildGoalContexts(state) {
     goalId,
     goalText,
     deadlineISO,
-    blocks: state.today?.blocks || []
+    blocks: state.today?.blocks || [],
   });
   return contexts;
 }
@@ -1824,7 +1866,7 @@ function computeBaseSuggestion(state, blocks, vector) {
       practice: inProgress.practice,
       startISO: inProgress.start,
       endISO: inProgress.end,
-      reason: 'You already started this block; finish it before switching.'
+      reason: 'You already started this block; finish it before switching.',
     };
   }
 
@@ -1854,7 +1896,7 @@ function computeBaseSuggestion(state, blocks, vector) {
       reason:
         vector?.driftLabel === 'off-track' || vector?.driftLabel === 'elevated'
           ? vector?.driftHint || 'This block helps rebalance your pattern.'
-          : 'This is the next scheduled block for today.'
+          : 'This is the next scheduled block for today.',
     };
   }
 
@@ -1870,7 +1912,7 @@ function computeBaseSuggestion(state, blocks, vector) {
     practice: practiceName,
     startISO: start.toISOString(),
     endISO: end.toISOString(),
-    reason: 'No more scheduled work. This repair block pushes your lowest practice back toward pattern.'
+    reason: 'No more scheduled work. This repair block pushes your lowest practice back toward pattern.',
   };
 }
 
@@ -1888,11 +1930,10 @@ function rescheduleBlock(state, id, start, end) {
     kind: 'reschedule',
     completed: false,
     startISO: start,
-    endISO: end
+    endISO: end,
   });
   if (!canEmitExecutionEvent(state.executionEvents || [], event)) return;
-  const updateBlocks = (blocks = []) =>
-    blocks.map((b) => (b.id === id ? { ...b, start, end } : b));
+  const updateBlocks = (blocks = []) => blocks.map((b) => (b.id === id ? { ...b, start, end } : b));
   state.today.blocks = updateBlocks(state.today.blocks);
   state.currentWeek.days = state.currentWeek.days.map((d) => ({ ...d, blocks: updateBlocks(d.blocks) }));
   state.cycle = state.cycle.map((d) => ({ ...d, blocks: updateBlocks(d.blocks) }));
@@ -1916,7 +1957,7 @@ function recomputeSummaries(state) {
   state.today.summaryLine = buildDaySummary(state.today, state.vector, state.lenses);
   state.cycle = state.cycle.map((day) => ({
     ...day,
-    summaryLine: buildDaySummary(day, state.vector, state.lenses)
+    summaryLine: buildDaySummary(day, state.vector, state.lenses),
   }));
   return state;
 }
@@ -1924,7 +1965,7 @@ function recomputeSummaries(state) {
 function buildWeekFromCycle(cycle, date) {
   const days = cycle.slice(0, 7).map((day, idx) => ({
     ...day,
-    label: day.label || day.date || `Day ${idx + 1}`
+    label: day.label || day.date || `Day ${idx + 1}`,
   }));
   return { weekStart: date || days[0]?.date, days };
 }
@@ -1934,9 +1975,7 @@ function buildMonthCycle(state, dateString) {
   const year = base.getFullYear();
   const month = base.getMonth();
   const totalDays = new Date(year, month + 1, 0).getDate();
-  const existingMap = new Map(
-    (Array.isArray(state.cycle) ? state.cycle : []).map((d) => [d.date, d])
-  );
+  const existingMap = new Map((Array.isArray(state.cycle) ? state.cycle : []).map((d) => [d.date, d]));
   const days = [];
   for (let i = 1; i <= totalDays; i++) {
     const iso = dayKeyFromParts(year, month, i);
@@ -1950,7 +1989,7 @@ function buildMonthCycle(state, dateString) {
         completionRate: 0,
         driftSignal: 'contained',
         loadByPractice: {},
-        practices: []
+        practices: [],
       });
     }
   }
@@ -1990,16 +2029,15 @@ function summarizeDay(day, targetMap, state) {
     completionRate < 0.6
       ? 'off-track'
       : Object.values(ratios).some((r) => r > 1.5 || r < 0.5)
-      ? 'elevated'
-      : 'contained';
+        ? 'elevated'
+        : 'contained';
   const driftSignal = driftLabel === 'contained' ? 'contained' : 'elevated';
 
   const totalMinutes = Object.values(loadByPractice).reduce((sum, v) => sum + (v || 0), 0);
   const targetTotal = Object.values(targetMap).reduce((sum, v) => sum + (v || 0), 0);
   const overloadLabel = targetTotal && totalMinutes > targetTotal * 1.3 ? 'overload' : 'normal';
   const streakState = completionRate === 1 ? 'hit' : completionRate === 0 ? 'miss' : 'partial';
-  const integrityStatus =
-    completionRate >= 0.7 ? 'acceptable' : completionRate >= 0.4 ? 'degrading' : 'low';
+  const integrityStatus = completionRate >= 0.7 ? 'acceptable' : completionRate >= 0.4 ? 'degrading' : 'low';
 
   updateTemplatesFromDay(state, day, completedBlocks);
 
@@ -2014,14 +2052,13 @@ function summarizeDay(day, targetMap, state) {
     dominantPractice,
     driftLabel,
     overloadLabel,
-    streakState
+    streakState,
   };
 }
 
 function recalculateIdentityVector(state) {
   const recent = state.cycle.slice(-7);
-  const avgCompletion =
-    recent.reduce((sum, d) => sum + (d.completionRate || 0), 0) / Math.max(1, recent.length);
+  const avgCompletion = recent.reduce((sum, d) => sum + (d.completionRate || 0), 0) / Math.max(1, recent.length);
   const stability = avgCompletion > 0.7 ? 'steady' : 'shifting';
   const targetMap = targetMinutesMap(getPatternConfig(state));
   const ratios = {};
@@ -2041,11 +2078,7 @@ function recalculateIdentityVector(state) {
   });
   const ratioValues = Object.values(ratios);
   const driftLabel =
-    avgCompletion < 0.6
-      ? 'off-track'
-      : ratioValues.some((r) => r > 1.5 || r < 0.5)
-      ? 'elevated'
-      : 'contained';
+    avgCompletion < 0.6 ? 'off-track' : ratioValues.some((r) => r > 1.5 || r < 0.5) ? 'elevated' : 'contained';
   const momentum = avgCompletion > 0.85 ? 'building' : avgCompletion > 0.6 ? 'active' : 'quiet';
   const todayDate = state.today?.date || nowDayKey();
   if (state.meta?.lastActiveDate) {
@@ -2060,7 +2093,7 @@ function recalculateIdentityVector(state) {
         driftDetail: { byPractice: ratios },
         driftLabel,
         driftHint: buildDriftHint({ byPractice: ratios }),
-        momentum: 'quiet'
+        momentum: 'quiet',
       };
     }
   }
@@ -2073,7 +2106,7 @@ function recalculateIdentityVector(state) {
     driftDetail: { byPractice: ratios },
     driftLabel,
     driftHint: buildDriftHint({ byPractice: ratios }),
-    momentum
+    momentum,
   };
 }
 
@@ -2125,7 +2158,7 @@ function buildTodayFromPattern(state) {
         end: `${baseDate}T${toTimeLabel(endMin)}`,
         status: 'planned',
         linkedAimId: templateKey,
-        objectiveId: templateKey
+        objectiveId: templateKey,
       };
     });
   }
@@ -2160,8 +2193,8 @@ function computeWeekSummary(state, targetMap = {}) {
     completionRate < 0.6
       ? 'off-track'
       : Object.values(ratios).some((r) => r > 1.5 || r < 0.5)
-      ? 'elevated'
-      : 'contained';
+        ? 'elevated'
+        : 'contained';
   const driftSignal = driftLabel === 'contained' ? 'contained' : 'elevated';
 
   state.currentWeek.metrics = { completionRate, loadByPractice, driftSignal, dominantPractice, driftLabel };
@@ -2225,7 +2258,11 @@ export function getAllBlocks(state) {
       const existing = union.find((u) => u.id === b.id);
       if (existing) {
         if (process.env.NODE_ENV !== 'production' && existing.status !== b.status && !divergeWarned.has(b.id)) {
-          console.warn('Block status divergence detected', b.id, { incoming: b.status, existing: existing.status, source });
+          console.warn('Block status divergence detected', b.id, {
+            incoming: b.status,
+            existing: existing.status,
+            source,
+          });
           divergeWarned.add(b.id);
         }
         return;
@@ -2270,7 +2307,7 @@ export function projectWeekDays({ anchorDate, blocks }) {
       completionRate: 0,
       driftSignal: 'contained',
       loadByPractice: { Body: 0, Resources: 0, Creation: 0, Focus: 0 },
-      practices: []
+      practices: [],
     });
   }
   const targetMap = {};
@@ -2336,7 +2373,7 @@ function summarizeBlocksMinutes(blocks) {
   return {
     plannedMinutes: planned,
     completedMinutes: completed,
-    completionRate: Number.isFinite(cr) ? Math.max(0, Math.min(1, cr)) : 0
+    completionRate: Number.isFinite(cr) ? Math.max(0, Math.min(1, cr)) : 0,
   };
 }
 
@@ -2376,7 +2413,7 @@ export function projectMonthDays({ monthKey, blocks, includePadding = true }) {
       date,
       blocks: dayBlocks,
       ...summary,
-      inMonth: date.slice(0, 7) === monthYYYYMM
+      inMonth: date.slice(0, 7) === monthYYYYMM,
     });
   }
   return days;
@@ -2455,13 +2492,16 @@ export function computeStability({
   monthDays,
   practices = ['Body', 'Resources', 'Creation', 'Focus'],
   targetMix,
-  integrityLowThreshold = 0.4
+  integrityLowThreshold = 0.4,
 }) {
   const days = monthDays || [];
   const inMonthDays = days.filter((d) => d.inMonth !== false);
 
   const plannedTotal = inMonthDays.reduce((s, d) => s + (Number.isFinite(d.plannedMinutes) ? d.plannedMinutes : 0), 0);
-  const completedTotal = inMonthDays.reduce((s, d) => s + (Number.isFinite(d.completedMinutes) ? d.completedMinutes : 0), 0);
+  const completedTotal = inMonthDays.reduce(
+    (s, d) => s + (Number.isFinite(d.completedMinutes) ? d.completedMinutes : 0),
+    0
+  );
   const completionRate = safeCR(plannedTotal, completedTotal);
 
   let integrityStatus = 'acceptable';
@@ -2486,7 +2526,7 @@ export function computeStability({
     completion: bandFromScore(completionRate),
     drift: bandFromScore(driftScore),
     streak: bandFromScore(streakScore),
-    momentum: bandFromScore(momentumScore)
+    momentum: bandFromScore(momentumScore),
   };
 
   let overallBand = 'Strong';
@@ -2519,7 +2559,10 @@ export function computeStability({
       }
     }
   } else if (driftScore < 0.4 && deficits.length) {
-    recs.push({ key: 'shift-next', text: `Shift the next planned block toward ${deficits[0].practice} to correct drift.` });
+    recs.push({
+      key: 'shift-next',
+      text: `Shift the next planned block toward ${deficits[0].practice} to correct drift.`,
+    });
   } else if (momentumScore < 0.4) {
     recs.push({ key: 'momentum', text: 'Aim for a completed win early in the day to raise momentum.' });
   }
@@ -2535,7 +2578,7 @@ export function computeStability({
     overallBand,
     factorBands,
     deficits,
-    recommendations: recs.slice(0, 3)
+    recommendations: recs.slice(0, 3),
   };
 }
 
@@ -2607,7 +2650,7 @@ function updateTemplatesFromDay(state, day, completedBlocks) {
     });
     state.templates.objectives[objectiveId] = {
       minutesByPractice: mergedMinutes,
-      preferredSlot: preferredSlot || existing?.preferredSlot || 'morning'
+      preferredSlot: preferredSlot || existing?.preferredSlot || 'morning',
     };
   });
 }
@@ -2631,7 +2674,7 @@ function adaptPatternTargets(state) {
     Body: [15, 180],
     Resources: [15, 240],
     Creation: [15, 240],
-    Focus: [15, 180]
+    Focus: [15, 180],
   };
   let changed = false;
   const updatedTargets = targets.map((t) => {
@@ -2669,12 +2712,14 @@ function inferSlot(start) {
 function rebalanceTodayPlan(state, mode) {
   if (!state.today || !state.today.blocks) return;
   const beforePlanned =
-    (state.today.plannedMinutes ?? state.today.blocks.reduce((sum, b) => sum + durationMinutes(b.start, b.end), 0)) || 0;
+    (state.today.plannedMinutes ?? state.today.blocks.reduce((sum, b) => sum + durationMinutes(b.start, b.end), 0)) ||
+    0;
   const beforeCompleted =
     (state.today.completedMinutes ??
       state.today.blocks
         .filter((b) => b.status === 'completed' || b.status === 'complete')
-        .reduce((sum, b) => sum + durationMinutes(b.start, b.end), 0)) || 0;
+        .reduce((sum, b) => sum + durationMinutes(b.start, b.end), 0)) ||
+    0;
   const beforeCR = beforePlanned ? beforeCompleted / beforePlanned : 0;
   const beforeIntegrity = beforeCR >= 0.7 ? 'acceptable' : beforeCR >= 0.4 ? 'degrading' : 'low';
 
@@ -2682,7 +2727,7 @@ function rebalanceTodayPlan(state, mode) {
   if (!objectiveId) {
     const planned = (state.today.blocks || []).map((b) => ({
       id: b.objectiveId || b.linkedAimId || b.id,
-      minutes: durationMinutes(b.start, b.end)
+      minutes: durationMinutes(b.start, b.end),
     }));
     planned.sort((a, b) => b.minutes - a.minutes);
     objectiveId = planned[0]?.id || null;
@@ -2705,13 +2750,10 @@ function rebalanceTodayPlan(state, mode) {
   state.currentWeek.days = state.currentWeek.days.map((d) =>
     d.date === state.today.date ? { ...d, blocks: updatedBlocks } : d
   );
-  state.cycle = state.cycle.map((d) =>
-    d.date === state.today.date ? { ...d, blocks: updatedBlocks } : d
-  );
+  state.cycle = state.cycle.map((d) => (d.date === state.today.date ? { ...d, blocks: updatedBlocks } : d));
 
   // session recap
-  const afterPlanned =
-    state.today.blocks.reduce((sum, b) => sum + durationMinutes(b.start, b.end), 0) || 0;
+  const afterPlanned = state.today.blocks.reduce((sum, b) => sum + durationMinutes(b.start, b.end), 0) || 0;
   const afterCompleted =
     state.today.blocks
       .filter((b) => b.status === 'completed' || b.status === 'complete')
@@ -2725,14 +2767,14 @@ function rebalanceTodayPlan(state, mode) {
       planned: beforePlanned,
       completed: beforeCompleted,
       cr: beforeCR,
-      integrity: beforeIntegrity
+      integrity: beforeIntegrity,
     }),
     afterSummary: JSON.stringify({
       planned: afterPlanned,
       completed: afterCompleted,
       cr: afterCR,
-      integrity: afterIntegrity
-    })
+      integrity: afterIntegrity,
+    }),
   };
 }
 
@@ -2760,7 +2802,7 @@ function derivePatternFromGoal(goal = {}) {
     Body: 30,
     Resources: 45,
     Creation: 90,
-    Focus: 45
+    Focus: 45,
   };
   const targets = ['Body', 'Resources', 'Creation', 'Focus'].map((name) => {
     const bump = focusAreas.includes(name) ? 30 : 0;
@@ -2852,25 +2894,91 @@ function buildTemplates(archetype, domains, primaryDomain) {
   const creationDomain = pick('Creation', 'Focus');
   const base = {
     build: [
-      { title: 'Foundation reps', domain: creationDomain, durationMinutes: 30, frequency: 'daily', reason: 'build muscle memory' },
-      { title: 'Production sprint', domain: creationDomain, durationMinutes: 90, frequency: '3x/week', reason: 'ship tangible output' },
-      { title: 'Scope review', domain: focusDomain, durationMinutes: 20, frequency: 'weekly', reason: 'tighten scope' }
+      {
+        title: 'Foundation reps',
+        domain: creationDomain,
+        durationMinutes: 30,
+        frequency: 'daily',
+        reason: 'build muscle memory',
+      },
+      {
+        title: 'Production sprint',
+        domain: creationDomain,
+        durationMinutes: 90,
+        frequency: '3x/week',
+        reason: 'ship tangible output',
+      },
+      { title: 'Scope review', domain: focusDomain, durationMinutes: 20, frequency: 'weekly', reason: 'tighten scope' },
     ],
     recover: [
-      { title: 'Recovery base', domain: bodyDomain, durationMinutes: 30, frequency: 'daily', reason: 'restore capacity' },
-      { title: 'Stability block', domain: resourcesDomain, durationMinutes: 45, frequency: '3x/week', reason: 'stabilize inputs' },
-      { title: 'Reflection review', domain: focusDomain, durationMinutes: 15, frequency: 'weekly', reason: 'track recovery signals' }
+      {
+        title: 'Recovery base',
+        domain: bodyDomain,
+        durationMinutes: 30,
+        frequency: 'daily',
+        reason: 'restore capacity',
+      },
+      {
+        title: 'Stability block',
+        domain: resourcesDomain,
+        durationMinutes: 45,
+        frequency: '3x/week',
+        reason: 'stabilize inputs',
+      },
+      {
+        title: 'Reflection review',
+        domain: focusDomain,
+        durationMinutes: 15,
+        frequency: 'weekly',
+        reason: 'track recovery signals',
+      },
     ],
     acquire: [
-      { title: 'Pipeline touch', domain: resourcesDomain, durationMinutes: 30, frequency: 'daily', reason: 'keep acquisition warm' },
-      { title: 'Acquisition sprint', domain: resourcesDomain, durationMinutes: 60, frequency: '3x/week', reason: 'convert opportunities' },
-      { title: 'Revenue review', domain: focusDomain, durationMinutes: 20, frequency: 'weekly', reason: 'tighten acquisition loop' }
+      {
+        title: 'Pipeline touch',
+        domain: resourcesDomain,
+        durationMinutes: 30,
+        frequency: 'daily',
+        reason: 'keep acquisition warm',
+      },
+      {
+        title: 'Acquisition sprint',
+        domain: resourcesDomain,
+        durationMinutes: 60,
+        frequency: '3x/week',
+        reason: 'convert opportunities',
+      },
+      {
+        title: 'Revenue review',
+        domain: focusDomain,
+        durationMinutes: 20,
+        frequency: 'weekly',
+        reason: 'tighten acquisition loop',
+      },
     ],
     perform: [
-      { title: 'Focus primer', domain: focusDomain, durationMinutes: 20, frequency: 'daily', reason: 'prime execution' },
-      { title: 'Execution block', domain: primaryDomain, durationMinutes: 60, frequency: '3x/week', reason: 'sustain performance' },
-      { title: 'Performance review', domain: focusDomain, durationMinutes: 15, frequency: 'weekly', reason: 'adjust execution' }
-    ]
+      {
+        title: 'Focus primer',
+        domain: focusDomain,
+        durationMinutes: 20,
+        frequency: 'daily',
+        reason: 'prime execution',
+      },
+      {
+        title: 'Execution block',
+        domain: primaryDomain,
+        durationMinutes: 60,
+        frequency: '3x/week',
+        reason: 'sustain performance',
+      },
+      {
+        title: 'Performance review',
+        domain: focusDomain,
+        durationMinutes: 15,
+        frequency: 'weekly',
+        reason: 'adjust execution',
+      },
+    ],
   };
   return base[archetype] || base.build;
 }
@@ -2890,7 +2998,7 @@ function buildSuggestedBlocks({
   goalText,
   primaryDomain,
   reservedIds = new Set(),
-  timeZone
+  timeZone,
 }) {
   return generateSuggestions({
     goalId,
@@ -2901,7 +3009,7 @@ function buildSuggestedBlocks({
     goalText,
     primaryDomain,
     reservedIds,
-    timeZone
+    timeZone,
   });
 }
 
@@ -2913,7 +3021,7 @@ function computePlanPreview({ suggestedBlocks = [], planDraft = null, contract =
     totalBlocks,
     totalMinutes,
     primaryDomain: planDraft?.primaryDomain,
-    horizonDays: contract?.horizonDays
+    horizonDays: contract?.horizonDays,
   };
 }
 
@@ -2966,19 +3074,15 @@ function applySuggestionEventOverrides(state) {
   const events = state.suggestionEvents || [];
   if (!suggestions.length || !events.length) return false;
   const next = rehydrateSuggestionOverrides(suggestions, events);
-  const changed = next.some((entry, idx) => entry.status !== suggestions[idx]?.status || entry.rejectedReason !== suggestions[idx]?.rejectedReason);
+  const changed = next.some(
+    (entry, idx) =>
+      entry.status !== suggestions[idx]?.status || entry.rejectedReason !== suggestions[idx]?.rejectedReason
+  );
   if (changed) state.suggestedBlocks = next;
   return changed;
 }
 
-const REJECTION_REASONS = [
-  'TOO_LONG',
-  'WRONG_TIME',
-  'LOW_ENERGY',
-  'NOT_RELEVANT',
-  'MISSING_PREREQ',
-  'OVERCOMMITTED'
-];
+const REJECTION_REASONS = ['TOO_LONG', 'WRONG_TIME', 'LOW_ENERGY', 'NOT_RELEVANT', 'MISSING_PREREQ', 'OVERCOMMITTED'];
 
 function computeCorrectionSignals(state, windowDays = 14) {
   const todayKey = nowDayKey();
@@ -3010,8 +3114,8 @@ function computeCorrectionSignals(state, windowDays = 14) {
       timingMismatch: ratio(byReason.WRONG_TIME),
       energyMismatch: ratio(byReason.LOW_ENERGY),
       relevanceMismatch: ratio(byReason.NOT_RELEVANT),
-      prereqDebt: ratio(byReason.MISSING_PREREQ)
-    }
+      prereqDebt: ratio(byReason.MISSING_PREREQ),
+    },
   };
 }
 
@@ -3040,14 +3144,14 @@ function applyOnboardingInputs(state, onboarding = {}) {
     goalId,
     deadlineISO: deadlineISO?.startISO || `${endDayKey}T23:59:00.000Z`,
     timeZone,
-    deliverables
+    deliverables,
   });
 
   state.vector.direction = goalText || state.vector.direction;
   state.lenses.aim = {
     description: goalText || state.lenses.aim.description,
     horizon: onboarding.horizon || state.lenses.aim.horizon || '90d',
-    narrative: narrative || state.lenses.aim.narrative
+    narrative: narrative || state.lenses.aim.narrative,
   };
   state.lenses.pattern = { ...state.lenses.pattern, ...pattern };
   state.meta = { ...(state.meta || {}), onboardingComplete: true, version: '1.0.0' };
@@ -3065,7 +3169,7 @@ function applyOnboardingInputs(state, onboarding = {}) {
       definiteGoal: ended.definiteGoal,
       pattern: ended.pattern,
       aim: ended.aim,
-      flow: ended.flow
+      flow: ended.flow,
     });
   }
 
@@ -3079,8 +3183,8 @@ function applyOnboardingInputs(state, onboarding = {}) {
         metricType: 'binary',
         metricName: successDefinition || 'success',
         targetValue: true,
-        validationMethod: 'user_attest'
-      }
+        validationMethod: 'user_attest',
+      },
     ],
     requirements: {
       requiredDomains: focusAreas,
@@ -3088,11 +3192,11 @@ function applyOnboardingInputs(state, onboarding = {}) {
         Body: focusAreas.includes('Body') ? 1 : 0,
         Focus: focusAreas.includes('Focus') ? 1 : 0,
         Creation: focusAreas.includes('Creation') ? 1 : 0,
-        Resources: focusAreas.includes('Resources') ? 1 : 0
+        Resources: focusAreas.includes('Resources') ? 1 : 0,
       },
       expectedDomainMix: computeDomainMix(focusAreas),
-      maxAllowedVariance: 0.2
-    }
+      maxAllowedVariance: 0.2,
+    },
   };
 
   const goalGovernanceContract = {
@@ -3104,18 +3208,18 @@ function applyOnboardingInputs(state, onboarding = {}) {
     scope: {
       domainsAllowed: ['Body', 'Focus', 'Creation', 'Resources'],
       timeHorizon: 'week',
-      timezone: timeZone || 'UTC'
+      timezone: timeZone || 'UTC',
     },
     governance: {
       suggestionsEnabled: true,
       probabilityEnabled: true,
       minEvidenceEvents: 1,
-      cooldowns: { resuggestMinutes: 30, maxSuggestionsPerDay: 6 }
+      cooldowns: { resuggestMinutes: 30, maxSuggestionsPerDay: 6 },
     },
     constraints: {
       forbiddenDirectives: ['repair'],
-      maxActiveBlocks: 6
-    }
+      maxActiveBlocks: 6,
+    },
   };
 
   const newCycleId = `cycle-${startDayKey}-${Object.keys(state.cyclesById).length + 1}`;
@@ -3143,8 +3247,8 @@ function applyOnboardingInputs(state, onboarding = {}) {
       lastSuggestedAtISO: null,
       lastSuggestedAtISOByGoal: {},
       dailyCountByGoal: {},
-      denials: []
-    }
+      denials: [],
+    },
   };
   ensureAdmissionStores(state);
   state.aspirationsByCycleId[newCycleId] = state.aspirationsByCycleId[newCycleId] || [];
@@ -3153,14 +3257,14 @@ function applyOnboardingInputs(state, onboarding = {}) {
     cycleId: newCycleId,
     deliverables: [],
     suggestionLinks: {},
-    lastUpdatedAtISO: state.appTime?.nowISO || new Date().toISOString()
+    lastUpdatedAtISO: state.appTime?.nowISO || new Date().toISOString(),
   };
   state.deliverablesByCycleId = state.deliverablesByCycleId || {};
   state.deliverablesByCycleId[newCycleId] = {
     cycleId: newCycleId,
     deliverables: [],
     suggestionLinks: {},
-    lastUpdatedAtISO: state.appTime?.nowISO || new Date().toISOString()
+    lastUpdatedAtISO: state.appTime?.nowISO || new Date().toISOString(),
   };
   state.activeCycleId = newCycleId;
   state.activeGoalId = goalId;
@@ -3176,7 +3280,7 @@ function applyOnboardingInputs(state, onboarding = {}) {
       energyCost: domain === 'Body' ? 'medium' : 'high',
       producesOutput: domain === 'Creation' || domain === 'Resources',
       unblockType: null,
-      dependencies: []
+      dependencies: [],
     }));
   }
 
@@ -3188,7 +3292,7 @@ function applyOnboardingInputs(state, onboarding = {}) {
     narrative,
     startDayKey,
     endDayKey,
-    successDefinition
+    successDefinition,
   };
   state.executionEvents = [];
   state.suggestionEvents = [];
@@ -3210,7 +3314,7 @@ function applyOnboardingInputs(state, onboarding = {}) {
     templates,
     successDefinition,
     horizonDays,
-    daysPerWeek
+    daysPerWeek,
   };
 
   const suggested = buildSuggestedBlocks({
@@ -3221,7 +3325,7 @@ function applyOnboardingInputs(state, onboarding = {}) {
     daysPerWeek,
     goalText,
     primaryDomain,
-    timeZone: state.appTime?.timeZone
+    timeZone: state.appTime?.timeZone,
   });
   state.suggestedBlocks = suggested;
   state.suggestionEvents = state.suggestionEvents || [];
@@ -3231,7 +3335,7 @@ function applyOnboardingInputs(state, onboarding = {}) {
       type: 'suggested_block_created',
       proposalId: s.id,
       goalId,
-      atISO: s.createdAtISO
+      atISO: s.createdAtISO,
     });
   });
 
@@ -3239,12 +3343,12 @@ function applyOnboardingInputs(state, onboarding = {}) {
     confidence: parseMinimumDays(onboarding.minimumDaysPerWeek) ? 0.45 : 0.3,
     daysPerWeek,
     assumptions: [`Assuming ${daysPerWeek} days/week execution.`, `Default capacity ${blocksPerWeek} blocks/week.`],
-    missingInfo: parseMinimumDays(onboarding.minimumDaysPerWeek) ? [] : ['daysPerWeek']
+    missingInfo: parseMinimumDays(onboarding.minimumDaysPerWeek) ? [] : ['daysPerWeek'],
   };
   state.planPreview = computePlanPreview({
     suggestedBlocks: state.suggestedBlocks,
     planDraft: state.planDraft,
-    contract: state.goalExecutionContract
+    contract: state.goalExecutionContract,
   });
   state.suggestionHistory = {
     dayKey: startDayKey,
@@ -3252,7 +3356,7 @@ function applyOnboardingInputs(state, onboarding = {}) {
     lastSuggestedAtISO: null,
     lastSuggestedAtISOByGoal: {},
     dailyCountByGoal: {},
-    denials: []
+    denials: [],
   };
 
   state.cyclesById[newCycleId].planDraft = state.planDraft;
@@ -3285,8 +3389,15 @@ function startNewCycle(state, payload = {}) {
     payload.endDayKey ||
     state.goalExecutionContract?.endDayKey ||
     addDays(startDayKey, state.goalExecutionContract?.horizonDays || 90, timeZone);
-  const horizonDays = Math.max(1, daysBetween(startDayKey, deadlineDayKey) || state.goalExecutionContract?.horizonDays || 90);
-  const daysPerWeek = parseMinimumDays(payload.minimumDaysPerWeek) || state.planCalibration?.daysPerWeek || state.planDraft?.daysPerWeek || 4;
+  const horizonDays = Math.max(
+    1,
+    daysBetween(startDayKey, deadlineDayKey) || state.goalExecutionContract?.horizonDays || 90
+  );
+  const daysPerWeek =
+    parseMinimumDays(payload.minimumDaysPerWeek) ||
+    state.planCalibration?.daysPerWeek ||
+    state.planDraft?.daysPerWeek ||
+    4;
   const blocksPerWeek = computeBlocksPerWeek(daysPerWeek);
   const primaryDomain = choosePrimaryDomain(focusAreas);
   const archetype = classifyGoalArchetype(goalText, focusAreas);
@@ -3301,7 +3412,7 @@ function startNewCycle(state, payload = {}) {
     goalId,
     deadlineISO: deadlineISO?.startISO || `${deadlineDayKey}T23:59:00.000Z`,
     timeZone,
-    deliverables
+    deliverables,
   });
 
   if (current && current.status === 'active') {
@@ -3316,7 +3427,7 @@ function startNewCycle(state, payload = {}) {
       definiteGoal: ended.definiteGoal,
       pattern: ended.pattern,
       aim: ended.aim,
-      flow: ended.flow
+      flow: ended.flow,
     });
   }
 
@@ -3330,8 +3441,8 @@ function startNewCycle(state, payload = {}) {
         metricType: 'binary',
         metricName: successDefinition || 'success',
         targetValue: true,
-        validationMethod: 'user_attest'
-      }
+        validationMethod: 'user_attest',
+      },
     ],
     requirements: {
       requiredDomains: focusAreas,
@@ -3339,11 +3450,11 @@ function startNewCycle(state, payload = {}) {
         Body: focusAreas.includes('Body') ? 1 : 0,
         Focus: focusAreas.includes('Focus') ? 1 : 0,
         Creation: focusAreas.includes('Creation') ? 1 : 0,
-        Resources: focusAreas.includes('Resources') ? 1 : 0
+        Resources: focusAreas.includes('Resources') ? 1 : 0,
       },
       expectedDomainMix: computeDomainMix(focusAreas),
-      maxAllowedVariance: 0.2
-    }
+      maxAllowedVariance: 0.2,
+    },
   };
 
   const goalGovernanceContract = {
@@ -3355,18 +3466,18 @@ function startNewCycle(state, payload = {}) {
     scope: {
       domainsAllowed: ['Body', 'Focus', 'Creation', 'Resources'],
       timeHorizon: 'week',
-      timezone: timeZone || 'UTC'
+      timezone: timeZone || 'UTC',
     },
     governance: {
       suggestionsEnabled: true,
       probabilityEnabled: true,
       minEvidenceEvents: 1,
-      cooldowns: { resuggestMinutes: 30, maxSuggestionsPerDay: 6 }
+      cooldowns: { resuggestMinutes: 30, maxSuggestionsPerDay: 6 },
     },
     constraints: {
       forbiddenDirectives: ['repair'],
-      maxActiveBlocks: 6
-    }
+      maxActiveBlocks: 6,
+    },
   };
 
   const newCycleId = `cycle-${startDayKey}-${Object.keys(state.cyclesById).length + 1}`;
@@ -3394,8 +3505,8 @@ function startNewCycle(state, payload = {}) {
       lastSuggestedAtISO: null,
       lastSuggestedAtISOByGoal: {},
       dailyCountByGoal: {},
-      denials: []
-    }
+      denials: [],
+    },
   };
 
   state.activeCycleId = newCycleId;
@@ -3416,7 +3527,7 @@ function startNewCycle(state, payload = {}) {
       energyCost: domain === 'Body' ? 'medium' : 'high',
       producesOutput: domain === 'Creation' || domain === 'Resources',
       unblockType: null,
-      dependencies: []
+      dependencies: [],
     }));
   }
 
@@ -3428,7 +3539,7 @@ function startNewCycle(state, payload = {}) {
     narrative,
     startDayKey,
     endDayKey: deadlineDayKey,
-    successDefinition
+    successDefinition,
   };
 
   state.planDraft = {
@@ -3443,7 +3554,7 @@ function startNewCycle(state, payload = {}) {
     templates,
     successDefinition,
     horizonDays,
-    daysPerWeek
+    daysPerWeek,
   };
 
   const suggested = buildSuggestedBlocks({
@@ -3454,7 +3565,7 @@ function startNewCycle(state, payload = {}) {
     daysPerWeek,
     goalText,
     primaryDomain,
-    timeZone: state.appTime?.timeZone
+    timeZone: state.appTime?.timeZone,
   });
   state.suggestedBlocks = suggested;
   state.suggestionEvents = [];
@@ -3464,7 +3575,7 @@ function startNewCycle(state, payload = {}) {
       type: 'suggested_block_created',
       proposalId: s.id,
       goalId,
-      atISO: s.createdAtISO
+      atISO: s.createdAtISO,
     });
   });
 
@@ -3472,12 +3583,12 @@ function startNewCycle(state, payload = {}) {
     confidence: 0.3,
     daysPerWeek,
     assumptions: [`Assuming ${daysPerWeek} days/week execution.`, `Default capacity ${blocksPerWeek} blocks/week.`],
-    missingInfo: ['daysPerWeek']
+    missingInfo: ['daysPerWeek'],
   };
   state.planPreview = computePlanPreview({
     suggestedBlocks: state.suggestedBlocks,
     planDraft: state.planDraft,
-    contract: state.goalExecutionContract
+    contract: state.goalExecutionContract,
   });
 
   state.executionEvents = [];
@@ -3488,7 +3599,7 @@ function startNewCycle(state, payload = {}) {
     lastSuggestedAtISO: null,
     lastSuggestedAtISOByGoal: {},
     dailyCountByGoal: {},
-    denials: []
+    denials: [],
   };
   state.cycle = [];
   state.today = { ...(state.today || {}), date: startDayKey, blocks: [] };
@@ -3542,7 +3653,14 @@ function deleteCycle(state, cycleId) {
     state.suggestedBlocks = [];
     state.suggestionEvents = [];
     state.executionEvents = [];
-    state.suggestionHistory = { dayKey: state.appTime?.activeDayKey || nowDayKey(), count: 0, lastSuggestedAtISO: null, lastSuggestedAtISOByGoal: {}, dailyCountByGoal: {}, denials: [] };
+    state.suggestionHistory = {
+      dayKey: state.appTime?.activeDayKey || nowDayKey(),
+      count: 0,
+      lastSuggestedAtISO: null,
+      lastSuggestedAtISOByGoal: {},
+      dailyCountByGoal: {},
+      denials: [],
+    };
     state.goalExecutionContract = null;
     state.planDraft = null;
     state.planPreview = null;
@@ -3577,7 +3695,14 @@ function hardDeleteCycle(state, cycleId) {
     state.suggestedBlocks = [];
     state.suggestionEvents = [];
     state.executionEvents = [];
-    state.suggestionHistory = { dayKey: state.appTime?.activeDayKey || nowDayKey(), count: 0, lastSuggestedAtISO: null, lastSuggestedAtISOByGoal: {}, dailyCountByGoal: {}, denials: [] };
+    state.suggestionHistory = {
+      dayKey: state.appTime?.activeDayKey || nowDayKey(),
+      count: 0,
+      lastSuggestedAtISO: null,
+      lastSuggestedAtISOByGoal: {},
+      dailyCountByGoal: {},
+      denials: [],
+    };
     state.goalExecutionContract = null;
     state.planDraft = null;
     state.planPreview = null;
@@ -3609,25 +3734,22 @@ function endCycle(state, cycleId) {
   const todayKey = state.appTime?.activeDayKey || state.today?.date || nowDayKey();
   cycle.status = 'ended';
   cycle.endedAtDayKey = todayKey;
-  
+
   // MVP 3.0: Compute terminal convergence
   const nowISO = state.appTime?.nowISO || new Date().toISOString();
   const timezone = state.appTime?.timeZone || 'UTC';
   const deliverables =
-    state.deliverablesByCycleId?.[cycle.id]?.deliverables ||
-    cycle?.deliverables ||
-    cycle?.strategy?.deliverables ||
-    [];
+    state.deliverablesByCycleId?.[cycle.id]?.deliverables || cycle?.deliverables || cycle?.strategy?.deliverables || [];
   const convergenceReport = computeTerminalConvergence({
     cycle,
     planProof: cycle?.goalPlan?.planProof || null,
     events: cycle?.executionEvents || state.executionEvents || [],
     nowISO,
     timezone,
-    deliverables
+    deliverables,
   });
   cycle.convergenceReport = convergenceReport;
-  
+
   cycle.summary = summarizeCycle(cycle);
   state.cyclesById[id] = cycle;
   // Archive behavior: remove from active execution and clear active UI projections
@@ -3658,7 +3780,7 @@ function archiveAndCloneCycle(state, cycleId, overrides = {}) {
     state.lastPlanError = {
       code: 'CLONE_FAILED',
       reasons: ['No goal contract found to clone'],
-      timestamp: state.appTime?.nowISO || new Date().toISOString()
+      timestamp: state.appTime?.nowISO || new Date().toISOString(),
     };
     return;
   }
@@ -3668,11 +3790,11 @@ function archiveAndCloneCycle(state, cycleId, overrides = {}) {
 
   // STEP 2: Create new draft with fresh contract (clearing inscription hash for editing)
   const newContractDraft = {
-    ...structuredClone ? structuredClone(contractToClone) : JSON.parse(JSON.stringify(contractToClone)),
+    ...(structuredClone ? structuredClone(contractToClone) : JSON.parse(JSON.stringify(contractToClone))),
     admissionStatus: 'PENDING', // Reset to draft status
     admissionAttemptCount: 0,
     rejectionCodes: [],
-    ...overrides
+    ...overrides,
   };
 
   // Clear inscription to allow editing
@@ -3690,7 +3812,7 @@ function archiveAndCloneCycle(state, cycleId, overrides = {}) {
     contractDraft: newContractDraft,
     source: 'archive-clone',
     sourceGoalId: contractToClone.goalId,
-    sourceReason: 'User correcting goal after admission'
+    sourceReason: 'User correcting goal after admission',
   };
 
   state.aspirations.push(draftEntry);
@@ -3714,7 +3836,7 @@ function generatePlan(state) {
       code: 'GOAL_NOT_ADMITTED',
       reason: (admission.reasonCodes || []).join(', ') || 'Goal not admitted',
       cycleId: cycle.id,
-      goalId: contract.goalId
+      goalId: contract.goalId,
     };
     return;
   }
@@ -3734,7 +3856,7 @@ function generatePlan(state) {
       maxBlocksPerWeek: state?.constraints?.maxBlocksPerWeek,
       workableDayPolicy: state?.constraints?.workableDayPolicy,
       blackoutDates: state?.constraints?.blackoutDates,
-      calendarCommittedBlocksByDate: state?.constraints?.calendarCommittedBlocksByDate
+      calendarCommittedBlocksByDate: state?.constraints?.calendarCommittedBlocksByDate,
     };
     const horizonEnd = addDays(startDayKey, 13, timeZone);
     const { days } = materializeBlocksFromEvents(state.executionEvents || [], { todayISO: state.today?.date });
@@ -3748,7 +3870,7 @@ function generatePlan(state) {
       constraints,
       nowISO,
       horizonDays: 14,
-      acceptedBlocks
+      acceptedBlocks,
     });
   }
 
@@ -3761,7 +3883,7 @@ function generatePlan(state) {
     goalText: contract.goalText,
     primaryDomain: plan?.primaryDomain || 'FOCUS',
     reservedIds,
-    timeZone
+    timeZone,
   });
   state.suggestedBlocks = [...preserved, ...suggestions];
   state.suggestionEvents = state.suggestionEvents || [];
@@ -3770,12 +3892,12 @@ function generatePlan(state) {
     type: 'suggestions_generated',
     proposalIds: suggestions.map((s) => s.id),
     goalId: contract.goalId,
-    atISO: nowISO
+    atISO: nowISO,
   });
   state.planPreview = computePlanPreview({
     suggestedBlocks: state.suggestedBlocks,
     planDraft: state.planDraft,
-    contract: state.goalExecutionContract
+    contract: state.goalExecutionContract,
   });
   state.cyclesById[cycle.id] = cycle;
 }
@@ -3790,7 +3912,7 @@ function applyGeneratedPlan(state) {
       code: 'GOAL_NOT_ADMITTED',
       reason: (admission.reasonCodes || []).join(', ') || 'Goal not admitted',
       cycleId: cycle.id,
-      goalId: contract.goalId
+      goalId: contract.goalId,
     };
     return;
   }
@@ -3799,7 +3921,7 @@ function applyGeneratedPlan(state) {
       code: 'PLAN_UNSCHEDULABLE',
       reason: 'Resolve conflicts before applying the plan.',
       cycleId: cycle.id,
-      goalId: contract.goalId
+      goalId: contract.goalId,
     };
     return;
   }
@@ -3820,7 +3942,7 @@ function applyGeneratedPlan(state) {
       domain,
       title: block.title,
       surface: 'today',
-      timeZone
+      timeZone,
     });
   });
   state.planEvents = state.planEvents || [];
@@ -3830,7 +3952,7 @@ function applyGeneratedPlan(state) {
     cycleId: cycle.id,
     goalId: contract.goalId,
     atISO: nowISO,
-    policyVersion: plan.audit?.policyVersion || 'auto_asana_v1'
+    policyVersion: plan.audit?.policyVersion || 'auto_asana_v1',
   });
   cycle.lastPlanAppliedAtISO = nowISO;
   state.cyclesById[cycle.id] = cycle;
@@ -3843,13 +3965,16 @@ function rebuildDraftScheduleCache(state, cycleIdOverride = null) {
   if (!cycle || !contract || !cycleId) return [];
   if (!state.draftScheduleItemsByCycleId) state.draftScheduleItemsByCycleId = {};
   const workspace = getDeliverableWorkspace(state, cycle.id);
-  const deliverables = ensureQuotaCriteria(workspace?.deliverables || [], state.appTime?.nowISO || new Date().toISOString());
+  const deliverables = ensureQuotaCriteria(
+    workspace?.deliverables || [],
+    state.appTime?.nowISO || new Date().toISOString()
+  );
   if (workspace) {
     workspace.deliverables = deliverables;
     state.deliverablesByCycleId[cycle.id] = workspace;
   }
   const suggestedBlocks = state.suggestedBlocks || [];
-  const forecastByDay = (cycle?.coldPlan?.forecastByDayKey || {}) || {};
+  const forecastByDay = cycle?.coldPlan?.forecastByDayKey || {} || {};
   const routeSuggestions = Object.keys(forecastByDay || {})
     .map((dayKey) => {
       const entry = forecastByDay[dayKey] || {};
@@ -3857,7 +3982,7 @@ function rebuildDraftScheduleCache(state, cycleIdOverride = null) {
         dayKey,
         totalBlocks: entry.totalBlocks || 0,
         summary: entry.summary || '',
-        byDeliverable: entry.byDeliverable || {}
+        byDeliverable: entry.byDeliverable || {},
       };
     })
     .filter((entry) => entry.totalBlocks > 0);
@@ -3886,11 +4011,11 @@ function rebuildDraftScheduleCache(state, cycleIdOverride = null) {
       primaryDomain: contract?.primaryDomain || 'FOCUS',
       routeMinutes: state.planDraft?.routeMinutes || 30,
       executionHorizonDays: state.planDraft?.executionHorizonDays || 90,
-      fullPlanMaxHorizonDays: state.planDraft?.fullPlanMaxHorizonDays || inferredFullPlanHorizonDays || null
+      fullPlanMaxHorizonDays: state.planDraft?.fullPlanMaxHorizonDays || inferredFullPlanHorizonDays || null,
     },
     captureStats: (stats) => {
       fullPlanStats = stats || null;
-    }
+    },
   });
   const criteriaQueueByDeliverable = new Map();
   deliverables.forEach((deliverable) => {
@@ -3968,7 +4093,7 @@ function rebuildDraftScheduleCache(state, cycleIdOverride = null) {
     reasonCodeOverride: fullPlanStats?.reasonCode ?? null,
     startDateISO: startDayKeyForDraft,
     deadlineISO: goalDeadlineDayKey ? `${goalDeadlineDayKey}T23:59:59.000Z` : null,
-    maxBlocksPerDay: MAX_BLOCKS_PER_DAY
+    maxBlocksPerDay: MAX_BLOCKS_PER_DAY,
   });
   state.draftScheduleItemsByCycleId[cycle.id] = draftItems;
   state.draftScheduleDiagnosticsByCycleId[cycle.id] = diagnostics;
@@ -3980,14 +4105,14 @@ function commitDraftItems(state, cycleId, items = []) {
   if (!cycle) {
     state.lastPlanError = {
       code: 'CYCLE_NOT_FOUND',
-      reason: 'Active cycle missing for commit.'
+      reason: 'Active cycle missing for commit.',
     };
     return false;
   }
   if (!Array.isArray(items) || items.length <= 0) {
     state.lastPlanError = {
       code: 'NO_PROPOSED_BLOCKS',
-      reason: 'No preview items to commit.'
+      reason: 'No preview items to commit.',
     };
     return false;
   }
@@ -3998,7 +4123,7 @@ function commitDraftItems(state, cycleId, items = []) {
     if (requiresActionContext && (!item?.actionId || !item?.title || !item?.detail)) {
       state.lastPlanError = {
         code: 'MISSING_ACTION_CONTEXT',
-        reason: `Automated preview item ${index + 1} missing action context.`
+        reason: `Automated preview item ${index + 1} missing action context.`,
       };
       if (process.env.NODE_ENV === 'development') {
         throw new Error(
@@ -4012,7 +4137,7 @@ function commitDraftItems(state, cycleId, items = []) {
     if (!startISO || !title) {
       state.lastPlanError = {
         code: 'INVALID_PREVIEW_ITEM',
-        reason: `Preview item ${index + 1} missing required metadata.`
+        reason: `Preview item ${index + 1} missing required metadata.`,
       };
       return false;
     }
@@ -4049,7 +4174,7 @@ function commitDraftItems(state, cycleId, items = []) {
       chunkCount: item?.meta?.chunkCount ?? item?.payload?.chunkCount ?? item?.chunkCount ?? 1,
       meta: item?.meta || null,
       origin: 'preview_commit',
-      surface: 'today'
+      surface: 'today',
     });
   });
   state.lastPlanError = null;
@@ -4081,8 +4206,8 @@ function applyDraftSchedule(state, payload = {}) {
         missingSlots: cachedDiagnostics?.missingSlots ?? 0,
         startDateISO: cachedDiagnostics?.startDateISO || null,
         deadlineISO: cachedDiagnostics?.deadlineISO || null,
-        maxBlocksPerDay: cachedDiagnostics?.maxBlocksPerDay ?? MAX_BLOCKS_PER_DAY
-      }
+        maxBlocksPerDay: cachedDiagnostics?.maxBlocksPerDay ?? MAX_BLOCKS_PER_DAY,
+      },
     };
     return;
   }
@@ -4152,12 +4277,12 @@ function purgeContextlessForecastBlocks(state, payload = {}) {
       end: event.endISO || startISO,
       status: event.status || 'planned',
       origin: event.origin,
-      actionId: event.actionId || null
+      actionId: event.actionId || null,
     };
     const deleteEvent = buildExecutionEventFromBlock(synthetic, {
       kind: 'delete',
       completed: false,
-      minutes: 0
+      minutes: 0,
     });
     if (!canEmitExecutionEvent(state.executionEvents || [], deleteEvent)) return;
     appendExecutionEvent(state, deleteEvent);
@@ -4192,7 +4317,7 @@ function setDefiniteGoal(state, payload = {}) {
     state.goalExecutionContract = {
       ...state.goalExecutionContract,
       goalText: outcome || state.goalExecutionContract.goalText,
-      endDayKey: deadlineDayKey
+      endDayKey: deadlineDayKey,
     };
   }
 }
@@ -4212,12 +4337,12 @@ function compileGoalEquation(state, payload = {}) {
     timeZone,
     cycleId: cycle.id,
     constraints: state.constraints,
-    acceptedBlocks: []
+    acceptedBlocks: [],
   });
   cycle.goalAdmission = {
     status: admission.status,
     reasonCodes: admission.reasonCodes,
-    admittedAtISO: admission.status === 'ADMITTED' ? nowISO : undefined
+    admittedAtISO: admission.status === 'ADMITTED' ? nowISO : undefined,
   };
   const goalIdForAdmission =
     state.goalExecutionContract?.goalId || cycle.goalContract?.goalId || cycle.contract?.goalId || null;
@@ -4231,7 +4356,7 @@ function compileGoalEquation(state, payload = {}) {
       createdAtISO: nowISO,
       draft: equation,
       admissionStatus: admission.status,
-      reasonCodes: admission.reasonCodes
+      reasonCodes: admission.reasonCodes,
     };
     const existing = state.aspirationsByCycleId[cycle.id] || [];
     state.aspirationsByCycleId[cycle.id] = [...existing, aspiration];
@@ -4239,7 +4364,7 @@ function compileGoalEquation(state, payload = {}) {
       code: admission.status,
       reason: admission.reasonCodes.join(', '),
       cycleId: cycle.id,
-      goalId: goalIdForAdmission || undefined
+      goalId: goalIdForAdmission || undefined,
     };
     state.cyclesById[cycle.id] = cycle;
     return;
@@ -4249,16 +4374,16 @@ function compileGoalEquation(state, payload = {}) {
   const label = equation.label || `${equation.objectiveValue} ${equation.objective.replace(/_/g, ' ')}`;
   cycle.definiteGoal = {
     outcome: label,
-    deadlineDayKey: equation.deadlineDayKey
+    deadlineDayKey: equation.deadlineDayKey,
   };
-  
+
   // AUTO-SEED DELIVERABLES AT ADMISSION TIME
   // This ensures generateColdPlanForCycle can find them in the workspace
   const workspace = getDeliverableWorkspace(state, cycle.id);
   if (workspace && (!workspace.deliverables || workspace.deliverables.length === 0)) {
     let autoDeliverables = [];
     let autoStrategy = null;
-    
+
     // Try mechanism-class first
     try {
       autoDeliverables = generateAutoDeliverables(equation) || [];
@@ -4268,14 +4393,14 @@ function compileGoalEquation(state, payload = {}) {
         console.warn('[ADMISSION] mechanism-class auto-seed failed, trying Phase 1 fallback', err?.message);
       }
     }
-    
+
     // FALLBACK: Use Phase 1 approach if mechanism-class didn't work
     if (!autoDeliverables || autoDeliverables.length === 0) {
       const autoResult = buildAutoDeliverablesFromGoalContract(equation, nowKey, timeZone);
       autoDeliverables = autoResult.deliverables || [];
       autoStrategy = { method: 'phase1-autostrategy', ...autoResult };
     }
-    
+
     // Persist to workspace AND cycle.strategy
     if (autoDeliverables && autoDeliverables.length > 0) {
       workspace.deliverables = ensureQuotaCriteria(autoDeliverables, nowISO);
@@ -4283,14 +4408,14 @@ function compileGoalEquation(state, payload = {}) {
       workspace.autoGeneratedAt = nowISO;
       workspace.autoStrategy = autoStrategy;
       state.deliverablesByCycleId[cycle.id] = workspace;
-      
+
       // Also update cycle.strategy so they're visible immediately
       if (!cycle.strategy) {
-        cycle.strategy = buildDefaultStrategy({ 
-          goalId: cycle.goalContract?.goalId || 'goal', 
+        cycle.strategy = buildDefaultStrategy({
+          goalId: cycle.goalContract?.goalId || 'goal',
           deadlineISO: equation.deadlineDayKey ? `${equation.deadlineDayKey}T23:59:59Z` : '',
           timeZone,
-          deliverables: workspace.deliverables
+          deliverables: workspace.deliverables,
         });
       } else {
         cycle.strategy.deliverables = workspace.deliverables;
@@ -4302,20 +4427,20 @@ function compileGoalEquation(state, payload = {}) {
     state.goalExecutionContract = {
       ...state.goalExecutionContract,
       goalText: label,
-      endDayKey: equation.deadlineDayKey
+      endDayKey: equation.deadlineDayKey,
     };
   }
   const { planProof, scheduleBlocks } = compileGoalEquationPlan({
     equation,
     nowDayKey: nowKey,
     timeZone,
-    cycleId: cycle.id
+    cycleId: cycle.id,
   });
   cycle.planProof = derivePlanProof(equation, { nowDayKey: nowKey, timeZone });
   cycle.goalPlan = {
     planProof,
     scheduleBlocks,
-    generatedAtISO: state.appTime?.nowISO || new Date().toISOString()
+    generatedAtISO: state.appTime?.nowISO || new Date().toISOString(),
   };
   state.cyclesById[cycle.id] = cycle;
   if (planProof.status === 'SUBMITTED' && planProof.verdict !== 'INFEASIBLE') {
@@ -4329,7 +4454,7 @@ function compileGoalEquation(state, payload = {}) {
     const domainMap = {
       BODY: 'BODY',
       SKILL: 'FOCUS',
-      OUTPUT: 'CREATION'
+      OUTPUT: 'CREATION',
     };
     const domain = domainMap[equation.family] || 'FOCUS';
     scheduleBlocks.forEach((block) => {
@@ -4344,7 +4469,7 @@ function compileGoalEquation(state, payload = {}) {
         title: block.title,
         surface: 'today',
         timeZone,
-        lockedUntilDayKey: block.locked ? lockUntilDayKey : null
+        lockedUntilDayKey: block.locked ? lockUntilDayKey : null,
       });
     });
   }
@@ -4356,7 +4481,8 @@ function acceptSuggestedBlock(state, proposalId) {
   const target = suggestions.find((s) => s.id === proposalId);
   if (!target || target.status !== 'suggested') return;
   const existingCreate = (state.executionEvents || []).find(
-    (event) => event?.kind === 'create' && (event?.suggestionId === proposalId || event?.blockId === `blk-${proposalId}`)
+    (event) =>
+      event?.kind === 'create' && (event?.suggestionId === proposalId || event?.blockId === `blk-${proposalId}`)
   );
   if (existingCreate) return;
   const link = getSuggestionLink(state, state.activeCycleId, proposalId);
@@ -4374,7 +4500,7 @@ function acceptSuggestedBlock(state, proposalId) {
     deliverableId: link?.deliverableId ?? target.deliverableId ?? null,
     criterionId: link?.criterionId ?? target.criterionId ?? null,
     status: 'planned',
-    surface: 'week'
+    surface: 'week',
   });
   const nowISO = new Date().toISOString();
   target.status = 'accepted';
@@ -4385,12 +4511,12 @@ function acceptSuggestedBlock(state, proposalId) {
     type: 'suggested_block_accepted',
     proposalId,
     goalId: target.goalId,
-    atISO: nowISO
+    atISO: nowISO,
   });
   state.planPreview = computePlanPreview({
     suggestedBlocks: state.suggestedBlocks,
     planDraft: state.planDraft,
-    contract: state.goalExecutionContract
+    contract: state.goalExecutionContract,
   });
 }
 
@@ -4401,9 +4527,7 @@ function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
   const contract = state.goalExecutionContract;
   if (!plan || !contract) return;
   if (plan.status === 'calibrated' && plan.daysPerWeek === parsed) return;
-  const prevSuggestionIds = (state.suggestedBlocks || [])
-    .filter((s) => s && s.status === 'suggested')
-    .map((s) => s.id);
+  const prevSuggestionIds = (state.suggestedBlocks || []).filter((s) => s && s.status === 'suggested').map((s) => s.id);
 
   const blocksPerWeek = Math.max(6, Math.min(14, parsed * 2));
   const templates = plan.templates || [];
@@ -4420,7 +4544,7 @@ function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
   calibration.daysPerWeek = parsed;
   calibration.assumptions = [
     `Assuming ${parsed} days/week execution.`,
-    `Default capacity ${blocksPerWeek} blocks/week.`
+    `Default capacity ${blocksPerWeek} blocks/week.`,
   ];
   calibration.missingInfo = (calibration.missingInfo || []).filter((entry) => entry !== 'daysPerWeek');
   state.planCalibration = calibration;
@@ -4441,7 +4565,7 @@ function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
     goalText: contract.goalText,
     primaryDomain: plan.primaryDomain,
     reservedIds,
-    timeZone: state.appTime?.timeZone
+    timeZone: state.appTime?.timeZone,
   });
   state.suggestedBlocks = [...preserved, ...nextSuggested];
 
@@ -4453,13 +4577,13 @@ function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
     reason: 'capacity_calibration',
     prevSuggestionIds,
     nextSuggestionIds: nextSuggested.map((s) => s.id),
-    atISO: nowISO
+    atISO: nowISO,
   });
 
   state.planPreview = computePlanPreview({
     suggestedBlocks: state.suggestedBlocks,
     planDraft: state.planDraft,
-    contract: state.goalExecutionContract
+    contract: state.goalExecutionContract,
   });
 
   state.calibrationEvents = state.calibrationEvents || [];
@@ -4468,9 +4592,11 @@ function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
     type: 'calibration_days_per_week_set',
     daysPerWeek: parsed,
     dayKey: nowDayKey(state.appTime?.timeZone),
-    contractId: state.activeCycleId ? state.cyclesById?.[state.activeCycleId]?.goalGovernanceContract?.contractId : undefined,
+    contractId: state.activeCycleId
+      ? state.cyclesById?.[state.activeCycleId]?.goalGovernanceContract?.contractId
+      : undefined,
     planId: plan.id,
-    atISO: nowISO
+    atISO: nowISO,
   });
 }
 
@@ -4492,14 +4618,16 @@ function rejectSuggestedBlock(state, proposalId, reason) {
     goalId: target.goalId,
     reason: target.rejectedReason,
     dayKey: nowDayKey(),
-    contractId: state.activeCycleId ? state.cyclesById?.[state.activeCycleId]?.goalGovernanceContract?.contractId : undefined,
+    contractId: state.activeCycleId
+      ? state.cyclesById?.[state.activeCycleId]?.goalGovernanceContract?.contractId
+      : undefined,
     planId: state.planDraft?.id,
-    atISO: nowISO
+    atISO: nowISO,
   });
   state.planPreview = computePlanPreview({
     suggestedBlocks: state.suggestedBlocks,
     planDraft: state.planDraft,
-    contract: state.goalExecutionContract
+    contract: state.goalExecutionContract,
   });
 }
 
@@ -4517,12 +4645,12 @@ function ignoreSuggestedBlock(state, proposalId) {
     type: 'suggestion_ignored',
     suggestionId: proposalId,
     goalId: target.goalId,
-    atISO: nowISO
+    atISO: nowISO,
   });
   state.planPreview = computePlanPreview({
     suggestedBlocks: state.suggestedBlocks,
     planDraft: state.planDraft,
-    contract: state.goalExecutionContract
+    contract: state.goalExecutionContract,
   });
 }
 
@@ -4540,12 +4668,12 @@ function dismissSuggestedBlock(state, proposalId) {
     type: 'suggestion_dismissed',
     suggestionId: proposalId,
     goalId: target.goalId,
-    atISO: nowISO
+    atISO: nowISO,
   });
   state.planPreview = computePlanPreview({
     suggestedBlocks: state.suggestedBlocks,
     planDraft: state.planDraft,
-    contract: state.goalExecutionContract
+    contract: state.goalExecutionContract,
   });
 }
 
@@ -4566,7 +4694,7 @@ function createDeliverable(state, payload = {}) {
     dueDayKey: payload.dueDayKey || null,
     criteria: [],
     createdAtISO: nowISO,
-    updatedAtISO: nowISO
+    updatedAtISO: nowISO,
   };
   workspace.deliverables = [...(workspace.deliverables || []), deliverable];
   workspace.lastUpdatedAtISO = nowISO;
@@ -4587,10 +4715,9 @@ function updateDeliverable(state, payload = {}) {
       ? {
           ...d,
           ...patch,
-          requiredBlocks:
-            patch.requiredBlocks !== undefined ? Number(patch.requiredBlocks) || 0 : d.requiredBlocks,
+          requiredBlocks: patch.requiredBlocks !== undefined ? Number(patch.requiredBlocks) || 0 : d.requiredBlocks,
           domain: patch.domain ? patch.domain.toString().toUpperCase() : d.domain,
-          updatedAtISO: nowISO
+          updatedAtISO: nowISO,
         }
       : d
   );
@@ -4633,8 +4760,8 @@ function createCriterion(state, payload = {}) {
         id: `crit-${deliverableId}-${(d.criteria || []).length + 1}`,
         deliverableId,
         text,
-        isDone: false
-      }
+        isDone: false,
+      },
     ];
     return { ...d, criteria: nextCriteria, updatedAtISO: nowISO };
   });
@@ -4661,7 +4788,7 @@ function toggleCriterionDone(state, payload = {}) {
         ...c,
         isDone,
         doneAtISO: isDone ? nowISO : null,
-        doneAtDayKey: isDone ? dayKey : null
+        doneAtDayKey: isDone ? dayKey : null,
       };
     });
     return { ...d, criteria: nextCriteria, updatedAtISO: nowISO };
@@ -4695,7 +4822,7 @@ function linkBlockToDeliverable(state, payload = {}) {
   updateBlock(state, {
     id,
     deliverableId: payload.deliverableId ?? null,
-    criterionId: payload.criterionId ?? null
+    criterionId: payload.criterionId ?? null,
   });
 }
 
@@ -4711,7 +4838,7 @@ function assignSuggestionLink(state, payload = {}) {
   } else {
     workspace.suggestionLinks[suggestionId] = {
       deliverableId: payload.deliverableId ?? null,
-      criterionId: payload.criterionId ?? null
+      criterionId: payload.criterionId ?? null,
     };
   }
   state.deliverablesByCycleId[cycleId] = workspace;
@@ -4734,10 +4861,10 @@ function normalizeStatus(rawStatus, surface = 'today') {
     rawStatus === 'completed'
       ? 'completed'
       : rawStatus === 'in_progress'
-      ? 'in_progress'
-      : rawStatus === 'pending' || rawStatus === 'planned'
-      ? 'planned'
-      : 'planned';
+        ? 'in_progress'
+        : rawStatus === 'pending' || rawStatus === 'planned'
+          ? 'planned'
+          : 'planned';
   // Only Today may transition to in_progress/completed; planning surfaces remain planned.
   if (surface !== 'today' && normalized !== 'planned') return 'planned';
   return normalized;
@@ -4779,7 +4906,7 @@ function handleDraftScheduleClear(state, action = {}) {
       cycleId,
       completed: false,
       origin: 'draft',
-      status: block?.status || 'in_progress'
+      status: block?.status || 'in_progress',
     });
     if (canEmitExecutionEvent(state.executionEvents || [], event)) {
       appendExecutionEvent(state, event);
@@ -4789,7 +4916,7 @@ function handleDraftScheduleClear(state, action = {}) {
     id: `draft-schedule-clear:${cycleId}:${nowISO}`,
     type: 'DRAFT_SCHEDULE_CLEAR',
     cycleId,
-    atISO: nowISO
+    atISO: nowISO,
   });
   state._draftIdSequence = state._draftIdSequence || {};
   state._draftIdSequence[cycleId] = 0;
@@ -4833,7 +4960,7 @@ function handleDraftBlockCreate(state, action = {}) {
     actionId,
     title: action.title || rawLabel,
     detail,
-    category
+    category,
   };
   if (canEmitExecutionEvent(state.executionEvents || [], event)) {
     appendExecutionEvent(state, event);
@@ -4846,7 +4973,7 @@ function handleDraftBlockCreate(state, action = {}) {
     startISO,
     endISO,
     status,
-    createdAtISO: state.appTime?.nowISO || new Date().toISOString()
+    createdAtISO: state.appTime?.nowISO || new Date().toISOString(),
   });
 }
 
@@ -4939,7 +5066,7 @@ function createBlock(state, payload = {}) {
     end: endDate.toISOString(),
     status,
     optional: payload.optional || false,
-    objectiveId: payload.objectiveId || state.today?.primaryObjectiveId || null
+    objectiveId: payload.objectiveId || state.today?.primaryObjectiveId || null,
   };
 
   const event = buildExecutionEventFromBlock(newBlock, {
@@ -4958,14 +5085,17 @@ function createBlock(state, payload = {}) {
     unmetDepIds,
     unmetDepTitles,
     blockReason,
-    meta: payload.meta || null
+    meta: payload.meta || null,
   });
   if (!canEmitExecutionEvent(state.executionEvents || [], event)) return;
   appendExecutionEvent(state, event);
   const ensureDay = (arr = []) => {
     const existing = arr.find((d) => d.date === date);
     if (existing) return arr.map((d) => (d.date === date ? { ...d, blocks: [...(d.blocks || []), newBlock] } : d));
-    return [...arr, { date, blocks: [newBlock], completionRate: 0, driftSignal: 'forming', loadByPractice: {}, practices: [] }];
+    return [
+      ...arr,
+      { date, blocks: [newBlock], completionRate: 0, driftSignal: 'forming', loadByPractice: {}, practices: [] },
+    ];
   };
 
   state.today.blocks = [...(state.today.blocks || []), newBlock];
@@ -4975,7 +5105,7 @@ function createBlock(state, payload = {}) {
     type: 'CREATE_BLOCK',
     timestamp: new Date().toISOString(),
     beforeSummary: '',
-    afterSummary: state.today?.summaryLine || ''
+    afterSummary: state.today?.summaryLine || '',
   };
 }
 
@@ -4994,10 +5124,12 @@ function updateBlock(state, payload = {}) {
       payload.durationMinutes ||
       (payload.durationMs ? payload.durationMs / 60000 : null) ||
       (payload.duration ? payload.duration / 60000 : null) ||
-      ((new Date(block.end).getTime() - new Date(block.start).getTime()) / 60000);
+      (new Date(block.end).getTime() - new Date(block.start).getTime()) / 60000;
     const minutes = clampDurationMinutes(durationMinutes);
     const endDate = new Date(startDate.getTime() + minutes * 60 * 1000);
-    const { domain, practice } = normalizeDomainValue(payload.domain || payload.practice || block.domain || block.practice);
+    const { domain, practice } = normalizeDomainValue(
+      payload.domain || payload.practice || block.domain || block.practice
+    );
     const status = normalizeStatus(payload.status || block.status, surface);
     const title = payload.title || payload.label || block.title || block.label;
     return {
@@ -5012,8 +5144,12 @@ function updateBlock(state, payload = {}) {
       start: startDate.toISOString(),
       end: endDate.toISOString(),
       status,
-      deliverableId: Object.prototype.hasOwnProperty.call(payload, 'deliverableId') ? payload.deliverableId : block.deliverableId,
-      criterionId: Object.prototype.hasOwnProperty.call(payload, 'criterionId') ? payload.criterionId : block.criterionId
+      deliverableId: Object.prototype.hasOwnProperty.call(payload, 'deliverableId')
+        ? payload.deliverableId
+        : block.deliverableId,
+      criterionId: Object.prototype.hasOwnProperty.call(payload, 'criterionId')
+        ? payload.criterionId
+        : block.criterionId,
     };
   };
 
@@ -5021,11 +5157,11 @@ function updateBlock(state, payload = {}) {
   state.today.blocks = updateBlocks(state.today.blocks);
   state.currentWeek.days = (state.currentWeek?.days || []).map((d) => ({
     ...d,
-    blocks: updateBlocks(d.blocks)
+    blocks: updateBlocks(d.blocks),
   }));
   state.cycle = (state.cycle || []).map((d) => ({
     ...d,
-    blocks: updateBlocks(d.blocks)
+    blocks: updateBlocks(d.blocks),
   }));
 
   const updated = applyUpdate(existing);
@@ -5034,7 +5170,7 @@ function updateBlock(state, payload = {}) {
     completed: false,
     dateISO: null,
     startISO: null,
-    endISO: null
+    endISO: null,
   });
   if (!canEmitExecutionEvent(state.executionEvents || [], event)) return;
   appendExecutionEvent(state, event);
@@ -5047,7 +5183,7 @@ function deleteBlock(state, id) {
   const event = buildExecutionEventFromBlock(existing, {
     kind: 'delete',
     completed: false,
-    minutes: 0
+    minutes: 0,
   });
   if (!canEmitExecutionEvent(state.executionEvents || [], event)) return;
   const remove = (blocks = []) => blocks.filter((b) => b.id !== id);
@@ -5072,7 +5208,9 @@ function applyRecurringPatterns(state) {
     startDate.setUTCHours(0, 0, 0, 0);
     const startMs = startDate.getTime() + (p.startMs || 0);
     const endMs = startMs + (p.durationMs || 30 * 60 * 1000);
-    const exists = (state.today.blocks || []).some((b) => b.practice === p.practice && b.start === new Date(startMs).toISOString());
+    const exists = (state.today.blocks || []).some(
+      (b) => b.practice === p.practice && b.start === new Date(startMs).toISOString()
+    );
     if (exists) return;
     state.today.blocks = [
       ...(state.today.blocks || []),
@@ -5083,8 +5221,8 @@ function applyRecurringPatterns(state) {
         start: new Date(startMs).toISOString(),
         end: new Date(endMs).toISOString(),
         status: 'planned',
-        objectiveId: state.today.primaryObjectiveId || null
-      }
+        objectiveId: state.today.primaryObjectiveId || null,
+      },
     ];
   });
 }
@@ -5099,14 +5237,13 @@ function applyNextSuggestion(state) {
     return;
   }
   if (suggestion.type === 'repair') {
-    const duration =
-      new Date(suggestion.endISO).getTime() - new Date(suggestion.startISO).getTime();
+    const duration = new Date(suggestion.endISO).getTime() - new Date(suggestion.startISO).getTime();
     const payload = {
       date: suggestion.startISO.slice(0, 10),
       practice: suggestion.practice,
       start: suggestion.startISO,
       duration,
-      status: 'in_progress'
+      status: 'in_progress',
     };
     createBlock(state, payload);
   }

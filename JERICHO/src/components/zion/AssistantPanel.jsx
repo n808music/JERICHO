@@ -37,7 +37,7 @@ export default function AssistantPanel({ isOpen, onClose, initialPrompt }) {
     if (initialPrompt) {
       addMessage('user', initialPrompt, true);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialPrompt]);
 
   useEffect(() => {
@@ -48,7 +48,7 @@ export default function AssistantPanel({ isOpen, onClose, initialPrompt }) {
         false
       );
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -72,10 +72,7 @@ export default function AssistantPanel({ isOpen, onClose, initialPrompt }) {
     <div className="h-full flex flex-col text-xs bg-jericho-surface border border-line/60 rounded-lg p-3">
       <div className="flex items-center justify-between mb-2">
         <span className="uppercase tracking-[0.14em] text-muted">Assistant</span>
-        <button
-          className="text-[11px] text-muted hover:text-jericho-accent"
-          onClick={onClose}
-        >
+        <button className="text-[11px] text-muted hover:text-jericho-accent" onClick={onClose}>
           Close
         </button>
       </div>
@@ -98,7 +95,10 @@ export default function AssistantPanel({ isOpen, onClose, initialPrompt }) {
             if (e.key === 'Enter') handleSend();
           }}
         />
-        <button className="px-3 py-2 rounded-md border border-jericho-accent text-jericho-accent text-sm" onClick={handleSend}>
+        <button
+          className="px-3 py-2 rounded-md border border-jericho-accent text-jericho-accent text-sm"
+          onClick={handleSend}
+        >
           Send
         </button>
       </div>

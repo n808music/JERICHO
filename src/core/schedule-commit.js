@@ -6,6 +6,7 @@
  */
 
 import { readState, writeState } from '../data/storage.js';
+import { validateMaterializedBlockDependencies } from './schedule-dependency-enforcement.js';
 
 /**
  * Commit proposed schedule blocks
@@ -23,6 +24,17 @@ export async function commitScheduleBlocks(proposedBlocks, goal, identity) {
       error: 'Cannot commit blocks that are not in suggested status',
       committedBlocks: [],
       errorCode: 'INVALID_BLOCK_STATUS'
+    };
+  }
+
+  const dependencyViolations = validateMaterializedBlockDependencies(proposedBlocks);
+  if (dependencyViolations.length > 0) {
+    return {
+      success: false,
+      error: 'Cannot commit blocks that violate dependency constraints',
+      committedBlocks: [],
+      errorCode: 'DEPENDENCY_ORDER_VIOLATED',
+      constraintViolations: dependencyViolations
     };
   }
 
@@ -98,6 +110,16 @@ export function validateScheduleProposal(proposal) {
       valid: false,
       reason: 'Schedule has conflicts',
       canCommit: false
+    };
+  }
+
+  const dependencyViolations = validateMaterializedBlockDependencies(proposedBlocks);
+  if (dependencyViolations.length > 0) {
+    return {
+      valid: false,
+      reason: 'Schedule violates dependency constraints',
+      canCommit: false,
+      constraintViolations: dependencyViolations
     };
   }
 

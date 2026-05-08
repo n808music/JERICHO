@@ -5,7 +5,7 @@ const DOMAIN_KEYWORDS = {
   RESOURCES: ['money', 'revenue', 'sales', 'client', 'customers', 'customer', 'deal', 'cash'],
   CREATION: ['music', 'album', 'song', 'label', 'content', 'video', 'script', 'write', 'record'],
   BODY: ['sleep', 'gym', 'health', 'food', 'run', 'workout', 'exercise', 'rest'],
-  FOCUS: [] // fallback
+  FOCUS: [], // fallback
 };
 
 export function computeGoalProfile(goal = '', deadlineISO = null, todayKey = null) {
@@ -13,13 +13,15 @@ export function computeGoalProfile(goal = '', deadlineISO = null, todayKey = nul
   const dominantDomain = inferDomain(tokens);
   const today = todayKey ? new Date(`${todayKey}T00:00:00`) : new Date();
   const deadline = deadlineISO ? new Date(deadlineISO) : null;
-  const daysRemaining = deadline ? Math.max(0, Math.round((deadline.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))) : 999;
+  const daysRemaining = deadline
+    ? Math.max(0, Math.round((deadline.getTime() - today.getTime()) / (24 * 60 * 60 * 1000)))
+    : 999;
   const urgencyBand = daysRemaining <= 14 ? 'high' : daysRemaining <= 60 ? 'medium' : 'low';
   return {
     daysRemaining,
     urgencyBand,
     dominantDomain,
-    goalTokens: tokens
+    goalTokens: tokens,
   };
 }
 
@@ -31,7 +33,7 @@ export function getTodayCandidates(blocks = [], todayKey) {
     domain: (b.practice || b.domain || 'FOCUS').toUpperCase(),
     durationMinutes: b.durationMinutes || estimateDuration(b),
     startISO: b.start,
-    title: b.label || `${b.practice || b.domain || 'Block'}`
+    title: b.label || `${b.practice || b.domain || 'Block'}`,
   }));
   return candidates;
 }
@@ -81,7 +83,7 @@ export function computeNextBestMove(goal, deadlineISO, blocks = [], history = []
       kind: 'gap_fill',
       domain: profile.dominantDomain,
       durationMinutes: 30,
-      title: `Goal-aligned ${profile.dominantDomain.toLowerCase()} block`
+      title: `Goal-aligned ${profile.dominantDomain.toLowerCase()} block`,
     });
   }
   if (!todayBlocks.length) {
@@ -89,11 +91,13 @@ export function computeNextBestMove(goal, deadlineISO, blocks = [], history = []
       kind: 'first_move',
       domain: profile.dominantDomain,
       durationMinutes: 30,
-      title: `First move toward goal`
+      title: `First move toward goal`,
     });
   }
 
-  if (!candidates.length) return null;
+  if (!candidates.length) {
+    return null;
+  }
 
   const ordered = [...candidates].sort(candidateOrder);
   const scored = ordered.map((c) => {
@@ -102,11 +106,17 @@ export function computeNextBestMove(goal, deadlineISO, blocks = [], history = []
   });
 
   scored.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    if ((a.candidate.durationMinutes || 0) !== (b.candidate.durationMinutes || 0)) return (a.candidate.durationMinutes || 0) - (b.candidate.durationMinutes || 0);
+    if (b.score !== a.score) {
+      return b.score - a.score;
+    }
+    if ((a.candidate.durationMinutes || 0) !== (b.candidate.durationMinutes || 0)) {
+      return (a.candidate.durationMinutes || 0) - (b.candidate.durationMinutes || 0);
+    }
     const aStart = a.candidate.startISO ? new Date(a.candidate.startISO).getTime() : Infinity;
     const bStart = b.candidate.startISO ? new Date(b.candidate.startISO).getTime() : Infinity;
-    if (aStart !== bStart) return aStart - bStart;
+    if (aStart !== bStart) {
+      return aStart - bStart;
+    }
     const aLex = a.candidate.blockId || a.candidate.title || '';
     const bLex = b.candidate.blockId || b.candidate.title || '';
     return aLex.localeCompare(bLex);
@@ -123,7 +133,7 @@ export function computeNextBestMove(goal, deadlineISO, blocks = [], history = []
       durationMinutes: c.durationMinutes,
       blockId: c.blockId,
       rationale,
-      doneWhen: 'When the referenced block is completed today.'
+      doneWhen: 'When the referenced block is completed today.',
     };
   }
 
@@ -132,29 +142,42 @@ export function computeNextBestMove(goal, deadlineISO, blocks = [], history = []
     domain: toTitle(c.domain),
     durationMinutes: 30,
     rationale,
-    doneWhen: 'When a block of this domain and duration is completed today.'
+    doneWhen: 'When a block of this domain and duration is completed today.',
   };
 }
 
 // --- helpers ---
 
 function normalizeText(text) {
-  return (text || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  return (text || '')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
 }
 
 function inferDomain(tokens) {
   const match = (domain) => DOMAIN_KEYWORDS[domain].some((k) => tokens.includes(k));
-  if (match('RESOURCES')) return 'RESOURCES';
-  if (match('CREATION')) return 'CREATION';
-  if (match('BODY')) return 'BODY';
+  if (match('RESOURCES')) {
+    return 'RESOURCES';
+  }
+  if (match('CREATION')) {
+    return 'CREATION';
+  }
+  if (match('BODY')) {
+    return 'BODY';
+  }
   return 'FOCUS';
 }
 
 function estimateDuration(block) {
-  if (block?.durationMinutes) return block.durationMinutes;
+  if (block?.durationMinutes) {
+    return block.durationMinutes;
+  }
   const start = block?.start ? new Date(block.start) : null;
   const end = block?.end ? new Date(block.end) : null;
-  if (start && end) return Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000));
+  if (start && end) {
+    return Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000));
+  }
   return 30;
 }
 
@@ -172,19 +195,27 @@ function toTitle(domain) {
 function candidateOrder(a, b) {
   const aStart = a.startISO ? new Date(a.startISO).getTime() : Infinity;
   const bStart = b.startISO ? new Date(b.startISO).getTime() : Infinity;
-  if (aStart !== bStart) return aStart - bStart;
+  if (aStart !== bStart) {
+    return aStart - bStart;
+  }
 
   const aDur = a.durationMinutes || 0;
   const bDur = b.durationMinutes || 0;
-  if (aDur !== bDur) return aDur - bDur;
+  if (aDur !== bDur) {
+    return aDur - bDur;
+  }
 
   const aDomain = a.domain || '';
   const bDomain = b.domain || '';
-  if (aDomain !== bDomain) return aDomain.localeCompare(bDomain);
+  if (aDomain !== bDomain) {
+    return aDomain.localeCompare(bDomain);
+  }
 
   const aTitle = a.title || '';
   const bTitle = b.title || '';
-  if (aTitle !== bTitle) return aTitle.localeCompare(bTitle);
+  if (aTitle !== bTitle) {
+    return aTitle.localeCompare(bTitle);
+  }
 
   const aId = a.blockId || '';
   const bId = b.blockId || '';

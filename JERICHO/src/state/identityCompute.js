@@ -2,18 +2,41 @@ import structuredClone from '@ungap/structured-clone';
 import { PRACTICE_KEYS } from './metricsPolicy.js';
 import { normalizeDomain } from './domain.js';
 import { normalizeBlocksDomain } from './normalizeBlock.js';
-import { addDays, dayKeyFromDate, dayKeyFromISO, dayKeyFromParts, nowDayKey, buildLocalStartISO, assertValidISO, isValidISO, APP_TIME_ZONE } from './time/time.ts';
+import {
+  addDays,
+  dayKeyFromDate,
+  dayKeyFromISO,
+  dayKeyFromParts,
+  nowDayKey,
+  buildLocalStartISO,
+  assertValidISO,
+  isValidISO,
+  APP_TIME_ZONE,
+} from './time/time.ts';
 import { buildDefaultStrategy, generateColdPlan, generateDailyProjection } from './coldPlan.ts';
 import { compileGoalEquationPlan } from './goalEquation.ts';
 import { admitGoal, isAdmitted } from './goalAdmission.ts';
 import { compileAutoAsanaPlan } from './engine/autoAsanaPlan.ts';
 import { buildAssumptionsHash, normalizeDeliverables, normalizeRouteOption } from './strategy.ts';
 import { buildAutoDeliverablesFromGoalContract } from '../domain/autoStrategy.ts';
+import { buildGoalIntakeContract, getIntakeGateCode } from '../domain/goal/GoalIntakeContract.ts';
+import { buildGoalPolicySnapshot } from '../domain/goal/GoalPolicy.ts';
+import { evaluatePlanQualityGate } from '../domain/planQuality/evaluatePlanQualityGate.ts';
 import { generateAutoDeliverables, debugAutoDeliverablesGeneration } from '../core/autoDeliverables.ts';
 import { getDeadlineDayKey } from '../core/deadline.ts';
 import { generateDeterministicPlan } from '../core/deterministicPlanGenerator.ts';
 import { canEmitExecutionEvent } from './engine/executionContract.ts';
-import { appendExecutionEvent, buildExecutionEventFromBlock, materializeBlocksFromEvents } from './engine/todayAuthority.ts';
+import {
+  appendExternalEvidenceEvent,
+  appendExecutionEvent,
+  appendPlanMutationEvent,
+  buildExternalEvidenceEvent,
+  buildExecutionEventFromBlock,
+  buildPlanMutationEventFromBlock,
+  annotateRepeatedSessionTitles,
+  deriveExecutionTruthClassification,
+  materializeBlocksFromEvents,
+} from './engine/todayAuthority.ts';
 import { derivePlanProof } from './engine/planProof.ts';
 import { resolveActiveContract } from './contracts/goalContract.resolve.ts';
 import { authorizeSuggestion } from './contracts/goalContract.validate.ts';
@@ -29,16 +52,98 @@ import { rolloverAtMidnight, shouldRollover } from '../core/engine/rollover.ts';
 import { buildPolicyAndQualityDiagnostics } from './draftSchedule.js';
 import { IS_PRODUCTION, isRuntimeEnvFlagEnabled } from '../utils/runtimeEnv.js';
 import {
+  appendFrictionEvent,
+  buildFrictionEvent,
+  deriveProfileExecutionContainment,
+} from './engine/profileExecutionContainment.ts';
+import {
   getCanonicalCycleActions,
   getCanonicalCycleContract,
   getCanonicalCycleDeliverables,
-  getCanonicalProposedBlocks
+  getCanonicalLongHorizonPlanMetadata,
+  getCanonicalProposedBlocks,
 } from './cycleSelectors.js';
 import { buildHistoryProfile, deriveCycleHistorySignals } from '../planner/scoring/historySignals.ts';
 import { computeCycleIntegrityScore, computeCyclePOS } from '../domain/scoring/cycleScoring.ts';
 import { aggregateCycleOutcomes, buildPosExplanation } from '../domain/scoring/posExplanation.ts';
 import { buildCycleDynamicsTransitionPatch, deriveCycleDynamicsProfile } from './engine/cycleDynamics.ts';
 import { compileGoalToDeliverables, toLegacyWorkspaceDeliverables } from './engine/goalToDeliverables.ts';
+import { evaluateExecutionCorrection } from './engine/executionCorrectionEvaluator.ts';
+import { deriveSystemShotClock } from './engine/shotClock.ts';
+
+/**
+ * Computes core continuity state from active mission contract and linked master plans.
+ * Returns continuity assessment with state, reason codes, and linked plan IDs.
+ */
+function computeCoreContinuity(state) {
+  const profile = state.profilesById?.[state.activeProfileId];
+  const activeMissionId = profile?.activeCoreMissionContractId;
+  
+  if (!activeMissionId) {
+    return {
+      state: 'absent',
+      activeMissionId: null,
+      linkedMasterPlanIds: [],
+      reasonCodes: ['no_active_mission_contract'],
+    };
+  }
+
+  const contract = state.coreMissionContractsById?.[activeMissionId];
+  if (!contract) {
+    return {
+      state: 'absent',
+      activeMissionId,
+      linkedMasterPlanIds: [],
+      reasonCodes: ['mission_contract_not_found'],
+    };
+  }
+
+  // Find master plans linked to this mission contract
+  const linkedMasterPlanIds = Object.values(state.masterPlansById || {})
+    .filter(plan => plan.coreMissionContractId === activeMissionId)
+    .map(plan => plan.id);
+
+  const activeMasterPlanId = profile?.activeMasterPlanId;
+  const hasActiveMasterPlan = activeMasterPlanId && linkedMasterPlanIds.includes(activeMasterPlanId);
+
+  // Assess continuity based on contract state and plan linkage
+  let continuityState = 'aligned';
+  const reasonCodes = [];
+
+  if (!hasActiveMasterPlan) {
+    continuityState = 'strained';
+    reasonCodes.push('no_active_master_plan');
+  }
+
+  // Check for recent revisions (within last 90 days)
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+  const recentRevisions = (contract.revisionHistory || []).filter(
+    rev => new Date(rev.timestamp) > ninetyDaysAgo
+  );
+
+  if (recentRevisions.length > 2) {
+    continuityState = 'drifting';
+    reasonCodes.push('frequent_revisions');
+  }
+
+  // Check for derailment signals
+  if (contract.derailmentSignals && contract.derailmentSignals.length > 0) {
+    continuityState = 'endangered';
+    reasonCodes.push('active_derailment_signals');
+  }
+
+  if (reasonCodes.length === 0) {
+    reasonCodes.push('mission_aligned');
+  }
+
+  return {
+    state: continuityState,
+    activeMissionId,
+    linkedMasterPlanIds,
+    reasonCodes,
+  };
+}
 
 /**
  * @typedef {import('./identityTypes.js').IdentityState} IdentityState
@@ -47,27 +152,56 @@ import { compileGoalToDeliverables, toLegacyWorkspaceDeliverables } from './engi
  * @typedef {import('./identityTypes.js').LensesConfig} LensesConfig
  */
 
+const DEFAULT_PROFILE_ID = 'profile-local-default';
+const DEFAULT_PROFILE_LABEL = 'Local Profile';
+
 /**
- * @typedef {{ type: 'BEGIN_BLOCK'; id: string } | { type: 'COMPLETE_BLOCK'; id: string } | { type: 'RESCHEDULE_BLOCK'; id: string; start: string; end: string } | { type: 'APPLY_LENSES'; lenses: Partial<LensesConfig> } | { type: 'SET_VIEW_DATE'; date: string } | { type: 'REBALANCE_TODAY'; mode?: 'CLEAR_AFTERNOON' } | { type: 'COMPLETE_ONBOARDING'; onboarding: any } | { type: 'START_NEW_CYCLE'; payload: any } | { type: 'START_NEW_CYCLE_WITH_DECISION'; payload: { mode: 'archive' | 'delete' } } | { type: 'END_CYCLE'; cycleId: string } | { type: 'ARCHIVE_AND_CLONE_CYCLE'; cycleId: string; overrides?: any } | { type: 'SET_ACTIVE_CYCLE'; cycleId: string } | { type: 'DELETE_CYCLE'; cycleId: string } | { type: 'HARD_DELETE_CYCLE'; cycleId: string } | { type: 'ADD_TRUTH_ENTRY'; payload: any } | { type: 'CREATE_BLOCK'; payload: any } | { type: 'UPDATE_BLOCK'; payload: any } | { type: 'DELETE_BLOCK'; id: string } | { type: 'ADD_RECURRING_PATTERN'; pattern: any } | { type: 'SET_PRIMARY_OBJECTIVE'; objectiveId: string | null } | { type: 'SET_CALIBRATION_DAYS'; daysPerWeek: number; uncertain?: boolean } | { type: 'GENERATE_PLAN' } | { type: 'APPLY_PLAN' } | { type: 'ACCEPT_SUGGESTED_BLOCK'; proposalId: string } | { type: 'REJECT_SUGGESTED_BLOCK'; proposalId: string; reason: string } | { type: 'IGNORE_SUGGESTED_BLOCK'; proposalId: string } | { type: 'DISMISS_SUGGESTED_BLOCK'; proposalId: string } | { type: 'CREATE_DELIVERABLE'; payload: any } | { type: 'UPDATE_DELIVERABLE'; payload: any } | { type: 'DELETE_DELIVERABLE'; payload: any } | { type: 'CREATE_CRITERION'; payload: any } | { type: 'TOGGLE_CRITERION_DONE'; payload: any } | { type: 'DELETE_CRITERION'; payload: any } | { type: 'LINK_BLOCK_TO_DELIVERABLE'; payload: any } | { type: 'ASSIGN_SUGGESTION_LINK'; payload: any } | { type: 'SET_STRATEGY'; payload: any } | { type: 'GENERATE_COLD_PLAN'; payload?: any } | { type: 'REBASE_COLD_PLAN'; payload?: any } | { type: 'SET_DEFINITE_GOAL'; outcome: string; deadlineDayKey: string } | { type: 'COMPILE_GOAL_EQUATION'; payload: any } | { type: 'APPLY_RENEGOTIATION_OPTION'; payload?: any }} Action
+ * @typedef {{ type: 'BEGIN_BLOCK'; id: string } | { type: 'COMPLETE_BLOCK'; id: string } | { type: 'RESCHEDULE_BLOCK'; id: string; start: string; end: string } | { type: 'APPLY_LENSES'; lenses: Partial<LensesConfig> } | { type: 'SET_VIEW_DATE'; date: string } | { type: 'REBALANCE_TODAY'; mode?: 'CLEAR_AFTERNOON' } | { type: 'COMPLETE_ONBOARDING'; onboarding: any } | { type: 'UPDATE_PENDING_ONBOARDING_INPUTS'; onboarding: any } | { type: 'START_NEW_CYCLE'; payload: any } | { type: 'START_NEW_CYCLE_WITH_DECISION'; payload: { mode: 'archive' | 'delete' } } | { type: 'END_CYCLE'; cycleId: string } | { type: 'ARCHIVE_AND_CLONE_CYCLE'; cycleId: string; overrides?: any } | { type: 'SET_ACTIVE_CYCLE'; cycleId: string } | { type: 'DELETE_CYCLE'; cycleId: string } | { type: 'HARD_DELETE_CYCLE'; cycleId: string } | { type: 'ADD_TRUTH_ENTRY'; payload: any } | { type: 'CREATE_BLOCK'; payload: any } | { type: 'UPDATE_BLOCK'; payload: any } | { type: 'DELETE_BLOCK'; id: string } | { type: 'ADD_RECURRING_PATTERN'; pattern: any } | { type: 'SET_PRIMARY_OBJECTIVE'; objectiveId: string | null } | { type: 'SET_CALIBRATION_DAYS'; daysPerWeek: number; uncertain?: boolean } | { type: 'GENERATE_PLAN' } | { type: 'APPLY_PLAN' } | { type: 'ACTIVATE_SCHEDULE' } | { type: 'ACCEPT_SUGGESTED_BLOCK'; proposalId: string } | { type: 'REJECT_SUGGESTED_BLOCK'; proposalId: string; reason: string } | { type: 'IGNORE_SUGGESTED_BLOCK'; proposalId: string } | { type: 'DISMISS_SUGGESTED_BLOCK'; proposalId: string } | { type: 'CREATE_DELIVERABLE'; payload: any } | { type: 'UPDATE_DELIVERABLE'; payload: any } | { type: 'DELETE_DELIVERABLE'; payload: any } | { type: 'CREATE_CRITERION'; payload: any } | { type: 'TOGGLE_CRITERION_DONE'; payload: any } | { type: 'DELETE_CRITERION'; payload: any } | { type: 'LINK_BLOCK_TO_DELIVERABLE'; payload: any } | { type: 'ASSIGN_SUGGESTION_LINK'; payload: any } | { type: 'SET_STRATEGY'; payload: any } | { type: 'GENERATE_COLD_PLAN'; payload?: any } | { type: 'REBASE_COLD_PLAN'; payload?: any } | { type: 'SET_DEFINITE_GOAL'; outcome: string; deadlineDayKey: string } | { type: 'COMPILE_GOAL_EQUATION'; payload: any } | { type: 'APPLY_RENEGOTIATION_OPTION'; payload?: any }} Action
  */
 
 export function computeDerivedState(state, action) {
   /** @type {IdentityState} */
   let next = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
-  if (!next.templates) next.templates = { objectives: {} };
-  if (!next.templates.objectives) next.templates.objectives = {};
-  if (!next.lastAdaptedDate) next.lastAdaptedDate = null;
-  if (!next.stability) next.stability = {};
-  if (!next.meta) next.meta = { version: '1.0.0', onboardingComplete: false };
-  if (!next.recurringPatterns) next.recurringPatterns = [];
-  if (!next.ledger) next.ledger = [];
-  if (typeof next.pendingPlanConfirmation !== 'boolean') next.pendingPlanConfirmation = false;
+  if (!next.templates) {
+    next.templates = { objectives: {} };
+  }
+  if (!next.templates.objectives) {
+    next.templates.objectives = {};
+  }
+  if (!next.lastAdaptedDate) {
+    next.lastAdaptedDate = null;
+  }
+  if (!next.stability) {
+    next.stability = {};
+  }
+  if (!next.meta) {
+    next.meta = { version: '1.0.0', onboardingComplete: false };
+  }
+  if (!next.recurringPatterns) {
+    next.recurringPatterns = [];
+  }
+  if (!next.ledger) {
+    next.ledger = [];
+  }
+  if (typeof next.pendingPlanConfirmation !== 'boolean') {
+    next.pendingPlanConfirmation = false;
+  }
   ensureCycleStructures(next);
   ensureAdmissionStores(next);
   ensureDeliverablesStore(next);
+  ensureProfileOwnership(next);
+  deriveProfileExecutionContainment(next);
   hydrateActiveCycleState(next);
   const hadCycleRecords = Boolean(next.cyclesById && Object.keys(next.cyclesById).length);
-  if (!next.executionEvents) next.executionEvents = [];
+  if (!next.executionEvents) {
+    next.executionEvents = [];
+  }
+  if (!Array.isArray(next.externalEvidenceEvents)) {
+    next.externalEvidenceEvents = [];
+  }
+  if (!Array.isArray(next.planMutationEvents)) {
+    next.planMutationEvents = [];
+  }
   refreshColdPlanDailyProjection(next);
   const previousTodayBlocks = next.today?.blocks ? [...next.today.blocks] : [];
 
@@ -79,7 +213,34 @@ export function computeDerivedState(state, action) {
     case 'BEGIN_BLOCK':
       updateBlockStatus(next, action.id, 'in_progress');
       break;
-    case 'COMPLETE_BLOCK':
+    case 'COMPLETE_BLOCK': {
+      updateBlockStatus(next, action.id, 'completed');
+      const completedBlock = findBlockById(next, action.id);
+      if (completedBlock) {
+        const nowISO = next.appTime?.nowISO || new Date().toISOString();
+        const truth = deriveExecutionTruthClassification({
+          block: completedBlock,
+          nowISO,
+          activeDayKey: next.appTime?.activeDayKey || next.today?.date || null,
+          timeZone: next.appTime?.timeZone || 'UTC',
+          executionEvents: next.executionEvents || [],
+          canonicalActions: getCanonicalCycleActions(next.cyclesById?.[completedBlock?.cycleId || next.activeCycleId] || null),
+          source: action.source || 'user_action',
+          reasonCode: action.reasonCode || null,
+          note: action.note || null,
+        });
+        const completionEvent = buildExecutionEventFromBlock(completedBlock, {
+          kind: 'complete',
+          completed: true,
+          status: 'completed',
+          dateISO: truth.eventDate,
+          completedAtISO: nowISO,
+          ...truth,
+        });
+        if (canEmitExecutionEvent(next.executionEvents || [], completionEvent)) {
+          appendExecutionEvent(next, completionEvent);
+        }
+      }
       appendTraceLog(next, {
         traceId: `trace-block-complete-${action.id || 'unknown'}-${Date.now()}`,
         moduleName: 'executionContract',
@@ -87,22 +248,76 @@ export function computeDerivedState(state, action) {
         status: 'success',
         inputSummary: { blockId: action.id || null },
         outputSummary: {
-          completedAt: next.appTime?.nowISO || new Date().toISOString()
+          completedAt: next.appTime?.nowISO || new Date().toISOString(),
         },
-        timestamp: next.appTime?.nowISO || new Date().toISOString()
+        timestamp: next.appTime?.nowISO || new Date().toISOString(),
       });
       break;
+    }
+    case 'ADD_EXTERNAL_EVIDENCE': {
+      const payload = action.payload || {};
+      const cycleId = payload.cycleId || next.activeCycleId || null;
+      const goalId =
+        payload.goalId ||
+        next.cyclesById?.[cycleId || '']?.goalContract?.goalId ||
+        next.cyclesById?.[cycleId || '']?.goalGovernanceContract?.goalId ||
+        next.goalExecutionContract?.goalId ||
+        null;
+      if (!payload?.evidenceType || !goalId) {
+        break;
+      }
+      const event = buildExternalEvidenceEvent({
+        ...payload,
+        goalId,
+        cycleId,
+        dateISO: payload.dateISO || next.appTime?.activeDayKey || next.today?.date || nowDayKey(),
+        recordedAtISO: payload.recordedAtISO || next.appTime?.nowISO || new Date().toISOString(),
+      });
+      const exists = (next.externalEvidenceEvents || []).some((candidate) => candidate?.id === event.id);
+      if (!exists) {
+        appendExternalEvidenceEvent(next, event);
+      }
+      break;
+    }
+    case 'ADD_FRICTION_EVENT': {
+      const payload = action.payload || {};
+      const cycleId = payload.cycleId || next.activeCycleId || null;
+      const goalId =
+        payload.goalId ||
+        next.cyclesById?.[cycleId || '']?.goalContract?.goalId ||
+        next.cyclesById?.[cycleId || '']?.goalGovernanceContract?.goalId ||
+        next.goalExecutionContract?.goalId ||
+        next.activeGoalId ||
+        null;
+      const profileId =
+        payload.profileId ||
+        next.goalsById?.[goalId || '']?.profileId ||
+        next.cyclesById?.[cycleId || '']?.profileId ||
+        next.activeProfileId ||
+        null;
+      const event = buildFrictionEvent({
+        ...payload,
+        profileId,
+        goalId,
+        cycleId,
+        startDateISO: payload.startDateISO || next.appTime?.activeDayKey || next.today?.date || nowDayKey(),
+      });
+      if (event) {
+        appendFrictionEvent(next, event);
+      }
+      break;
+    }
     case 'RESCHEDULE_BLOCK':
       rescheduleBlock(next, action.id, action.start, action.end);
       break;
     case 'APPLY_LENSES': {
       const withoutPractice = { ...(action.lenses || {}) };
-      if (withoutPractice.practice) delete withoutPractice.practice;
+      if (withoutPractice.practice) {
+        delete withoutPractice.practice;
+      }
       next.lenses = { ...next.lenses, ...withoutPractice };
       ensureCycleStructures(next);
-      const patternTargets = sanitizePatternTargets(
-        (next.lenses.pattern && next.lenses.pattern.dailyTargets) || []
-      );
+      const patternTargets = sanitizePatternTargets((next.lenses.pattern && next.lenses.pattern.dailyTargets) || []);
       if (next.activeCycleId && next.cyclesById?.[next.activeCycleId]) {
         next.cyclesById[next.activeCycleId].pattern = { dailyTargets: patternTargets };
         next.cyclesById[next.activeCycleId].aim = { text: next.lenses.aim?.description || '' };
@@ -131,7 +346,7 @@ export function computeDerivedState(state, action) {
         type: action.mode || 'REBALANCE_TODAY',
         timestamp: new Date().toISOString(),
         beforeSummary,
-        afterSummary: next.today?.summaryLine || ''
+        afterSummary: next.today?.summaryLine || '',
       };
       break;
     }
@@ -143,7 +358,7 @@ export function computeDerivedState(state, action) {
       next.meta = {
         ...(next.meta || {}),
         onboardingComplete: true,
-        scenarioLabel: onboardingPayload?.scenarioLabel || next.meta?.scenarioLabel || ''
+        scenarioLabel: onboardingPayload?.scenarioLabel || next.meta?.scenarioLabel || '',
       };
       enforceOnboardingExecutionGraphGate(next, next.activeCycleId, action.type);
       break;
@@ -159,9 +374,14 @@ export function computeDerivedState(state, action) {
       next.meta = {
         ...(next.meta || {}),
         onboardingComplete: true,
-        scenarioLabel: String(scenarioLabel || '').slice(0, 120)
+        scenarioLabel: String(scenarioLabel || '').slice(0, 120),
       };
       next.pendingOnboardingInputs = onboardingPayload || null;
+      break;
+    }
+    case 'UPDATE_PENDING_ONBOARDING_INPUTS': {
+      const onboardingPayload = action.onboarding || action.payload || null;
+      next.pendingOnboardingInputs = onboardingPayload;
       break;
     }
     case 'START_NEW_CYCLE':
@@ -234,9 +454,15 @@ export function computeDerivedState(state, action) {
 
       const baseBlocks = next.today?.blocks || [];
       baseBlocks.forEach((block) => {
-        if (!block?.id) return;
-        const existingCreate = (next.executionEvents || []).some((event) => event.blockId === block.id && event.kind === 'create');
-        if (existingCreate) return;
+        if (!block?.id) {
+          return;
+        }
+        const existingCreate = (next.executionEvents || []).some(
+          (event) => event.blockId === block.id && event.kind === 'create'
+        );
+        if (existingCreate) {
+          return;
+        }
         const event = buildExecutionEventFromBlock(block, {
           id: `base-create-${block.id}`,
           kind: 'create',
@@ -244,7 +470,7 @@ export function computeDerivedState(state, action) {
           dateISO: dayKeyFromISO(block.start || block.date, timezone) || currentDayKey,
           startISO: block.start,
           endISO: block.end,
-          status: block.status || 'in_progress'
+          status: block.status || 'in_progress',
         });
         if (canEmitExecutionEvent(next.executionEvents || [], event)) {
           appendExecutionEvent(next, event);
@@ -255,7 +481,7 @@ export function computeDerivedState(state, action) {
         const { eventsEmitted, lastRolloverDayISO } = rolloverAtMidnight({
           state: next,
           nowISO,
-          timezone
+          timezone,
         });
         if (eventsEmitted?.length) {
           eventsEmitted.forEach((event) => appendExecutionEvent(next, event));
@@ -267,9 +493,11 @@ export function computeDerivedState(state, action) {
         ...next.appTime,
         nowISO,
         timeZone: timezone,
-        activeDayKey: currentDayKey || next.appTime?.activeDayKey
+        activeDayKey: currentDayKey || next.appTime?.activeDayKey,
       };
-      if (!next.today) next.today = {};
+      if (!next.today) {
+        next.today = {};
+      }
       next.today.date = currentDayKey;
       break;
     }
@@ -277,7 +505,7 @@ export function computeDerivedState(state, action) {
       updateBlock(next, action.payload);
       break;
     case 'DELETE_BLOCK':
-      deleteBlock(next, action.id);
+      deleteBlock(next, action.id, action);
       break;
     case 'ADD_RECURRING_PATTERN':
       addRecurringPattern(next, action.pattern);
@@ -294,7 +522,9 @@ export function computeDerivedState(state, action) {
     case 'GENERATE_PLAN_STARTED': {
       const cycleId = action.payload?.cycleId || next.activeCycleId || null;
       const cycle = cycleId ? next.cyclesById?.[cycleId] : null;
-      if (!cycle) break;
+      if (!cycle) {
+        break;
+      }
       cycle.planStatus = 'generating';
       cycle.planGenerationSource = action.payload?.source || 'UNKNOWN';
       cycle.llmActionGraph = null;
@@ -311,7 +541,7 @@ export function computeDerivedState(state, action) {
         next.lastPlanError = {
           code: 'CYCLE_NOT_FOUND',
           reason: 'Cycle missing when applying LLM actions.',
-          cycleId
+          cycleId,
         };
         setGenerateHeartbeat(next, cycleId, 0, 'CYCLE_NOT_FOUND');
         break;
@@ -322,7 +552,7 @@ export function computeDerivedState(state, action) {
         next.lastPlanError = {
           code: 'EMPTY_LLM_ACTIONS',
           reason: 'LLM returned empty actions array.',
-          cycleId
+          cycleId,
         };
         setGenerateHeartbeat(next, cycleId, 0, 'EMPTY_LLM_ACTIONS');
         break;
@@ -330,8 +560,36 @@ export function computeDerivedState(state, action) {
       cycle.llmActionGraph = {
         actions,
         templates: Array.isArray(payload.templates) ? payload.templates : [],
-        diagnostics: payload.diagnostics || {}
+        diagnostics: payload.diagnostics || {},
       };
+      cycle.goalContract = cycle.goalContract || {};
+      if (payload.goalIntakeContract) {
+        cycle.goalContract.goalIntakeContract = payload.goalIntakeContract;
+      }
+      if (payload.planningIntake) {
+        cycle.goalContract.planningIntake = payload.planningIntake;
+      }
+      if (payload.prePlanFeasibility) {
+        cycle.goalContract.prePlanFeasibility = payload.prePlanFeasibility;
+      }
+      if (payload.capitalAcquisitionFeasibility) {
+        cycle.goalContract.capitalAcquisitionFeasibility = payload.capitalAcquisitionFeasibility;
+      }
+      if (payload.feasibilityAssessment) {
+        cycle.goalContract.feasibilityAssessment = payload.feasibilityAssessment;
+      }
+      if (cycle.goalContract?.goalIntakeContract) {
+        cycle.goalContract.goalIntakeContract.planningIntake =
+          payload.planningIntake || cycle.goalContract.goalIntakeContract.planningIntake || null;
+        cycle.goalContract.goalIntakeContract.prePlanFeasibility =
+          payload.prePlanFeasibility || cycle.goalContract.goalIntakeContract.prePlanFeasibility || null;
+        cycle.goalContract.goalIntakeContract.capitalAcquisitionFeasibility =
+          payload.capitalAcquisitionFeasibility ||
+          cycle.goalContract.goalIntakeContract.capitalAcquisitionFeasibility ||
+          null;
+        cycle.goalContract.goalIntakeContract.feasibilityAssessment =
+          payload.feasibilityAssessment || cycle.goalContract.goalIntakeContract.feasibilityAssessment || null;
+      }
       cycle.llmSessionPlan = Array.isArray(payload.sessions) ? payload.sessions.map((entry) => ({ ...entry })) : [];
       cycle.planGenerationSource = payload.source || cycle.planGenerationSource || 'LLM';
       cycle.actions = actions.map((item) => ({ ...item }));
@@ -394,17 +652,24 @@ export function computeDerivedState(state, action) {
         code: error.code || 'GENERATE_PLAN_FAILED',
         reason: error.reason || 'Plan generation failed.',
         reasonCodes: Array.isArray(error.reasonCodes) ? error.reasonCodes : [],
-        cycleId
+        cycleId,
       };
-      if (String(error.code || '').trim().toUpperCase() === 'MISSING_GOAL_DRAFT') {
-        const recovery = action.payload?.recovery || {};
+      const normalizedErrorCode = String(error.code || '')
+        .trim()
+        .toUpperCase();
+      const recovery = action.payload?.recovery || {};
+      const hasExplicitRecovery = recovery && typeof recovery === 'object' && Object.keys(recovery).length > 0;
+      if (hasExplicitRecovery || normalizedErrorCode === 'MISSING_GOAL_DRAFT' || normalizedErrorCode.startsWith('INTAKE_')) {
         const prefill = recovery?.prefill && typeof recovery.prefill === 'object' ? recovery.prefill : null;
         next.planRecovery = {
-          required: recovery?.required || 'GOAL_DRAFT_CONTEXT',
-          route: recovery?.route || 'STRUCTURE_GATE_2',
+          required:
+            recovery?.required ||
+            (normalizedErrorCode.startsWith('INTAKE_') ? 'INTAKE_SCOPE_RESOLUTION' : 'GOAL_DRAFT_CONTEXT'),
+          route:
+            recovery?.route || (normalizedErrorCode.startsWith('INTAKE_') ? 'STRUCTURE_INTAKE' : 'STRUCTURE_GATE_2'),
           prefill,
           sourceErrorCode: error.code || 'MISSING_GOAL_DRAFT',
-          createdAtISO: next.appTime?.nowISO || new Date().toISOString()
+          createdAtISO: next.appTime?.nowISO || new Date().toISOString(),
         };
         if (prefill) {
           next.pendingOnboardingInputs = {
@@ -412,8 +677,8 @@ export function computeDerivedState(state, action) {
             ...prefill,
             goalDraftV2: {
               ...((next.pendingOnboardingInputs || {}).goalDraftV2 || {}),
-              ...(prefill.goalDraftV2 || {})
-            }
+              ...(prefill.goalDraftV2 || {}),
+            },
           };
         }
       } else {
@@ -461,6 +726,12 @@ export function computeDerivedState(state, action) {
       // proposal, not bypass preview by replaying the legacy auto-plan branch.
       applyDraftSchedule(next, action.payload || {});
       break;
+    case 'SET_PLAN_RESOLUTION_KIND':
+      setPlanResolutionKind(next, action.payload || {});
+      break;
+    case 'ACTIVATE_SCHEDULE':
+      activateSchedule(next, action.payload || {});
+      break;
     case 'APPLY_DRAFT_SCHEDULE':
       applyDraftSchedule(next, action.payload || {});
       break;
@@ -472,12 +743,12 @@ export function computeDerivedState(state, action) {
       const nextConstraints = payload.constraints || {};
       next.constraints = {
         ...(next.constraints || {}),
-        ...nextConstraints
+        ...nextConstraints,
       };
       if (payload.availabilityPolicy) {
         next.availabilityPolicy = {
           ...(next.availabilityPolicy || {}),
-          ...payload.availabilityPolicy
+          ...payload.availabilityPolicy,
         };
       }
       break;
@@ -486,14 +757,18 @@ export function computeDerivedState(state, action) {
       const payload = action.payload || {};
       const cycleId = payload.cycleId || next.activeCycleId;
       const cycle = cycleId ? next.cyclesById?.[cycleId] : null;
-      if (!cycle) break;
-      if (!cycle.goalContract) cycle.goalContract = {};
+      if (!cycle) {
+        break;
+      }
+      if (!cycle.goalContract) {
+        cycle.goalContract = {};
+      }
       const normalizedWorkWindows = normalizeCanonicalWorkWindows(payload.workWindows || {});
       cycle.goalContract.workWindows = normalizedWorkWindows;
       if (next.activeCycleId === cycleId) {
         next.goalExecutionContract = {
           ...(next.goalExecutionContract || {}),
-          workWindows: normalizedWorkWindows
+          workWindows: normalizedWorkWindows,
         };
       }
       next.cyclesById[cycleId] = cycle;
@@ -507,26 +782,30 @@ export function computeDerivedState(state, action) {
       if (!cycle) {
         next.lastPlanError = {
           code: 'CYCLE_NOT_FOUND',
-          reason: 'Active cycle missing for commit.'
+          reason: 'Active cycle missing for commit.',
         };
         break;
       }
       if (items.length === 0) {
         next.lastPlanError = {
           code: 'NO_PROPOSED_BLOCKS',
-          reason: 'No preview items to commit.'
+          reason: 'No preview items to commit.',
         };
         break;
       }
       const goalId = cycle.goalContract?.goalId || next.goalExecutionContract?.goalId;
       items.forEach((item, index) => {
         const startISO = item.startISO || (item.dayKey ? `${item.dayKey}T09:00:00.000Z` : null);
-        const minutes = Number.isFinite(item.minutes) ? item.minutes : Number.isFinite(item.durationMin) ? item.durationMin : 30;
+        const minutes = Number.isFinite(item.minutes)
+          ? item.minutes
+          : Number.isFinite(item.durationMin)
+            ? item.durationMin
+            : 30;
         const title = item.title?.trim() ? item.title.trim() : `Planned work ${index + 1}`;
         if (!startISO || !title) {
           next.lastPlanError = {
             code: 'INVALID_PREVIEW_ITEM',
-            reason: `Preview item ${index + 1} missing required metadata.`
+            reason: `Preview item ${index + 1} missing required metadata.`,
           };
           return;
         }
@@ -538,7 +817,7 @@ export function computeDerivedState(state, action) {
           domain: item.domainKey || 'FOCUS',
           title,
           origin: 'preview_commit',
-          surface: 'today'
+          surface: 'today',
         });
       });
       if (!next.lastPlanError || next.lastPlanError.code !== 'INVALID_PREVIEW_ITEM') {
@@ -546,7 +825,7 @@ export function computeDerivedState(state, action) {
       }
       break;
     }
-  case 'SET_STRATEGY':
+    case 'SET_STRATEGY':
       setStrategy(next, action.payload);
       break;
     case 'GENERATE_COLD_PLAN':
@@ -576,10 +855,16 @@ export function computeDerivedState(state, action) {
   const perfApplyEventsStart = debugPerfActions ? Date.now() : 0;
   applyExecutionEvents(next);
   const perfApplyEventsMs = debugPerfActions ? Date.now() - perfApplyEventsStart : 0;
-  const survivingPriorBlocks = previousTodayBlocks.filter((block) => !block?.cycleId || block?.cycleId === next.activeCycleId);
+  const survivingPriorBlocks = previousTodayBlocks.filter(
+    (block) => !block?.cycleId || block?.cycleId === next.activeCycleId
+  );
   const perfMergeStart = debugPerfActions ? Date.now() : 0;
   mergePriorTodayBlocks(next, survivingPriorBlocks);
   const perfMergeMs = debugPerfActions ? Date.now() - perfMergeStart : 0;
+  const activeCycleForReview = next.activeCycleId ? next.cyclesById?.[next.activeCycleId] || null : null;
+  if (activeCycleForReview) {
+    mergeScheduleReviewBlocksIntoCycleProjection(next, activeCycleForReview);
+  }
   const perfRecomputeStart = debugPerfActions ? Date.now() : 0;
   recomputeSummaries(next);
   const perfRecomputeMs = debugPerfActions ? Date.now() - perfRecomputeStart : 0;
@@ -593,8 +878,9 @@ export function computeDerivedState(state, action) {
   }
   next.stability = {
     headline: buildStabilityHeadline(next.vector, next.currentWeek),
-    actionLine: buildStabilityAction(next.vector)
+    actionLine: buildStabilityAction(next.vector),
   };
+  next.coreContinuity = computeCoreContinuity(next);
   const governed = computeNextSuggestion(next);
   next.nextSuggestion = governed.suggestion;
   applySuggestionGovernance(next, prevSuggestion, governed);
@@ -612,6 +898,7 @@ export function computeDerivedState(state, action) {
     };
   }
   applyProbabilityEligibility(next);
+  applyPlanQualityGates(next);
   applyProbabilityScoring(next);
   applyFeasibility(next);
   applyProgressCredit(next);
@@ -628,22 +915,197 @@ export function computeDerivedState(state, action) {
     });
   }
   applyCycleScoring(next);
+  applySystemShotClock(next);
+  applyExecutionCorrection(next);
+  applyGoalPolicy(next);
+  applyGoalLifecycleState(next);
   next.correctionSignals = computeCorrectionSignals(next, 14);
   mergePriorTodayBlocks(next, previousTodayBlocks);
   syncPlacementStateFromEvents(next);
   enforceSafeDefaults(next);
   syncSuggestedBlocksMirror(next);
   flagDraftBlocks(next);
+  ensureProfileOwnership(next);
+  deriveProfileExecutionContainment(next);
   persistActiveCycleState(next);
   enforceActiveCycleTodayBlocks(next, hadCycleRecords);
   return next;
 }
 
+function ensureProfileOwnership(state) {
+  const requestedProfileId = String(state?.activeProfileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
+  state.activeProfileId = requestedProfileId;
+  state.profilesById =
+    state?.profilesById && typeof state.profilesById === 'object' && !Array.isArray(state.profilesById)
+      ? state.profilesById
+      : {};
+  state.goalsById =
+    state?.goalsById && typeof state.goalsById === 'object' && !Array.isArray(state.goalsById) ? state.goalsById : {};
+
+  const ensureProfileRecord = (profileId, fallbackLabel = DEFAULT_PROFILE_LABEL) => {
+    const normalizedProfileId = String(profileId || requestedProfileId).trim() || requestedProfileId;
+    const existing = state.profilesById[normalizedProfileId] || {};
+    state.profilesById[normalizedProfileId] = {
+      ...existing,
+      id: normalizedProfileId,
+      label: existing.label || fallbackLabel,
+      goalIds: Array.isArray(existing.goalIds) ? [...new Set(existing.goalIds.filter(Boolean).map(String))] : [],
+      activeGoalId: existing.activeGoalId || null,
+      createdAtISO: existing.createdAtISO || state?.meta?.createdAtISO || new Date().toISOString(),
+      status: existing.status || 'active',
+    };
+    return state.profilesById[normalizedProfileId];
+  };
+
+  ensureProfileRecord(requestedProfileId);
+
+  const goalToProfile = new Map();
+  Object.entries(state.goalsById || {}).forEach(([goalId, goalRecord]) => {
+    if (!goalId) {
+      return;
+    }
+    const profileId =
+      String(goalRecord?.profileId || requestedProfileId).trim() || requestedProfileId;
+    const existing = state.goalsById[goalId] || {};
+    state.goalsById[goalId] = {
+      ...existing,
+      id: String(goalId),
+      profileId,
+      cycleIds: Array.isArray(existing.cycleIds) ? [...new Set(existing.cycleIds.filter(Boolean).map(String))] : [],
+      activeCycleId: existing.activeCycleId || null,
+      status: existing.status || 'active',
+    };
+    ensureProfileRecord(profileId);
+    goalToProfile.set(String(goalId), profileId);
+  });
+
+  Object.values(state.cyclesById || {}).forEach((cycle) => {
+    if (!cycle?.id) {
+      return;
+    }
+    const goalId =
+      String(
+        cycle.goalId ||
+          cycle.goalGovernanceContract?.goalId ||
+          cycle.goalContract?.goalId ||
+          cycle.contract?.goalId ||
+          ''
+      ).trim() || null;
+    if (!goalId) {
+      return;
+    }
+    const profileId =
+      String(
+        cycle.profileId ||
+          cycle.goalGovernanceContract?.profileId ||
+          cycle.goalContract?.profileId ||
+          cycle.contract?.profileId ||
+          goalToProfile.get(goalId) ||
+          requestedProfileId
+      ).trim() || requestedProfileId;
+
+    cycle.goalId = goalId;
+    cycle.profileId = profileId;
+    if (cycle.goalContract) {
+      cycle.goalContract.goalId = cycle.goalContract.goalId || goalId;
+      cycle.goalContract.profileId = cycle.goalContract.profileId || profileId;
+    }
+    if (cycle.goalGovernanceContract) {
+      cycle.goalGovernanceContract.goalId = cycle.goalGovernanceContract.goalId || goalId;
+      cycle.goalGovernanceContract.profileId = cycle.goalGovernanceContract.profileId || profileId;
+    }
+    if (cycle.contract) {
+      cycle.contract.goalId = cycle.contract.goalId || goalId;
+      cycle.contract.profileId = cycle.contract.profileId || profileId;
+    }
+
+    ensureProfileRecord(profileId);
+    const existingGoal = state.goalsById[goalId] || {};
+    const cycleIds = Array.isArray(existingGoal.cycleIds) ? existingGoal.cycleIds : [];
+    state.goalsById[goalId] = {
+      ...existingGoal,
+      id: goalId,
+      profileId,
+      cycleIds: cycleIds.includes(cycle.id) ? cycleIds : [...cycleIds, cycle.id],
+      activeCycleId:
+        state.activeCycleId === cycle.id
+          ? cycle.id
+          : existingGoal.activeCycleId || cycle.id,
+      status: existingGoal.status || 'active',
+      title:
+        existingGoal.title ||
+        cycle.goalContract?.goalLabel ||
+        cycle.goalContract?.goalText ||
+        cycle.contract?.goalText ||
+        null,
+    };
+    goalToProfile.set(goalId, profileId);
+  });
+
+  Object.values(state.profilesById || {}).forEach((profile) => {
+    if (!profile?.id) {
+      return;
+    }
+    profile.goalIds = [];
+    profile.activeGoalId = null;
+  });
+
+  Object.entries(state.goalsById || {}).forEach(([goalId, goalRecord]) => {
+    if (!goalId) {
+      return;
+    }
+    const profileId = String(goalRecord?.profileId || requestedProfileId).trim() || requestedProfileId;
+    const profile = ensureProfileRecord(profileId);
+    if (!profile.goalIds.includes(goalId)) {
+      profile.goalIds.push(goalId);
+    }
+    if (goalRecord?.activeCycleId && state.activeCycleId === goalRecord.activeCycleId) {
+      profile.activeGoalId = goalId;
+    }
+  });
+
+  const activeCycle = state.activeCycleId ? state.cyclesById?.[state.activeCycleId] || null : null;
+  if (activeCycle?.id) {
+    const activeCycleProfileId = String(activeCycle.profileId || requestedProfileId).trim() || requestedProfileId;
+    if (activeCycleProfileId !== state.activeProfileId) {
+      state.activeCycleId = null;
+      state.activeGoalId = null;
+    } else {
+      state.activeGoalId = activeCycle.goalId || state.activeGoalId || null;
+      state.profilesById[state.activeProfileId].activeGoalId = state.activeGoalId || null;
+    }
+  } else if (state.activeGoalId) {
+    const activeGoal = state.goalsById?.[state.activeGoalId] || null;
+    if (!activeGoal || activeGoal.profileId !== state.activeProfileId) {
+      state.activeGoalId = null;
+    } else {
+      state.profilesById[state.activeProfileId].activeGoalId = state.activeGoalId;
+    }
+  }
+
+  if (state.goalExecutionContract) {
+    const goalId = String(state.goalExecutionContract.goalId || state.activeGoalId || '').trim() || null;
+    const profileId =
+      (goalId && state.goalsById?.[goalId]?.profileId) ||
+      activeCycle?.profileId ||
+      state.activeProfileId;
+    state.goalExecutionContract.profileId = profileId;
+    if (goalId) {
+      state.goalExecutionContract.goalId = goalId;
+    }
+  }
+}
+
 export function hydrateActiveCycleState(state) {
   ensureCycleStructures(state);
   const cycle = state.activeCycleId ? state.cyclesById?.[state.activeCycleId] : null;
-  if (!cycle) return state;
-  state.executionEvents = cycle.executionEvents || [];
+  if (!cycle) {
+    return state;
+  }
+  state.executionEvents = Array.isArray(cycle.executionEvents) ? cycle.executionEvents : state.executionEvents || [];
+  state.externalEvidenceEvents = Array.isArray(cycle.externalEvidenceEvents)
+    ? cycle.externalEvidenceEvents
+    : state.externalEvidenceEvents || [];
   state.suggestionEvents = cycle.suggestionEvents || [];
   state.proposedBlocks = cycle.proposedBlocks || cycle.suggestedBlocks || [];
   if (!state.proposedBlocksByCycleId || typeof state.proposedBlocksByCycleId !== 'object') {
@@ -652,14 +1114,32 @@ export function hydrateActiveCycleState(state) {
   state.proposedBlocksByCycleId[cycle.id] = state.proposedBlocks;
   state.suggestedBlocks = state.proposedBlocks;
   state.planDraft = cycle.planDraft || null;
-  state.planCalibration = cycle.calibration || state.planCalibration || { confidence: 0, assumptions: [], missingInfo: [] };
+  state.planCalibration = cycle.calibration ||
+    state.planCalibration || { confidence: 0, assumptions: [], missingInfo: [] };
   state.planPreview = cycle.planPreview || null;
   state.correctionSignals = cycle.correctionSignals || null;
+  state.scheduleLifecycle = normalizeScheduleLifecycle(
+    cycle.scheduleLifecycle || state.scheduleLifecycle || 'no_schedule'
+  );
+  state.scheduleReviewBlocks = Array.isArray(cycle.scheduleReviewBlocks) ? cycle.scheduleReviewBlocks : [];
+  state.scheduleApplied = Boolean(
+    state.scheduleApplied ||
+    state.scheduleLifecycle === 'applied_review' ||
+    state.scheduleLifecycle === 'active_schedule'
+  );
   state.goalExecutionContract = {
     ...(state.goalExecutionContract || {}),
     ...(cycle.goalContract || cycle.contract || {}),
   };
-  state.activeGoalId = cycle.goalGovernanceContract?.goalId || state.activeGoalId || null;
+  state.activeProfileId = cycle.profileId || state.goalExecutionContract?.profileId || state.activeProfileId || DEFAULT_PROFILE_ID;
+  state.goalExecutionContract.profileId = state.goalExecutionContract.profileId || cycle.profileId || state.activeProfileId;
+  state.activeGoalId =
+    cycle.goalId ||
+    cycle.goalGovernanceContract?.goalId ||
+    cycle.goalContract?.goalId ||
+    cycle.contract?.goalId ||
+    state.activeGoalId ||
+    null;
   state.truthEntries = cycle.truthEntries || state.truthEntries || [];
   state.suggestionHistory = cycle.suggestionHistory || state.suggestionHistory || null;
   state.lastPlanError = null;
@@ -669,8 +1149,11 @@ export function hydrateActiveCycleState(state) {
 export function persistActiveCycleState(state) {
   ensureCycleStructures(state);
   const cycle = state.activeCycleId ? state.cyclesById?.[state.activeCycleId] : null;
-  if (!cycle) return state;
+  if (!cycle) {
+    return state;
+  }
   cycle.executionEvents = state.executionEvents || [];
+  cycle.externalEvidenceEvents = state.externalEvidenceEvents || [];
   cycle.suggestionEvents = state.suggestionEvents || [];
   cycle.proposedBlocks = state.proposedBlocks || [];
   cycle.suggestedBlocks = cycle.proposedBlocks;
@@ -678,11 +1161,25 @@ export function persistActiveCycleState(state) {
   cycle.calibration = state.planCalibration || null;
   cycle.planPreview = state.planPreview || null;
   cycle.correctionSignals = state.correctionSignals || null;
+  cycle.scheduleLifecycle = normalizeScheduleLifecycle(
+    state.scheduleLifecycle || cycle.scheduleLifecycle || 'no_schedule'
+  );
+  cycle.scheduleReviewBlocks = Array.isArray(state.scheduleReviewBlocks)
+    ? state.scheduleReviewBlocks
+    : Array.isArray(cycle.scheduleReviewBlocks)
+      ? cycle.scheduleReviewBlocks
+      : [];
+  cycle.scheduleAppliedAtISO = cycle.scheduleAppliedAtISO || state.draftScheduleAppliedAtISO || null;
+  cycle.scheduleActivatedAtISO = cycle.scheduleActivatedAtISO || null;
   cycle.contract = cycle.goalContract || cycle.contract || state.goalExecutionContract || null;
+  cycle.goalId = cycle.goalId || cycle.goalGovernanceContract?.goalId || cycle.goalContract?.goalId || state.activeGoalId || null;
+  cycle.profileId = cycle.profileId || state.goalExecutionContract?.profileId || state.activeProfileId || DEFAULT_PROFILE_ID;
   state.goalExecutionContract = {
     ...(state.goalExecutionContract || {}),
     ...(cycle.goalContract || cycle.contract || {}),
   };
+  state.goalExecutionContract.profileId =
+    state.goalExecutionContract.profileId || cycle.profileId || state.activeProfileId || DEFAULT_PROFILE_ID;
   cycle.truthEntries = state.truthEntries || cycle.truthEntries || [];
   cycle.suggestionHistory = state.suggestionHistory || cycle.suggestionHistory || null;
   state.cyclesById[state.activeCycleId] = cycle;
@@ -690,13 +1187,7 @@ export function persistActiveCycleState(state) {
 }
 
 function getActiveCycleId(state) {
-  return (
-    state.activeCycleId ||
-    state.cycles?.activeId ||
-    state.cycle?.id ||
-    state.activeCycle?.id ||
-    null
-  );
+  return state.activeCycleId || state.cycles?.activeId || state.cycle?.id || state.activeCycle?.id || null;
 }
 
 function enforceActiveCycleTodayBlocks(state, hadCycleRecords = false) {
@@ -723,9 +1214,13 @@ function enforceActiveCycleTodayBlocks(state, hadCycleRecords = false) {
 }
 
 function collectGovernanceContracts(state) {
-  if (!state?.activeCycleId) return [];
+  if (!state?.activeCycleId) {
+    return [];
+  }
   const cycle = state?.cyclesById?.[state.activeCycleId] || null;
-  if (!cycle) return [];
+  if (!cycle) {
+    return [];
+  }
   const activeContract = cycle.goalGovernanceContract || null;
   const canonicalContract = getCanonicalCycleContract(cycle, state.goalExecutionContract, cycle?.contract || null);
   const canonicalGoalId = canonicalContract?.goalId || null;
@@ -738,7 +1233,9 @@ function collectGovernanceContracts(state) {
   if (activeContract && canonicalGoalId) {
     return [{ ...activeContract, goalId: canonicalGoalId }];
   }
-  if (!canonicalGoalId) return [];
+  if (!canonicalGoalId) {
+    return [];
+  }
   const timezone = canonicalContract?.timezone || state?.appTime?.timeZone || APP_TIME_ZONE;
   return [
     {
@@ -750,23 +1247,25 @@ function collectGovernanceContracts(state) {
       scope: {
         domainsAllowed: [],
         timeHorizon: 'week',
-        timezone
+        timezone,
       },
       governance: {
         suggestionsEnabled: true,
         probabilityEnabled: true,
-        minEvidenceEvents: 1
+        minEvidenceEvents: 1,
       },
       constraints: {
         forbiddenDirectives: ['repair'],
-        maxActiveBlocks: 6
-      }
-    }
+        maxActiveBlocks: 6,
+      },
+    },
   ];
 }
 
 function sameSuggestion(a, b) {
-  if (!a || !b) return false;
+  if (!a || !b) {
+    return false;
+  }
   return a.type === b.type && a.blockId === b.blockId && a.startISO === b.startISO && a.endISO === b.endISO;
 }
 
@@ -779,7 +1278,7 @@ function applySuggestionGovernance(state, previousSuggestion, governed) {
     lastSuggestedAtISO: null,
     lastSuggestedAtISOByGoal: {},
     dailyCountByGoal: {},
-    denials: []
+    denials: [],
   };
   state.suggestionEligibility = governed.eligibilityByGoal || {};
 
@@ -807,59 +1306,306 @@ function applySuggestionGovernance(state, previousSuggestion, governed) {
     count: history.dayKey === nowISO ? history.count : 0,
     lastSuggestedAtISO: history.lastSuggestedAtISO,
     lastSuggestedAtISOByGoal: perGoalLast,
-    dailyCountByGoal: perGoalDaily
+    dailyCountByGoal: perGoalDaily,
   };
   if (governed.denials?.length) {
     const denials = [...(history.denials || [])];
     governed.denials.forEach((d) => denials.push(d));
-    if (denials.length > 50) denials.splice(0, denials.length - 50);
+    if (denials.length > 50) {
+      denials.splice(0, denials.length - 50);
+    }
     state.suggestionHistory.denials = denials;
   }
 }
 
 function applyExecutionEvents(state) {
   const events = state.executionEvents || [];
-  if (!events.length) return;
+  if (!events.length) {
+    return;
+  }
   const { days, todayBlocks } = materializeBlocksFromEvents(events, { todayISO: state.today?.date });
   state.today.blocks = todayBlocks || [];
   state.cycle = days || [];
 }
 
+function normalizeScheduleLifecycle(value) {
+  const lifecycle = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (
+    lifecycle === 'draft_schedule_ready' ||
+    lifecycle === 'applied_review' ||
+    lifecycle === 'active_schedule' ||
+    lifecycle === 'reschedule_pending' ||
+    lifecycle === 'stale_draft_invalidated' ||
+    lifecycle === 'no_schedule'
+  ) {
+    return lifecycle;
+  }
+  return 'no_schedule';
+}
+
+function getCycleScheduleLifecycle(cycle = null, state = null) {
+  return normalizeScheduleLifecycle(cycle?.scheduleLifecycle || state?.scheduleLifecycle || 'no_schedule');
+}
+
+function buildScheduleDraftHash(items = []) {
+  return JSON.stringify(
+    (Array.isArray(items) ? items : []).map((item) => ({
+      id: item?.id || null,
+      startISO: item?.startISO || null,
+      durationMinutes: Number.isFinite(item?.durationMinutes) ? Number(item.durationMinutes) : null,
+      title: String(item?.title || '').trim() || null,
+      actionId: item?.actionId || null,
+      identityKey: item?.identityKey || null,
+      deliverableId: item?.deliverableId ?? item?.payload?.deliverableId ?? null,
+      criterionId: item?.criterionId ?? item?.payload?.criterionId ?? null,
+    }))
+  );
+}
+
+function normalizeTitleForSpecificity(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s*[-–—:]*\s*session\s+\d+\s+(?:of|\/)\s+\d+\s*$/i, '')
+    .replace(/\s*\(\s*session\s+\d+\s*\/\s*\d+\s*\)\s*$/i, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function titleTokenCount(value) {
+  return normalizeTitleForSpecificity(value)
+    .split(/\s+/)
+    .filter((token) => token.length >= 3).length;
+}
+
+function shouldPreferProposalTitle(explicitProposalTitle, canonicalActionTitle) {
+  const explicit = String(explicitProposalTitle || '').trim();
+  const canonical = String(canonicalActionTitle || '').trim();
+  if (!explicit) {
+    return false;
+  }
+  if (!canonical) {
+    return true;
+  }
+  if (explicit === canonical) {
+    return true;
+  }
+  const normalizedExplicit = normalizeTitleForSpecificity(explicit);
+  const normalizedCanonical = normalizeTitleForSpecificity(canonical);
+  if (!normalizedExplicit) {
+    return false;
+  }
+  if (normalizedExplicit === normalizedCanonical) {
+    return false;
+  }
+  const explicitHasOperationalObject =
+    /\b(compare|request|configure|test|send|log|capture|define|draft|review|choose|select|outline|write|compile|lock|segment|adjust)\b/i.test(
+      explicit
+    ) &&
+    /\b(moq|manufacturer|checkout|payment|shipping|fulfillment|buyer|outreach|objection|conversion|formula|sample|packaging|pricing|product page|purchase|order|evidence)\b/i.test(
+      explicit
+    );
+  if (explicitHasOperationalObject) {
+    return true;
+  }
+  return titleTokenCount(explicit) > titleTokenCount(canonical) + 2;
+}
+
+function buildScheduleReviewBlock(
+  state,
+  item,
+  { cycleId = null, goalId = null, timeZone = 'UTC', defaultDomain = 'FOCUS' } = {}
+) {
+  if (!item?.startISO) {
+    return null;
+  }
+  const startDate = new Date(item.startISO);
+  if (!Number.isFinite(startDate.getTime())) {
+    return null;
+  }
+  const duration = Number.isFinite(item.durationMinutes) ? Number(item.durationMinutes) : 30;
+  const minutes = clampDurationMinutes(duration);
+  const endDate = item.endISO ? new Date(item.endISO) : new Date(startDate.getTime() + minutes * 60000);
+  if (!Number.isFinite(endDate.getTime())) {
+    return null;
+  }
+  const { domain, practice } = normalizeDomainValue(item.domain || item.domainKey || defaultDomain || 'FOCUS');
+  return {
+    id: item.id || nextDeterministicId(state, 'blk'),
+    cycleId,
+    goalId,
+    origin: 'schedule_review',
+    suggestionId: item.id || null,
+    identityKey: item.identityKey || null,
+    deliverableId: item.deliverableId ?? item.payload?.deliverableId ?? null,
+    actionId: item.actionId ?? null,
+    directDependencyIds: Array.isArray(item.directDependencyIds) ? [...item.directDependencyIds] : [],
+    directDependencyDetails: Array.isArray(item.directDependencyDetails) ? [...item.directDependencyDetails] : [],
+    transitiveDependencyIds: Array.isArray(item.transitiveDependencyIds) ? [...item.transitiveDependencyIds] : [],
+    transitiveDependencyDetails: Array.isArray(item.transitiveDependencyDetails)
+      ? [...item.transitiveDependencyDetails]
+      : [],
+    commerceReadinessLevel: item.commerceReadinessLevel || null,
+    placementBasis: item.placementBasis || 'confirmed',
+    assumedDependencies: Array.isArray(item.assumedDependencies) ? [...item.assumedDependencies] : [],
+    sessionIndex: Number.isFinite(item.sessionIndex) ? Number(item.sessionIndex) : null,
+    criterionId: item.criterionId ?? item.payload?.criterionId ?? null,
+    lockedUntilDayKey: item.lockedUntilDayKey ?? item.payload?.lockedUntilDayKey ?? null,
+    practice,
+    domain,
+    title: item.title || 'Scheduled action',
+    label: item.title || 'Scheduled action',
+    displayTitle: item.displayTitle || item.title || 'Scheduled action',
+    start: startDate.toISOString(),
+    end: endDate.toISOString(),
+    startISO: startDate.toISOString(),
+    endISO: endDate.toISOString(),
+    status: 'planned',
+    optional: Boolean(item.optional),
+    objectiveId: state.today?.primaryObjectiveId || null,
+    scheduleLifecycle: 'applied_review',
+  };
+}
+
+function mergeBlocksIntoDays(days = [], blocks = []) {
+  const byDate = new Map();
+  const cloneDay = (day) => ({
+    ...day,
+    blocks: Array.isArray(day?.blocks) ? [...day.blocks] : [],
+  });
+  const normalizedDays = (Array.isArray(days) ? days : []).map(cloneDay);
+  normalizedDays.forEach((day) => {
+    if (day?.date) {
+      byDate.set(day.date, day);
+    }
+  });
+  (Array.isArray(blocks) ? blocks : []).forEach((block) => {
+    if (!block?.start) {
+      return;
+    }
+    const dayKey = dayKeyFromISO(block.start, 'UTC');
+    if (!dayKey) {
+      return;
+    }
+    let day = byDate.get(dayKey);
+    if (!day) {
+      day = {
+        date: dayKey,
+        blocks: [],
+        completionRate: 0,
+        driftSignal: 'contained',
+        loadByPractice: {},
+        practices: [],
+      };
+      byDate.set(dayKey, day);
+      normalizedDays.push(day);
+    }
+    if (!day.blocks.some((existing) => existing?.id === block.id)) {
+      day.blocks.push(block);
+    }
+  });
+  normalizedDays.sort((a, b) => String(a?.date || '').localeCompare(String(b?.date || '')));
+  normalizedDays.forEach((day) => {
+    day.blocks.sort((a, b) => {
+      const aStart = a?.start || '';
+      const bStart = b?.start || '';
+      if (aStart !== bStart) {
+        return aStart.localeCompare(bStart);
+      }
+      return String(a?.id || '').localeCompare(String(b?.id || ''));
+    });
+  });
+  return normalizedDays;
+}
+
+function mergeScheduleReviewBlocksIntoCycleProjection(state, cycle = null) {
+  const reviewBlocks = Array.isArray(cycle?.scheduleReviewBlocks) ? cycle.scheduleReviewBlocks : [];
+  const cycleId = cycle?.id || state.activeCycleId || null;
+  const filteredCycleDays = (Array.isArray(state.cycle) ? state.cycle : []).map((day) => ({
+    ...day,
+    blocks: (Array.isArray(day?.blocks) ? day.blocks : []).filter(
+      (block) => !(cycleId && block?.cycleId === cycleId && String(block?.origin || '').trim() === 'schedule_review')
+    ),
+  }));
+  state.cycle = reviewBlocks.length ? mergeBlocksIntoDays(filteredCycleDays, reviewBlocks) : filteredCycleDays;
+}
+
 function ensureCycleStructures(state) {
-  if (!state.history) state.history = { cycles: [] };
-  if (!state.cyclesById) state.cyclesById = {};
-  if (!state.historySignalsByCycleId) state.historySignalsByCycleId = {};
-  if (!state.historyProfile) state.historyProfile = null;
-  if (typeof state.activeCycleId === 'undefined') state.activeCycleId = null;
+  if (!state.history) {
+    state.history = { cycles: [] };
+  }
+  if (!state.cyclesById) {
+    state.cyclesById = {};
+  }
+  if (!state.historySignalsByCycleId) {
+    state.historySignalsByCycleId = {};
+  }
+  if (!state.historyProfile) {
+    state.historyProfile = null;
+  }
+  if (typeof state.activeCycleId === 'undefined') {
+    state.activeCycleId = null;
+  }
 }
 
 function nextDeterministicId(state, prefix = 'id') {
-  if (!Number.isFinite(state._deterministicIdSeq)) state._deterministicIdSeq = 0;
+  if (!Number.isFinite(state._deterministicIdSeq)) {
+    state._deterministicIdSeq = 0;
+  }
   state._deterministicIdSeq += 1;
   return `${prefix}-${String(state._deterministicIdSeq).padStart(8, '0')}`;
 }
 
 function ensureAdmissionStores(state) {
-  if (!state.goalAdmissionByGoal) state.goalAdmissionByGoal = {};
-  if (!state.aspirationsByCycleId) state.aspirationsByCycleId = {};
-  if (!('lastPlanError' in state)) state.lastPlanError = null;
-  if (!state.debug || typeof state.debug !== 'object') state.debug = {};
-  if (!Array.isArray(state.debug.traceLog)) state.debug.traceLog = [];
-  if (!state.debug.lastGenerateClickAtISO) state.debug.lastGenerateClickAtISO = null;
-  if (!state.debug.lastGenerateClickCycleId) state.debug.lastGenerateClickCycleId = null;
+  if (!state.goalAdmissionByGoal) {
+    state.goalAdmissionByGoal = {};
+  }
+  if (!state.aspirationsByCycleId) {
+    state.aspirationsByCycleId = {};
+  }
+  if (!('lastPlanError' in state)) {
+    state.lastPlanError = null;
+  }
+  if (!state.debug || typeof state.debug !== 'object') {
+    state.debug = {};
+  }
+  if (!Array.isArray(state.debug.traceLog)) {
+    state.debug.traceLog = [];
+  }
+  if (!state.debug.lastGenerateClickAtISO) {
+    state.debug.lastGenerateClickAtISO = null;
+  }
+  if (!state.debug.lastGenerateClickCycleId) {
+    state.debug.lastGenerateClickCycleId = null;
+  }
   if (!state.debug.lastGenerateResult || typeof state.debug.lastGenerateResult !== 'object') {
     state.debug.lastGenerateResult = { proposedBlocksCount: 0, lastPlanErrorCode: null };
   }
 }
 
 function appendTraceLog(state, entry) {
-  if (!state.debug || typeof state.debug !== 'object') state.debug = {};
+  if (!state.debug || typeof state.debug !== 'object') {
+    state.debug = {};
+  }
   const traceLog = Array.isArray(state.debug.traceLog) ? state.debug.traceLog : [];
   state.debug.traceLog = [...traceLog.slice(-19), entry];
 }
 
+export function appendTransitionTrace(state, { transition, blockId = null, label = '' } = {}) {
+  appendTraceLog(state, {
+    timestamp: state.appTime?.nowISO || new Date().toISOString(),
+    transition: String(transition || '').trim() || 'unknown',
+    blockId: blockId || null,
+    label: String(label || '').trim() || '',
+  });
+}
+
 function ensureDeliverablesStore(state) {
-  if (!state.deliverablesByCycleId) state.deliverablesByCycleId = {};
+  if (!state.deliverablesByCycleId) {
+    state.deliverablesByCycleId = {};
+  }
 }
 
 function bootstrapCycleActionsFromDeliverables(state, cycleId, deliverables = []) {
@@ -872,18 +1618,25 @@ function bootstrapCycleActionsFromDeliverables(state, cycleId, deliverables = []
       status: 'todo',
       priority: index + 1,
       topoIndex: index,
-      dependsOn: [],
+      dependencies: [],
+      readinessCondition: null,
+      actionType: 'execution',
+      assumptions: [],
       estimateMin: Math.max(30, Number(deliverable.estimateMin || 60)),
-      deliverableId: deliverable.id
+      deliverableId: deliverable.id,
     }));
 }
 
 function normalizeActiveCycleExecutionGraph(state) {
   ensureDeliverablesStore(state);
   const cycleId = state.activeCycleId || null;
-  if (!cycleId) return;
+  if (!cycleId) {
+    return;
+  }
   const cycle = state.cyclesById?.[cycleId];
-  if (!cycle) return;
+  if (!cycle) {
+    return;
+  }
 
   const workspaceDeliverables = state.deliverablesByCycleId?.[cycleId]?.deliverables || [];
   const deliverablesCount = Array.isArray(workspaceDeliverables) ? workspaceDeliverables.length : 0;
@@ -905,7 +1658,7 @@ function normalizeActiveCycleExecutionGraph(state) {
         code: 'ACTION_GRAPH_MISSING',
         reason: 'Active cycle has deliverables but no validated execution graph.',
         reasonCodes: ['NO_ACTION_GRAPH'],
-        cycleId
+        cycleId,
       };
     }
   } else if (hasGraph && state.lastPlanError?.code === 'ACTION_GRAPH_MISSING') {
@@ -918,12 +1671,16 @@ function getActiveCycle(state) {
 }
 
 function getTargetCycle(state, cycleId) {
-  if (cycleId && state?.cyclesById?.[cycleId]) return state.cyclesById[cycleId];
+  if (cycleId && state?.cyclesById?.[cycleId]) {
+    return state.cyclesById[cycleId];
+  }
   return getActiveCycle(state);
 }
 
 function isCycleReadOnly(cycle) {
-  if (!cycle) return true;
+  if (!cycle) {
+    return true;
+  }
   const normalizedStatus = String(cycle.status || cycle.state || '')
     .trim()
     .toLowerCase();
@@ -936,22 +1693,34 @@ function setGenerateHeartbeat(state, cycleId, proposedBlocksCount, lastPlanError
   state.debug.lastGenerateClickCycleId = cycleId || null;
   state.debug.lastGenerateResult = {
     proposedBlocksCount: Number.isFinite(proposedBlocksCount) ? proposedBlocksCount : 0,
-    lastPlanErrorCode: lastPlanErrorCode || null
+    lastPlanErrorCode: lastPlanErrorCode || null,
+    planStatus: state?.cyclesById?.[cycleId || '']?.autoAsanaPlan?.summary?.planStatus || null,
+    requiredBlockCount: Number(state?.cyclesById?.[cycleId || '']?.autoAsanaPlan?.summary?.requiredBlockCount || 0),
+    scheduledBlockCount: Number(state?.cyclesById?.[cycleId || '']?.autoAsanaPlan?.summary?.scheduledBlockCount || 0),
+    unscheduledBlockCount: Number(state?.cyclesById?.[cycleId || '']?.autoAsanaPlan?.summary?.unscheduledBlockCount || 0),
   };
 }
 
 function countRawWorkWindows(workWindows) {
-  if (!workWindows || typeof workWindows !== 'object') return 0;
+  if (!workWindows || typeof workWindows !== 'object') {
+    return 0;
+  }
   return Object.values(workWindows).reduce((sum, rows) => {
-    if (!Array.isArray(rows)) return sum;
+    if (!Array.isArray(rows)) {
+      return sum;
+    }
     return sum + rows.length;
   }, 0);
 }
 
 function countNormalizedSchedulerWindows(weeklyWindows) {
-  if (!weeklyWindows || typeof weeklyWindows !== 'object') return 0;
+  if (!weeklyWindows || typeof weeklyWindows !== 'object') {
+    return 0;
+  }
   return Object.values(weeklyWindows).reduce((sum, rows) => {
-    if (!Array.isArray(rows)) return sum;
+    if (!Array.isArray(rows)) {
+      return sum;
+    }
     return (
       sum +
       rows.filter((row) => {
@@ -983,8 +1752,12 @@ function logGenerateDiagnostics({
   outputSummary,
   reasonCodes,
 }) {
-  if (IS_PRODUCTION) return;
-  if (isRuntimeEnvFlagEnabled('JERICHO_DISABLE_GENERATE_TRACE')) return;
+  if (IS_PRODUCTION) {
+    return;
+  }
+  if (isRuntimeEnvFlagEnabled('JERICHO_DISABLE_GENERATE_TRACE')) {
+    return;
+  }
   const firstThree = (proposedBlocks || []).slice(0, 3).map((block) => ({
     id: block?.id || null,
     dayKey: block?.dayKey || null,
@@ -1020,7 +1793,9 @@ function logGenerateDiagnostics({
     reasonCodes: reasonCodes || [],
   });
   console.groupEnd();
-  if (!state?.debug || typeof state.debug !== 'object') return;
+  if (!state?.debug || typeof state.debug !== 'object') {
+    return;
+  }
   const resolvedTraceId = traceId || `trace-${cycleId}-${Date.now()}`;
   const resolvedStatus = status || (errorCode ? 'fail' : 'ok');
   appendTraceLog(state, {
@@ -1035,7 +1810,7 @@ function logGenerateDiagnostics({
     status: resolvedStatus === 'fail' ? 'error' : 'success',
     inputSummary: inputSummary || {
       cycleId: cycleId || null,
-      goalId: goalId || null
+      goalId: goalId || null,
     },
     outputSummary: {
       ...(outputSummary || {
@@ -1044,7 +1819,7 @@ function logGenerateDiagnostics({
       errorCode,
     },
     errorCode,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 }
 
@@ -1055,6 +1830,13 @@ function isActiveCycleStatus(status) {
   return normalized === 'ACTIVE';
 }
 
+function isAdmittedGoalStatus(status) {
+  const normalized = String(status || '')
+    .trim()
+    .toUpperCase();
+  return normalized === 'ADMITTED' || normalized === 'ACTIVE';
+}
+
 export function assertActiveCycleInvariant(state) {
   const active = getActiveCycle(state);
   if (!active || !isActiveCycleStatus(active.status || active.state)) {
@@ -1063,9 +1845,13 @@ export function assertActiveCycleInvariant(state) {
 }
 
 function archivePreviousCycle(state, previousCycleId) {
-  if (!previousCycleId || !state.cyclesById?.[previousCycleId]) return;
+  if (!previousCycleId || !state.cyclesById?.[previousCycleId]) {
+    return;
+  }
   const previous = state.cyclesById[previousCycleId];
-  if (!isActiveCycleStatus(previous.status)) return;
+  if (!isActiveCycleStatus(previous.status)) {
+    return;
+  }
   endCycle(state, previousCycleId);
   const ended = state.cyclesById[previousCycleId];
   state.history = state.history || { cycles: [] };
@@ -1077,24 +1863,36 @@ function archivePreviousCycle(state, previousCycleId) {
     definiteGoal: ended.definiteGoal,
     pattern: ended.pattern,
     aim: ended.aim,
-    flow: ended.flow
+    flow: ended.flow,
   });
 }
 
 function maxDayKey(a, b) {
-  if (!a) return b || null;
-  if (!b) return a || null;
+  if (!a) {
+    return b || null;
+  }
+  if (!b) {
+    return a || null;
+  }
   return a >= b ? a : b;
 }
 
 function coerceDayKey(value, timeZone) {
   const raw = String(value || '').trim();
-  if (!raw) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  if (!raw) {
+    return null;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
   const isoDay = dayKeyFromISO(raw, timeZone);
-  if (isoDay) return isoDay;
+  if (isoDay) {
+    return isoDay;
+  }
   const parsed = new Date(raw);
-  if (!Number.isFinite(parsed.getTime())) return null;
+  if (!Number.isFinite(parsed.getTime())) {
+    return null;
+  }
   return parsed.toISOString().slice(0, 10);
 }
 
@@ -1119,46 +1917,68 @@ function buildPlanProofFromLLMActions(actions = [], cycle = {}) {
   };
 }
 
-function annotateActionsWithDeliverableIds(cycle, actions = []) {
+function annotateActionsWithDeliverableIds(cycle, actions = [], canonicalDeliverablesOverride = null) {
   const list = Array.isArray(actions) ? actions : [];
-  if (!list.length) return [];
+  if (!list.length) {
+    return [];
+  }
   const byActionId = new Map();
-  const canonicalDeliverables = Array.isArray(cycle?.canonicalDeliverables) ? cycle.canonicalDeliverables : [];
+  const canonicalDeliverables = Array.isArray(canonicalDeliverablesOverride)
+    ? canonicalDeliverablesOverride
+    : Array.isArray(cycle?.canonicalDeliverables)
+      ? cycle.canonicalDeliverables
+      : [];
   canonicalDeliverables.forEach((deliverable) => {
     const deliverableId = String(deliverable?.id || '').trim();
-    if (!deliverableId) return;
+    if (!deliverableId) {
+      return;
+    }
+    const deliverableTitle = String(deliverable?.title || '').trim();
     const actionIds = Array.isArray(deliverable?.actionIds) ? deliverable.actionIds : [];
     actionIds.forEach((actionId) => {
       const key = String(actionId || '').trim();
-      if (!key) return;
-      byActionId.set(key, deliverableId);
+      if (!key) {
+        return;
+      }
+      byActionId.set(key, { deliverableId, deliverableTitle });
     });
   });
   return list.map((action, index) => {
     const actionId = String(action?.id || '').trim();
-    const deliverableId = byActionId.get(actionId) || `deliv-synthetic-${index + 1}`;
+    const mapped = byActionId.get(actionId) || null;
+    const deliverableId =
+      String(action?.deliverableId || '').trim() || mapped?.deliverableId || `deliv-synthetic-${index + 1}`;
     return {
       ...action,
-      deliverableId
+      deliverableId,
+      deliverableTitle: action?.deliverableTitle || mapped?.deliverableTitle || null,
     };
   });
 }
 
 function dayKeyToDow(dayKey) {
-  if (!dayKey) return null;
+  if (!dayKey) {
+    return null;
+  }
   const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
   const date = new Date(`${dayKey}T12:00:00.000Z`);
-  if (Number.isNaN(date.getTime())) return null;
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
   return days[date.getUTCDay()] || null;
 }
 
 function parseHHMMToMinutes(hhmm) {
   const text = String(hhmm || '').trim();
   const match = /^(\d{1,2}):(\d{2})$/.exec(text);
-  if (!match) return 0;
+  if (!match) {
+    return 0;
+  }
   const hours = Number(match[1]);
   const minutes = Number(match[2]);
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return 0;
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return 0;
+  }
   return Math.max(0, Math.min(24 * 60, hours * 60 + minutes));
 }
 
@@ -1170,7 +1990,7 @@ function normalizeCanonicalWorkWindows(workWindows) {
     acc[day] = rows
       .map((row) => ({
         start: String(row?.start || '').trim(),
-        end: String(row?.end || '').trim()
+        end: String(row?.end || '').trim(),
       }))
       .filter((row) => row.start && row.end && row.start < row.end);
     return acc;
@@ -1178,15 +1998,23 @@ function normalizeCanonicalWorkWindows(workWindows) {
 }
 
 function getWorkDaysFromWindows(workWindows) {
-  if (!workWindows || typeof workWindows !== 'object') return ['mon', 'tue', 'wed', 'thu', 'fri'];
+  if (!workWindows || typeof workWindows !== 'object') {
+    return ['mon', 'tue', 'wed', 'thu', 'fri'];
+  }
   const workDays = Object.entries(workWindows)
     .filter(([, windows]) => Array.isArray(windows) && windows.length > 0)
-    .map(([day]) => String(day || '').trim().toLowerCase());
+    .map(([day]) =>
+      String(day || '')
+        .trim()
+        .toLowerCase()
+    );
   return workDays.length ? workDays : ['mon', 'tue', 'wed', 'thu', 'fri'];
 }
 
 function getAvailableMinutesForDow(dow, workWindows) {
-  if (!workWindows || typeof workWindows !== 'object') return 60;
+  if (!workWindows || typeof workWindows !== 'object') {
+    return 60;
+  }
   const windows = Array.isArray(workWindows?.[dow]) ? workWindows[dow] : [];
   return windows.reduce((total, window) => {
     const start = parseHHMMToMinutes(window?.start);
@@ -1196,7 +2024,9 @@ function getAvailableMinutesForDow(dow, workWindows) {
 }
 
 function getFirstWindowStartForDow(dow, workWindows) {
-  if (!workWindows || typeof workWindows !== 'object') return '09:00';
+  if (!workWindows || typeof workWindows !== 'object') {
+    return '09:00';
+  }
   const windows = Array.isArray(workWindows?.[dow]) ? workWindows[dow] : [];
   return windows[0]?.start || '09:00';
 }
@@ -1211,23 +2041,31 @@ function toSchedulerWeeklyWindows(workWindows) {
     fri: 'FRI',
     sat: 'SAT',
   };
-  if (!workWindows || typeof workWindows !== 'object') return {};
+  if (!workWindows || typeof workWindows !== 'object') {
+    return {};
+  }
   return Object.entries(workWindows).reduce((acc, [day, windows]) => {
     const schedulerDay = dayMap[String(day || '').toLowerCase()];
-    if (!schedulerDay || !Array.isArray(windows) || windows.length === 0) return acc;
+    if (!schedulerDay || !Array.isArray(windows) || windows.length === 0) {
+      return acc;
+    }
     const mapped = windows
       .map((window) => ({
         startHHMM: window?.start || '',
         endHHMM: window?.end || '',
       }))
       .filter((window) => window.startHHMM && window.endHHMM && window.startHHMM < window.endHHMM);
-    if (mapped.length) acc[schedulerDay] = mapped;
+    if (mapped.length) {
+      acc[schedulerDay] = mapped;
+    }
     return acc;
   }, {});
 }
 
 function hasAnySchedulerWindows(weeklyWindows) {
-  if (!weeklyWindows || typeof weeklyWindows !== 'object') return false;
+  if (!weeklyWindows || typeof weeklyWindows !== 'object') {
+    return false;
+  }
   return Object.values(weeklyWindows).some((rows) => Array.isArray(rows) && rows.length > 0);
 }
 
@@ -1249,15 +2087,29 @@ function clearCycleTransientState(state) {
   state.suggestionEvents = [];
   state.lastPlanError = null;
   state.draftScheduleAppliedAtISO = null;
+  state.scheduleApplied = false;
+  state.scheduleLifecycle = 'no_schedule';
+  state.scheduleReviewBlocks = [];
+  state.pendingPlanConfirmation = false;
   state.overdueBlockIds = [];
   state.blockLifecycleById = {};
   state.executionEvents = [];
+  state.externalEvidenceEvents = [];
+  state.planMutationEvents = [];
   state.truthEntries = [];
   state.planPreview = null;
   state.planDraft = null;
   state.planCalibration = null;
   state.correctionSignals = null;
   const cycle = getActiveCycle(state);
+  if (cycle) {
+    cycle.scheduleAppliedAtISO = null;
+    cycle.scheduleActivatedAtISO = null;
+    cycle.scheduleLifecycle = 'no_schedule';
+    cycle.scheduleReviewBlocks = [];
+    cycle.scheduleDraftHash = null;
+    cycle.scheduleActiveHash = null;
+  }
   if (cycle?.metrics) {
     cycle.metrics = {
       ...cycle.metrics,
@@ -1269,9 +2121,120 @@ function clearCycleTransientState(state) {
   }
 }
 
+function clearGoalSessionStateToBlank(state) {
+  state.activeCycleId = null;
+  state.activeGoalId = null;
+  if (state.activeProfileId && state?.profilesById?.[state.activeProfileId]) {
+    state.profilesById[state.activeProfileId].activeGoalId = null;
+  }
+  state.goalExecutionContract = null;
+  state.pendingOnboardingInputs = null;
+  state.proposedBlocks = [];
+  state.suggestedBlocks = [];
+  state.suggestionEvents = [];
+  state.executionEvents = [];
+  state.externalEvidenceEvents = [];
+  state.planMutationEvents = [];
+  state.truthEntries = [];
+  state.planDraft = null;
+  state.planPreview = null;
+  state.planCalibration = null;
+  state.correctionSignals = null;
+  state.lastPlanError = null;
+  state.planRecovery = null;
+  state.blockLifecycleById = {};
+  state.overdueBlockIds = [];
+  state.scheduleApplied = false;
+  state.scheduleLifecycle = 'no_schedule';
+  state.scheduleReviewBlocks = [];
+  state.draftScheduleAppliedAtISO = null;
+  state.pendingPlanConfirmation = false;
+  state.cycle = [];
+  state.today = { ...(state.today || {}), blocks: [] };
+  state.currentWeek = { ...(state.currentWeek || {}), days: [], metrics: {} };
+  state.blockStore = { blocks: {} };
+  state.goalPolicyByGoalId = {};
+  state.planQualityGateByGoal = {};
+  state.systemShotClockByGoal = {};
+  state.executionCorrectionByGoal = {};
+  state.cycleDynamicsByCycleId = {};
+  if (!state.proposedBlocksByCycleId || typeof state.proposedBlocksByCycleId !== 'object') {
+    state.proposedBlocksByCycleId = {};
+  } else {
+    Object.keys(state.proposedBlocksByCycleId).forEach((key) => {
+      state.proposedBlocksByCycleId[key] = [];
+    });
+  }
+}
+
+function hasMeaningfulExecutionEvidence(events = []) {
+  return (events || []).some((event) => ['complete', 'missed', 'skipped'].includes(String(event?.kind || '')));
+}
+
+function deriveGoalLifecycleState(state, cycle) {
+  const cycleStatus = String(cycle?.status || '').trim().toLowerCase();
+  if (!cycle && !state?.pendingOnboardingInputs) {
+    return 'blank';
+  }
+  if (!cycle && state?.pendingOnboardingInputs) {
+    return 'intake_draft';
+  }
+  if (cycleStatus === 'completed' || cycleStatus === 'ended') {
+    return 'completed';
+  }
+  if (cycleStatus === 'archived' || cycleStatus === 'deleted' || cycleStatus === 'abandoned') {
+    return 'abandoned';
+  }
+  if (cycleStatus === 'reset') {
+    return 'reset';
+  }
+  const hasContract = Boolean(cycle?.goalContract || cycle?.contract || state?.goalExecutionContract);
+  const goalId =
+    cycle?.goalGovernanceContract?.goalId || cycle?.goalContract?.goalId || cycle?.contract?.goalId || state?.activeGoalId || null;
+  const admissionStatus = goalId ? state?.goalAdmissionByGoal?.[goalId]?.status || null : null;
+  if (!hasContract && state?.pendingOnboardingInputs) {
+    return 'intake_draft';
+  }
+  const scheduleLifecycle = String(cycle?.scheduleLifecycle || state?.scheduleLifecycle || '').trim().toLowerCase();
+  if (scheduleLifecycle === 'active_schedule') {
+    return hasMeaningfulExecutionEvidence(cycle?.executionEvents || state?.executionEvents || []) ? 'in_execution' : 'activated';
+  }
+  if (scheduleLifecycle === 'applied_review') {
+    return 'schedule_applied';
+  }
+  if (
+    scheduleLifecycle === 'draft_schedule_ready' ||
+    Array.isArray(cycle?.proposedBlocks) && cycle.proposedBlocks.length > 0 ||
+    Array.isArray(state?.proposedBlocksByCycleId?.[cycle?.id || '']) && state.proposedBlocksByCycleId[cycle.id].length > 0
+  ) {
+    return 'generated_preview';
+  }
+  if (admissionStatus === 'ADMITTED' || hasContract) {
+    return 'admitted';
+  }
+  return state?.pendingOnboardingInputs ? 'intake_draft' : 'blank';
+}
+
+function applyGoalLifecycleState(state) {
+  ensureCycleStructures(state);
+  state.goalLifecycleByCycleId = state.goalLifecycleByCycleId || {};
+  Object.values(state.cyclesById || {}).forEach((cycle) => {
+    if (!cycle || !cycle.id) {
+      return;
+    }
+    const lifecycle = deriveGoalLifecycleState(state, cycle);
+    cycle.goalLifecycleState = lifecycle;
+    state.goalLifecycleByCycleId[cycle.id] = lifecycle;
+  });
+  const activeCycle = state.activeCycleId ? state.cyclesById?.[state.activeCycleId] || null : null;
+  state.goalLifecycleState = deriveGoalLifecycleState(state, activeCycle);
+}
+
 export function resetCycleToGoalEntryReady(state, cycleId) {
   const targetCycleId = cycleId || state.activeCycleId || null;
-  if (!targetCycleId || !state.cyclesById?.[targetCycleId]) return;
+  if (!targetCycleId || !state.cyclesById?.[targetCycleId]) {
+    return;
+  }
 
   const cycle = state.cyclesById[targetCycleId];
   cycle.goalContract = null;
@@ -1284,6 +2247,14 @@ export function resetCycleToGoalEntryReady(state, cycleId) {
   cycle.suggestedBlocks = [];
   cycle.suggestionEvents = [];
   cycle.executionEvents = [];
+  cycle.externalEvidenceEvents = [];
+  cycle.planMutationEvents = [];
+  cycle.scheduleAppliedAtISO = null;
+  cycle.scheduleActivatedAtISO = null;
+  cycle.scheduleLifecycle = 'no_schedule';
+  cycle.scheduleReviewBlocks = [];
+  cycle.scheduleDraftHash = null;
+  cycle.scheduleActiveHash = null;
   cycle.truthEntries = [];
   if (cycle.metrics) {
     cycle.metrics = {
@@ -1299,6 +2270,7 @@ export function resetCycleToGoalEntryReady(state, cycleId) {
   state.cyclesById[targetCycleId] = cycle;
 
   state.goalExecutionContract = null;
+  state.pendingOnboardingInputs = null;
   state.proposedBlocks = [];
   if (!state.proposedBlocksByCycleId || typeof state.proposedBlocksByCycleId !== 'object') {
     state.proposedBlocksByCycleId = {};
@@ -1313,12 +2285,19 @@ export function resetCycleToGoalEntryReady(state, cycleId) {
   state.executionEvents = [];
   state.lastPlanError = null;
   state.activeGoalId = null;
+  if (state.activeProfileId && state?.profilesById?.[state.activeProfileId]) {
+    state.profilesById[state.activeProfileId].activeGoalId = null;
+  }
   state.blockLifecycleById = {};
   state.overdueBlockIds = [];
   state.cycle = [];
   state.today = { ...(state.today || {}), blocks: [] };
   state.currentWeek = { ...(state.currentWeek || {}), days: [] };
   state.draftScheduleAppliedAtISO = null;
+  state.scheduleApplied = false;
+  state.scheduleLifecycle = 'no_schedule';
+  state.scheduleReviewBlocks = [];
+  state.pendingPlanConfirmation = false;
   clearCycleTransientState(state);
 }
 
@@ -1330,32 +2309,42 @@ function setCycleProposedBlocks(state, cycleId, proposals = []) {
   canonicalActions.forEach((action) => {
     const actionId = String(action?.id || '').trim();
     const actionTitle = String(action?.title || '').trim();
-    if (actionId && actionTitle) actionTitleById.set(actionId, actionTitle);
+    if (actionId && actionTitle) {
+      actionTitleById.set(actionId, actionTitle);
+    }
   });
   const normalized = [];
   const seen = new Set();
   (Array.isArray(proposals) ? proposals : []).forEach((proposal, index) => {
-    if (!proposal || typeof proposal !== 'object') return;
+    if (!proposal || typeof proposal !== 'object') {
+      return;
+    }
     const actionId = String(proposal?.actionId || '').trim();
     const canonicalActionTitle = actionTitleById.get(actionId) || '';
+    const explicitProposalTitle = String(proposal?.title || '').trim() || String(proposal?.label || '').trim() || '';
+    const isLongHorizonClosureTitle = /final validation|terminal closure checkpoint|closure checkpoint/i.test(
+      explicitProposalTitle
+    );
     const resolvedTitle =
-      canonicalActionTitle ||
-      String(proposal?.title || '').trim() ||
-      String(proposal?.label || '').trim() ||
-      '';
+      isLongHorizonClosureTitle || shouldPreferProposalTitle(explicitProposalTitle, canonicalActionTitle)
+        ? explicitProposalTitle
+        : canonicalActionTitle || explicitProposalTitle || '';
     const identity = String(
       proposal.identityKey ||
         proposal.id ||
         `${cycleId || 'cycle'}::${proposal.deliverableId || 'deliv-synthetic'}::${proposal.actionId || `synthetic-action-${index + 1}`}::${proposal.sessionIndex || 0}`
     ).trim();
-    if (!identity || seen.has(identity)) return;
+    if (!identity || seen.has(identity)) {
+      return;
+    }
     seen.add(identity);
     normalized.push({
       ...proposal,
       title: resolvedTitle || proposal.title,
       label: resolvedTitle || proposal.label,
+      lineageTitle: canonicalActionTitle || proposal.lineageTitle || null,
       id: proposal.id || identity,
-      identityKey: proposal.identityKey || identity
+      identityKey: proposal.identityKey || identity,
     });
   });
   state.proposedBlocks = normalized;
@@ -1380,22 +2369,24 @@ function syncSuggestedBlocksMirror(state) {
     state.proposedBlocksByCycleId = {};
   }
   const activeCycleId = state.activeCycleId || null;
-  if (!activeCycleId) return;
-  state.proposedBlocksByCycleId[activeCycleId] = Array.isArray(state.proposedBlocks)
-    ? state.proposedBlocks
-    : [];
+  if (!activeCycleId) {
+    return;
+  }
+  state.proposedBlocksByCycleId[activeCycleId] = Array.isArray(state.proposedBlocks) ? state.proposedBlocks : [];
 }
 
 function getDeliverableWorkspace(state, cycleId) {
   ensureDeliverablesStore(state);
-  if (!cycleId) return null;
+  if (!cycleId) {
+    return null;
+  }
   if (!state.deliverablesByCycleId[cycleId]) {
     const nowISO = state.appTime?.nowISO || new Date().toISOString();
     state.deliverablesByCycleId[cycleId] = {
       cycleId,
       deliverables: [],
       suggestionLinks: {},
-      lastUpdatedAtISO: nowISO
+      lastUpdatedAtISO: nowISO,
     };
   }
   const workspace = state.deliverablesByCycleId[cycleId];
@@ -1405,7 +2396,9 @@ function getDeliverableWorkspace(state, cycleId) {
 
 function touchDeliverableWorkspace(state, cycleId) {
   const workspace = getDeliverableWorkspace(state, cycleId);
-  if (!workspace) return null;
+  if (!workspace) {
+    return null;
+  }
   workspace.lastUpdatedAtISO = state.appTime?.nowISO || new Date().toISOString();
   syncDeliverableWorkspaceIndexes(workspace);
   state.deliverablesByCycleId[cycleId] = workspace;
@@ -1419,35 +2412,52 @@ function syncDeliverableWorkspaceIndexes(workspace) {
 }
 
 function getSuggestionLink(state, cycleId, suggestionId) {
-  if (!cycleId || !suggestionId) return null;
+  if (!cycleId || !suggestionId) {
+    return null;
+  }
   const workspace = getDeliverableWorkspace(state, cycleId);
-  if (!workspace?.suggestionLinks) return null;
+  if (!workspace?.suggestionLinks) {
+    return null;
+  }
   return workspace.suggestionLinks[suggestionId] || null;
 }
 
 function flagDraftBlocks(state) {
-  if (!state.today?.blocks?.length) return;
+  if (!state.today?.blocks?.length) {
+    return;
+  }
   state.today.blocks = state.today.blocks.map((block) => ({
     ...block,
-    isDraft: block.origin === 'draft' ? true : block.isDraft || false
+    isDraft: block.origin === 'draft' ? true : block.isDraft || false,
   }));
 }
 
 function mergePriorTodayBlocks(state, previousBlocks = []) {
-  if (!previousBlocks.length) return;
+  if (!previousBlocks.length) {
+    return;
+  }
+  const deletedIds = new Set(
+    (state.executionEvents || [])
+      .filter((event) => event?.kind === 'delete' && event?.blockId)
+      .map((event) => event.blockId)
+  );
   const existingIds = new Set((state.today?.blocks || []).map((block) => block?.id));
   const missing = previousBlocks
-    .filter((block) => block?.id && !existingIds.has(block.id))
+    .filter((block) => block?.id && !existingIds.has(block.id) && !deletedIds.has(block.id))
     .map((block) => ({
       ...block,
-      placementState: block.placementState === 'COMMITTED' ? 'in_progress' : block.placementState || 'in_progress'
+      placementState: block.placementState === 'COMMITTED' ? 'in_progress' : block.placementState || 'in_progress',
     }));
-  if (!missing.length) return;
+  if (!missing.length) {
+    return;
+  }
   state.today.blocks = [...missing, ...(state.today?.blocks || [])];
 }
 
 function syncPlacementStateFromEvents(state) {
-  if (!state.today?.blocks?.length) return;
+  if (!state.today?.blocks?.length) {
+    return;
+  }
   const placementStateByBlock = new Map();
   (state.executionEvents || []).forEach((event) => {
     if (event?.blockId && event.placementState) {
@@ -1456,12 +2466,14 @@ function syncPlacementStateFromEvents(state) {
   });
   state.today.blocks = state.today.blocks.map((block) => ({
     ...block,
-    placementState: placementStateByBlock.get(block.id) || block.placementState || 'in_progress'
+    placementState: placementStateByBlock.get(block.id) || block.placementState || 'in_progress',
   }));
 }
 
 function countCompletedBlocks(events = [], todayISO) {
-  if (!events.length) return 0;
+  if (!events.length) {
+    return 0;
+  }
   const { days } = materializeBlocksFromEvents(events, { todayISO });
   const all = (days || []).flatMap((d) => d.blocks || []);
   return all.filter((b) => b?.status === 'completed' || b?.status === 'complete').length;
@@ -1469,10 +2481,13 @@ function countCompletedBlocks(events = [], todayISO) {
 
 function setStrategy(state, payload = {}) {
   const cycle = getActiveCycle(state);
-  if (!cycle) return;
+  if (!cycle) {
+    return;
+  }
   const timeZone = state.appTime?.timeZone || payload?.constraints?.tz;
   const goalId = cycle.goalContract?.goalId || cycle.contract?.goalId || state.activeGoalId || 'goal';
-  const deadlineISO = payload.deadlineISO || cycle.goalContract?.deadlineISO || cycle.definiteGoal?.deadlineDayKey || '';
+  const deadlineISO =
+    payload.deadlineISO || cycle.goalContract?.deadlineISO || cycle.definiteGoal?.deadlineDayKey || '';
   const deliverables = normalizeDeliverables(payload.deliverables || cycle.strategy?.deliverables || []);
   const base = cycle.strategy || buildDefaultStrategy({ goalId, deadlineISO, timeZone, deliverables });
   const next = {
@@ -1483,9 +2498,9 @@ function setStrategy(state, payload = {}) {
     constraints: {
       ...(base.constraints || {}),
       ...(payload.constraints || {}),
-      tz: timeZone || base.constraints?.tz
+      tz: timeZone || base.constraints?.tz,
     },
-    milestoneProfile: payload.milestoneProfile || base.milestoneProfile || null
+    milestoneProfile: payload.milestoneProfile || base.milestoneProfile || null,
   };
   next.assumptionsHash = buildAssumptionsHash(next);
   cycle.strategy = next;
@@ -1510,8 +2525,8 @@ function adaptDeterministicResultToColdPlan(result, strategy, nowISO) {
       infeasible: {
         reason: result.error?.message || 'Plan generation is infeasible',
         requiredCapacityPerWeek: 0,
-        availableCapacityPerWeek: 0
-      }
+        availableCapacityPerWeek: 0,
+      },
     };
   }
 
@@ -1521,11 +2536,11 @@ function adaptDeterministicResultToColdPlan(result, strategy, nowISO) {
     if (!forecastByDayKey[block.dayKey]) {
       forecastByDayKey[block.dayKey] = {
         totalBlocks: 0,
-        byDeliverable: {}
+        byDeliverable: {},
       };
     }
     forecastByDayKey[block.dayKey].totalBlocks += 1;
-    
+
     if (!forecastByDayKey[block.dayKey].byDeliverable[block.deliverableId]) {
       forecastByDayKey[block.dayKey].byDeliverable[block.deliverableId] = 0;
     }
@@ -1539,7 +2554,7 @@ function adaptDeterministicResultToColdPlan(result, strategy, nowISO) {
     assumptionsHash: strategy.assumptionsHash,
     createdAtISO: nowISO,
     forecastByDayKey,
-    infeasible: undefined
+    infeasible: undefined,
   };
 }
 
@@ -1549,31 +2564,37 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
     state.lastPlanError = {
       code: 'NO_ACTIVE_CYCLE',
       reasons: ['No active cycle found'],
-      timestamp: state.appTime?.nowISO || new Date().toISOString()
+      timestamp: state.appTime?.nowISO || new Date().toISOString(),
     };
     return;
   }
-  
+
   const timeZone = state.appTime?.timeZone || cycle.strategy?.constraints?.tz;
   const nowISO = state.appTime?.nowISO || '';
   const startDayKey = cycle.startedAtDayKey || dayKeyFromISO(nowISO, timeZone);
-  
+
   if (!cycle.strategy) {
     const goalId = cycle.goalContract?.goalId || cycle.contract?.goalId || state.activeGoalId || 'goal';
     const deadlineDayKey = getDeadlineDayKey(cycle.goalContract, timeZone);
     const deliverables = normalizeDeliverables(cycle.strategy?.deliverables || []);
-    cycle.strategy = buildDefaultStrategy({ goalId, deadlineISO: deadlineDayKey ? `${deadlineDayKey}T00:00:00Z` : '', timeZone, deliverables });
+    cycle.strategy = buildDefaultStrategy({
+      goalId,
+      deadlineISO: deadlineDayKey ? `${deadlineDayKey}T00:00:00Z` : '',
+      timeZone,
+      deliverables,
+    });
   }
-  
+
   // Extract deadline consistently from goalContract using canonical helper
-  const deadlineKey = getDeadlineDayKey(cycle.goalContract, timeZone) || 
-                       cycle.definiteGoal?.deadlineDayKey || 
-                       cycle.strategy?.deadlineISO?.slice(0, 10);
-  
+  const deadlineKey =
+    getDeadlineDayKey(cycle.goalContract, timeZone) ||
+    cycle.definiteGoal?.deadlineDayKey ||
+    cycle.strategy?.deadlineISO?.slice(0, 10);
+
   // STEP 3: Auto-seed deliverables if they're empty instead of failing
   let deliverables = normalizeDeliverables(cycle.strategy?.deliverables || []);
   let totalRequired = deliverables.reduce((sum, d) => sum + d.requiredBlocks, 0);
-  
+
   // If no deliverables in strategy, check workspace (set at admission time)
   if (deliverables.length === 0 || totalRequired === 0) {
     const workspace = getDeliverableWorkspace(state, cycle.id);
@@ -1596,7 +2617,7 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
           console.warn('[PLAN_GEN] mechanism-class generation failed, trying Phase 1 fallback', err?.message);
         }
       }
-      
+
       // FALLBACK: If mechanism-class didn't work, use Phase 1 approach
       if (!deliverables || deliverables.length === 0) {
         const autoResult = buildAutoDeliverablesFromGoalContract(cycle.goalContract, startDayKey, timeZone);
@@ -1604,12 +2625,12 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
         totalRequired = deliverables.reduce((sum, d) => sum + d.requiredBlocks, 0);
         autoStrategy = { method: 'phase1-autostrategy', ...autoResult };
       }
-      
+
       // Update strategy with auto-seeded deliverables
       if (deliverables.length > 0) {
         cycle.strategy.deliverables = deliverables;
         cycle.strategy.assumptionsHash = buildAssumptionsHash(cycle.strategy);
-        
+
         // Persist to workspace
         const newWorkspace = getDeliverableWorkspace(state, cycle.id);
         if (newWorkspace && (!newWorkspace.deliverables || newWorkspace.deliverables.length === 0)) {
@@ -1622,19 +2643,21 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
       }
     }
   }
-  
+
   // PHASE 1A: Quick diagnostic checks for common failure modes (post-admission)
   const diagnosticReasons = [];
-  
+
   // Check 1: Deliverables (after auto-seed attempt)
   if (deliverables.length === 0 || totalRequired === 0) {
-    diagnosticReasons.push('NO_DELIVERABLES: Could not generate deliverables; deadline or execution constraints may be infeasible');
+    diagnosticReasons.push(
+      'NO_DELIVERABLES: Could not generate deliverables; deadline or execution constraints may be infeasible'
+    );
   }
-  
+
   // NOTE: Deadline format validation is ENFORCED AT ADMISSION (Phase 3)
   // Post-admission, deadlineKey is guaranteed valid YYYY-MM-DD format
   // Remove this check to prevent false post-admission errors
-  
+
   // If we have critical diagnostics, set error and return early
   if (diagnosticReasons.length > 0) {
     state.lastPlanError = {
@@ -1645,36 +2668,37 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
         totalRequired,
         startDayKey,
         deadlineKey,
-        timeZone
+        timeZone,
       },
-      timestamp: nowISO || new Date().toISOString()
+      timestamp: nowISO || new Date().toISOString(),
     };
     return;
   }
-  
+
   const startISO = buildLocalStartISO(startDayKey, '00:00', timeZone);
-  const deadlineISO = cycle.strategy?.deadlineISO || (deadlineKey ? buildLocalStartISO(deadlineKey, '23:59', timeZone).startISO : '');
+  const deadlineISO =
+    cycle.strategy?.deadlineISO || (deadlineKey ? buildLocalStartISO(deadlineKey, '23:59', timeZone).startISO : '');
   const strategy = {
     ...cycle.strategy,
     deadlineISO,
     constraints: {
       ...(cycle.strategy.constraints || {}),
-      tz: timeZone || cycle.strategy.constraints?.tz
-    }
+      tz: timeZone || cycle.strategy.constraints?.tz,
+    },
   };
   strategy.assumptionsHash = buildAssumptionsHash(strategy);
   cycle.strategy = strategy;
   const completedCountToDate = countCompletedBlocks(cycle.executionEvents || [], state.today?.date);
-  
+
   // PHASE 3: Use deterministic generator if contract specifies GENERIC_DETERMINISTIC
   let nextPlan;
   const mechanismClass = cycle.goalContract?.planGenerationMechanismClass || 'GENERIC_DETERMINISTIC';
-  
+
   if (mechanismClass === 'GENERIC_DETERMINISTIC') {
     // Use Phase 3 deterministic generator
     const nowDayKey = dayKeyFromISO(nowISO, timeZone);
     const execMode = rebaseMode === 'REMAINING_FROM_TODAY' ? 'REBASE_FROM_TODAY' : 'REGENERATE';
-    
+
     const deterministicResult = generateDeterministicPlan({
       contractDeadlineDayKey: deadlineKey,
       contractStartDayKey: startDayKey,
@@ -1685,12 +2709,40 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
         maxBlocksPerWeek: cycle.strategy?.constraints?.maxBlocksPerWeek || 16,
         preferredDaysOfWeek: cycle.strategy?.constraints?.preferredDaysOfWeek,
         blackoutDayKeys: cycle.strategy?.constraints?.blackoutDayKeys,
-        timezone: timeZone
+        timezone: timeZone,
       },
-      mode: execMode
+      mode: execMode,
     });
-    
+
     nextPlan = adaptDeterministicResultToColdPlan(deterministicResult, strategy, nowISO);
+
+    // Seed action layer from workspace deliverables (closes RC-03)
+    // Only seeds when actions are absent — never overwrites LLM or user-set actions.
+    // Uses canonical workspace deliverable IDs so forward-link lineage resolves.
+    // Maps deliverable.kind → actionType: PLANNING → preparation, all others → execution.
+    if (deterministicResult.status === 'SUCCESS' && deliverables.length > 0) {
+      const currentActions = Array.isArray(cycle.actions) ? cycle.actions : [];
+      if (currentActions.length === 0) {
+        const cycleId = cycle.id || state.activeCycleId || 'cycle';
+        cycle.actions = deliverables.map((deliv, index) => {
+          const actionId = `act-det-${cycleId}-${index + 1}`;
+          const prevId = index > 0 ? `act-det-${cycleId}-${index}` : null;
+          return {
+            id: actionId,
+            title: deliv.title,
+            status: 'todo',
+            priority: index + 1,
+            topoIndex: index,
+            dependencies: prevId ? [prevId] : [],
+            readinessCondition: null,
+            actionType: deliv.kind === 'PLANNING' ? 'preparation' : 'execution',
+            assumptions: [],
+            estimateMin: 60,
+            deliverableId: deliv.id,
+          };
+        });
+      }
+    }
   } else {
     // Fall back to v1 generator for non-GENERIC_DETERMINISTIC (placeholder for future)
     nextPlan = generateColdPlan({
@@ -1698,10 +2750,10 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
       nowISO,
       strategy,
       completedCountToDate,
-      rebaseMode
+      rebaseMode,
     });
   }
-  
+
   const shouldVersion =
     !cycle.coldPlan ||
     cycle.coldPlan.assumptionsHash !== nextPlan.assumptionsHash ||
@@ -1714,7 +2766,7 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
       version,
       strategyId: nextPlan.strategyId,
       assumptionsHash: nextPlan.assumptionsHash,
-      createdAtISO: nextPlan.createdAtISO
+      createdAtISO: nextPlan.createdAtISO,
     });
   }
 
@@ -1734,9 +2786,9 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
       details: {
         totalRequired,
         constraints: cycle.strategy?.constraints,
-        infeasibleDetails: nextPlan.infeasible
+        infeasibleDetails: nextPlan.infeasible,
       },
-      timestamp: nowISO || new Date().toISOString()
+      timestamp: nowISO || new Date().toISOString(),
     };
   } else {
     // Clear error if plan succeeded
@@ -1748,13 +2800,20 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
 
 function refreshColdPlanDailyProjection(state) {
   const cycle = getActiveCycle(state);
-  if (!cycle || !cycle.strategy || !cycle.coldPlan) return;
+  if (!cycle || !cycle.strategy || !cycle.coldPlan) {
+    return;
+  }
   const timeZone = state.appTime?.timeZone || cycle.strategy.constraints?.tz;
   const nowISO = state.appTime?.nowISO;
-  if (!timeZone || !nowISO) return;
+  if (!timeZone || !nowISO) {
+    return;
+  }
   const asOfDayKey = dayKeyFromISO(nowISO, timeZone);
   const existing = cycle.coldPlan.dailyProjection;
-  if (existing?.asOfDayKey === asOfDayKey && existing?.derivedFrom?.assumptionsHash === cycle.strategy.assumptionsHash) {
+  if (
+    existing?.asOfDayKey === asOfDayKey &&
+    existing?.derivedFrom?.assumptionsHash === cycle.strategy.assumptionsHash
+  ) {
     return;
   }
   if (cycle.strategy.assumptionsHash !== cycle.coldPlan.assumptionsHash) {
@@ -1766,14 +2825,14 @@ function refreshColdPlanDailyProjection(state) {
       derivedFrom: {
         strategyId: cycle.strategy.strategyId,
         assumptionsHash: cycle.strategy.assumptionsHash,
-        coldPlanVersion: cycle.coldPlan.version
+        coldPlanVersion: cycle.coldPlan.version,
       },
       forecastByDayKey: {},
       infeasible: {
         reason: 'assumptions_changed',
         requiredCapacityPerWeek: 0,
-        availableCapacityPerWeek: 0
-      }
+        availableCapacityPerWeek: 0,
+      },
     };
     return;
   }
@@ -1782,7 +2841,7 @@ function refreshColdPlanDailyProjection(state) {
     nowISO,
     strategy: cycle.strategy,
     completedCountToDate,
-    coldPlanVersion: cycle.coldPlan.version
+    coldPlanVersion: cycle.coldPlan.version,
   });
 }
 
@@ -1798,11 +2857,15 @@ function sanitizePatternTargets(targets = []) {
     Body: 0,
     Resources: 0,
     Creation: 0,
-    Focus: 0
+    Focus: 0,
   };
   targets.forEach((t) => {
-    if (!t?.name) return;
-    if (!(t.name in map)) return;
+    if (!t?.name) {
+      return;
+    }
+    if (!(t.name in map)) {
+      return;
+    }
     const val = Number(t.minutes);
     map[t.name] = Number.isFinite(val) && val >= 0 ? val : 0;
   });
@@ -1812,41 +2875,85 @@ function sanitizePatternTargets(targets = []) {
 function enforceSafeDefaults(state) {
   state.today = state.today || {};
   state.today.blocks = Array.isArray(state.today.blocks) ? state.today.blocks : [];
-  if (!state.nextSuggestion) state.nextSuggestion = null;
-  ensureCycleStructures(state);
-  if (!('goalExecutionContract' in state)) state.goalExecutionContract = null;
-  if (!('planDraft' in state)) state.planDraft = null;
-  if (state.planDraft) {
-    if (!state.planDraft.qualityPolicyId) state.planDraft.qualityPolicyId = 'BALANCED';
-    if (typeof state.planDraft.autoPolicySelection !== 'boolean') state.planDraft.autoPolicySelection = false;
-    if (!Number.isFinite(state.planDraft.minPolicyHoldDays)) state.planDraft.minPolicyHoldDays = 7;
-    if (typeof state.planDraft.enableQualityOptimizer !== 'boolean') state.planDraft.enableQualityOptimizer = false;
-    if (typeof state.planDraft.enableMilestonePacing !== 'boolean') state.planDraft.enableMilestonePacing = false;
-    if (!state.planDraft.pacingCadenceMode) state.planDraft.pacingCadenceMode = 'adaptive';
-    if (typeof state.planDraft.enableHistoryPolicySelection !== 'boolean') state.planDraft.enableHistoryPolicySelection = false;
-    if (!Number.isFinite(state.planDraft.historyWindowCycles)) state.planDraft.historyWindowCycles = 5;
-    if (!state.planDraft.historyInfluenceStrength) state.planDraft.historyInfluenceStrength = 'standard';
+  if (!state.nextSuggestion) {
+    state.nextSuggestion = null;
   }
-  if (!state.planCalibration) state.planCalibration = { confidence: 0, assumptions: [], missingInfo: [] };
-  if (!('planPreview' in state)) state.planPreview = null;
-  if (!('correctionSignals' in state)) state.correctionSignals = null;
-  if (!state.proposedBlocks) state.proposedBlocks = [];
+  ensureCycleStructures(state);
+  if (!('goalExecutionContract' in state)) {
+    state.goalExecutionContract = null;
+  }
+  if (!('planDraft' in state)) {
+    state.planDraft = null;
+  }
+  if (state.planDraft) {
+    if (!state.planDraft.qualityPolicyId) {
+      state.planDraft.qualityPolicyId = 'BALANCED';
+    }
+    if (typeof state.planDraft.autoPolicySelection !== 'boolean') {
+      state.planDraft.autoPolicySelection = false;
+    }
+    if (!Number.isFinite(state.planDraft.minPolicyHoldDays)) {
+      state.planDraft.minPolicyHoldDays = 7;
+    }
+    if (typeof state.planDraft.enableQualityOptimizer !== 'boolean') {
+      state.planDraft.enableQualityOptimizer = false;
+    }
+    if (typeof state.planDraft.enableMilestonePacing !== 'boolean') {
+      state.planDraft.enableMilestonePacing = false;
+    }
+    if (!state.planDraft.pacingCadenceMode) {
+      state.planDraft.pacingCadenceMode = 'adaptive';
+    }
+    if (typeof state.planDraft.enableHistoryPolicySelection !== 'boolean') {
+      state.planDraft.enableHistoryPolicySelection = false;
+    }
+    if (!Number.isFinite(state.planDraft.historyWindowCycles)) {
+      state.planDraft.historyWindowCycles = 5;
+    }
+    if (!state.planDraft.historyInfluenceStrength) {
+      state.planDraft.historyInfluenceStrength = 'standard';
+    }
+  }
+  if (!state.planCalibration) {
+    state.planCalibration = { confidence: 0, assumptions: [], missingInfo: [] };
+  }
+  if (!('planPreview' in state)) {
+    state.planPreview = null;
+  }
+  if (!('correctionSignals' in state)) {
+    state.correctionSignals = null;
+  }
+  if (!state.proposedBlocks) {
+    state.proposedBlocks = [];
+  }
   if (!state.proposedBlocksByCycleId || typeof state.proposedBlocksByCycleId !== 'object') {
     state.proposedBlocksByCycleId = {};
   }
   if (!state.cycleDynamicsByCycleId || typeof state.cycleDynamicsByCycleId !== 'object') {
     state.cycleDynamicsByCycleId = {};
   }
-  if (!state.suggestedBlocks) state.suggestedBlocks = [];
-  if (!state.suggestionEvents) state.suggestionEvents = [];
-  if (!state.deliverablesByCycleId) state.deliverablesByCycleId = {};
-  if (!state.executionEvents) state.executionEvents = [];
-  if (!state.truthEntries) state.truthEntries = [];
-  if (!state.calibrationEvents) state.calibrationEvents = [];
+  if (!state.suggestedBlocks) {
+    state.suggestedBlocks = [];
+  }
+  if (!state.suggestionEvents) {
+    state.suggestionEvents = [];
+  }
+  if (!state.deliverablesByCycleId) {
+    state.deliverablesByCycleId = {};
+  }
+  if (!state.executionEvents) {
+    state.executionEvents = [];
+  }
+  if (!state.truthEntries) {
+    state.truthEntries = [];
+  }
+  if (!state.calibrationEvents) {
+    state.calibrationEvents = [];
+  }
   state.cycle = Array.isArray(state.cycle) ? state.cycle : [];
   state.cycle = state.cycle.map((day) => ({
     ...day,
-    completionRate: Number.isFinite(day.completionRate) ? day.completionRate : 0
+    completionRate: Number.isFinite(day.completionRate) ? day.completionRate : 0,
   }));
   state.currentWeek = state.currentWeek || { days: [] };
   state.currentWeek.days = Array.isArray(state.currentWeek.days) ? state.currentWeek.days : [];
@@ -1858,16 +2965,20 @@ function enforceSafeDefaults(state) {
     state.currentWeek.metrics.driftLabel || state.vector?.driftLabel || 'contained';
   state.currentWeek.summaryLine = state.currentWeek.summaryLine || buildWeekSummary(state.currentWeek);
   state.stability = state.stability || {};
-  state.stability.headline =
-    state.stability.headline || 'Stability read based on current cycle.';
+  state.stability.headline = state.stability.headline || 'Stability read based on current cycle.';
   state.stability.actionLine =
     state.stability.actionLine || 'Rebalance by adding one underweight practice block before 18:00.';
-  if (!state.currentWeek.metrics) state.currentWeek.metrics = {};
-  state.currentWeek.metrics.driftLabel = state.currentWeek.metrics.driftLabel || state.vector?.driftLabel || 'contained';
+  if (!state.currentWeek.metrics) {
+    state.currentWeek.metrics = {};
+  }
+  state.currentWeek.metrics.driftLabel =
+    state.currentWeek.metrics.driftLabel || state.vector?.driftLabel || 'contained';
   state.currentWeek.metrics.completionRate = Number.isFinite(state.currentWeek.metrics.completionRate)
     ? state.currentWeek.metrics.completionRate
     : 0;
-  if (!state.ledger) state.ledger = [];
+  if (!state.ledger) {
+    state.ledger = [];
+  }
   if (!state.suggestionHistory) {
     state.suggestionHistory = {
       dayKey: state.today?.date || nowDayKey(),
@@ -1875,13 +2986,24 @@ function enforceSafeDefaults(state) {
       lastSuggestedAtISO: null,
       lastSuggestedAtISOByGoal: {},
       dailyCountByGoal: {},
-      denials: []
+      denials: [],
     };
   }
-  if (!state.suggestionEligibility) state.suggestionEligibility = {};
-  if (!state.probabilityStatusByGoal) state.probabilityStatusByGoal = {};
-  if (!state.directiveEligibilityByGoal) state.directiveEligibilityByGoal = {};
-  if (!('goalDirective' in state)) state.goalDirective = null;
+  if (!state.suggestionEligibility) {
+    state.suggestionEligibility = {};
+  }
+  if (!state.probabilityStatusByGoal) {
+    state.probabilityStatusByGoal = {};
+  }
+  if (!state.planQualityGateByGoal || typeof state.planQualityGateByGoal !== 'object') {
+    state.planQualityGateByGoal = {};
+  }
+  if (!state.directiveEligibilityByGoal) {
+    state.directiveEligibilityByGoal = {};
+  }
+  if (!('goalDirective' in state)) {
+    state.goalDirective = null;
+  }
 }
 
 function computeNextSuggestion(state) {
@@ -1890,12 +3012,16 @@ function computeNextSuggestion(state) {
   const contracts = collectGovernanceContracts(state);
   const goals = new Map();
   contracts.forEach((contract) => {
-    if (!contract?.goalId) return;
+    if (!contract?.goalId) {
+      return;
+    }
     const list = goals.get(contract.goalId) || [];
     list.push(contract);
     goals.set(contract.goalId, list);
   });
-  if (!goals.size) return { suggestion: null, eligibilityByGoal: {}, selectedGoalId: null, denials: [] };
+  if (!goals.size) {
+    return { suggestion: null, eligibilityByGoal: {}, selectedGoalId: null, denials: [] };
+  }
 
   const nowISO = nowDayKey();
   const nowTimestampISO = new Date().toISOString();
@@ -1905,7 +3031,7 @@ function computeNextSuggestion(state) {
     lastSuggestedAtISO: null,
     lastSuggestedAtISOByGoal: {},
     dailyCountByGoal: {},
-    denials: []
+    denials: [],
   };
   const activeBlocksCount = blocks.filter((b) => b.status !== 'completed').length;
   const executionEventCount = (state.executionEvents || []).length;
@@ -1933,12 +3059,12 @@ function computeNextSuggestion(state) {
       lastSuggestedAtISO,
       suggestionsTodayCount: dailyCount,
       directiveTags: candidate ? [candidate.type] : [],
-      directiveDomain
+      directiveDomain,
     });
     eligibilityByGoal[goalId] = {
       allowed: gate.allowed,
       reasons: gate.reasons,
-      contractId: resolution.contract.contractId
+      contractId: resolution.contract.contractId,
     };
     if (!gate.allowed) {
       denials.push({ goalId, reasons: gate.reasons, atISO: nowTimestampISO });
@@ -1956,7 +3082,9 @@ function computeNextSuggestion(state) {
   allowed.sort((a, b) => {
     const aStart = a.suggestion.startISO || '';
     const bStart = b.suggestion.startISO || '';
-    if (aStart !== bStart) return aStart.localeCompare(bStart);
+    if (aStart !== bStart) {
+      return aStart.localeCompare(bStart);
+    }
     return a.goalId.localeCompare(b.goalId);
   });
 
@@ -1971,7 +3099,7 @@ function applyProbabilityEligibility(state) {
   const statuses = {};
   goalIds.forEach((goalId) => {
     const admission = state.goalAdmissionByGoal?.[goalId];
-    if (admission && admission.status !== 'ADMITTED') {
+    if (admission && !isAdmittedGoalStatus(admission.status)) {
       return;
     }
     statuses[goalId] = deriveProbabilityStatus({
@@ -1979,10 +3107,165 @@ function applyProbabilityEligibility(state) {
       nowISO,
       executionEventCount: (state.executionEvents || []).length,
       executionEvents: state.executionEvents || [],
-      contracts
+      contracts,
     });
   });
   state.probabilityStatusByGoal = statuses;
+}
+
+function resolvePlanQualityGateForGoal(state, goalId) {
+  const cycle = resolveCycleForGoal(state, goalId);
+  return cycle?.planQualityGate || state?.planQualityGateByGoal?.[goalId] || null;
+}
+
+function buildFallbackPolicyIntakeContract(state, cycle, executionContract, goalId) {
+  if (!goalId || !executionContract) {
+    return null;
+  }
+  const goalDraft = cycle?.goalDraftV2 || state?.pendingOnboardingInputs?.goalDraftV2 || null;
+  const answeredContext =
+    goalDraft?.answeredContext ||
+    state?.pendingOnboardingInputs?.answeredContext ||
+    executionContract?.planningIntake ||
+    {};
+  const rawGoalText =
+    executionContract?.goalText ||
+    executionContract?.goalLabel ||
+    executionContract?.terminalOutcome?.text ||
+    goalDraft?.goalText ||
+    state?.pendingOnboardingInputs?.goalText ||
+    '';
+  if (!String(rawGoalText || '').trim()) {
+    return null;
+  }
+  const verificationCriteria =
+    executionContract?.terminalOutcome?.verificationCriteria ||
+    state?.pendingOnboardingInputs?.definitionOfDone ||
+    '';
+  const completionBoundaryStatus =
+    String(rawGoalText || '').trim() && String(verificationCriteria || '').trim() ? 'resolved' : 'missing';
+  return {
+    goalId,
+    rawGoalText,
+    domain: executionContract?.goalIntakeContract?.domain || 'general',
+    targetArtifactType: null,
+    targetCount: executionContract?.target?.count ?? 1,
+    targetUnit: executionContract?.target?.unit || null,
+    deadline:
+      executionContract?.deadline?.dayKey ||
+      executionContract?.endDayKey ||
+      state?.pendingOnboardingInputs?.deadline ||
+      null,
+    commitmentVerb: String(rawGoalText).split(/\s+/, 1)[0]?.toLowerCase() || null,
+    completionBoundary: null,
+    completionBoundaryStatus,
+    deliveryMode: null,
+    productionMode: null,
+    startingState: null,
+    requiredContextQuestions: [],
+    answeredContext,
+    scopePolicy: {
+      required: [],
+      recommended: [],
+      optional: [],
+      excluded: [],
+      assumptionsNeedingConfirmation: [],
+    },
+    readiness: {
+      state: 'fully_admitted',
+      isReadyForPlanning: true,
+      blockingReasons: [],
+      assumptionReasons: [],
+    },
+    terminalOutcomeAuthority: executionContract?.goalIntakeContract?.terminalOutcomeAuthority || null,
+    terminalEndpoint: executionContract?.goalIntakeContract?.terminalEndpoint || null,
+  };
+}
+
+function applyPlanQualityGates(state) {
+  const contracts = collectGovernanceContracts(state);
+  const goalIds = Array.from(new Set(contracts.map((c) => c.goalId).filter(Boolean)));
+  const gatesByGoal = {};
+
+  goalIds.forEach((goalId) => {
+    const cycle = resolveCycleForGoal(state, goalId);
+    if (!cycle) {
+      return;
+    }
+    const contract = cycle?.goalContract || state.goalExecutionContract || null;
+    const canonicalDeliverables = getCanonicalCycleDeliverables(
+      state?.deliverablesByCycleId || {},
+      cycle?.id || null,
+      cycle
+    );
+    const canonicalActions = annotateActionsWithDeliverableIds(
+      cycle,
+      getCanonicalCycleActions(cycle),
+      canonicalDeliverables
+    );
+    const canonicalProposed = getCanonicalProposedBlocks(cycle?.proposedBlocks, cycle?.suggestedBlocks);
+    const canonicalCommitted = getAllBlocks(state).filter((block) => {
+      if (!block) {
+        return false;
+      }
+      if (block?.goalId && block.goalId !== goalId) {
+        return false;
+      }
+      if (block?.cycleId && cycle?.id && block.cycleId !== cycle.id) {
+        return false;
+      }
+      return true;
+    });
+
+    const hasExecutionArtifacts = canonicalProposed.length > 0 || canonicalCommitted.length > 0;
+    const declaredBranches = hasExecutionArtifacts
+      ? canonicalDeliverables
+          .filter((deliverable) => {
+            const deliverableId = deliverable?.id;
+            if (!deliverableId) {
+              return false;
+            }
+            const hasExplicitActionIds = Array.isArray(deliverable?.actionIds) && deliverable.actionIds.length > 0;
+            const hasLinkedActions = canonicalActions.some((action) => action?.deliverableId === deliverableId);
+            return hasExplicitActionIds || hasLinkedActions;
+          })
+          .map((deliverable) => deliverable.id)
+          .filter(Boolean)
+      : [];
+
+    const result = evaluatePlanQualityGate({
+      goalText: contract?.terminalOutcome?.text || contract?.goalText || contract?.goalLabel || '',
+      verificationText: contract?.terminalOutcome?.verificationCriteria || '',
+      deliverables: canonicalDeliverables,
+      actions: canonicalActions,
+      proposedBlocks: canonicalProposed,
+      committedBlocks: canonicalCommitted,
+      branchCoverageSummary: { declaredBranches },
+      temporalContext: {
+        contractStartDayKey:
+          contract?.startDayKey ||
+          contract?.startDateISO?.slice?.(0, 10) ||
+          cycle?.startedAtDayKey ||
+          cycle?.startDayKey ||
+          null,
+        contractEndDayKey:
+          contract?.deadline?.dayKey ||
+          contract?.endDayKey ||
+          contract?.deadlineISO?.slice?.(0, 10) ||
+          cycle?.endsAtDayKey ||
+          null,
+        isRecurring:
+          contract?.executionType === 'recurring' ||
+          contract?.cadence?.type === 'recurring' ||
+          contract?.recurrence?.type === 'recurring',
+        earlyCompletionJustification: contract?.earlyCompletionJustification || null,
+      },
+    });
+    cycle.planQualityGate = result;
+    gatesByGoal[goalId] = result;
+  });
+
+  state.planQualityGateByGoal = gatesByGoal;
 }
 
 function applyProbabilityScoring(state) {
@@ -1992,7 +3275,7 @@ function applyProbabilityScoring(state) {
   const probabilityByGoal = {};
   goalIds.forEach((goalId) => {
     const admission = state.goalAdmissionByGoal?.[goalId];
-    if (admission && admission.status !== 'ADMITTED') {
+    if (admission && !isAdmittedGoalStatus(admission.status)) {
       return;
     }
     const contract = contracts.find((c) => c.goalId === goalId);
@@ -2004,6 +3287,26 @@ function applyProbabilityScoring(state) {
       timezone,
     };
     seedCanonicalWorkModelIfMissing(state, goalId);
+    const planQualityGate = resolvePlanQualityGateForGoal(state, goalId);
+    if (planQualityGate?.status === 'PLAN_QUALITY_WITHHELD') {
+      probabilityByGoal[goalId] = {
+        value: null,
+        status: 'INELIGIBLE',
+        trustState: 'withheld',
+        eligibilityStatus: 'computed',
+        capApplied: false,
+        reasons: ['POS_NOT_ADMITTED_PLAN_QUALITY_WITHHELD'],
+        requiredEvents: null,
+        proof: {
+          inputs: { goalId },
+          derived: { planQualityGate },
+          policyVersion: 'probability_v2',
+        },
+        admissionStatus: 'withheld',
+        failureCodes: planQualityGate.failureCodes || [],
+      };
+      return;
+    }
     probabilityByGoal[goalId] = scoreGoalSuccessProbability(goalId, state, constraints, nowISO);
   });
   state.probabilityByGoal = probabilityByGoal;
@@ -2026,26 +3329,217 @@ function applyFeasibility(state) {
     };
     seedCanonicalWorkModelIfMissing(state, goalId);
     const deadlineISO = resolveGoalDeadline(goalId, state) || nowISO;
+    const planQualityGate = resolvePlanQualityGateForGoal(state, goalId);
+    if (planQualityGate?.status === 'PLAN_QUALITY_WITHHELD') {
+      feasibilityByGoal[goalId] = {
+        goalId,
+        nowISO,
+        deadlineISO,
+        status: 'WITHHELD',
+        reasons: ['FEASIBILITY_NOT_ADMITTED_PLAN_QUALITY_WITHHELD'],
+        remainingBlocksTotal: 0,
+        workableDaysRemaining: 0,
+        requiredBlocksPerDay: null,
+        requiredBlocksToday: null,
+        completedBlocksToday: 0,
+        delta: {},
+        admissionStatus: 'withheld',
+        failureCodes: planQualityGate.failureCodes || [],
+      };
+      return;
+    }
     feasibilityByGoal[goalId] = computeFeasibility({ goalId, deadlineISO }, state, constraints, nowISO);
   });
   state.feasibilityByGoal = feasibilityByGoal;
 }
 
+function applyGoalPolicy(state) {
+  const goalPolicyByGoalId = {};
+  const contracts = collectGovernanceContracts(state);
+  const goalIds = Array.from(new Set(contracts.map((c) => c.goalId)));
+  goalIds.forEach((goalId) => {
+    if (!goalId) {
+      return;
+    }
+    const cycle = resolveCycleForGoal(state, goalId);
+    const executionContract = cycle?.goalContract || state.goalExecutionContract || null;
+    const intakeContract =
+      cycle?.goalContract?.goalIntakeContract ||
+      state.goalExecutionContract?.goalIntakeContract ||
+      buildFallbackPolicyIntakeContract(state, cycle, executionContract, goalId);
+    const planProof = cycle?.planProof || state.planPreview?.planProof || null;
+    const probabilityStatus = state.probabilityStatusByGoal?.[goalId]?.status || null;
+    const feasibilityStatus = state.feasibilityByGoal?.[goalId]?.status || null;
+    const executionEvents = getCanonicalExecutionEventsForCycleGoal(state, cycle?.id || null, goalId);
+    const externalEvidenceEvents = getCanonicalExternalEvidenceEventsForCycleGoal(state, cycle?.id || null, goalId);
+    const proposedBlocks = getCanonicalProposedBlocks(cycle?.proposedBlocks, cycle?.suggestedBlocks).filter(
+      (block) => {
+        const blockGoalId = String(block?.goalId || '').trim();
+        return !blockGoalId || blockGoalId === goalId;
+      }
+    );
+    const reviewBlocks = (Array.isArray(cycle?.scheduleReviewBlocks) ? cycle.scheduleReviewBlocks : []).filter(
+      (block) => {
+        const blockGoalId = String(block?.goalId || '').trim();
+        return !blockGoalId || blockGoalId === goalId;
+      }
+    );
+    const preExecutionBlocks = reviewBlocks.length > 0 ? reviewBlocks : proposedBlocks;
+    const canonicalActions = getCanonicalCycleActions(cycle);
+    const canonicalDeliverables = getCanonicalCycleDeliverables(
+      state?.deliverablesByCycleId || {},
+      cycle?.id || null,
+      cycle
+    );
+    const workspace = state?.deliverablesByCycleId?.[cycle?.id || ''] || null;
+    const longTermPlan = getCanonicalLongHorizonPlanMetadata(cycle, workspace, preExecutionBlocks);
+    const hasCommittedBlocks = Boolean(executionEvents.length);
+    const hasProposedBlocks = Boolean(proposedBlocks.length);
+    const hasExecutionGraph = Boolean(cycle?.executionGraphReady || cycle?.llmActionGraph || cycle?.actions?.length);
+    const liveScheduleApplied = Boolean(
+      cycle?.scheduleAppliedAtISO ||
+      cycle?.lastPlanAppliedAtISO ||
+      (state.activeCycleId === cycle?.id && state.scheduleApplied)
+    );
+    const planQualityGate = resolvePlanQualityGateForGoal(state, goalId);
+    const outcomeAuthorityClass = intakeContract?.terminalOutcomeAuthority?.authority || null;
+    const executionCorrection = state.executionCorrectionByGoal?.[goalId] || null;
+    const executionCorrectionState = executionCorrection?.correctionState || null;
+    const executionCorrectionLevel = executionCorrection?.level || null;
+    const shotClock = state.systemShotClockByGoal?.[goalId] || null;
+    const snapshot = buildGoalPolicySnapshot({
+      goalId,
+      intakeContract,
+      executionContract,
+      planProof,
+      probabilityStatus,
+      feasibilityStatus,
+      hasCommittedBlocks,
+      hasProposedBlocks,
+      hasExecutionGraph,
+      canonicalActions,
+      canonicalDeliverables,
+      canonicalExecutionEvents: executionEvents,
+      canonicalExternalEvidenceEvents: externalEvidenceEvents,
+      liveScheduleApplied,
+      longTermPlan,
+      planQualityFailureCodes: planQualityGate?.failureCodes || [],
+      outcomeAuthorityClass,
+      executionCorrectionState,
+      executionCorrectionLevel,
+      blockedDownstreamCount: executionCorrection?.blockedDownstreamCount ?? null,
+      timedDeadlineRiskCount: executionCorrection?.timedDeadlineRiskCount ?? null,
+      paceState: shotClock?.paceState || null,
+      preExecutionSchedule: {
+        blockCount: preExecutionBlocks.length,
+        totalMinutes: preExecutionBlocks.reduce((sum, block) => {
+          const durationMinutes = Number(block?.durationMinutes || block?.minutes || 0);
+          return sum + (Number.isFinite(durationMinutes) ? durationMinutes : 0);
+        }, 0),
+      },
+    });
+    goalPolicyByGoalId[goalId] = snapshot;
+    if (cycle) {
+      cycle.policyState = {
+        ...(cycle.policyState || {}),
+        goalPolicy: snapshot,
+        goalPolicyUpdatedAtISO: snapshot.evaluatedAtISO,
+      };
+    }
+  });
+  state.goalPolicyByGoalId = goalPolicyByGoalId;
+}
+
+function applyExecutionCorrection(state) {
+  const executionCorrectionByGoal = {};
+  const goalIds = Object.keys(state.goalPolicyByGoalId || {});
+  goalIds.forEach((goalId) => {
+    if (!goalId) return;
+    const cycle = resolveCycleForGoal(state, goalId);
+    const executionEvents = getCanonicalExecutionEventsForCycleGoal(state, cycle?.id || null, goalId);
+    const externalEvidenceEvents = getCanonicalExternalEvidenceEventsForCycleGoal(state, cycle?.id || null, goalId);
+    const planMutationEvents = (Array.isArray(state.planMutationEvents) ? state.planMutationEvents : []).filter((event) => {
+      if (!event?.blockId) return false;
+      if (goalId && event?.goalId && event.goalId !== goalId) return false;
+      if (cycle?.id && event?.cycleId && event.cycleId !== cycle.id) return false;
+      return true;
+    });
+    const canonicalActions = getCanonicalCycleActions(cycle);
+    const shotClock = state.systemShotClockByGoal?.[goalId] || null;
+    executionCorrectionByGoal[goalId] = evaluateExecutionCorrection({
+      goalId,
+      cycleId: cycle?.id || null,
+      executionEvents,
+      externalEvidenceEvents,
+      planMutationEvents,
+      canonicalActions,
+      shotClock,
+    });
+  });
+  state.executionCorrectionByGoal = executionCorrectionByGoal;
+}
+
+function applySystemShotClock(state) {
+  const systemShotClockByGoal = {};
+  const contracts = collectGovernanceContracts(state);
+  const goalIds = Array.from(new Set(contracts.map((c) => c.goalId).filter(Boolean)));
+  goalIds.forEach((goalId) => {
+    const cycle = resolveCycleForGoal(state, goalId);
+    const executionContract = cycle?.goalContract || state.goalExecutionContract || null;
+    const executionEvents = getCanonicalExecutionEventsForCycleGoal(state, cycle?.id || null, goalId);
+    const blocks = getAllBlocks(state).filter((block) => {
+      if (!block?.id) return false;
+      if (goalId && block?.goalId && block.goalId !== goalId) return false;
+      if (cycle?.id && block?.cycleId && block.cycleId !== cycle.id) return false;
+      return true;
+    });
+    systemShotClockByGoal[goalId] = deriveSystemShotClock({
+      goalId,
+      cycleId: cycle?.id || null,
+      contract: executionContract,
+      blocks,
+      executionEvents,
+      nowISO: state.appTime?.nowISO || null,
+      timeZone: state.appTime?.timeZone || APP_TIME_ZONE,
+    });
+  });
+  state.systemShotClockByGoal = systemShotClockByGoal;
+  const activeGoalId =
+    state.goalExecutionContract?.goalId || state.cyclesById?.[state.activeCycleId]?.goalContract?.goalId || null;
+  state.systemShotClock = activeGoalId ? systemShotClockByGoal[activeGoalId] || null : null;
+}
+
 function seedCanonicalWorkModelIfMissing(state, goalId) {
-  if (!goalId) return;
+  if (!goalId) {
+    return;
+  }
   state.goalWorkById = state.goalWorkById || {};
   const existing = Array.isArray(state.goalWorkById[goalId]) ? state.goalWorkById[goalId] : [];
-  if (existing.length > 0) return;
+  if (existing.length > 0) {
+    return;
+  }
   const cycle = resolveCycleForGoal(state, goalId);
-  if (!cycle) return;
+  if (!cycle) {
+    return;
+  }
 
   const canonicalActions = getCanonicalCycleActions(cycle);
-  const canonicalDeliverables = getCanonicalCycleDeliverables(state?.deliverablesByCycleId || {}, cycle?.id || null, cycle);
+  const canonicalDeliverables = getCanonicalCycleDeliverables(
+    state?.deliverablesByCycleId || {},
+    cycle?.id || null,
+    cycle
+  );
   const canonicalProposed = getCanonicalProposedBlocks(cycle?.proposedBlocks, cycle?.suggestedBlocks);
   const canonicalCommitted = getAllBlocks(state).filter((block) => {
-    if (!block) return false;
-    if (block?.goalId && block.goalId !== goalId) return false;
-    if (block?.cycleId && cycle?.id && block.cycleId !== cycle.id) return false;
+    if (!block) {
+      return false;
+    }
+    if (block?.goalId && block.goalId !== goalId) {
+      return false;
+    }
+    if (block?.cycleId && cycle?.id && block.cycleId !== cycle.id) {
+      return false;
+    }
     const status = String(block?.status || '').toLowerCase();
     return status !== 'completed' && status !== 'complete' && status !== 'cancelled' && status !== 'canceled';
   });
@@ -2055,42 +3549,40 @@ function seedCanonicalWorkModelIfMissing(state, goalId) {
     .map((action, index) => ({
       workItemId: `derived-action-${goalId}-${index + 1}`,
       title: String(action?.title || `Action ${index + 1}`),
-      blocksRemaining: Math.max(1, Math.ceil((Number(action?.estimateMin) || 60) / 60))
+      blocksRemaining: Math.max(1, Math.ceil((Number(action?.estimateMin) || 60) / 60)),
     }));
 
   if (derived.length === 0) {
-    derived = canonicalProposed
-      .filter(Boolean)
-      .map((block, index) => ({
-        workItemId: `derived-proposed-${goalId}-${index + 1}`,
-        title: String(block?.title || `Planned block ${index + 1}`),
-        blocksRemaining: 1
-      }));
+    derived = canonicalProposed.filter(Boolean).map((block, index) => ({
+      workItemId: `derived-proposed-${goalId}-${index + 1}`,
+      title: String(block?.title || `Planned block ${index + 1}`),
+      blocksRemaining: 1,
+    }));
   }
   if (derived.length === 0) {
-    derived = canonicalCommitted
-      .filter(Boolean)
-      .map((block, index) => ({
-        workItemId: `derived-committed-${goalId}-${index + 1}`,
-        title: String(block?.title || `Committed block ${index + 1}`),
-        blocksRemaining: 1
-      }));
+    derived = canonicalCommitted.filter(Boolean).map((block, index) => ({
+      workItemId: `derived-committed-${goalId}-${index + 1}`,
+      title: String(block?.title || `Committed block ${index + 1}`),
+      blocksRemaining: 1,
+    }));
   }
   if (derived.length === 0) {
-    derived = canonicalDeliverables
-      .filter(Boolean)
-      .map((deliverable, index) => ({
-        workItemId: `derived-deliverable-${goalId}-${index + 1}`,
-        title: String(deliverable?.title || `Deliverable ${index + 1}`),
-        blocksRemaining: Math.max(1, Math.ceil((Number(deliverable?.estimateMin) || 60) / 60))
-      }));
+    derived = canonicalDeliverables.filter(Boolean).map((deliverable, index) => ({
+      workItemId: `derived-deliverable-${goalId}-${index + 1}`,
+      title: String(deliverable?.title || `Deliverable ${index + 1}`),
+      blocksRemaining: Math.max(1, Math.ceil((Number(deliverable?.estimateMin) || 60) / 60)),
+    }));
   }
-  if (derived.length === 0) return;
+  if (derived.length === 0) {
+    return;
+  }
   state.goalWorkById[goalId] = derived;
 }
 
 function resolveCycleForGoal(state, goalId) {
-  if (!goalId) return null;
+  if (!goalId) {
+    return null;
+  }
   const activeCycleId = state?.activeCycleId || null;
   const activeCycle = activeCycleId ? state?.cyclesById?.[activeCycleId] : null;
   if (activeCycle) {
@@ -2099,7 +3591,9 @@ function resolveCycleForGoal(state, goalId) {
       activeCycle?.goalGovernanceContract?.goalId ||
       activeCycle?.contract?.goalId ||
       null;
-    if (activeGoalId === goalId) return activeCycle;
+    if (activeGoalId === goalId) {
+      return activeCycle;
+    }
   }
   const cycles = Object.values(state?.cyclesById || {});
   return (
@@ -2119,25 +3613,39 @@ function inferGoalIdForCycle(state, cycle = null) {
     state?.activeGoalId ||
     state?.planDraft?.goalId ||
     null;
-  if (directGoalId) return directGoalId;
+  if (directGoalId) {
+    return directGoalId;
+  }
 
   const goalWorkIds = Object.keys(state?.goalWorkById || {}).filter(Boolean);
-  if (goalWorkIds.length === 1) return goalWorkIds[0];
+  if (goalWorkIds.length === 1) {
+    return goalWorkIds[0];
+  }
 
   const admissionIds = Object.keys(state?.goalAdmissionByGoal || {}).filter(Boolean);
-  if (admissionIds.length === 1) return admissionIds[0];
+  if (admissionIds.length === 1) {
+    return admissionIds[0];
+  }
 
-  if (cycle?.id) return `goal-${cycle.id}`;
+  if (cycle?.id) {
+    return `goal-${cycle.id}`;
+  }
 
   return null;
 }
 
 function recoverCanonicalContractForCycle(state, cycle = null, contract = null) {
-  if (!cycle) return contract;
-  if (contract?.goalId) return contract;
+  if (!cycle) {
+    return contract;
+  }
+  if (contract?.goalId) {
+    return contract;
+  }
 
   const inferredGoalId = inferGoalIdForCycle(state, cycle);
-  if (!inferredGoalId) return contract;
+  if (!inferredGoalId) {
+    return contract;
+  }
 
   const startDayKey =
     cycle?.startedAtDayKey ||
@@ -2151,10 +3659,7 @@ function recoverCanonicalContractForCycle(state, cycle = null, contract = null) 
     state?.goalExecutionContract?.endDayKey ||
     addDays(startDayKey, 90, state?.appTime?.timeZone || APP_TIME_ZONE);
   const goalText =
-    cycle?.definiteGoal?.outcome ||
-    state?.goalExecutionContract?.goalText ||
-    state?.lenses?.aim?.description ||
-    '';
+    cycle?.definiteGoal?.outcome || state?.goalExecutionContract?.goalText || state?.lenses?.aim?.description || '';
 
   const repairedContract = {
     ...(contract || {}),
@@ -2168,7 +3673,7 @@ function recoverCanonicalContractForCycle(state, cycle = null, contract = null) 
 
   cycle.goalContract = {
     ...(cycle?.goalContract || {}),
-    ...repairedContract
+    ...repairedContract,
   };
   cycle.goalGovernanceContract = cycle.goalGovernanceContract || {
     contractId: `gov-${inferredGoalId}`,
@@ -2179,18 +3684,18 @@ function recoverCanonicalContractForCycle(state, cycle = null, contract = null) 
     scope: {
       domainsAllowed: [],
       timeHorizon: 'week',
-      timezone: state?.appTime?.timeZone || 'UTC'
+      timezone: state?.appTime?.timeZone || 'UTC',
     },
     governance: {
       suggestionsEnabled: true,
       probabilityEnabled: true,
       minEvidenceEvents: 1,
-      cooldowns: { resuggestMinutes: 30, maxSuggestionsPerDay: 6 }
+      cooldowns: { resuggestMinutes: 30, maxSuggestionsPerDay: 6 },
     },
     constraints: {
       forbiddenDirectives: ['repair'],
-      maxActiveBlocks: 6
-    }
+      maxActiveBlocks: 6,
+    },
   };
   state.goalExecutionContract = {
     ...(state.goalExecutionContract || {}),
@@ -2208,7 +3713,9 @@ function recoverCanonicalContractForCycle(state, cycle = null, contract = null) 
 }
 
 function clampUnitScore(value) {
-  if (!Number.isFinite(value)) return null;
+  if (!Number.isFinite(value)) {
+    return null;
+  }
   return Math.max(0, Math.min(1, Number(value)));
 }
 
@@ -2216,7 +3723,11 @@ function deriveCanonicalFeasibilityScore(state, cycle, goalId) {
   const feasibility = goalId ? state?.feasibilityByGoal?.[goalId] || null : null;
   const probability = goalId ? state?.probabilityByGoal?.[goalId] || null : null;
   const canonicalActions = getCanonicalCycleActions(cycle);
-  const canonicalDeliverables = getCanonicalCycleDeliverables(state?.deliverablesByCycleId || {}, cycle?.id || null, cycle);
+  const canonicalDeliverables = getCanonicalCycleDeliverables(
+    state?.deliverablesByCycleId || {},
+    cycle?.id || null,
+    cycle
+  );
   const canonicalProposed = getCanonicalProposedBlocks(cycle?.proposedBlocks, cycle?.suggestedBlocks);
   const canonicalWorkItems = Array.isArray(state?.goalWorkById?.[goalId]) ? state.goalWorkById[goalId] : [];
   const hasThroughputModel =
@@ -2271,10 +3782,18 @@ function deriveCanonicalFeasibilityScore(state, cycle, goalId) {
 }
 
 function mapTrajectoryToReasonCode(trajectory) {
-  const normalized = String(trajectory || '').trim().toUpperCase();
-  if (normalized === 'ON_TRACK') return 'POS_TRAJECTORY_ON_TRACK';
-  if (normalized === 'RECOVERABLE_DRIFT') return 'POS_TRAJECTORY_RECOVERABLE_DRIFT';
-  if (normalized === 'AT_RISK') return 'POS_TRAJECTORY_AT_RISK';
+  const normalized = String(trajectory || '')
+    .trim()
+    .toUpperCase();
+  if (normalized === 'ON_TRACK') {
+    return 'POS_TRAJECTORY_ON_TRACK';
+  }
+  if (normalized === 'RECOVERABLE_DRIFT') {
+    return 'POS_TRAJECTORY_RECOVERABLE_DRIFT';
+  }
+  if (normalized === 'AT_RISK') {
+    return 'POS_TRAJECTORY_AT_RISK';
+  }
   return 'POS_TRAJECTORY_INFEASIBLE';
 }
 
@@ -2283,7 +3802,8 @@ function deriveDynamicOutcomeAggregate({
   cycleDynamics = null,
   feasibility = null,
   feasibilityScore = null,
-  capacityPerDay = 4
+  capacityPerDay = 4,
+  supportHorizon = null,
 }) {
   const normalizedBlocks = Array.isArray(blocks) ? blocks : [];
   let completedBlocks = 0;
@@ -2292,30 +3812,58 @@ function deriveDynamicOutcomeAggregate({
   let plannedBlocks = 0;
   let inProgressBlocks = 0;
   normalizedBlocks.forEach((block) => {
-    const status = String(block?.status || '').trim().toLowerCase();
-    if (status === 'completed' || status === 'complete') completedBlocks += 1;
-    else if (status === 'missed') missedBlocks += 1;
-    else if (status === 'expired') expiredBlocks += 1;
-    else if (status === 'in_progress') inProgressBlocks += 1;
-    else if (status === 'planned') plannedBlocks += 1;
+    const status = String(block?.status || '')
+      .trim()
+      .toLowerCase();
+    if (status === 'completed' || status === 'complete') {
+      completedBlocks += 1;
+    } else if (status === 'missed') {
+      missedBlocks += 1;
+    } else if (status === 'expired') {
+      expiredBlocks += 1;
+    } else if (status === 'in_progress') {
+      inProgressBlocks += 1;
+    } else if (status === 'planned') {
+      plannedBlocks += 1;
+    }
   });
 
   const overdueUnfinished =
     Number(cycleDynamics?.totals?.overdueUnfinished || 0) > 0 ? Number(cycleDynamics.totals.overdueUnfinished) : 0;
   const missedRecoverable = Math.max(0, missedBlocks - expiredBlocks);
   const overdueRecoverableBurden = overdueUnfinished + missedRecoverable;
-  const baseRemaining = Number(feasibility?.remainingBlocksTotal || 0);
+  const feasibilityRemaining = Number(feasibility?.remainingBlocksTotal);
+  const supportRemaining = Number(supportHorizon?.remainingRequiredWork);
+  const baseRemaining =
+    Number.isFinite(feasibilityRemaining) && feasibilityRemaining > 0
+      ? feasibilityRemaining
+      : Number.isFinite(supportRemaining) && supportRemaining > 0
+        ? supportRemaining
+        : 0;
   const remainingRequiredWork = Math.max(baseRemaining, overdueRecoverableBurden + expiredBlocks);
-  const workableDaysRemaining = Number(feasibility?.workableDaysRemaining || 0);
+  const feasibilityWorkableDays = Number(feasibility?.workableDaysRemaining);
+  const supportWorkableDays = Number(supportHorizon?.workableDaysRemaining);
+  const workableDaysRemaining =
+    Number.isFinite(feasibilityWorkableDays) && feasibilityWorkableDays > 0
+      ? feasibilityWorkableDays
+      : Number.isFinite(supportWorkableDays) && supportWorkableDays > 0
+        ? supportWorkableDays
+        : 0;
   const requiredPerDay =
     workableDaysRemaining > 0 ? Math.ceil(remainingRequiredWork / workableDaysRemaining) : Number.POSITIVE_INFINITY;
   const requiredWeeklyThroughput = Number.isFinite(requiredPerDay) ? Math.ceil(requiredPerDay * 7) : null;
-  const baseRequiredWeeklyThroughput = Number.isFinite(Number(feasibility?.requiredBlocksPerDay))
-    ? Math.ceil(Number(feasibility.requiredBlocksPerDay) * 7)
-    : null;
+  const feasibilityRequiredPerDay = Number(feasibility?.requiredBlocksPerDay);
+  const supportRequiredWeekly = Number(supportHorizon?.requiredWeeklyThroughput);
+  const baseRequiredWeeklyThroughput = Number.isFinite(feasibilityRequiredPerDay)
+    ? Math.ceil(feasibilityRequiredPerDay * 7)
+    : Number.isFinite(supportRequiredWeekly)
+      ? supportRequiredWeekly
+      : null;
   const safeCapacityPerDay = Number.isFinite(capacityPerDay) && capacityPerDay > 0 ? capacityPerDay : 4;
   const capacityWeekly = safeCapacityPerDay * 7;
-  const throughputPressure = Number.isFinite(requiredPerDay) ? requiredPerDay / safeCapacityPerDay : Number.POSITIVE_INFINITY;
+  const throughputPressure = Number.isFinite(requiredPerDay)
+    ? requiredPerDay / safeCapacityPerDay
+    : Number.POSITIVE_INFINITY;
 
   let trajectory = 'ON_TRACK';
   if (
@@ -2323,7 +3871,11 @@ function deriveDynamicOutcomeAggregate({
     (workableDaysRemaining <= 0 && remainingRequiredWork > 0)
   ) {
     trajectory = 'INFEASIBLE_TRAJECTORY';
-  } else if (expiredBlocks > 0 || throughputPressure >= 1 || overdueRecoverableBurden >= Math.max(3, Math.ceil(remainingRequiredWork * 0.4))) {
+  } else if (
+    expiredBlocks > 0 ||
+    throughputPressure >= 1 ||
+    overdueRecoverableBurden >= Math.max(3, Math.ceil(remainingRequiredWork * 0.4))
+  ) {
     trajectory = 'AT_RISK';
   } else if (missedBlocks > 0 || overdueRecoverableBurden > 0 || throughputPressure >= 0.75) {
     trajectory = 'RECOVERABLE_DRIFT';
@@ -2341,7 +3893,9 @@ function deriveDynamicOutcomeAggregate({
       : null;
 
   const reasonCodes = [mapTrajectoryToReasonCode(trajectory)];
-  if (expiredBlocks > 0) reasonCodes.push('POS_TERMINAL_DRIFT_EXPIRED');
+  if (expiredBlocks > 0) {
+    reasonCodes.push('POS_TERMINAL_DRIFT_EXPIRED');
+  }
   if (
     Number.isFinite(requiredWeeklyThroughput) &&
     Number.isFinite(baseRequiredWeeklyThroughput) &&
@@ -2362,24 +3916,29 @@ function deriveDynamicOutcomeAggregate({
     workableDaysRemaining: Number.isFinite(workableDaysRemaining) ? workableDaysRemaining : null,
     requiredWeeklyThroughput,
     baseRequiredWeeklyThroughput,
+    actualAvgPerWeek: Number.isFinite(Number(supportHorizon?.actualAvgPerWeek))
+      ? Number(supportHorizon.actualAvgPerWeek)
+      : null,
     capacityWeekly,
     throughputPressure: Number.isFinite(throughputPressure) ? Number(throughputPressure.toFixed(3)) : null,
     trajectory,
     reasonCodes,
     feasibilityAdjustment,
-    adjustedFeasibilityScore
+    adjustedFeasibilityScore,
   };
 }
 
 function buildDynamicPosReasons(dynamicOutcome) {
-  if (!dynamicOutcome || !Array.isArray(dynamicOutcome.reasonCodes)) return [];
+  if (!dynamicOutcome || !Array.isArray(dynamicOutcome.reasonCodes)) {
+    return [];
+  }
   const directionByCode = {
     POS_TRAJECTORY_ON_TRACK: 'UP',
     POS_TRAJECTORY_RECOVERABLE_DRIFT: 'DOWN',
     POS_TRAJECTORY_AT_RISK: 'DOWN',
     POS_TRAJECTORY_INFEASIBLE: 'DOWN',
     POS_REQUIRED_WEEKLY_THROUGHPUT_UP: 'DOWN',
-    POS_TERMINAL_DRIFT_EXPIRED: 'DOWN'
+    POS_TERMINAL_DRIFT_EXPIRED: 'DOWN',
   };
   return dynamicOutcome.reasonCodes.map((code) => ({
     code,
@@ -2390,21 +3949,20 @@ function buildDynamicPosReasons(dynamicOutcome) {
         ? `required/week ${dynamicOutcome.baseRequiredWeeklyThroughput ?? '—'} -> ${dynamicOutcome.requiredWeeklyThroughput ?? '—'}`
         : code === 'POS_TERMINAL_DRIFT_EXPIRED'
           ? `expired ${dynamicOutcome.expiredBlocks}`
-          : `trajectory ${String(dynamicOutcome.trajectory || '').toLowerCase()}`
+          : `trajectory ${String(dynamicOutcome.trajectory || '').toLowerCase()}`,
   }));
 }
 
-function deriveContractFailureRegistration({
-  activeDayKey,
-  deadlineDayKey,
-  feasibility,
-  dynamicOutcome
-}) {
+function deriveContractFailureRegistration({ activeDayKey, deadlineDayKey, feasibility, dynamicOutcome }) {
   const remainingRequiredWork = Number(dynamicOutcome?.remainingRequiredWork || 0);
   const requiredWeeklyThroughput = Number(dynamicOutcome?.requiredWeeklyThroughput || 0);
   const capacityWeekly = Number(dynamicOutcome?.capacityWeekly || 0);
-  const trajectory = String(dynamicOutcome?.trajectory || '').trim().toUpperCase();
-  const feasibilityStatus = String(feasibility?.status || '').trim().toUpperCase();
+  const trajectory = String(dynamicOutcome?.trajectory || '')
+    .trim()
+    .toUpperCase();
+  const feasibilityStatus = String(feasibility?.status || '')
+    .trim()
+    .toUpperCase();
   const deadlinePassed = Boolean(deadlineDayKey && activeDayKey && activeDayKey > deadlineDayKey);
   const reasons = [];
 
@@ -2419,16 +3977,20 @@ function deriveContractFailureRegistration({
         deadlinePassed,
         remainingRequiredWork,
         requiredWeeklyThroughput: Number.isFinite(requiredWeeklyThroughput) ? requiredWeeklyThroughput : null,
-        capacityWeekly: Number.isFinite(capacityWeekly) ? capacityWeekly : null
-      }
+        capacityWeekly: Number.isFinite(capacityWeekly) ? capacityWeekly : null,
+      },
     };
   }
 
   if (feasibilityStatus === 'INFEASIBLE' || trajectory === 'INFEASIBLE_TRAJECTORY') {
     reasons.push(
-      ...(Array.isArray(feasibility?.reasons) ? feasibility.reasons.map((r) => `FEASIBILITY_${String(r || '').toUpperCase()}`) : [])
+      ...(Array.isArray(feasibility?.reasons)
+        ? feasibility.reasons.map((r) => `FEASIBILITY_${String(r || '').toUpperCase()}`)
+        : [])
     );
-    if (!reasons.length) reasons.push('INFEASIBLE_UNDER_CURRENT_CONTRACT');
+    if (!reasons.length) {
+      reasons.push('INFEASIBLE_UNDER_CURRENT_CONTRACT');
+    }
     return {
       state: 'INFEASIBLE_CURRENT_CONTRACT',
       reasons,
@@ -2438,8 +4000,8 @@ function deriveContractFailureRegistration({
         deadlinePassed,
         remainingRequiredWork,
         requiredWeeklyThroughput: Number.isFinite(requiredWeeklyThroughput) ? requiredWeeklyThroughput : null,
-        capacityWeekly: Number.isFinite(capacityWeekly) ? capacityWeekly : null
-      }
+        capacityWeekly: Number.isFinite(capacityWeekly) ? capacityWeekly : null,
+      },
     };
   }
 
@@ -2459,8 +4021,8 @@ function deriveContractFailureRegistration({
         deadlinePassed,
         remainingRequiredWork,
         requiredWeeklyThroughput,
-        capacityWeekly
-      }
+        capacityWeekly,
+      },
     };
   }
 
@@ -2480,8 +4042,8 @@ function deriveContractFailureRegistration({
         deadlinePassed,
         remainingRequiredWork,
         requiredWeeklyThroughput: Number.isFinite(requiredWeeklyThroughput) ? requiredWeeklyThroughput : null,
-        capacityWeekly: Number.isFinite(capacityWeekly) ? capacityWeekly : null
-      }
+        capacityWeekly: Number.isFinite(capacityWeekly) ? capacityWeekly : null,
+      },
     };
   }
 
@@ -2495,27 +4057,37 @@ function deriveContractFailureRegistration({
       deadlinePassed,
       remainingRequiredWork,
       requiredWeeklyThroughput: Number.isFinite(requiredWeeklyThroughput) ? requiredWeeklyThroughput : null,
-      capacityWeekly: Number.isFinite(capacityWeekly) ? capacityWeekly : null
-    }
+      capacityWeekly: Number.isFinite(capacityWeekly) ? capacityWeekly : null,
+    },
   };
 }
 
 function resolveBlockDurationMinutes(block) {
   const direct = Number(block?.durationMinutes);
-  if (Number.isFinite(direct) && direct > 0) return direct;
+  if (Number.isFinite(direct) && direct > 0) {
+    return direct;
+  }
   const startMs = Date.parse(String(block?.start || block?.startISO || ''));
   const endMs = Date.parse(String(block?.end || block?.endISO || ''));
-  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return 60;
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    return 60;
+  }
   return Math.max(1, Math.round((endMs - startMs) / 60000));
 }
 
 function resolveMinutesCapPerDay(state, cycle, canonicalContract, blocks, capacityPerDay) {
   const explicitMaxMinutes = Number(state?.constraints?.maxMinutesPerDay);
-  if (Number.isFinite(explicitMaxMinutes) && explicitMaxMinutes > 0) return explicitMaxMinutes;
+  if (Number.isFinite(explicitMaxMinutes) && explicitMaxMinutes > 0) {
+    return explicitMaxMinutes;
+  }
   const strategyMaxMinutes = Number(cycle?.strategy?.constraints?.maxMinutesPerDay);
-  if (Number.isFinite(strategyMaxMinutes) && strategyMaxMinutes > 0) return strategyMaxMinutes;
+  if (Number.isFinite(strategyMaxMinutes) && strategyMaxMinutes > 0) {
+    return strategyMaxMinutes;
+  }
   const draftMinutes = Number(state?.planDraft?.minutesPerDay);
-  if (Number.isFinite(draftMinutes) && draftMinutes > 0) return draftMinutes;
+  if (Number.isFinite(draftMinutes) && draftMinutes > 0) {
+    return draftMinutes;
+  }
 
   const contractWorkWindows = canonicalContract?.workWindows || cycle?.goalContract?.workWindows || null;
   const hasExplicitContractWindows = countRawWorkWindows(contractWorkWindows) > 0;
@@ -2550,13 +4122,7 @@ function resolveCycleCapacityPerDay(state, cycle) {
       : 4;
 }
 
-function buildRecoveryOption({
-  type,
-  summary,
-  delta = null,
-  unit = null,
-  reasonCode
-}) {
+function buildRecoveryOption({ type, summary, delta = null, unit = null, reasonCode }) {
   return { type, summary, delta, unit, reasonCode };
 }
 
@@ -2568,15 +4134,22 @@ function deriveRecoveryAnalysis({
   feasibility,
   blocks,
   capacityPerDay,
-  contractFailure
+  contractFailure,
 }) {
   const missedExpiredBurden =
     Math.max(0, Number(dynamicOutcome?.missedBlocks || 0)) + Math.max(0, Number(dynamicOutcome?.expiredBlocks || 0));
   const plannedCommitted =
-    Math.max(0, Number(dynamicOutcome?.plannedBlocks || 0)) + Math.max(0, Number(dynamicOutcome?.inProgressBlocks || 0));
-  const remainingRequiredBurden = Math.max(0, Number(dynamicOutcome?.remainingRequiredWork || feasibility?.remainingBlocksTotal || 0));
+    Math.max(0, Number(dynamicOutcome?.plannedBlocks || 0)) +
+    Math.max(0, Number(dynamicOutcome?.inProgressBlocks || 0));
+  const remainingRequiredBurden = Math.max(
+    0,
+    Number(dynamicOutcome?.remainingRequiredWork || feasibility?.remainingBlocksTotal || 0)
+  );
   const unscheduledRequiredBurden = Math.max(0, remainingRequiredBurden - plannedCommitted);
-  const workableDaysRemaining = Math.max(0, Number(dynamicOutcome?.workableDaysRemaining ?? feasibility?.workableDaysRemaining ?? 0));
+  const workableDaysRemaining = Math.max(
+    0,
+    Number(dynamicOutcome?.workableDaysRemaining ?? feasibility?.workableDaysRemaining ?? 0)
+  );
   const remainingCapacityBlocks = workableDaysRemaining * Math.max(0, Number(capacityPerDay) || 0);
   const availableRecoverySlack = remainingCapacityBlocks - remainingRequiredBurden;
   const requiredBlocksPerDayAfterRecovery =
@@ -2591,7 +4164,9 @@ function deriveRecoveryAnalysis({
     const durations = (Array.isArray(blocks) ? blocks : [])
       .map((block) => resolveBlockDurationMinutes(block))
       .filter((minutes) => Number.isFinite(minutes) && minutes > 0);
-    if (!durations.length) return 60;
+    if (!durations.length) {
+      return 60;
+    }
     return Math.round(durations.reduce((sum, minutes) => sum + minutes, 0) / durations.length);
   })();
   const minutesCapPerDay = resolveMinutesCapPerDay(state, cycle, canonicalContract, blocks, capacityPerDay);
@@ -2600,8 +4175,12 @@ function deriveRecoveryAnalysis({
     : Number.POSITIVE_INFINITY;
 
   const overloadReasonCodes = [];
-  if (overCapacityAmount > 0) overloadReasonCodes.push('RECOVERY_OVER_MAX_BLOCKS_PER_DAY');
-  if (requiredMinutesPerDayAfterRecovery > minutesCapPerDay) overloadReasonCodes.push('RECOVERY_OVER_MINUTES_PER_DAY');
+  if (overCapacityAmount > 0) {
+    overloadReasonCodes.push('RECOVERY_OVER_MAX_BLOCKS_PER_DAY');
+  }
+  if (requiredMinutesPerDayAfterRecovery > minutesCapPerDay) {
+    overloadReasonCodes.push('RECOVERY_OVER_MINUTES_PER_DAY');
+  }
   if (String(contractFailure?.state || '').toUpperCase() === 'DEADLINE_FAILED_RENEGOTIATION_REQUIRED') {
     overloadReasonCodes.push('RECOVERY_DEADLINE_EXTENSION_REQUIRED');
   }
@@ -2616,7 +4195,9 @@ function deriveRecoveryAnalysis({
   const recoveryReasons = [];
   if (recoverableWithinCurrentContract) {
     recoveryReasons.push('RECOVERY_WITHIN_CONTRACT');
-    if (availableRecoverySlack <= 0) recoveryReasons.push('RECOVERY_CONSUMES_ALL_SLACK');
+    if (availableRecoverySlack <= 0) {
+      recoveryReasons.push('RECOVERY_CONSUMES_ALL_SLACK');
+    }
   } else {
     recoveryReasons.push(...overloadReasonCodes);
     recoveryReasons.push('RECOVERY_CONTRACT_RENEGOTIATION_REQUIRED');
@@ -2633,7 +4214,7 @@ function deriveRecoveryAnalysis({
           summary: `Extend deadline by ${extraDaysNeeded} day(s) to restore capacity fit.`,
           delta: extraDaysNeeded,
           unit: 'days',
-          reasonCode: 'RECOVERY_DEADLINE_EXTENSION_REQUIRED'
+          reasonCode: 'RECOVERY_DEADLINE_EXTENSION_REQUIRED',
         })
       );
     }
@@ -2649,7 +4230,7 @@ function deriveRecoveryAnalysis({
           summary: `Increase allowed throughput by ${throughputDelta} block(s)/week.`,
           delta: throughputDelta,
           unit: 'blocks/week',
-          reasonCode: 'RECOVERY_OVER_MAX_BLOCKS_PER_DAY'
+          reasonCode: 'RECOVERY_OVER_MAX_BLOCKS_PER_DAY',
         })
       );
     }
@@ -2661,7 +4242,7 @@ function deriveRecoveryAnalysis({
           summary: `Reduce required scope by ${scopeReduction} block(s) to restore viability.`,
           delta: scopeReduction,
           unit: 'blocks',
-          reasonCode: 'RECOVERY_SCOPE_REDUCTION_REQUIRED'
+          reasonCode: 'RECOVERY_SCOPE_REDUCTION_REQUIRED',
         })
       );
     }
@@ -2687,18 +4268,221 @@ function deriveRecoveryAnalysis({
         : null,
       minutesCapPerDay,
       projectedSlackAfterRecovery,
-      overCapacityAmount
+      overCapacityAmount,
     },
     renegotiationRequired,
-    renegotiationOptions
+    renegotiationOptions,
   };
+}
+
+function normalizeReviewScheduleSupportBlock(block, cycleId, goalId) {
+  const start = block?.start || block?.startISO || '';
+  const durationMinutes = Number(block?.durationMinutes || block?.minutes || 0);
+  const startMs = Date.parse(start);
+  const end =
+    block?.end ||
+    block?.endISO ||
+    (Number.isFinite(startMs) && Number.isFinite(durationMinutes) && durationMinutes > 0
+      ? new Date(startMs + durationMinutes * 60 * 1000).toISOString()
+      : '');
+  return {
+    ...block,
+    id: block?.id || block?.blockId,
+    cycleId: block?.cycleId || cycleId,
+    goalId: block?.goalId || goalId,
+    start,
+    end,
+    status: block?.status || 'planned',
+    origin: block?.origin || 'schedule_review',
+  };
+}
+
+function getDayKeyFromSupportBlock(block, timeZone = APP_TIME_ZONE) {
+  return block?.date || block?.dayKey || dayKeyFromISO(block?.start || block?.startISO || '', timeZone);
+}
+
+function getWeekdayKeyFromDayKey(dayKey) {
+  if (!dayKey) {
+    return '';
+  }
+  const date = new Date(`${dayKey}T12:00:00.000Z`);
+  if (!Number.isFinite(date.getTime())) {
+    return '';
+  }
+  return ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][date.getUTCDay()] || '';
+}
+
+function getWorkdaySetForSupportHorizon({ state, cycle, canonicalContract }) {
+  const contractWorkWindows = canonicalContract?.workWindows || cycle?.goalContract?.workWindows || null;
+  if (countRawWorkWindows(contractWorkWindows) > 0) {
+    return new Set(getWorkDaysFromWindows(contractWorkWindows));
+  }
+  const weeklyWindows = state?.constraints?.weeklyWindows || state?.availabilityPolicy?.weeklyWindows || null;
+  if (hasAnySchedulerWindows(weeklyWindows)) {
+    const dayMap = {
+      SUN: 'sun',
+      MON: 'mon',
+      TUE: 'tue',
+      WED: 'wed',
+      THU: 'thu',
+      FRI: 'fri',
+      SAT: 'sat',
+    };
+    const days = Object.entries(weeklyWindows || {})
+      .filter(([, rows]) => Array.isArray(rows) && rows.length > 0)
+      .map(
+        ([day]) =>
+          dayMap[
+            String(day || '')
+              .trim()
+              .toUpperCase()
+          ]
+      )
+      .filter(Boolean);
+    return days.length ? new Set(days) : null;
+  }
+  const policyDays =
+    state?.constraints?.workableDayPolicy?.weekdays || cycle?.strategy?.constraints?.workableDayPolicy?.weekdays;
+  if (Array.isArray(policyDays) && policyDays.length > 0) {
+    const numericDayMap = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const days = policyDays
+      .map((day) => {
+        if (Number.isFinite(Number(day))) {
+          return numericDayMap[Number(day)] || '';
+        }
+        return String(day || '')
+          .trim()
+          .slice(0, 3)
+          .toLowerCase();
+      })
+      .filter(Boolean);
+    return days.length ? new Set(days) : null;
+  }
+  return null;
+}
+
+function countSupportHorizonWorkableDays({ state, cycle, canonicalContract, startDayKey, deadlineDayKey }) {
+  if (!startDayKey || !deadlineDayKey || startDayKey > deadlineDayKey) {
+    return 0;
+  }
+  const workdaySet = getWorkdaySetForSupportHorizon({ state, cycle, canonicalContract });
+  let count = 0;
+  let cursor = startDayKey;
+  while (cursor <= deadlineDayKey) {
+    const dow = getWeekdayKeyFromDayKey(cursor);
+    if (!workdaySet || workdaySet.has(dow)) {
+      count += 1;
+    }
+    cursor = addDays(cursor, 1, state?.appTime?.timeZone || APP_TIME_ZONE);
+  }
+  return count;
+}
+
+function derivePreExecutionSupportHorizon({
+  state,
+  cycle,
+  canonicalContract,
+  supportBlocks,
+  feasibility,
+  capacityPerDay,
+}) {
+  const activeDayKey = state?.appTime?.activeDayKey || state?.today?.date || nowDayKey();
+  const deadlineDayKey =
+    canonicalContract?.endDayKey ||
+    canonicalContract?.deadline?.dayKey ||
+    cycle?.goalContract?.endDayKey ||
+    cycle?.definiteGoal?.deadlineDayKey ||
+    null;
+  const scopedBlocks = Array.isArray(supportBlocks) ? supportBlocks : [];
+  const futureBlocks = scopedBlocks.filter((block) => {
+    const dayKey = getDayKeyFromSupportBlock(block, state?.appTime?.timeZone || APP_TIME_ZONE);
+    if (!dayKey || dayKey < activeDayKey) {
+      return false;
+    }
+    if (deadlineDayKey && dayKey > deadlineDayKey) {
+      return false;
+    }
+    return true;
+  });
+  if (futureBlocks.length === 0 && Number(feasibility?.workableDaysRemaining || 0) > 0) {
+    return null;
+  }
+  const workableDaysRemaining = countSupportHorizonWorkableDays({
+    state,
+    cycle,
+    canonicalContract,
+    startDayKey: activeDayKey,
+    deadlineDayKey,
+  });
+  const remainingFromFeasibility = Number(feasibility?.remainingBlocksTotal);
+  const remainingRequiredWork =
+    Number.isFinite(remainingFromFeasibility) && remainingFromFeasibility > 0
+      ? remainingFromFeasibility
+      : futureBlocks.length;
+  const requiredPerDay =
+    workableDaysRemaining > 0 ? Math.ceil(remainingRequiredWork / workableDaysRemaining) : Number.POSITIVE_INFINITY;
+  const requiredWeeklyThroughput = Number.isFinite(requiredPerDay) ? Math.ceil(requiredPerDay * 7) : null;
+  const spanDays =
+    activeDayKey && deadlineDayKey && activeDayKey <= deadlineDayKey
+      ? Math.max(
+          1,
+          Math.floor(
+            (Date.parse(`${deadlineDayKey}T00:00:00.000Z`) - Date.parse(`${activeDayKey}T00:00:00.000Z`)) / 86400000
+          ) + 1
+        )
+      : Math.max(1, futureBlocks.length);
+  const actualAvgPerWeek = futureBlocks.length / Math.max(1, spanDays / 7);
+  const capacity = Math.max(0, Number(capacityPerDay) || 0);
+  return {
+    source: 'applied_review_schedule',
+    activeDayKey,
+    deadlineDayKey,
+    futureBlockCount: futureBlocks.length,
+    remainingRequiredWork,
+    workableDaysRemaining,
+    requiredWeeklyThroughput,
+    actualAvgPerWeek,
+    projectedSlack: workableDaysRemaining * capacity - remainingRequiredWork,
+  };
+}
+
+function getPreExecutionSupportBlocksForCycleGoal({ state, cycle, cycleId, goalId, executionBlocks = [] }) {
+  if (Array.isArray(executionBlocks) && executionBlocks.length > 0) {
+    return executionBlocks;
+  }
+  const lifecycle = String(cycle?.scheduleLifecycle || state?.scheduleLifecycle || '')
+    .trim()
+    .toLowerCase();
+  if (lifecycle === 'active_schedule') {
+    return [];
+  }
+  const reviewBlocks = Array.isArray(cycle?.scheduleReviewBlocks) ? cycle.scheduleReviewBlocks : [];
+  return reviewBlocks
+    .filter((block) => {
+      if (!block) {
+        return false;
+      }
+      if (cycleId && block?.cycleId && block.cycleId !== cycleId) {
+        return false;
+      }
+      if (goalId && block?.goalId && block.goalId !== goalId) {
+        return false;
+      }
+      return Boolean(block?.start || block?.startISO);
+    })
+    .map((block) => normalizeReviewScheduleSupportBlock(block, cycleId, goalId))
+    .filter((block) => Boolean(block.id && block.start));
 }
 
 function applyCycleScoring(state) {
   const cycleId = state?.activeCycleId || null;
-  if (!cycleId) return;
+  if (!cycleId) {
+    return;
+  }
   const cycle = state?.cyclesById?.[cycleId];
-  if (!cycle) return;
+  if (!cycle) {
+    return;
+  }
   const canonicalContract = getCanonicalCycleContract(cycle, state.goalExecutionContract, cycle?.contract || null);
   const goalId = canonicalContract?.goalId || null;
 
@@ -2707,6 +4491,13 @@ function applyCycleScoring(state) {
   const scopedEvents = getCanonicalExecutionEventsForCycleGoal(state, cycleId, goalId);
   const materialized = materializeBlocksFromEvents(scopedEvents, { todayISO: state.today?.date });
   const blocks = Array.from(materialized?.blocksById?.values?.() || []).filter(Boolean);
+  const supportBlocks = getPreExecutionSupportBlocksForCycleGoal({
+    state,
+    cycle,
+    cycleId,
+    goalId,
+    executionBlocks: blocks,
+  });
 
   const integrity = computeCycleIntegrityScore({
     cycleId,
@@ -2718,8 +4509,12 @@ function applyCycleScoring(state) {
   const feasibilityScore = Number.isFinite(canonicalFeasibility.feasibilityScore)
     ? Number(canonicalFeasibility.feasibilityScore)
     : null;
-  const generationSource = String(cycle?.planGenerationSource || '').trim().toUpperCase();
-  const planStatus = String(cycle?.planStatus || '').trim().toLowerCase();
+  const generationSource = String(cycle?.planGenerationSource || '')
+    .trim()
+    .toUpperCase();
+  const planStatus = String(cycle?.planStatus || '')
+    .trim()
+    .toLowerCase();
   const hasLLMActionGraph = Boolean(cycle?.llmActionGraph);
   const isLlmPath = generationSource === 'LLM' || planStatus === 'generating' || hasLLMActionGraph;
   const maxBlocksPerDay = Number(state?.constraints?.maxBlocksPerDay);
@@ -2732,18 +4527,27 @@ function applyCycleScoring(state) {
         : 4;
   const feasibility = goalId ? state?.feasibilityByGoal?.[goalId] || null : null;
   const probability = goalId ? state?.probabilityByGoal?.[goalId] || null : null;
+  const supportHorizon = derivePreExecutionSupportHorizon({
+    state,
+    cycle,
+    canonicalContract,
+    supportBlocks,
+    feasibility,
+    capacityPerDay,
+  });
   const dynamicOutcome = deriveDynamicOutcomeAggregate({
-    blocks,
+    blocks: supportBlocks,
     cycleDynamics: state?.cycleDynamicsByCycleId?.[cycleId] || cycle?.cycleDynamics || null,
     feasibility,
     feasibilityScore,
-    capacityPerDay
+    capacityPerDay,
+    supportHorizon,
   });
   const contractFailure = deriveContractFailureRegistration({
     activeDayKey,
     deadlineDayKey: canonicalContract?.endDayKey || null,
     feasibility,
-    dynamicOutcome
+    dynamicOutcome,
   });
   const recovery = deriveRecoveryAnalysis({
     state,
@@ -2751,9 +4555,9 @@ function applyCycleScoring(state) {
     canonicalContract,
     dynamicOutcome,
     feasibility,
-    blocks,
+    blocks: supportBlocks,
     capacityPerDay,
-    contractFailure
+    contractFailure,
   });
 
   const metrics = {
@@ -2763,10 +4567,13 @@ function applyCycleScoring(state) {
     integrityMinutesCounted: integrity.minutesCounted,
     feasibilityScore,
     posScore: null,
+    posTrustState: null,
     posUnavailableReasonCode: canonicalFeasibility.reasonCode || null,
     dynamicOutcome,
     requiredWeeklyThroughput: dynamicOutcome.requiredWeeklyThroughput,
     workableDaysRemaining: dynamicOutcome.workableDaysRemaining,
+    actualAvgPerWeek: dynamicOutcome.actualAvgPerWeek,
+    supportHorizon,
     trajectory: dynamicOutcome.trajectory,
     contractFailureState: contractFailure.state,
     contractFailureReasons: contractFailure.reasons,
@@ -2780,8 +4587,9 @@ function applyCycleScoring(state) {
     posInputs: {
       goalIdUsed: goalId,
       ...canonicalFeasibility.diagnostics,
-      dynamicOutcome
-    }
+      dynamicOutcome,
+      supportHorizon,
+    },
   };
 
   const feasibilityStatus = goalId ? state?.feasibilityByGoal?.[goalId]?.status || null : null;
@@ -2819,11 +4627,13 @@ function applyCycleScoring(state) {
       code: 'FEASIBILITY_MISSING_FOR_PLAN',
       reason: 'Plan preview exists but feasibility confidence is unavailable.',
       cycleId,
-      reasonCodes
+      reasonCodes,
     };
   }
 
   const probabilityValue = Number(probability?.value);
+  metrics.posTrustState = probability?.trustState || null;
+  metrics.posQualifier = probability?.qualifier || null;
   const hasNoExecutionEvidence = Number(integrity?.minutesCounted || 0) <= 0;
   if (
     hasNoExecutionEvidence &&
@@ -2838,7 +4648,7 @@ function applyCycleScoring(state) {
     metrics.posUnavailableReasonCode = null;
     metrics.posInputs = {
       ...(metrics.posInputs || {}),
-      seededFromInitialForecast: true
+      seededFromInitialForecast: true,
     };
   }
 
@@ -2855,8 +4665,12 @@ function applyCycleScoring(state) {
   }
   if (Array.isArray(state?.lastPlanError?.reasonCodes)) {
     state.lastPlanError.reasonCodes.forEach((code) => {
-      const normalized = String(code || '').trim().toUpperCase();
-      if (normalized) conflictCodes.add(normalized);
+      const normalized = String(code || '')
+        .trim()
+        .toUpperCase();
+      if (normalized) {
+        conflictCodes.add(normalized);
+      }
     });
   }
   if (metrics.posUnavailableReasonCode) {
@@ -2880,7 +4694,7 @@ function applyCycleScoring(state) {
   const dynamicReasons = buildDynamicPosReasons(dynamicOutcome);
   metrics.posExplanation = {
     ...explanation,
-    reasons: [...(explanation?.reasons || []), ...dynamicReasons].slice(0, 3)
+    reasons: [...(explanation?.reasons || []), ...dynamicReasons].slice(0, 3),
   };
 
   if (Number.isFinite(metrics.posScore)) {
@@ -2892,16 +4706,16 @@ function applyCycleScoring(state) {
       outcomeAgg: outcomeAggNow,
       dynamicOutcome: {
         requiredWeeklyThroughput: dynamicOutcome.requiredWeeklyThroughput,
-        trajectory: dynamicOutcome.trajectory
+        trajectory: dynamicOutcome.trajectory,
       },
       contractFailure: {
         state: contractFailure.state,
-        renegotiationRequired: contractFailure.renegotiationRequired
+        renegotiationRequired: contractFailure.renegotiationRequired,
       },
       recovery: {
         state: recovery.recoveryState,
-        renegotiationRequired: recovery.renegotiationRequired
-      }
+        renegotiationRequired: recovery.renegotiationRequired,
+      },
     };
   }
 
@@ -2911,7 +4725,7 @@ function applyCycleScoring(state) {
     reasons: contractFailure.reasons,
     renegotiationRequired: contractFailure.renegotiationRequired,
     details: contractFailure.details,
-    updatedAtISO: nowISO
+    updatedAtISO: nowISO,
   };
   cycle.recoveryContract = {
     state: recovery.recoveryState,
@@ -2919,21 +4733,24 @@ function applyCycleScoring(state) {
     metrics: recovery.recoveryMetrics,
     renegotiationRequired: recovery.renegotiationRequired,
     options: recovery.renegotiationOptions,
-    updatedAtISO: nowISO
+    updatedAtISO: nowISO,
   };
   state.cyclesById[cycleId] = cycle;
 }
 
 function applyCycleDynamics(state) {
   const cycleId = state?.activeCycleId || null;
-  if (!cycleId) return;
+  if (!cycleId) {
+    return;
+  }
   const cycle = state?.cyclesById?.[cycleId];
-  if (!cycle) return;
+  if (!cycle) {
+    return;
+  }
   const canonicalContract = getCanonicalCycleContract(cycle, state.goalExecutionContract, cycle?.contract || null);
   const goalId = canonicalContract?.goalId || null;
   const nowISO =
-    state?.appTime?.nowISO ||
-    `${state?.appTime?.activeDayKey || state?.today?.date || nowDayKey()}T12:00:00.000Z`;
+    state?.appTime?.nowISO || `${state?.appTime?.activeDayKey || state?.today?.date || nowDayKey()}T12:00:00.000Z`;
   const scopedEvents = getCanonicalExecutionEventsForCycleGoal(state, cycleId, goalId);
   const materialized = materializeBlocksFromEvents(scopedEvents, { todayISO: state.today?.date });
   const scopedBlocks = Array.from(materialized?.blocksById?.values?.() || []).filter(Boolean);
@@ -2941,7 +4758,7 @@ function applyCycleDynamics(state) {
     cycleId,
     goalId,
     blocks: scopedBlocks,
-    nowISO
+    nowISO,
   });
   state.cycleDynamicsByCycleId = state.cycleDynamicsByCycleId || {};
   state.cycleDynamicsByCycleId[cycleId] = profile;
@@ -2951,19 +4768,81 @@ function applyCycleDynamics(state) {
     goalId,
     nowISO,
     blocks: scopedBlocks,
-    profile
+    profile,
   });
   state.cyclesById[cycleId] = cycle;
 }
 
 function getCanonicalExecutionEventsForCycleGoal(state, cycleId, goalId) {
-  const events = Array.isArray(state?.executionEvents) ? state.executionEvents : [];
+  const cycleEvents =
+    cycleId && Array.isArray(state?.cyclesById?.[cycleId]?.executionEvents)
+      ? state.cyclesById[cycleId].executionEvents
+      : [];
+  const stateEvents = Array.isArray(state?.executionEvents) ? state.executionEvents : [];
+  const events = [];
+  const seenEventIds = new Set();
+  [...cycleEvents, ...stateEvents].forEach((event) => {
+    if (!event) {
+      return;
+    }
+    const eventId = String(event?.id || '').trim();
+    const dedupeKey = eventId || `${event?.kind || 'event'}:${event?.blockId || 'no-block'}:${event?.dateISO || ''}`;
+    if (seenEventIds.has(dedupeKey)) {
+      return;
+    }
+    seenEventIds.add(dedupeKey);
+    events.push(event);
+  });
   return events.filter((event) => {
-    if (!event) return false;
+    if (!event) {
+      return false;
+    }
     const eventCycleId = event?.cycleId || cycleId;
-    if (eventCycleId !== cycleId) return false;
-    if (!goalId) return true;
-    if (event?.goalId && event.goalId !== goalId) return false;
+    if (eventCycleId !== cycleId) {
+      return false;
+    }
+    if (!goalId) {
+      return true;
+    }
+    if (event?.goalId && event.goalId !== goalId) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function getCanonicalExternalEvidenceEventsForCycleGoal(state, cycleId, goalId) {
+  const cycleEvents =
+    cycleId && Array.isArray(state?.cyclesById?.[cycleId]?.externalEvidenceEvents)
+      ? state.cyclesById[cycleId].externalEvidenceEvents
+      : [];
+  const stateEvents = Array.isArray(state?.externalEvidenceEvents) ? state.externalEvidenceEvents : [];
+  const events = [];
+  const seenEventIds = new Set();
+  [...cycleEvents, ...stateEvents].forEach((event) => {
+    if (!event) {
+      return;
+    }
+    const eventId = String(event?.id || '').trim();
+    const dedupeKey =
+      eventId || `${event?.kind || 'external'}:${event?.evidenceType || 'unknown'}:${event?.goalId || 'no-goal'}:${event?.dateISO || ''}`;
+    if (seenEventIds.has(dedupeKey)) {
+      return;
+    }
+    seenEventIds.add(dedupeKey);
+    events.push(event);
+  });
+  return events.filter((event) => {
+    if (!event) {
+      return false;
+    }
+    const eventCycleId = event?.cycleId || cycleId;
+    if (cycleId && eventCycleId && eventCycleId !== cycleId) {
+      return false;
+    }
+    if (goalId && event?.goalId && event.goalId !== goalId) {
+      return false;
+    }
     return true;
   });
 }
@@ -2973,26 +4852,53 @@ function enforceCycleDynamicsTransitions(state, { cycleId, goalId, nowISO, block
     cycleId,
     goalId,
     blocks,
-    recommendedTransitions: profile?.recommendedTransitions || []
+    recommendedTransitions: profile?.recommendedTransitions || [],
   });
-  if (!patch.length) return;
+  if (!patch.length) {
+    return;
+  }
 
   const blockById = new Map((Array.isArray(blocks) ? blocks : []).map((block) => [block?.id, block]));
+  const latestEventByBlockId = new Map();
+  (state.executionEvents || []).forEach((event) => {
+    if (!event?.blockId) {
+      return;
+    }
+    latestEventByBlockId.set(event.blockId, event);
+  });
   let didAppend = false;
   patch.forEach((transition) => {
     const block = blockById.get(transition.blockId);
-    if (!block) return;
+    if (!block) {
+      return;
+    }
     const toStatus = transition.toStatus;
-    const fromStatus = String(block?.status || '').trim().toLowerCase();
-    if (!toStatus || fromStatus === toStatus) return;
-    if (block?.cycleId && block.cycleId !== cycleId) return;
-    if (goalId && block?.goalId && block.goalId && block.goalId !== goalId) return;
+    const fromStatus = String(block?.status || '')
+      .trim()
+      .toLowerCase();
+    const latestEvent = latestEventByBlockId.get(transition.blockId);
+    const latestEventStatus = String(latestEvent?.status || '')
+      .trim()
+      .toLowerCase();
+    if (!toStatus || fromStatus === toStatus) {
+      return;
+    }
+    if (latestEventStatus === toStatus) {
+      return;
+    }
+    if (block?.cycleId && block.cycleId !== cycleId) {
+      return;
+    }
+    if (goalId && block?.goalId && block.goalId && block.goalId !== goalId) {
+      return;
+    }
 
     const event = {
       id: nextDeterministicId(state, `evt-dynamics-${transition.blockId}`),
       blockId: transition.blockId,
       minutes: Number.isFinite(Number(block?.durationMinutes)) ? Number(block.durationMinutes) : 0,
       rawLabel: String(block?.label || 'Block'),
+      canonicalTitle: String(block?.title || block?.label || 'Block'),
       domain: block?.domain || block?.practice || 'Focus',
       cycleId: cycleId,
       goalId: goalId || block?.goalId || null,
@@ -3002,14 +4908,19 @@ function enforceCycleDynamicsTransitions(state, { cycleId, goalId, nowISO, block
       status: toStatus,
       missedAtISO: toStatus === 'missed' ? nowISO : block?.missedAtISO || null,
       reason: transition.reasonCode,
-      linkageStatus: block?.deliverableId || block?.criterionId ? 'LINKED' : 'UNLINKED_ACTIVITY'
+      linkageStatus: block?.deliverableId || block?.criterionId ? 'LINKED' : 'UNLINKED_ACTIVITY',
     };
-    if (!canEmitExecutionEvent(state.executionEvents || [], event)) return;
+    if (!canEmitExecutionEvent(state.executionEvents || [], event)) {
+      return;
+    }
     appendExecutionEvent(state, event);
+    latestEventByBlockId.set(transition.blockId, event);
     didAppend = true;
   });
 
-  if (!didAppend) return;
+  if (!didAppend) {
+    return;
+  }
   const rematerialized = materializeBlocksFromEvents(state.executionEvents || [], { todayISO: state.today?.date });
   state.today.blocks = rematerialized.todayBlocks || [];
   state.cycle = rematerialized.days || [];
@@ -3020,17 +4931,21 @@ function applyProgressCredit(state) {
   const allBlocks = (days || []).flatMap((d) => d.blocks || []);
   const progressByGoal = {};
   allBlocks.forEach((block) => {
-    if (!block?.goalId) return;
-    if (block.status !== 'completed' && block.status !== 'complete') return;
+    if (!block?.goalId) {
+      return;
+    }
+    if (block.status !== 'completed' && block.status !== 'complete') {
+      return;
+    }
     const goalId = block.goalId;
     const admission = state.goalAdmissionByGoal?.[goalId];
-    const isAdmittedGoal = !admission || admission.status === 'ADMITTED';
+    const isAdmittedGoal = !admission || isAdmittedGoalStatus(admission.status);
     const duration = Number(block.durationMinutes) || estimateBlockMinutes(block);
     if (!progressByGoal[goalId]) {
       progressByGoal[goalId] = {
         creditedUnits: 0,
         activityUnits: 0,
-        completedUnitsTotal: 0
+        completedUnitsTotal: 0,
       };
     }
     const entry = progressByGoal[goalId];
@@ -3045,20 +4960,30 @@ function applyProgressCredit(state) {
 }
 
 function estimateBlockMinutes(block) {
-  if (!block?.start || !block?.end) return 0;
+  if (!block?.start || !block?.end) {
+    return 0;
+  }
   const start = new Date(block.start).getTime();
   const end = new Date(block.end).getTime();
-  if (!Number.isFinite(start) || !Number.isFinite(end)) return 0;
+  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    return 0;
+  }
   return Math.max(0, Math.round((end - start) / 60000));
 }
 
 function resolveGoalDeadline(goalId, state) {
-  if (!state?.activeCycleId || !state?.cyclesById?.[state.activeCycleId]) return null;
+  if (!state?.activeCycleId || !state?.cyclesById?.[state.activeCycleId]) {
+    return null;
+  }
   const active = state.cyclesById[state.activeCycleId];
   const canonicalContract = getCanonicalCycleContract(active, state.goalExecutionContract, active?.contract || null);
   const canonicalGoalId = canonicalContract?.goalId || active?.goalGovernanceContract?.goalId || null;
-  if (!canonicalGoalId || canonicalGoalId !== goalId) return null;
-  return canonicalContract?.endDayKey || active?.goalContract?.endDayKey || active?.definiteGoal?.deadlineDayKey || null;
+  if (!canonicalGoalId || canonicalGoalId !== goalId) {
+    return null;
+  }
+  return (
+    canonicalContract?.endDayKey || active?.goalContract?.endDayKey || active?.definiteGoal?.deadlineDayKey || null
+  );
 }
 
 function applyGoalDirective(state) {
@@ -3071,7 +4996,7 @@ function applyGoalDirective(state) {
     lastSuggestedAtISO: null,
     lastSuggestedAtISOByGoal: {},
     dailyCountByGoal: {},
-    denials: []
+    denials: [],
   };
   const activeBlocksCount = (state.today?.blocks || []).filter((b) => b.status !== 'completed').length;
   const executionEventCount = (state.executionEvents || []).length;
@@ -3086,7 +5011,11 @@ function applyGoalDirective(state) {
     }
     const directive = computeGoalDirective(ctx.goalText, ctx.deadlineISO, ctx.blocks, [], nowISO);
     if (!directive) {
-      eligibilityByGoal[ctx.goalId] = { allowed: false, reasons: ['no_directive'], contractId: resolution.contract.contractId };
+      eligibilityByGoal[ctx.goalId] = {
+        allowed: false,
+        reasons: ['no_directive'],
+        contractId: resolution.contract.contractId,
+      };
       return;
     }
     const lastSuggestedAtISO = history.lastSuggestedAtISOByGoal?.[ctx.goalId] || null;
@@ -3099,12 +5028,12 @@ function applyGoalDirective(state) {
       lastSuggestedAtISO,
       suggestionsTodayCount: dailyCount,
       directiveTags: [directive.type],
-      directiveDomain: directive.domain
+      directiveDomain: directive.domain,
     });
     eligibilityByGoal[ctx.goalId] = {
       allowed: gate.allowed,
       reasons: gate.reasons,
-      contractId: resolution.contract.contractId
+      contractId: resolution.contract.contractId,
     };
     if (gate.allowed) {
       candidates.push({ goalId: ctx.goalId, directive: { ...directive, goalId: ctx.goalId } });
@@ -3123,7 +5052,9 @@ function applyGoalDirective(state) {
     }
     const aStart = a.directive.startISO || '';
     const bStart = b.directive.startISO || '';
-    if (aStart !== bStart) return aStart.localeCompare(bStart);
+    if (aStart !== bStart) {
+      return aStart.localeCompare(bStart);
+    }
     return a.goalId.localeCompare(b.goalId);
   });
   state.goalDirective = candidates[0].directive;
@@ -3132,16 +5063,20 @@ function applyGoalDirective(state) {
 function buildGoalContexts(state) {
   const contexts = [];
   const active = state.activeCycleId ? state.cyclesById?.[state.activeCycleId] : null;
-  if (!active) return contexts;
+  if (!active) {
+    return contexts;
+  }
   const goalId = active?.goalGovernanceContract?.goalId;
-  if (!goalId) return contexts;
+  if (!goalId) {
+    return contexts;
+  }
   const goalText = active?.definiteGoal?.outcome || '';
   const deadlineISO = active?.definiteGoal?.deadlineDayKey || '';
   contexts.push({
     goalId,
     goalText,
     deadlineISO,
-    blocks: state.today?.blocks || []
+    blocks: state.today?.blocks || [],
   });
   return contexts;
 }
@@ -3156,7 +5091,7 @@ function computeBaseSuggestion(state, blocks, vector) {
       practice: inProgress.practice,
       startISO: inProgress.start,
       endISO: inProgress.end,
-      reason: 'You already started this block; finish it before switching.'
+      reason: 'You already started this block; finish it before switching.',
     };
   }
 
@@ -3186,7 +5121,7 @@ function computeBaseSuggestion(state, blocks, vector) {
       reason:
         vector?.driftLabel === 'off-track' || vector?.driftLabel === 'elevated'
           ? vector?.driftHint || 'This block helps rebalance your pattern.'
-          : 'This is the next scheduled block for today.'
+          : 'This is the next scheduled block for today.',
     };
   }
 
@@ -3202,7 +5137,7 @@ function computeBaseSuggestion(state, blocks, vector) {
     practice: practiceName,
     startISO: start.toISOString(),
     endISO: end.toISOString(),
-    reason: 'No more scheduled work. This repair block pushes your lowest practice back toward pattern.'
+    reason: 'No more scheduled work. This repair block pushes your lowest practice back toward pattern.',
   };
 }
 
@@ -3211,23 +5146,39 @@ function updateBlockStatus(state, id, status) {
   state.today.blocks = updateBlocks(state.today.blocks);
   state.currentWeek.days = state.currentWeek.days.map((d) => ({ ...d, blocks: updateBlocks(d.blocks) }));
   state.cycle = state.cycle.map((d) => ({ ...d, blocks: updateBlocks(d.blocks) }));
+  if (state.blockStore?.blocks && Object.prototype.hasOwnProperty.call(state.blockStore.blocks, id)) {
+    state.blockStore.blocks[id] = {
+      ...state.blockStore.blocks[id],
+      status,
+    };
+  }
 }
 
 function rescheduleBlock(state, id, start, end) {
   const existing = findBlockById(state, id);
-  if (!existing) return;
+  if (!existing) {
+    return;
+  }
   const event = buildExecutionEventFromBlock(existing, {
     kind: 'reschedule',
     completed: false,
     startISO: start,
-    endISO: end
+    endISO: end,
   });
-  if (!canEmitExecutionEvent(state.executionEvents || [], event)) return;
-  const updateBlocks = (blocks = []) =>
-    blocks.map((b) => (b.id === id ? { ...b, start, end } : b));
+  if (!canEmitExecutionEvent(state.executionEvents || [], event)) {
+    return;
+  }
+  const updateBlocks = (blocks = []) => blocks.map((b) => (b.id === id ? { ...b, start, end } : b));
   state.today.blocks = updateBlocks(state.today.blocks);
   state.currentWeek.days = state.currentWeek.days.map((d) => ({ ...d, blocks: updateBlocks(d.blocks) }));
   state.cycle = state.cycle.map((d) => ({ ...d, blocks: updateBlocks(d.blocks) }));
+  if (state.blockStore?.blocks && Object.prototype.hasOwnProperty.call(state.blockStore.blocks, id)) {
+    state.blockStore.blocks[id] = {
+      ...state.blockStore.blocks[id],
+      start,
+      end,
+    };
+  }
   appendExecutionEvent(state, event);
 }
 
@@ -3248,7 +5199,7 @@ function recomputeSummaries(state) {
   state.today.summaryLine = buildDaySummary(state.today, state.vector, state.lenses);
   state.cycle = state.cycle.map((day) => ({
     ...day,
-    summaryLine: buildDaySummary(day, state.vector, state.lenses)
+    summaryLine: buildDaySummary(day, state.vector, state.lenses),
   }));
   return state;
 }
@@ -3260,7 +5211,14 @@ function buildWeekFromCycle(cycle, date) {
   const days = Array.from({ length: 7 }, (_, idx) => {
     const dayKey = addDays(weekStart, idx, 'UTC');
     const existing = cycleMap.get(dayKey);
-    const day = existing || { date: dayKey, blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] };
+    const day = existing || {
+      date: dayKey,
+      blocks: [],
+      completionRate: 0,
+      driftSignal: 'contained',
+      loadByPractice: {},
+      practices: [],
+    };
     return { ...day, label: day.label || day.date || `Day ${idx + 1}` };
   });
   return { weekStart, days };
@@ -3271,9 +5229,7 @@ export function buildMonthCycle(state, dateString) {
   const year = base.getUTCFullYear();
   const month = base.getUTCMonth();
   const totalDays = new Date(Date.UTC(year, month + 1, 0)).getDate();
-  const existingMap = new Map(
-    (Array.isArray(state.cycle) ? state.cycle : []).map((d) => [d.date, d])
-  );
+  const existingMap = new Map((Array.isArray(state.cycle) ? state.cycle : []).map((d) => [d.date, d]));
   const days = [];
   for (let i = 1; i <= totalDays; i++) {
     const iso = dayKeyFromParts(year, month, i);
@@ -3287,7 +5243,7 @@ export function buildMonthCycle(state, dateString) {
         completionRate: 0,
         driftSignal: 'contained',
         loadByPractice: {},
-        practices: []
+        practices: [],
       });
     }
   }
@@ -3327,16 +5283,15 @@ function summarizeDay(day, targetMap, state) {
     completionRate < 0.6
       ? 'off-track'
       : Object.values(ratios).some((r) => r > 1.5 || r < 0.5)
-      ? 'elevated'
-      : 'contained';
+        ? 'elevated'
+        : 'contained';
   const driftSignal = driftLabel === 'contained' ? 'contained' : 'elevated';
 
   const totalMinutes = Object.values(loadByPractice).reduce((sum, v) => sum + (v || 0), 0);
   const targetTotal = Object.values(targetMap).reduce((sum, v) => sum + (v || 0), 0);
   const overloadLabel = targetTotal && totalMinutes > targetTotal * 1.3 ? 'overload' : 'normal';
   const streakState = completionRate === 1 ? 'hit' : completionRate === 0 ? 'miss' : 'partial';
-  const integrityStatus =
-    completionRate >= 0.7 ? 'acceptable' : completionRate >= 0.4 ? 'degrading' : 'low';
+  const integrityStatus = completionRate >= 0.7 ? 'acceptable' : completionRate >= 0.4 ? 'degrading' : 'low';
 
   updateTemplatesFromDay(state, day, completedBlocks);
 
@@ -3351,14 +5306,13 @@ function summarizeDay(day, targetMap, state) {
     dominantPractice,
     driftLabel,
     overloadLabel,
-    streakState
+    streakState,
   };
 }
 
 function recalculateIdentityVector(state) {
   const recent = state.cycle.slice(-7);
-  const avgCompletion =
-    recent.reduce((sum, d) => sum + (d.completionRate || 0), 0) / Math.max(1, recent.length);
+  const avgCompletion = recent.reduce((sum, d) => sum + (d.completionRate || 0), 0) / Math.max(1, recent.length);
   const stability = avgCompletion > 0.7 ? 'steady' : 'shifting';
   const targetMap = targetMinutesMap(getPatternConfig(state));
   const ratios = {};
@@ -3378,11 +5332,7 @@ function recalculateIdentityVector(state) {
   });
   const ratioValues = Object.values(ratios);
   const driftLabel =
-    avgCompletion < 0.6
-      ? 'off-track'
-      : ratioValues.some((r) => r > 1.5 || r < 0.5)
-      ? 'elevated'
-      : 'contained';
+    avgCompletion < 0.6 ? 'off-track' : ratioValues.some((r) => r > 1.5 || r < 0.5) ? 'elevated' : 'contained';
   const momentum = avgCompletion > 0.85 ? 'building' : avgCompletion > 0.6 ? 'active' : 'quiet';
   const todayDate = state.today?.date || nowDayKey();
   if (state.meta?.lastActiveDate) {
@@ -3397,11 +5347,13 @@ function recalculateIdentityVector(state) {
         driftDetail: { byPractice: ratios },
         driftLabel,
         driftHint: buildDriftHint({ byPractice: ratios }),
-        momentum: 'quiet'
+        momentum: 'quiet',
       };
     }
   }
-  if (state.meta) state.meta.lastActiveDate = todayDate;
+  if (state.meta) {
+    state.meta.lastActiveDate = todayDate;
+  }
 
   return {
     ...state.vector,
@@ -3410,12 +5362,14 @@ function recalculateIdentityVector(state) {
     driftDetail: { byPractice: ratios },
     driftLabel,
     driftHint: buildDriftHint({ byPractice: ratios }),
-    momentum
+    momentum,
   };
 }
 
 function durationMinutes(start, end) {
-  if (!start || !end) return 0;
+  if (!start || !end) {
+    return 0;
+  }
   if (start.includes('T') || end.includes('T')) {
     const s = new Date(start);
     const e = new Date(end);
@@ -3462,7 +5416,7 @@ function buildTodayFromPattern(state) {
         end: `${baseDate}T${toTimeLabel(endMin)}`,
         status: 'planned',
         linkedAimId: templateKey,
-        objectiveId: templateKey
+        objectiveId: templateKey,
       };
     });
   }
@@ -3497,8 +5451,8 @@ function computeWeekSummary(state, targetMap = {}) {
     completionRate < 0.6
       ? 'off-track'
       : Object.values(ratios).some((r) => r > 1.5 || r < 0.5)
-      ? 'elevated'
-      : 'contained';
+        ? 'elevated'
+        : 'contained';
   const driftSignal = driftLabel === 'contained' ? 'contained' : 'elevated';
 
   state.currentWeek.metrics = { completionRate, loadByPractice, driftSignal, dominantPractice, driftLabel };
@@ -3525,9 +5479,13 @@ function buildWeekSummary(week) {
 function buildDriftHint(driftDetail = {}) {
   const ratios = driftDetail.byPractice || {};
   const entries = Object.entries(ratios);
-  if (!entries.length) return '';
+  if (!entries.length) {
+    return '';
+  }
   const nearBalanced = entries.every(([, r]) => r > 0.9 && r < 1.1);
-  if (nearBalanced) return '';
+  if (nearBalanced) {
+    return '';
+  }
   const high = entries.filter(([, r]) => r > 1.2);
   const low = entries.filter(([, r]) => r < 0.8);
   if (high.length && low.length) {
@@ -3553,32 +5511,66 @@ function findLowPractices(ratios = {}) {
 }
 
 export function getAllBlocks(state) {
-  const seen = new Set();
   const union = [];
   const divergeWarned = new Set();
+  const scheduleStatuses = new Set(['planned', 'in_progress']);
+  const executionOutcomeStatuses = new Set(['completed', 'complete', 'missed', 'skipped']);
+  const normalizeStatus = (value) =>
+    String(value || '')
+      .trim()
+      .toLowerCase();
+  const isScheduleStatus = (value) => scheduleStatuses.has(normalizeStatus(value));
+  const isExecutionOutcomeStatus = (value) => executionOutcomeStatuses.has(normalizeStatus(value));
+  const mergeBlockStatus = (existing, incoming) => {
+    const existingStatus = normalizeStatus(existing?.status);
+    const incomingStatus = normalizeStatus(incoming?.status);
+    if (!incomingStatus || existingStatus === incomingStatus) {
+      return existing;
+    }
+    if (isScheduleStatus(existingStatus) && isExecutionOutcomeStatus(incomingStatus)) {
+      existing.status = incoming.status;
+      if ('missedAtISO' in incoming) {
+        existing.missedAtISO = incoming.missedAtISO;
+      }
+      return existing;
+    }
+    if (isExecutionOutcomeStatus(existingStatus) && isScheduleStatus(incomingStatus)) {
+      return existing;
+    }
+    return null;
+  };
   const add = (blocks = [], source = 'unknown') => {
     blocks.forEach((b) => {
-      if (!b || !b.id) return;
+      if (!b || !b.id) {
+        return;
+      }
       const existing = union.find((u) => u.id === b.id);
       if (existing) {
-        if (
-          !IS_PRODUCTION &&
-          !isRuntimeEnvFlagEnabled('JERICHO_DISABLE_GENERATE_TRACE') &&
-          existing.status !== b.status &&
-          !divergeWarned.has(b.id)
-        ) {
-          console.warn('Block status divergence detected', b.id, { incoming: b.status, existing: existing.status, source });
-          divergeWarned.add(b.id);
+        const merged = mergeBlockStatus(existing, b);
+        if (!merged) {
+          if (
+            !IS_PRODUCTION &&
+            !isRuntimeEnvFlagEnabled('JERICHO_DISABLE_GENERATE_TRACE') &&
+            existing.status !== b.status &&
+            !divergeWarned.has(b.id)
+          ) {
+            console.warn('Block status divergence detected', b.id, {
+              incoming: b.status,
+              existing: existing.status,
+              source,
+            });
+            divergeWarned.add(b.id);
+          }
         }
         return;
       }
-      seen.add(b.id);
       union.push(b);
     });
   };
   add(state.today?.blocks, 'today');
   (state.currentWeek?.days || []).forEach((d) => add(d.blocks, 'week'));
   (state.cycle || []).forEach((d) => add(d.blocks, 'cycle'));
+  add(Object.values(state?.blockStore?.blocks || {}), 'blockStore');
   return union;
 }
 
@@ -3612,7 +5604,7 @@ export function projectWeekDays({ anchorDate, blocks }) {
       completionRate: 0,
       driftSignal: 'contained',
       loadByPractice: { Body: 0, Resources: 0, Creation: 0, Focus: 0 },
-      practices: []
+      practices: [],
     });
   }
   const targetMap = {};
@@ -3620,7 +5612,9 @@ export function projectWeekDays({ anchorDate, blocks }) {
   (blocks || []).forEach((block) => {
     const key = dayKeyUTC(block.start);
     const day = key && byDate.get(key);
-    if (!day) return;
+    if (!day) {
+      return;
+    }
     day.blocks.push(block);
   });
   days.forEach((day) => {
@@ -3657,7 +5651,9 @@ function parseDayKey(dayKey) {
 }
 
 function durationMinutesISO(start, end) {
-  if (!start || !end) return 0;
+  if (!start || !end) {
+    return 0;
+  }
   const s = new Date(start).getTime();
   const e = new Date(end).getTime();
   const raw = (e - s) / 60000;
@@ -3670,7 +5666,9 @@ function summarizeBlocksMinutes(blocks) {
   for (const b of blocks || []) {
     const mins = durationMinutesISO(b.start, b.end);
     planned += mins;
-    if (b.status === 'completed') completed += mins;
+    if (b.status === 'completed') {
+      completed += mins;
+    }
   }
   planned = Number.isFinite(planned) ? planned : 0;
   completed = Number.isFinite(completed) ? completed : 0;
@@ -3678,7 +5676,7 @@ function summarizeBlocksMinutes(blocks) {
   return {
     plannedMinutes: planned,
     completedMinutes: completed,
-    completionRate: Number.isFinite(cr) ? Math.max(0, Math.min(1, cr)) : 0
+    completionRate: Number.isFinite(cr) ? Math.max(0, Math.min(1, cr)) : 0,
   };
 }
 
@@ -3702,7 +5700,9 @@ export function projectMonthDays({ monthKey, blocks, includePadding = true }) {
   const byDay = new Map();
   for (const b of blocks || []) {
     const key = (b?.start || '').slice(0, 10);
-    if (!key) continue;
+    if (!key) {
+      continue;
+    }
     const arr = byDay.get(key) || [];
     arr.push(b);
     byDay.set(key, arr);
@@ -3718,7 +5718,7 @@ export function projectMonthDays({ monthKey, blocks, includePadding = true }) {
       date,
       blocks: dayBlocks,
       ...summary,
-      inMonth: date.slice(0, 7) === monthYYYYMM
+      inMonth: date.slice(0, 7) === monthYYYYMM,
     });
   }
   return days;
@@ -3729,13 +5729,19 @@ function clamp01(x) {
 }
 
 function bandFromScore(score) {
-  if (score >= 0.7) return 'Strong';
-  if (score >= 0.4) return 'Moderate';
+  if (score >= 0.7) {
+    return 'Strong';
+  }
+  if (score >= 0.4) {
+    return 'Moderate';
+  }
   return 'Weak';
 }
 
 function safeCR(planned, completed) {
-  if (!Number.isFinite(planned) || planned <= 0) return 0;
+  if (!Number.isFinite(planned) || planned <= 0) {
+    return 0;
+  }
   return clamp01(completed / planned);
 }
 
@@ -3765,19 +5771,26 @@ function normalizeMix(plannedBy, practices) {
 
 function distanceL1(a, b, practices) {
   let s = 0;
-  for (const p of practices) s += Math.abs((a[p] || 0) - (b[p] || 0));
+  for (const p of practices) {
+    s += Math.abs((a[p] || 0) - (b[p] || 0));
+  }
   return s;
 }
 
 function computeStreakDays(days, threshold = 0.7) {
   const inMonthDays = (days || []).filter((d) => d.inMonth !== false);
-  if (!inMonthDays.length) return 0;
+  if (!inMonthDays.length) {
+    return 0;
+  }
   const sorted = [...inMonthDays].sort((a, b) => a.date.localeCompare(b.date));
   let streak = 0;
   for (let i = sorted.length - 1; i >= 0; i--) {
     const cr = clamp01(sorted[i].completionRate);
-    if (cr >= threshold) streak += 1;
-    else break;
+    if (cr >= threshold) {
+      streak += 1;
+    } else {
+      break;
+    }
   }
   return streak;
 }
@@ -3785,7 +5798,9 @@ function computeStreakDays(days, threshold = 0.7) {
 function computeMomentumScore(days) {
   const inMonthDays = (days || []).filter((d) => d.inMonth !== false);
   const sorted = [...inMonthDays].sort((a, b) => a.date.localeCompare(b.date));
-  if (sorted.length < 6) return 0;
+  if (sorted.length < 6) {
+    return 0;
+  }
   const last3 = sorted.slice(-3);
   const prev3 = sorted.slice(-6, -3);
   const avg = (arr) => arr.reduce((s, d) => s + clamp01(d.completionRate), 0) / arr.length;
@@ -3797,18 +5812,24 @@ export function computeStability({
   monthDays,
   practices = ['Body', 'Resources', 'Creation', 'Focus'],
   targetMix,
-  integrityLowThreshold = 0.4
+  integrityLowThreshold = 0.4,
 }) {
   const days = monthDays || [];
   const inMonthDays = days.filter((d) => d.inMonth !== false);
 
   const plannedTotal = inMonthDays.reduce((s, d) => s + (Number.isFinite(d.plannedMinutes) ? d.plannedMinutes : 0), 0);
-  const completedTotal = inMonthDays.reduce((s, d) => s + (Number.isFinite(d.completedMinutes) ? d.completedMinutes : 0), 0);
+  const completedTotal = inMonthDays.reduce(
+    (s, d) => s + (Number.isFinite(d.completedMinutes) ? d.completedMinutes : 0),
+    0
+  );
   const completionRate = safeCR(plannedTotal, completedTotal);
 
   let integrityStatus = 'acceptable';
-  if (completionRate < integrityLowThreshold) integrityStatus = 'low';
-  else if (completionRate < 0.7) integrityStatus = 'degrading';
+  if (completionRate < integrityLowThreshold) {
+    integrityStatus = 'low';
+  } else if (completionRate < 0.7) {
+    integrityStatus = 'degrading';
+  }
 
   // Drift via practice mix vs target
   const { plannedBy } = sumPracticeMinutes(inMonthDays);
@@ -3828,12 +5849,13 @@ export function computeStability({
     completion: bandFromScore(completionRate),
     drift: bandFromScore(driftScore),
     streak: bandFromScore(streakScore),
-    momentum: bandFromScore(momentumScore)
+    momentum: bandFromScore(momentumScore),
   };
 
   let overallBand = 'Strong';
-  if (integrityStatus === 'low') overallBand = 'Weak';
-  else {
+  if (integrityStatus === 'low') {
+    overallBand = 'Weak';
+  } else {
     const scores = [completionRate, driftScore, streakScore, momentumScore];
     const min = Math.min(...scores.map((x) => (Number.isFinite(x) ? x : 0)));
     overallBand = bandFromScore(min);
@@ -3845,7 +5867,9 @@ export function computeStability({
       const want = (target[p] || 0) * mixTotal;
       const have = plannedBy[p] || 0;
       const gap = want - have;
-      if (gap > 0) deficits.push({ practice: p, gapMinutes: Math.round(gap) });
+      if (gap > 0) {
+        deficits.push({ practice: p, gapMinutes: Math.round(gap) });
+      }
     }
     deficits.sort((a, b) => b.gapMinutes - a.gapMinutes);
   }
@@ -3861,7 +5885,10 @@ export function computeStability({
       }
     }
   } else if (driftScore < 0.4 && deficits.length) {
-    recs.push({ key: 'shift-next', text: `Shift the next planned block toward ${deficits[0].practice} to correct drift.` });
+    recs.push({
+      key: 'shift-next',
+      text: `Shift the next planned block toward ${deficits[0].practice} to correct drift.`,
+    });
   } else if (momentumScore < 0.4) {
     recs.push({ key: 'momentum', text: 'Aim for a completed win early in the day to raise momentum.' });
   }
@@ -3877,7 +5904,7 @@ export function computeStability({
     overallBand,
     factorBands,
     deficits,
-    recommendations: recs.slice(0, 3)
+    recommendations: recs.slice(0, 3),
   };
 }
 
@@ -3899,8 +5926,12 @@ function buildStabilityHeadline(vector, currentWeek) {
 
 function buildStabilityAction(vector) {
   const lows = findLowPractices(vector?.driftDetail?.byPractice);
-  if (!lows.length) return 'Rebalance by adding one underweight practice block before 18:00.';
-  if (lows.length === 1) return `Rebalance by adding one ${lows[0]} block before 18:00.`;
+  if (!lows.length) {
+    return 'Rebalance by adding one underweight practice block before 18:00.';
+  }
+  if (lows.length === 1) {
+    return `Rebalance by adding one ${lows[0]} block before 18:00.`;
+  }
   return `Rebalance by adding one ${lows[0]} block and one ${lows[1]} block before 18:00.`;
 }
 
@@ -3922,13 +5953,21 @@ function targetMinutesMap(pattern = {}) {
 }
 
 function updateTemplatesFromDay(state, day, completedBlocks) {
-  if (!completedBlocks.length) return;
-  if (!state.templates) state.templates = { objectives: {} };
-  if (!state.templates.objectives) state.templates.objectives = {};
+  if (!completedBlocks.length) {
+    return;
+  }
+  if (!state.templates) {
+    state.templates = { objectives: {} };
+  }
+  if (!state.templates.objectives) {
+    state.templates.objectives = {};
+  }
   const grouped = {};
   completedBlocks.forEach((block) => {
     const objectiveId = block.linkedAimId || day.objectiveId || 'default';
-    if (!grouped[objectiveId]) grouped[objectiveId] = { minutesByPractice: {}, slots: [] };
+    if (!grouped[objectiveId]) {
+      grouped[objectiveId] = { minutesByPractice: {}, slots: [] };
+    }
     const entry = grouped[objectiveId];
     const minutes = durationMinutes(block.start, block.end);
     entry.minutesByPractice[block.practice] = (entry.minutesByPractice[block.practice] || 0) + minutes;
@@ -3949,15 +5988,19 @@ function updateTemplatesFromDay(state, day, completedBlocks) {
     });
     state.templates.objectives[objectiveId] = {
       minutesByPractice: mergedMinutes,
-      preferredSlot: preferredSlot || existing?.preferredSlot || 'morning'
+      preferredSlot: preferredSlot || existing?.preferredSlot || 'morning',
     };
   });
 }
 
 function adaptPatternTargets(state) {
-  if (!state.cycle || !state.cycle.length || !state.lenses?.pattern) return false;
+  if (!state.cycle || !state.cycle.length || !state.lenses?.pattern) {
+    return false;
+  }
   const history = state.cycle.slice(-14);
-  if (history.length < 3) return false;
+  if (history.length < 3) {
+    return false;
+  }
   const totals = {};
   history.forEach((day) => {
     (day.blocks || []).forEach((block) => {
@@ -3973,14 +6016,18 @@ function adaptPatternTargets(state) {
     Body: [15, 180],
     Resources: [15, 240],
     Creation: [15, 240],
-    Focus: [15, 180]
+    Focus: [15, 180],
   };
   let changed = false;
   const updatedTargets = targets.map((t) => {
     const actualAvg = (totals[t.name] || 0) / daysCount;
     const targetMinutes = t.minutes || state.lenses?.pattern?.defaultMinutes || 0;
-    if ((totals[t.name] || 0) < 60) return t;
-    if (!targetMinutes) return t;
+    if ((totals[t.name] || 0) < 60) {
+      return t;
+    }
+    if (!targetMinutes) {
+      return t;
+    }
     const deviation = targetMinutes ? (actualAvg - targetMinutes) / targetMinutes : 0;
     if (Math.abs(deviation) > 0.3) {
       const nudged = Math.max(15, Math.round(targetMinutes + 0.15 * (actualAvg - targetMinutes)));
@@ -3992,7 +6039,9 @@ function adaptPatternTargets(state) {
     return t;
   });
   const todayDate = (state.today && state.today.date) || nowDayKey();
-  if (state.lastAdaptedDate === todayDate) return false;
+  if (state.lastAdaptedDate === todayDate) {
+    return false;
+  }
   if (changed) {
     state.lenses.pattern = { ...state.lenses.pattern, dailyTargets: updatedTargets };
     state.lastAdaptedDate = todayDate;
@@ -4003,20 +6052,28 @@ function adaptPatternTargets(state) {
 function inferSlot(start) {
   const date = new Date(start || '00:00');
   const hour = date.getHours();
-  if (hour >= 18) return 'evening';
-  if (hour >= 12) return 'afternoon';
+  if (hour >= 18) {
+    return 'evening';
+  }
+  if (hour >= 12) {
+    return 'afternoon';
+  }
   return 'morning';
 }
 
 function rebalanceTodayPlan(state, mode) {
-  if (!state.today || !state.today.blocks) return;
+  if (!state.today || !state.today.blocks) {
+    return;
+  }
   const beforePlanned =
-    (state.today.plannedMinutes ?? state.today.blocks.reduce((sum, b) => sum + durationMinutes(b.start, b.end), 0)) || 0;
+    (state.today.plannedMinutes ?? state.today.blocks.reduce((sum, b) => sum + durationMinutes(b.start, b.end), 0)) ||
+    0;
   const beforeCompleted =
     (state.today.completedMinutes ??
       state.today.blocks
         .filter((b) => b.status === 'completed' || b.status === 'complete')
-        .reduce((sum, b) => sum + durationMinutes(b.start, b.end), 0)) || 0;
+        .reduce((sum, b) => sum + durationMinutes(b.start, b.end), 0)) ||
+    0;
   const beforeCR = beforePlanned ? beforeCompleted / beforePlanned : 0;
   const beforeIntegrity = beforeCR >= 0.7 ? 'acceptable' : beforeCR >= 0.4 ? 'degrading' : 'low';
 
@@ -4024,7 +6081,7 @@ function rebalanceTodayPlan(state, mode) {
   if (!objectiveId) {
     const planned = (state.today.blocks || []).map((b) => ({
       id: b.objectiveId || b.linkedAimId || b.id,
-      minutes: durationMinutes(b.start, b.end)
+      minutes: durationMinutes(b.start, b.end),
     }));
     planned.sort((a, b) => b.minutes - a.minutes);
     objectiveId = planned[0]?.id || null;
@@ -4047,13 +6104,10 @@ function rebalanceTodayPlan(state, mode) {
   state.currentWeek.days = state.currentWeek.days.map((d) =>
     d.date === state.today.date ? { ...d, blocks: updatedBlocks } : d
   );
-  state.cycle = state.cycle.map((d) =>
-    d.date === state.today.date ? { ...d, blocks: updatedBlocks } : d
-  );
+  state.cycle = state.cycle.map((d) => (d.date === state.today.date ? { ...d, blocks: updatedBlocks } : d));
 
   // session recap
-  const afterPlanned =
-    state.today.blocks.reduce((sum, b) => sum + durationMinutes(b.start, b.end), 0) || 0;
+  const afterPlanned = state.today.blocks.reduce((sum, b) => sum + durationMinutes(b.start, b.end), 0) || 0;
   const afterCompleted =
     state.today.blocks
       .filter((b) => b.status === 'completed' || b.status === 'complete')
@@ -4067,19 +6121,21 @@ function rebalanceTodayPlan(state, mode) {
       planned: beforePlanned,
       completed: beforeCompleted,
       cr: beforeCR,
-      integrity: beforeIntegrity
+      integrity: beforeIntegrity,
     }),
     afterSummary: JSON.stringify({
       planned: afterPlanned,
       completed: afterCompleted,
       cr: afterCR,
-      integrity: afterIntegrity
-    })
+      integrity: afterIntegrity,
+    }),
   };
 }
 
 function shiftEnd(start, durationMinutesValue) {
-  if (!start) return start;
+  if (!start) {
+    return start;
+  }
   if (start.includes('T')) {
     const s = new Date(start);
     const e = new Date(s.getTime() + durationMinutesValue * 60000);
@@ -4102,7 +6158,7 @@ function derivePatternFromGoal(goal = {}) {
     Body: 30,
     Resources: 45,
     Creation: 90,
-    Focus: 45
+    Focus: 45,
   };
   const targets = ['Body', 'Resources', 'Creation', 'Focus'].map((name) => {
     const bump = focusAreas.includes(name) ? 30 : 0;
@@ -4120,10 +6176,16 @@ function normalizeFocusAreas(input = []) {
 }
 
 function parseHorizonDays(horizon) {
-  if (typeof horizon === 'number' && Number.isFinite(horizon)) return Math.max(1, Math.round(horizon));
-  if (typeof horizon !== 'string') return 90;
+  if (typeof horizon === 'number' && Number.isFinite(horizon)) {
+    return Math.max(1, Math.round(horizon));
+  }
+  if (typeof horizon !== 'string') {
+    return 90;
+  }
   const trimmed = horizon.trim().toLowerCase();
-  if (trimmed === 'year') return 365;
+  if (trimmed === 'year') {
+    return 365;
+  }
   if (trimmed.endsWith('d')) {
     const parsed = parseInt(trimmed.slice(0, -1), 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 90;
@@ -4134,28 +6196,48 @@ function parseHorizonDays(horizon) {
 
 function parseMinimumDays(value) {
   const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed)) return null;
-  if (parsed < 3 || parsed > 7) return null;
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  if (parsed < 3 || parsed > 7) {
+    return null;
+  }
   return parsed;
 }
 
 function choosePrimaryDomain(domains = []) {
   const set = new Set(domains);
   for (const name of DOMAIN_ORDER) {
-    if (set.has(name)) return name;
+    if (set.has(name)) {
+      return name;
+    }
   }
   return domains[0] || 'Creation';
 }
 
 function classifyGoalArchetype(goalText = '', domains = []) {
   const text = goalText.toLowerCase();
-  if (/(recover|restore|reset|heal|stabilize)/.test(text)) return 'recover';
-  if (/(acquire|revenue|pipeline|sell|sales|money|income)/.test(text)) return 'acquire';
-  if (/(perform|execute|focus|precision|practice)/.test(text)) return 'perform';
-  if (/(ship|build|launch|create|release|publish)/.test(text)) return 'build';
-  if (domains.includes('Creation')) return 'build';
-  if (domains.includes('Resources')) return 'acquire';
-  if (domains.includes('Body')) return 'recover';
+  if (/(recover|restore|reset|heal|stabilize)/.test(text)) {
+    return 'recover';
+  }
+  if (/(acquire|revenue|pipeline|sell|sales|money|income)/.test(text)) {
+    return 'acquire';
+  }
+  if (/(perform|execute|focus|precision|practice)/.test(text)) {
+    return 'perform';
+  }
+  if (/(ship|build|launch|create|release|publish)/.test(text)) {
+    return 'build';
+  }
+  if (domains.includes('Creation')) {
+    return 'build';
+  }
+  if (domains.includes('Resources')) {
+    return 'acquire';
+  }
+  if (domains.includes('Body')) {
+    return 'recover';
+  }
   return 'perform';
 }
 
@@ -4185,7 +6267,9 @@ function computeBlocksPerWeek(daysPerWeek) {
 
 function buildTemplates(archetype, domains, primaryDomain) {
   const pick = (preferred, fallback) => {
-    if (domains.includes(preferred)) return preferred;
+    if (domains.includes(preferred)) {
+      return preferred;
+    }
     return domains.includes(fallback) ? fallback : primaryDomain;
   };
   const focusDomain = pick('Focus', 'Creation');
@@ -4194,31 +6278,99 @@ function buildTemplates(archetype, domains, primaryDomain) {
   const creationDomain = pick('Creation', 'Focus');
   const base = {
     build: [
-      { title: 'Foundation reps', domain: creationDomain, durationMinutes: 30, frequency: 'daily', reason: 'build muscle memory' },
-      { title: 'Production sprint', domain: creationDomain, durationMinutes: 90, frequency: '3x/week', reason: 'ship tangible output' },
-      { title: 'Scope review', domain: focusDomain, durationMinutes: 20, frequency: 'weekly', reason: 'tighten scope' }
+      {
+        title: 'Foundation reps',
+        domain: creationDomain,
+        durationMinutes: 30,
+        frequency: 'daily',
+        reason: 'build muscle memory',
+      },
+      {
+        title: 'Production sprint',
+        domain: creationDomain,
+        durationMinutes: 90,
+        frequency: '3x/week',
+        reason: 'ship tangible output',
+      },
+      { title: 'Scope review', domain: focusDomain, durationMinutes: 20, frequency: 'weekly', reason: 'tighten scope' },
     ],
     recover: [
-      { title: 'Recovery base', domain: bodyDomain, durationMinutes: 30, frequency: 'daily', reason: 'restore capacity' },
-      { title: 'Stability block', domain: resourcesDomain, durationMinutes: 45, frequency: '3x/week', reason: 'stabilize inputs' },
-      { title: 'Reflection review', domain: focusDomain, durationMinutes: 15, frequency: 'weekly', reason: 'track recovery signals' }
+      {
+        title: 'Recovery base',
+        domain: bodyDomain,
+        durationMinutes: 30,
+        frequency: 'daily',
+        reason: 'restore capacity',
+      },
+      {
+        title: 'Stability block',
+        domain: resourcesDomain,
+        durationMinutes: 45,
+        frequency: '3x/week',
+        reason: 'stabilize inputs',
+      },
+      {
+        title: 'Reflection review',
+        domain: focusDomain,
+        durationMinutes: 15,
+        frequency: 'weekly',
+        reason: 'track recovery signals',
+      },
     ],
     acquire: [
-      { title: 'Pipeline touch', domain: resourcesDomain, durationMinutes: 30, frequency: 'daily', reason: 'keep acquisition warm' },
-      { title: 'Acquisition sprint', domain: resourcesDomain, durationMinutes: 60, frequency: '3x/week', reason: 'convert opportunities' },
-      { title: 'Revenue review', domain: focusDomain, durationMinutes: 20, frequency: 'weekly', reason: 'tighten acquisition loop' }
+      {
+        title: 'Pipeline touch',
+        domain: resourcesDomain,
+        durationMinutes: 30,
+        frequency: 'daily',
+        reason: 'keep acquisition warm',
+      },
+      {
+        title: 'Acquisition sprint',
+        domain: resourcesDomain,
+        durationMinutes: 60,
+        frequency: '3x/week',
+        reason: 'convert opportunities',
+      },
+      {
+        title: 'Revenue review',
+        domain: focusDomain,
+        durationMinutes: 20,
+        frequency: 'weekly',
+        reason: 'tighten acquisition loop',
+      },
     ],
     perform: [
-      { title: 'Focus primer', domain: focusDomain, durationMinutes: 20, frequency: 'daily', reason: 'prime execution' },
-      { title: 'Execution block', domain: primaryDomain, durationMinutes: 60, frequency: '3x/week', reason: 'sustain performance' },
-      { title: 'Performance review', domain: focusDomain, durationMinutes: 15, frequency: 'weekly', reason: 'adjust execution' }
-    ]
+      {
+        title: 'Focus primer',
+        domain: focusDomain,
+        durationMinutes: 20,
+        frequency: 'daily',
+        reason: 'prime execution',
+      },
+      {
+        title: 'Execution block',
+        domain: primaryDomain,
+        durationMinutes: 60,
+        frequency: '3x/week',
+        reason: 'sustain performance',
+      },
+      {
+        title: 'Performance review',
+        domain: focusDomain,
+        durationMinutes: 15,
+        frequency: 'weekly',
+        reason: 'adjust execution',
+      },
+    ],
   };
   return base[archetype] || base.build;
 }
 
 function averageTemplateMinutes(templates = []) {
-  if (!templates.length) return 45;
+  if (!templates.length) {
+    return 45;
+  }
   const total = templates.reduce((sum, t) => sum + (t.durationMinutes || 0), 0);
   return Math.round(total / templates.length) || 45;
 }
@@ -4232,7 +6384,7 @@ function buildSuggestedBlocks({
   goalText,
   primaryDomain,
   reservedIds = new Set(),
-  timeZone
+  timeZone,
 }) {
   return generateSuggestions({
     goalId,
@@ -4243,14 +6395,16 @@ function buildSuggestedBlocks({
     goalText,
     primaryDomain,
     reservedIds,
-    timeZone
+    timeZone,
   });
 }
 
 function getSortedEndedHistorySignals(state, windowCycles = 5) {
   const allSignals = Object.values(state.historySignalsByCycleId || {}).filter((entry) => entry && entry.endDayKey);
   const sorted = allSignals.sort((a, b) => {
-    if (a.endDayKey !== b.endDayKey) return a.endDayKey.localeCompare(b.endDayKey);
+    if (a.endDayKey !== b.endDayKey) {
+      return a.endDayKey.localeCompare(b.endDayKey);
+    }
     return (a.cycleId || '').localeCompare(b.cycleId || '');
   });
   const count = Number.isFinite(windowCycles) ? Math.max(1, Number(windowCycles)) : 5;
@@ -4264,7 +6418,9 @@ function rebuildHistoryProfile(state, windowCycles = 5) {
 }
 
 function buildHistoryProfileForDraft(state, planDraft = null) {
-  if (!planDraft || planDraft.enableHistoryPolicySelection !== true) return null;
+  if (!planDraft || planDraft.enableHistoryPolicySelection !== true) {
+    return null;
+  }
   const windowCycles = Number.isFinite(planDraft.historyWindowCycles) ? Number(planDraft.historyWindowCycles) : 5;
   const endedSignals = getSortedEndedHistorySignals(state, windowCycles);
   return buildHistoryProfile(endedSignals, { windowCycles });
@@ -4276,7 +6432,7 @@ function computePlanPreview({
   contract = null,
   policyState = null,
   historyProfile = null,
-  timeZone = 'UTC'
+  timeZone = 'UTC',
 } = {}) {
   const onlySuggested = (suggestedBlocks || []).filter((s) => s && s.status === 'suggested');
   const totalBlocks = onlySuggested.length;
@@ -4321,12 +6477,20 @@ export function rehydrateSuggestionRejections(suggestions = [], events = []) {
   }
   const next = suggestions.map((s) => ({ ...s }));
   events.forEach((event) => {
-    if (event?.type !== 'suggestion_rejected') return;
+    if (event?.type !== 'suggestion_rejected') {
+      return;
+    }
     const suggestionId = event.suggestionId || event.proposalId;
-    if (!suggestionId) return;
+    if (!suggestionId) {
+      return;
+    }
     const target = next.find((s) => s.id === suggestionId);
-    if (!target) return;
-    if (target.status === 'rejected' && target.rejectedReason) return;
+    if (!target) {
+      return;
+    }
+    if (target.status === 'rejected' && target.rejectedReason) {
+      return;
+    }
     if (target.status === 'suggested') {
       target.status = 'rejected';
     }
@@ -4344,11 +6508,17 @@ function rehydrateSuggestionOverrides(suggestions = [], events = []) {
   let next = rehydrateSuggestionRejections(suggestions, events);
   next = next.map((s) => ({ ...s }));
   events.forEach((event) => {
-    if (!event?.type) return;
+    if (!event?.type) {
+      return;
+    }
     const suggestionId = event.suggestionId || event.proposalId;
-    if (!suggestionId) return;
+    if (!suggestionId) {
+      return;
+    }
     const target = next.find((s) => s.id === suggestionId);
-    if (!target) return;
+    if (!target) {
+      return;
+    }
     if (event.type === 'suggestion_ignored' && target.status === 'suggested') {
       target.status = 'ignored';
     }
@@ -4362,21 +6532,21 @@ function rehydrateSuggestionOverrides(suggestions = [], events = []) {
 function applySuggestionEventOverrides(state) {
   const suggestions = state.proposedBlocks || [];
   const events = state.suggestionEvents || [];
-  if (!suggestions.length || !events.length) return false;
+  if (!suggestions.length || !events.length) {
+    return false;
+  }
   const next = rehydrateSuggestionOverrides(suggestions, events);
-  const changed = next.some((entry, idx) => entry.status !== suggestions[idx]?.status || entry.rejectedReason !== suggestions[idx]?.rejectedReason);
-  if (changed) setCycleProposedBlocks(state, state.activeCycleId || null, next);
+  const changed = next.some(
+    (entry, idx) =>
+      entry.status !== suggestions[idx]?.status || entry.rejectedReason !== suggestions[idx]?.rejectedReason
+  );
+  if (changed) {
+    setCycleProposedBlocks(state, state.activeCycleId || null, next);
+  }
   return changed;
 }
 
-const REJECTION_REASONS = [
-  'TOO_LONG',
-  'WRONG_TIME',
-  'LOW_ENERGY',
-  'NOT_RELEVANT',
-  'MISSING_PREREQ',
-  'OVERCOMMITTED'
-];
+const REJECTION_REASONS = ['TOO_LONG', 'WRONG_TIME', 'LOW_ENERGY', 'NOT_RELEVANT', 'MISSING_PREREQ', 'OVERCOMMITTED'];
 
 function computeCorrectionSignals(state, windowDays = 14) {
   const todayKey = nowDayKey();
@@ -4388,12 +6558,16 @@ function computeCorrectionSignals(state, windowDays = 14) {
   }, {});
   const inWindow = events.filter((event) => {
     const dayKey = event.dayKey || dayKeyFromDate(new Date(event.atISO || ''));
-    if (!dayKey) return false;
+    if (!dayKey) {
+      return false;
+    }
     return dayKey >= startKey && dayKey <= todayKey;
   });
   inWindow.forEach((event) => {
     const reason = event.reason;
-    if (!reason || !(reason in byReason)) return;
+    if (!reason || !(reason in byReason)) {
+      return;
+    }
     byReason[reason] += 1;
   });
   const total = Object.values(byReason).reduce((sum, val) => sum + val, 0);
@@ -4408,41 +6582,55 @@ function computeCorrectionSignals(state, windowDays = 14) {
       timingMismatch: ratio(byReason.WRONG_TIME),
       energyMismatch: ratio(byReason.LOW_ENERGY),
       relevanceMismatch: ratio(byReason.NOT_RELEVANT),
-      prereqDebt: ratio(byReason.MISSING_PREREQ)
-    }
+      prereqDebt: ratio(byReason.MISSING_PREREQ),
+    },
   };
 }
 
 function hasValidatedCycleActionGraph(cycle) {
-  if (!cycle) return false;
+  if (!cycle) {
+    return false;
+  }
   const actionSource = getCanonicalCycleActions(cycle);
-  if (!actionSource.length) return false;
+  if (!actionSource.length) {
+    return false;
+  }
   return actionSource.every((action) => {
-    if (!action || !action.id) return false;
+    if (!action || !action.id) {
+      return false;
+    }
     const title = String(action.title || action.label || '').trim();
     return title.length > 0;
   });
 }
 
 function ensureCycleDeliverablesWorkspace(state, cycleId) {
-  if (!cycleId) return 0;
+  if (!cycleId) {
+    return 0;
+  }
   state.deliverablesByCycleId = state.deliverablesByCycleId || {};
   const cycle = state.cyclesById?.[cycleId];
-  if (!cycle) return 0;
+  if (!cycle) {
+    return 0;
+  }
   const existingWorkspace = state.deliverablesByCycleId[cycleId] || {
     cycleId,
     deliverables: [],
     suggestionLinks: {},
-    lastUpdatedAtISO: state.appTime?.nowISO || new Date().toISOString()
+    lastUpdatedAtISO: state.appTime?.nowISO || new Date().toISOString(),
   };
   state.deliverablesByCycleId[cycleId] = existingWorkspace;
   return Array.isArray(existingWorkspace.deliverables) ? existingWorkspace.deliverables.length : 0;
 }
 
 function enforceOnboardingExecutionGraphGate(state, cycleId, actionType = 'ONBOARDING') {
-  if (!cycleId) return;
+  if (!cycleId) {
+    return;
+  }
   const cycle = state.cyclesById?.[cycleId];
-  if (!cycle) return;
+  if (!cycle) {
+    return;
+  }
   const deliverablesCount = ensureCycleDeliverablesWorkspace(state, cycleId);
   const hasGraph = hasValidatedCycleActionGraph(cycle);
   if (deliverablesCount > 0 && hasGraph) {
@@ -4468,7 +6656,7 @@ function enforceOnboardingExecutionGraphGate(state, cycleId, actionType = 'ONBOA
     reason: 'Onboarding cannot progress without a validated execution graph.',
     reasonCodes,
     cycleId,
-    actionType
+    actionType,
   };
 }
 
@@ -4506,14 +6694,14 @@ function applyOnboardingInputs(state, onboarding = {}) {
     goalId,
     deadlineISO: deadlineISO?.startISO || `${endDayKey}T23:59:00.000Z`,
     timeZone,
-    deliverables
+    deliverables,
   });
 
   state.vector.direction = goalText || state.vector.direction;
   state.lenses.aim = {
     description: goalText || state.lenses.aim.description,
     horizon: onboarding.horizon || state.lenses.aim.horizon || '90d',
-    narrative: narrative || state.lenses.aim.narrative
+    narrative: narrative || state.lenses.aim.narrative,
   };
   state.lenses.pattern = { ...state.lenses.pattern, ...pattern };
   state.meta = { ...(state.meta || {}), onboardingComplete: true, version: '1.0.0' };
@@ -4531,7 +6719,7 @@ function applyOnboardingInputs(state, onboarding = {}) {
       definiteGoal: ended.definiteGoal,
       pattern: ended.pattern,
       aim: ended.aim,
-      flow: ended.flow
+      flow: ended.flow,
     });
   }
 
@@ -4548,8 +6736,8 @@ function applyOnboardingInputs(state, onboarding = {}) {
         metricType: 'binary',
         metricName: successDefinition || 'success',
         targetValue: true,
-        validationMethod: 'user_attest'
-      }
+        validationMethod: 'user_attest',
+      },
     ],
     requirements: {
       requiredDomains: focusAreas,
@@ -4557,11 +6745,11 @@ function applyOnboardingInputs(state, onboarding = {}) {
         Body: focusAreas.includes('Body') ? 1 : 0,
         Focus: focusAreas.includes('Focus') ? 1 : 0,
         Creation: focusAreas.includes('Creation') ? 1 : 0,
-        Resources: focusAreas.includes('Resources') ? 1 : 0
+        Resources: focusAreas.includes('Resources') ? 1 : 0,
       },
       expectedDomainMix: computeDomainMix(focusAreas),
-      maxAllowedVariance: 0.2
-    }
+      maxAllowedVariance: 0.2,
+    },
   };
 
   const goalGovernanceContract = {
@@ -4573,18 +6761,18 @@ function applyOnboardingInputs(state, onboarding = {}) {
     scope: {
       domainsAllowed: [],
       timeHorizon: 'week',
-      timezone: timeZone || 'UTC'
+      timezone: timeZone || 'UTC',
     },
     governance: {
       suggestionsEnabled: true,
       probabilityEnabled: true,
       minEvidenceEvents: 1,
-      cooldowns: { resuggestMinutes: 30, maxSuggestionsPerDay: 6 }
+      cooldowns: { resuggestMinutes: 30, maxSuggestionsPerDay: 6 },
     },
     constraints: {
       forbiddenDirectives: ['repair'],
-      maxActiveBlocks: 6
-    }
+      maxActiveBlocks: 6,
+    },
   };
 
   state.meta = state.meta || {};
@@ -4614,8 +6802,10 @@ function applyOnboardingInputs(state, onboarding = {}) {
     strategy,
     coldPlan: null,
     coldPlanHistory: [],
-    executionEvents: [],
-    suggestionEvents: [],
+        executionEvents: [],
+        externalEvidenceEvents: [],
+        planMutationEvents: [],
+        suggestionEvents: [],
     suggestedBlocks: [],
     truthEntries: [],
     suggestionHistory: {
@@ -4624,8 +6814,8 @@ function applyOnboardingInputs(state, onboarding = {}) {
       lastSuggestedAtISO: null,
       lastSuggestedAtISOByGoal: {},
       dailyCountByGoal: {},
-      denials: []
-    }
+      denials: [],
+    },
   };
   ensureAdmissionStores(state);
   state.aspirationsByCycleId[newCycleId] = state.aspirationsByCycleId[newCycleId] || [];
@@ -4634,13 +6824,15 @@ function applyOnboardingInputs(state, onboarding = {}) {
     cycleId: newCycleId,
     deliverables,
     suggestionLinks: {},
-    lastUpdatedAtISO: state.appTime?.nowISO || new Date().toISOString()
+    lastUpdatedAtISO: state.appTime?.nowISO || new Date().toISOString(),
   };
   state.activeCycleId = newCycleId;
   state.activeGoalId = goalId;
   clearCycleTransientState(state);
 
-  if (!state.goalWorkById) state.goalWorkById = {};
+  if (!state.goalWorkById) {
+    state.goalWorkById = {};
+  }
   if (!state.goalWorkById[goalId]) {
     state.goalWorkById[goalId] = focusAreas.map((domain, idx) => ({
       workItemId: `${goalId}-${domain.toLowerCase()}`,
@@ -4651,7 +6843,7 @@ function applyOnboardingInputs(state, onboarding = {}) {
       energyCost: domain === 'Body' ? 'medium' : 'high',
       producesOutput: domain === 'Creation' || domain === 'Resources',
       unblockType: null,
-      dependencies: []
+      dependencies: [],
     }));
   }
 
@@ -4663,12 +6855,16 @@ function applyOnboardingInputs(state, onboarding = {}) {
     narrative,
     startDayKey,
     endDayKey,
-    successDefinition
+    successDefinition,
   };
   state.executionEvents = [];
+  state.externalEvidenceEvents = [];
+  state.planMutationEvents = [];
   state.suggestionEvents = [];
   state.truthEntries = [];
   state.executionEvents = [];
+  state.externalEvidenceEvents = [];
+  state.planMutationEvents = [];
   state.suggestionEvents = [];
   state.suggestedBlocks = [];
   state.truthEntries = [];
@@ -4704,7 +6900,7 @@ function applyOnboardingInputs(state, onboarding = {}) {
     confidence: parseMinimumDays(onboarding.minimumDaysPerWeek) ? 0.45 : 0.3,
     daysPerWeek,
     assumptions: [`Assuming ${daysPerWeek} days/week execution.`, `Default capacity ${blocksPerWeek} blocks/week.`],
-    missingInfo: parseMinimumDays(onboarding.minimumDaysPerWeek) ? [] : ['daysPerWeek']
+    missingInfo: parseMinimumDays(onboarding.minimumDaysPerWeek) ? [] : ['daysPerWeek'],
   };
   state.planPreview = computePlanPreview({
     suggestedBlocks: state.proposedBlocks || [],
@@ -4720,7 +6916,7 @@ function applyOnboardingInputs(state, onboarding = {}) {
     lastSuggestedAtISO: null,
     lastSuggestedAtISOByGoal: {},
     dailyCountByGoal: {},
-    denials: []
+    denials: [],
   };
 
   state.cyclesById[newCycleId].planDraft = state.planDraft;
@@ -4730,6 +6926,8 @@ function applyOnboardingInputs(state, onboarding = {}) {
   state.cyclesById[newCycleId].suggestedBlocks = state.suggestedBlocks;
   state.cyclesById[newCycleId].suggestionEvents = state.suggestionEvents;
   state.cyclesById[newCycleId].executionEvents = state.executionEvents;
+  state.cyclesById[newCycleId].externalEvidenceEvents = state.externalEvidenceEvents;
+  state.cyclesById[newCycleId].planMutationEvents = state.planMutationEvents;
   state.cyclesById[newCycleId].contract = state.goalExecutionContract;
   state.cyclesById[newCycleId].suggestionHistory = state.suggestionHistory;
 
@@ -4763,8 +6961,15 @@ function startNewCycle(state, payload = {}) {
     payload.endDayKey ||
     state.goalExecutionContract?.endDayKey ||
     addDays(startDayKey, state.goalExecutionContract?.horizonDays || 90, timeZone);
-  const horizonDays = Math.max(1, daysBetween(startDayKey, deadlineDayKey) || state.goalExecutionContract?.horizonDays || 90);
-  const daysPerWeek = parseMinimumDays(payload.minimumDaysPerWeek) || state.planCalibration?.daysPerWeek || state.planDraft?.daysPerWeek || 4;
+  const horizonDays = Math.max(
+    1,
+    daysBetween(startDayKey, deadlineDayKey) || state.goalExecutionContract?.horizonDays || 90
+  );
+  const daysPerWeek =
+    parseMinimumDays(payload.minimumDaysPerWeek) ||
+    state.planCalibration?.daysPerWeek ||
+    state.planDraft?.daysPerWeek ||
+    4;
   const blocksPerWeek = computeBlocksPerWeek(daysPerWeek);
   const primaryDomain = choosePrimaryDomain(focusAreas);
   const archetype = classifyGoalArchetype(goalText, focusAreas);
@@ -4779,14 +6984,15 @@ function startNewCycle(state, payload = {}) {
     goalId,
     deadlineISO: deadlineISO?.startISO || `${deadlineDayKey}T23:59:00.000Z`,
     timeZone,
-    deliverables
+    deliverables,
   });
 
   archivePreviousCycle(state, current?.id || null);
 
   const goalContract = {
     goalId,
-    executionType: goalDraftV2?.executionType || payload.executionType || state.goalExecutionContract?.executionType || null,
+    executionType:
+      goalDraftV2?.executionType || payload.executionType || state.goalExecutionContract?.executionType || null,
     goalLabel: goalText || null,
     goalText: goalText || null,
     status: 'active',
@@ -4797,8 +7003,8 @@ function startNewCycle(state, payload = {}) {
         metricType: 'binary',
         metricName: successDefinition || 'success',
         targetValue: true,
-        validationMethod: 'user_attest'
-      }
+        validationMethod: 'user_attest',
+      },
     ],
     requirements: {
       requiredDomains: focusAreas,
@@ -4806,11 +7012,11 @@ function startNewCycle(state, payload = {}) {
         Body: focusAreas.includes('Body') ? 1 : 0,
         Focus: focusAreas.includes('Focus') ? 1 : 0,
         Creation: focusAreas.includes('Creation') ? 1 : 0,
-        Resources: focusAreas.includes('Resources') ? 1 : 0
+        Resources: focusAreas.includes('Resources') ? 1 : 0,
       },
       expectedDomainMix: computeDomainMix(focusAreas),
-      maxAllowedVariance: 0.2
-    }
+      maxAllowedVariance: 0.2,
+    },
   };
 
   const goalGovernanceContract = {
@@ -4822,18 +7028,18 @@ function startNewCycle(state, payload = {}) {
     scope: {
       domainsAllowed: [],
       timeHorizon: 'week',
-      timezone: timeZone || 'UTC'
+      timezone: timeZone || 'UTC',
     },
     governance: {
       suggestionsEnabled: true,
       probabilityEnabled: true,
       minEvidenceEvents: 1,
-      cooldowns: { resuggestMinutes: 30, maxSuggestionsPerDay: 6 }
+      cooldowns: { resuggestMinutes: 30, maxSuggestionsPerDay: 6 },
     },
     constraints: {
       forbiddenDirectives: ['repair'],
-      maxActiveBlocks: 6
-    }
+      maxActiveBlocks: 6,
+    },
   };
 
   state.meta = state.meta || {};
@@ -4864,6 +7070,8 @@ function startNewCycle(state, payload = {}) {
     coldPlan: null,
     coldPlanHistory: [],
     executionEvents: [],
+    externalEvidenceEvents: [],
+    planMutationEvents: [],
     suggestionEvents: [],
     suggestedBlocks: [],
     truthEntries: [],
@@ -4873,8 +7081,8 @@ function startNewCycle(state, payload = {}) {
       lastSuggestedAtISO: null,
       lastSuggestedAtISOByGoal: {},
       dailyCountByGoal: {},
-      denials: []
-    }
+      denials: [],
+    },
   };
 
   state.activeCycleId = newCycleId;
@@ -4885,7 +7093,9 @@ function startNewCycle(state, payload = {}) {
   }
   clearCycleTransientState(state);
 
-  if (!state.goalWorkById) state.goalWorkById = {};
+  if (!state.goalWorkById) {
+    state.goalWorkById = {};
+  }
   if (!state.goalWorkById[goalId]) {
     state.goalWorkById[goalId] = focusAreas.map((domain) => ({
       workItemId: `${goalId}-${domain.toLowerCase()}`,
@@ -4896,7 +7106,7 @@ function startNewCycle(state, payload = {}) {
       energyCost: domain === 'Body' ? 'medium' : 'high',
       producesOutput: domain === 'Creation' || domain === 'Resources',
       unblockType: null,
-      dependencies: []
+      dependencies: [],
     }));
   }
 
@@ -4908,7 +7118,7 @@ function startNewCycle(state, payload = {}) {
     narrative,
     startDayKey,
     endDayKey: deadlineDayKey,
-    successDefinition
+    successDefinition,
   };
 
   state.planDraft = {
@@ -4943,7 +7153,7 @@ function startNewCycle(state, payload = {}) {
     confidence: 0.3,
     daysPerWeek,
     assumptions: [`Assuming ${daysPerWeek} days/week execution.`, `Default capacity ${blocksPerWeek} blocks/week.`],
-    missingInfo: ['daysPerWeek']
+    missingInfo: ['daysPerWeek'],
   };
   state.planPreview = computePlanPreview({
     suggestedBlocks: state.proposedBlocks || [],
@@ -4955,6 +7165,8 @@ function startNewCycle(state, payload = {}) {
   });
 
   state.executionEvents = [];
+  state.externalEvidenceEvents = [];
+  state.planMutationEvents = [];
   state.truthEntries = [];
   state.suggestionHistory = {
     dayKey: startDayKey,
@@ -4962,7 +7174,7 @@ function startNewCycle(state, payload = {}) {
     lastSuggestedAtISO: null,
     lastSuggestedAtISOByGoal: {},
     dailyCountByGoal: {},
-    denials: []
+    denials: [],
   };
   state.cycle = [];
   state.today = { ...(state.today || {}), date: startDayKey, blocks: [] };
@@ -4975,6 +7187,8 @@ function startNewCycle(state, payload = {}) {
   state.cyclesById[newCycleId].suggestedBlocks = state.suggestedBlocks;
   state.cyclesById[newCycleId].suggestionEvents = state.suggestionEvents;
   state.cyclesById[newCycleId].executionEvents = state.executionEvents;
+  state.cyclesById[newCycleId].externalEvidenceEvents = state.externalEvidenceEvents;
+  state.cyclesById[newCycleId].planMutationEvents = state.planMutationEvents;
   state.cyclesById[newCycleId].contract = state.goalExecutionContract;
   state.cyclesById[newCycleId].suggestionHistory = state.suggestionHistory;
 
@@ -4984,16 +7198,22 @@ function startNewCycle(state, payload = {}) {
 
 function addTruthEntry(state, payload = {}) {
   const entry = payload && typeof payload === 'object' ? payload : null;
-  if (!entry || !entry.id) return;
+  if (!entry || !entry.id) {
+    return;
+  }
   state.truthEntries = state.truthEntries || [];
   state.truthEntries = [entry, ...state.truthEntries];
 }
 
 function setActiveCycle(state, cycleId) {
   ensureCycleStructures(state);
-  if (!cycleId || !state.cyclesById?.[cycleId]) return;
+  if (!cycleId || !state.cyclesById?.[cycleId]) {
+    return;
+  }
   const cycle = state.cyclesById[cycleId];
-  if (cycle.status === 'deleted') return;
+  if (cycle.status === 'deleted') {
+    return;
+  }
   state.activeCycleId = cycleId;
   if (cycle.startedAtDayKey) {
     state.viewDate = cycle.startedAtDayKey;
@@ -5006,7 +7226,9 @@ function setActiveCycle(state, cycleId) {
 }
 
 function collectCycleHistorySignals(state, cycle) {
-  if (!cycle?.id) return null;
+  if (!cycle?.id) {
+    return null;
+  }
   const cycleEvents = (cycle.executionEvents || []).filter((event) => (event?.cycleId || cycle.id) === cycle.id);
   const materialized = materializeBlocksFromEvents(cycleEvents, { todayISO: cycle.endedAtDayKey || state.today?.date });
   const materializedBlocks = (materialized.days || []).flatMap((day) => day.blocks || []);
@@ -5014,32 +7236,21 @@ function collectCycleHistorySignals(state, cycle) {
     depTightCount: cycle?.planPreview?.policySelectionSignalsSnapshot?.depTightCount,
     milestoneAtRiskCount: cycle?.planPreview?.policySelectionSignalsSnapshot?.milestoneAtRiskCount,
     placementAnchoringMissCount: cycle?.planPreview?.pacingAnchoringMissCount,
-    outsideExecutionHorizonMinutes: cycle?.planPreview?.policySelectionSignalsSnapshot?.outsideExecutionHorizonEstimateMinTotal,
+    outsideExecutionHorizonMinutes:
+      cycle?.planPreview?.policySelectionSignalsSnapshot?.outsideExecutionHorizonEstimateMinTotal,
     unplacedEstimateMinTotal: cycle?.planPreview?.policySelectionSignalsSnapshot?.unplacedEstimateMinTotal,
   });
 }
 
 function deleteCycle(state, cycleId) {
   ensureCycleStructures(state);
-  if (!cycleId || !state.cyclesById?.[cycleId]) return;
+  if (!cycleId || !state.cyclesById?.[cycleId]) {
+    return;
+  }
   const deletingActiveCycle = state.activeCycleId === cycleId;
   // Allow deleting active cycle: clear active UI state and unset activeCycleId
   if (deletingActiveCycle) {
-    state.activeCycleId = null;
-    // Clear active projections shown in UI
-    state.today = { ...(state.today || {}), blocks: [] };
-    state.currentWeek = { ...(state.currentWeek || {}), days: [] };
-    state.cycle = [];
-    state.proposedBlocks = [];
-    state.suggestedBlocks = [];
-    state.suggestionEvents = [];
-    state.executionEvents = [];
-    state.suggestionHistory = { dayKey: state.appTime?.activeDayKey || nowDayKey(), count: 0, lastSuggestedAtISO: null, lastSuggestedAtISOByGoal: {}, dailyCountByGoal: {}, denials: [] };
-    state.goalExecutionContract = null;
-    state.planDraft = null;
-    state.planPreview = null;
-    state.planCalibration = null;
-    state.activeGoalId = null;
+    clearGoalSessionStateToBlank(state);
   }
   const cycle = state.cyclesById[cycleId];
   const goalId =
@@ -5048,10 +7259,50 @@ function deleteCycle(state, cycleId) {
     cycle?.contract?.goalId ||
     cycle?.goalPlan?.goalId ||
     null;
+  state.executionEvents = Array.isArray(state.executionEvents)
+    ? state.executionEvents.filter((event) => (event?.cycleId || null) !== cycleId)
+    : [];
+  state.externalEvidenceEvents = Array.isArray(state.externalEvidenceEvents)
+    ? state.externalEvidenceEvents.filter((event) => (event?.cycleId || null) !== cycleId)
+    : [];
+  state.planMutationEvents = Array.isArray(state.planMutationEvents)
+    ? state.planMutationEvents.filter((event) => (event?.cycleId || null) !== cycleId)
+    : [];
+  state.suggestionEvents = Array.isArray(state.suggestionEvents)
+    ? state.suggestionEvents.filter((event) => (event?.cycleId || null) !== cycleId)
+    : [];
+  state.proposedBlocks = Array.isArray(state.proposedBlocks)
+    ? state.proposedBlocks.filter((block) => (block?.cycleId || null) !== cycleId)
+    : [];
+  state.suggestedBlocks = Array.isArray(state.suggestedBlocks)
+    ? state.suggestedBlocks.filter((block) => (block?.cycleId || null) !== cycleId)
+    : [];
+  if (state.proposedBlocksByCycleId && typeof state.proposedBlocksByCycleId === 'object') {
+    delete state.proposedBlocksByCycleId[cycleId];
+  }
+  if (state.blockStore?.blocks && typeof state.blockStore.blocks === 'object') {
+    Object.keys(state.blockStore.blocks).forEach((blockId) => {
+      const block = state.blockStore.blocks[blockId];
+      if (!block) {
+        return;
+      }
+      const blockCycleId = block?.cycleId || null;
+      const blockGoalId = block?.goalId || null;
+      if (blockCycleId === cycleId || (goalId && blockGoalId === goalId)) {
+        delete state.blockStore.blocks[blockId];
+      }
+    });
+  }
   delete state.cyclesById[cycleId];
-  if (state.deliverablesByCycleId?.[cycleId]) delete state.deliverablesByCycleId[cycleId];
-  if (state.aspirationsByCycleId?.[cycleId]) delete state.aspirationsByCycleId[cycleId];
-  if (goalId && state.goalAdmissionByGoal?.[goalId]) delete state.goalAdmissionByGoal[goalId];
+  if (state.deliverablesByCycleId?.[cycleId]) {
+    delete state.deliverablesByCycleId[cycleId];
+  }
+  if (state.aspirationsByCycleId?.[cycleId]) {
+    delete state.aspirationsByCycleId[cycleId];
+  }
+  if (goalId && state.goalAdmissionByGoal?.[goalId]) {
+    delete state.goalAdmissionByGoal[goalId];
+  }
   if (state.history?.cycles) {
     state.history.cycles = state.history.cycles.filter((entry) => entry.id !== cycleId);
   }
@@ -5060,18 +7311,10 @@ function deleteCycle(state, cycleId) {
     rebuildHistoryProfile(state);
   }
   if (deletingActiveCycle) {
-    startNewCycle(state, {
-      goalText: ' ',
-      narrative: '',
-      successDefinition: '',
-      minimumDaysPerWeek: 4
-    });
-    resetCycleToGoalEntryReady(state, state.activeCycleId);
     state.meta = {
       ...(state.meta || {}),
-      goalEntryRequestedAtISO: state.appTime?.nowISO || null
+      goalEntryRequestedAtISO: state.appTime?.nowISO || null,
     };
-    assertActiveCycleInvariant(state);
   }
 }
 
@@ -5084,12 +7327,12 @@ function startNewCycleWithDecision(state, payload = {}) {
       goalText: ' ',
       narrative: '',
       successDefinition: '',
-      minimumDaysPerWeek: 4
+      minimumDaysPerWeek: 4,
     });
     resetCycleToGoalEntryReady(state, state.activeCycleId);
     state.meta = {
       ...(state.meta || {}),
-      goalEntryRequestedAtISO: state.appTime?.nowISO || null
+      goalEntryRequestedAtISO: state.appTime?.nowISO || null,
     };
     assertActiveCycleInvariant(state);
     return;
@@ -5103,7 +7346,7 @@ function startNewCycleWithDecision(state, payload = {}) {
       goalText: ' ',
       narrative: '',
       successDefinition: '',
-      minimumDaysPerWeek: 4
+      minimumDaysPerWeek: 4,
     });
     resetCycleToGoalEntryReady(state, state.activeCycleId);
   }
@@ -5116,30 +7359,18 @@ function startNewCycleWithDecision(state, payload = {}) {
   }
   state.meta = {
     ...(state.meta || {}),
-    goalEntryRequestedAtISO: state.appTime?.nowISO || null
+    goalEntryRequestedAtISO: state.appTime?.nowISO || null,
   };
   assertActiveCycleInvariant(state);
 }
 
 function hardDeleteCycle(state, cycleId) {
   ensureCycleStructures(state);
-  if (!cycleId || !state.cyclesById?.[cycleId]) return;
+  if (!cycleId || !state.cyclesById?.[cycleId]) {
+    return;
+  }
   if (state.activeCycleId === cycleId) {
-    // clear active UI and unset
-    state.activeCycleId = null;
-    state.today = { ...(state.today || {}), blocks: [] };
-    state.currentWeek = { ...(state.currentWeek || {}), days: [] };
-    state.cycle = [];
-    state.proposedBlocks = [];
-    state.suggestedBlocks = [];
-    state.suggestionEvents = [];
-    state.executionEvents = [];
-    state.suggestionHistory = { dayKey: state.appTime?.activeDayKey || nowDayKey(), count: 0, lastSuggestedAtISO: null, lastSuggestedAtISOByGoal: {}, dailyCountByGoal: {}, denials: [] };
-    state.goalExecutionContract = null;
-    state.planDraft = null;
-    state.planPreview = null;
-    state.planCalibration = null;
-    state.activeGoalId = null;
+    clearGoalSessionStateToBlank(state);
   }
   const cycle = state.cyclesById[cycleId];
   const goalId =
@@ -5148,10 +7379,44 @@ function hardDeleteCycle(state, cycleId) {
     cycle?.contract?.goalId ||
     cycle?.goalPlan?.goalId ||
     null;
+  state.executionEvents = Array.isArray(state.executionEvents)
+    ? state.executionEvents.filter((event) => (event?.cycleId || null) !== cycleId)
+    : [];
+  state.suggestionEvents = Array.isArray(state.suggestionEvents)
+    ? state.suggestionEvents.filter((event) => (event?.cycleId || null) !== cycleId)
+    : [];
+  state.proposedBlocks = Array.isArray(state.proposedBlocks)
+    ? state.proposedBlocks.filter((block) => (block?.cycleId || null) !== cycleId)
+    : [];
+  state.suggestedBlocks = Array.isArray(state.suggestedBlocks)
+    ? state.suggestedBlocks.filter((block) => (block?.cycleId || null) !== cycleId)
+    : [];
+  if (state.proposedBlocksByCycleId && typeof state.proposedBlocksByCycleId === 'object') {
+    delete state.proposedBlocksByCycleId[cycleId];
+  }
+  if (state.blockStore?.blocks && typeof state.blockStore.blocks === 'object') {
+    Object.keys(state.blockStore.blocks).forEach((blockId) => {
+      const block = state.blockStore.blocks[blockId];
+      if (!block) {
+        return;
+      }
+      const blockCycleId = block?.cycleId || null;
+      const blockGoalId = block?.goalId || null;
+      if (blockCycleId === cycleId || (goalId && blockGoalId === goalId)) {
+        delete state.blockStore.blocks[blockId];
+      }
+    });
+  }
   delete state.cyclesById[cycleId];
-  if (state.deliverablesByCycleId?.[cycleId]) delete state.deliverablesByCycleId[cycleId];
-  if (state.aspirationsByCycleId?.[cycleId]) delete state.aspirationsByCycleId[cycleId];
-  if (goalId && state.goalAdmissionByGoal?.[goalId]) delete state.goalAdmissionByGoal[goalId];
+  if (state.deliverablesByCycleId?.[cycleId]) {
+    delete state.deliverablesByCycleId[cycleId];
+  }
+  if (state.aspirationsByCycleId?.[cycleId]) {
+    delete state.aspirationsByCycleId[cycleId];
+  }
+  if (goalId && state.goalAdmissionByGoal?.[goalId]) {
+    delete state.goalAdmissionByGoal[goalId];
+  }
   if (state.history?.cycles) {
     state.history.cycles = state.history.cycles.filter((c) => c.id !== cycleId);
   }
@@ -5159,18 +7424,28 @@ function hardDeleteCycle(state, cycleId) {
     delete state.historySignalsByCycleId[cycleId];
     rebuildHistoryProfile(state);
   }
+  if (state.activeCycleId === null) {
+    state.meta = {
+      ...(state.meta || {}),
+      goalEntryRequestedAtISO: state.appTime?.nowISO || null,
+    };
+  }
 }
 
 function endCycle(state, cycleId) {
   ensureCycleStructures(state);
   const id = cycleId || state.activeCycleId;
-  if (!id || !state.cyclesById?.[id]) return;
+  if (!id || !state.cyclesById?.[id]) {
+    return;
+  }
   const cycle = state.cyclesById[id];
-  if (cycle.status === 'ended') return;
+  if (cycle.status === 'ended') {
+    return;
+  }
   const todayKey = state.appTime?.activeDayKey || state.today?.date || nowDayKey();
   cycle.status = 'ended';
   cycle.endedAtDayKey = todayKey;
-  
+
   // MVP 3.0: Compute terminal convergence
   const nowISO = state.appTime?.nowISO || new Date().toISOString();
   const timezone = state.appTime?.timeZone || 'UTC';
@@ -5183,7 +7458,7 @@ function endCycle(state, cycleId) {
     events: cycle?.executionEvents || state.executionEvents || [],
     nowISO,
     timezone,
-    deliverables
+    deliverables,
   });
   logGenerateDiagnostics({
     state,
@@ -5213,7 +7488,7 @@ function endCycle(state, cycleId) {
     reasonCodes: [],
   });
   cycle.convergenceReport = convergenceReport;
-  
+
   cycle.summary = summarizeCycle(cycle);
   const historySignals = collectCycleHistorySignals(state, cycle);
   if (historySignals) {
@@ -5241,7 +7516,9 @@ function endCycle(state, cycleId) {
 function archiveAndCloneCycle(state, cycleId, overrides = {}) {
   ensureCycleStructures(state);
   const id = cycleId || state.activeCycleId;
-  if (!id || !state.cyclesById?.[id]) return;
+  if (!id || !state.cyclesById?.[id]) {
+    return;
+  }
 
   const cycle = state.cyclesById[id];
   const contractToClone = cycle.goalContract;
@@ -5250,7 +7527,7 @@ function archiveAndCloneCycle(state, cycleId, overrides = {}) {
     state.lastPlanError = {
       code: 'CLONE_FAILED',
       reasons: ['No goal contract found to clone'],
-      timestamp: state.appTime?.nowISO || new Date().toISOString()
+      timestamp: state.appTime?.nowISO || new Date().toISOString(),
     };
     return;
   }
@@ -5260,11 +7537,11 @@ function archiveAndCloneCycle(state, cycleId, overrides = {}) {
 
   // STEP 2: Create new draft with fresh contract (clearing inscription hash for editing)
   const newContractDraft = {
-    ...structuredClone ? structuredClone(contractToClone) : JSON.parse(JSON.stringify(contractToClone)),
+    ...(structuredClone ? structuredClone(contractToClone) : JSON.parse(JSON.stringify(contractToClone))),
     admissionStatus: 'PENDING', // Reset to draft status
     admissionAttemptCount: 0,
     rejectionCodes: [],
-    ...overrides
+    ...overrides,
   };
 
   // Clear inscription to allow editing
@@ -5274,7 +7551,9 @@ function archiveAndCloneCycle(state, cycleId, overrides = {}) {
   }
 
   // STEP 3: Store as editable draft (not auto-admitted)
-  if (!state.aspirations) state.aspirations = [];
+  if (!state.aspirations) {
+    state.aspirations = [];
+  }
   const draftId = nextDeterministicId(state, 'asp-draft');
   const draftEntry = {
     id: draftId,
@@ -5282,7 +7561,7 @@ function archiveAndCloneCycle(state, cycleId, overrides = {}) {
     contractDraft: newContractDraft,
     source: 'archive-clone',
     sourceGoalId: contractToClone.goalId,
-    sourceReason: 'User correcting goal after admission'
+    sourceReason: 'User correcting goal after admission',
   };
 
   state.aspirations.push(draftEntry);
@@ -5310,14 +7589,11 @@ function generatePlan(state, payload = {}) {
     cycle,
     getCanonicalCycleContract(cycle, state.goalExecutionContract, cycle?.contract || null)
   );
-  state.draftScheduleAppliedAtISO = null;
-  state.scheduleApplied = false;
-  state.pendingPlanConfirmation = false;
   if (!cycle) {
     state.lastPlanError = {
       code: 'CYCLE_TARGET_INVALID',
       reason: 'Target cycle is missing or unavailable.',
-      cycleId: targetCycleId || null
+      cycleId: targetCycleId || null,
     };
     setGenerateHeartbeat(state, targetCycleId, 0, 'CYCLE_TARGET_INVALID');
     logGenerateDiagnostics({
@@ -5332,14 +7608,15 @@ function generatePlan(state, payload = {}) {
     });
     return;
   }
+  const currentScheduleLifecycle = getCycleScheduleLifecycle(cycle, state);
   if (isCycleReadOnly(cycle)) {
     state.lastPlanError = {
       code: 'CYCLE_READ_ONLY',
       reason: 'Cannot generate schedule for an ended or archived cycle.',
       cycleId: cycle.id || targetCycleId,
       details: {
-        status: cycle.status || cycle.state || null
-      }
+        status: cycle.status || cycle.state || null,
+      },
     };
     setGenerateHeartbeat(state, cycle.id || targetCycleId, 0, 'CYCLE_READ_ONLY');
     logGenerateDiagnostics({
@@ -5353,6 +7630,46 @@ function generatePlan(state, payload = {}) {
       lastPlanErrorCode: 'CYCLE_READ_ONLY',
     });
     return;
+  }
+  if (currentScheduleLifecycle === 'active_schedule') {
+    const canonicalCycleBlocks = getAllBlocks(state).filter((block) => block?.cycleId === cycle.id);
+    if (canonicalCycleBlocks.length === 0) {
+      cycle.scheduleLifecycle = 'stale_draft_invalidated';
+      state.scheduleLifecycle = 'stale_draft_invalidated';
+    } else {
+      state.lastPlanError = {
+        code: 'REGENERATE_BLOCKED_ACTIVE_SCHEDULE',
+        reason: 'Active schedules must be rescheduled or rebuilt explicitly.',
+        cycleId: cycle.id || targetCycleId,
+        goalId: contract?.goalId || null,
+      };
+      setGenerateHeartbeat(state, cycle.id || targetCycleId, 0, 'REGENERATE_BLOCKED_ACTIVE_SCHEDULE');
+      logGenerateDiagnostics({
+        state,
+        cycleId: cycle.id || targetCycleId,
+        deliverableCount,
+        actionCount,
+        rawWorkWindowsCount: 0,
+        normalizedCandidateWindowCount: 0,
+        proposedBlocks: state.proposedBlocks || [],
+        lastPlanErrorCode: 'REGENERATE_BLOCKED_ACTIVE_SCHEDULE',
+        reasonCodes: ['REGENERATE_BLOCKED_ACTIVE_SCHEDULE'],
+      });
+      return;
+    }
+  }
+  state.draftScheduleAppliedAtISO = null;
+  state.scheduleApplied = false;
+  state.pendingPlanConfirmation = false;
+  if (
+    currentScheduleLifecycle === 'applied_review' &&
+    Array.isArray(cycle.scheduleReviewBlocks) &&
+    cycle.scheduleReviewBlocks.length
+  ) {
+    cycle.scheduleReviewBlocks = [];
+    cycle.scheduleAppliedAtISO = null;
+    cycle.scheduleLifecycle = 'stale_draft_invalidated';
+    state.scheduleLifecycle = 'stale_draft_invalidated';
   }
   const contractWorkWindows = contract?.workWindows || cycle?.goalContract?.workWindows || null;
   const stateWeeklyWindows = state?.constraints?.weeklyWindows || state?.availabilityPolicy?.weeklyWindows || {};
@@ -5376,7 +7693,7 @@ function generatePlan(state, payload = {}) {
     endISO: contract?.endDateISO || (contract?.endDayKey ? `${contract.endDayKey}T23:59:59.000Z` : null),
     windowsMode,
     dayEndAtHHMM,
-    weeklyCapMinutes
+    weeklyCapMinutes,
   };
   if (!contract) {
     setCycleProposedBlocks(state, cycle.id || targetCycleId, []);
@@ -5386,7 +7703,7 @@ function generatePlan(state, payload = {}) {
       cycleId: cycle.id || targetCycleId,
       reasonCodes: ['NO_ACTION_GRAPH'],
       conflicts: [],
-      meta: baseErrorMeta
+      meta: baseErrorMeta,
     };
     setGenerateHeartbeat(state, cycle.id || targetCycleId, 0, 'NO_ACTION_GRAPH');
     logGenerateDiagnostics({
@@ -5426,8 +7743,8 @@ function generatePlan(state, payload = {}) {
       conflicts: [],
       meta: {
         ...baseErrorMeta,
-        recoverySnapshot
-      }
+        recoverySnapshot,
+      },
     };
     setGenerateHeartbeat(state, cycle.id || targetCycleId, 0, 'GOAL_ID_MISSING');
     logGenerateDiagnostics({
@@ -5444,12 +7761,12 @@ function generatePlan(state, payload = {}) {
     return;
   }
   const admission = state.goalAdmissionByGoal?.[contract.goalId] || cycle.goalAdmission;
-  if (admission && admission.status !== 'ADMITTED') {
+  if (admission && !isAdmittedGoalStatus(admission.status)) {
     state.lastPlanError = {
       code: 'GOAL_NOT_ADMITTED',
       reason: (admission.reasonCodes || []).join(', ') || 'Goal not admitted',
       cycleId: cycle.id,
-      goalId: contract.goalId
+      goalId: contract.goalId,
     };
     setGenerateHeartbeat(state, cycle.id, 0, 'GOAL_NOT_ADMITTED');
     logGenerateDiagnostics({
@@ -5467,8 +7784,10 @@ function generatePlan(state, payload = {}) {
   const timeZone = state.appTime?.timeZone || 'UTC';
   const nowISO = state.appTime?.nowISO || new Date().toISOString();
   const nowDayKeyFromClock = dayKeyFromISO(nowISO, timeZone) || null;
+  const requestedAnchorDayKey = coerceDayKey(payload?.anchorDayKey, timeZone) || null;
   const activeDayKey = state.appTime?.activeDayKey || null;
-  const todayDayKey = maxDayKey(activeDayKey, nowDayKeyFromClock) || nowDayKey(timeZone);
+  const effectiveViewAnchorDayKey =
+    maxDayKey(requestedAnchorDayKey, activeDayKey) || requestedAnchorDayKey || activeDayKey || nowDayKeyFromClock;
   const contractStartDayKey =
     coerceDayKey(contract.startDayKey, timeZone) ||
     coerceDayKey(contract.startDateISO, timeZone) ||
@@ -5487,19 +7806,89 @@ function generatePlan(state, payload = {}) {
     coerceDayKey(state?.goalExecutionContract?.deadline?.dayKey, timeZone) ||
     coerceDayKey(state?.goalExecutionContract?.deadlineISO, timeZone) ||
     null;
-  const anchorDayKey = maxDayKey(todayDayKey, contractStartDayKey) || todayDayKey;
-  const anchorNowISO = `${anchorDayKey}T12:00:00.000Z`;
+  const intakeContract =
+    contract?.goalIntakeContract ||
+    buildGoalIntakeContract({
+      goalId: contract?.goalId || cycle?.goalContract?.goalId || null,
+      rawGoalText:
+        contract?.goalText ||
+        contract?.goalLabel ||
+        contract?.terminalOutcome?.text ||
+        contract?.terminalOutcome?.verificationCriteria ||
+        cycle?.goalDraftV2?.goalText ||
+        cycle?.goalDraftV2?.goalLabel ||
+        '',
+      verificationCriteria: contract?.terminalOutcome?.verificationCriteria || '',
+      executionType: contract?.executionType || cycle?.goalDraftV2?.executionType || null,
+      deadline: contractEndDayKey || contract?.deadline?.dayKey || contract?.deadlineISO || null,
+      goalDraftV2: cycle?.goalDraftV2 || contract?.goalDraftV2 || null,
+      contract,
+      answeredContext:
+        cycle?.goalDraftV2?.answeredContext ||
+        contract?.goalDraftV2?.answeredContext ||
+        state?.pendingOnboardingInputs?.answeredContext ||
+        undefined,
+    });
+  if (!intakeContract.readiness.isReadyForPlanning) {
+    cycle.autoAsanaPlan = null;
+    cycle.planStatus = 'error';
+    cycle.planGenerationSource = cycle.planGenerationSource || 'SYSTEM';
+    setCycleProposedBlocks(state, cycle.id, []);
+    const intakeCode = getIntakeGateCode(intakeContract);
+    state.lastPlanError = {
+      code: intakeCode,
+      reason: intakeContract.requiredContextQuestions[0]?.prompt || 'Goal intake is not ready for planning.',
+      cycleId: cycle.id,
+      goalId: contract.goalId,
+      reasonCodes: [intakeContract.requiredContextQuestions[0]?.reasonCode || intakeCode],
+      conflicts: [],
+      meta: baseErrorMeta,
+    };
+    state.planRecovery = {
+      required: 'INTAKE_SCOPE_RESOLUTION',
+      route: 'STRUCTURE_INTAKE',
+      prefill: {
+        goalContract: {
+          ...contract,
+          goalIntakeContract: intakeContract,
+        },
+        goalDraftV2: cycle?.goalDraftV2 || contract?.goalDraftV2 || null,
+      },
+      sourceErrorCode: intakeCode,
+      createdAtISO: nowISO,
+    };
+    setGenerateHeartbeat(state, cycle.id, 0, intakeCode);
+    logGenerateDiagnostics({
+      state,
+      cycleId: cycle.id,
+      deliverableCount,
+      actionCount,
+      rawWorkWindowsCount,
+      normalizedCandidateWindowCount,
+      proposedBlocks: state.proposedBlocks || [],
+      lastPlanErrorCode: state.lastPlanError?.code || intakeCode,
+    });
+    state.cyclesById[cycle.id] = cycle;
+    return;
+  }
+  const schedulerStartDayKey =
+    maxDayKey(nowDayKeyFromClock, contractStartDayKey) ||
+    contractStartDayKey ||
+    nowDayKeyFromClock ||
+    effectiveViewAnchorDayKey ||
+    nowDayKey(timeZone);
+  const anchorNowISO = `${schedulerStartDayKey}T12:00:00.000Z`;
   const fallbackSessionCount = Number(Array.isArray(cycle?.llmSessionPlan) ? cycle.llmSessionPlan.length : 0);
   const fallbackActionCount = Number(getCanonicalCycleActions(cycle).length || 0);
   const minimumFallbackHorizonDays = Math.max(90, fallbackSessionCount, fallbackActionCount);
   const fullHorizonDays = contractEndDayKey
-    ? Math.max(1, daysBetween(anchorDayKey, contractEndDayKey) + 1)
+    ? Math.max(1, daysBetween(schedulerStartDayKey, contractEndDayKey) + 1)
     : Math.max(14, minimumFallbackHorizonDays);
   const horizonDays = Math.max(1, fullHorizonDays);
   const plan = state.planDraft || cycle.planDraft;
   const planProof =
     cycle.planProof ||
-    (cycle.goalEquation ? derivePlanProof(cycle.goalEquation, { nowDayKey: anchorDayKey, timeZone }) : null);
+    (cycle.goalEquation ? derivePlanProof(cycle.goalEquation, { nowDayKey: schedulerStartDayKey, timeZone }) : null);
   if (!planProof) {
     cycle.autoAsanaPlan = null;
     setCycleProposedBlocks(state, cycle.id, []);
@@ -5510,7 +7899,7 @@ function generatePlan(state, payload = {}) {
       goalId: contract.goalId,
       reasonCodes: ['NO_ACTION_GRAPH'],
       conflicts: [],
-      meta: baseErrorMeta
+      meta: baseErrorMeta,
     };
     setGenerateHeartbeat(state, cycle.id, 0, 'NO_ACTION_GRAPH');
     logGenerateDiagnostics({
@@ -5529,6 +7918,45 @@ function generatePlan(state, payload = {}) {
 
   cycle.planProof = planProof;
   const scopedConstraints = resolveCycleScopedConstraints(state, cycle, timeZone);
+  const planningIntake =
+    cycle?.goalContract?.planningIntake || cycle?.goalContract?.goalIntakeContract?.planningIntake || {};
+  const weeklyHoursAvailableRaw = Number(planningIntake?.weeklyHoursAvailable);
+  const weeklyHoursAvailable =
+    Number.isFinite(weeklyHoursAvailableRaw) && weeklyHoursAvailableRaw > 0 ? weeklyHoursAvailableRaw : 7;
+  const executionContext = String(planningIntake?.executionContext || 'part_time').trim().toLowerCase() || 'part_time';
+  const maxDailySessionCap = 3;
+  let derivedSessionsPerWeek = 0;
+  const pacingNotes = [];
+  if (weeklyHoursAvailable < 5) {
+    derivedSessionsPerWeek = Math.max(1, Math.floor(weeklyHoursAvailable));
+    pacingNotes.push(
+      `At ${weeklyHoursAvailable} hours per week, this plan will take longer; schedule density reflects that pace.`
+    );
+  } else if (weeklyHoursAvailable < 15) {
+    derivedSessionsPerWeek = Math.max(1, Math.floor(weeklyHoursAvailable));
+  } else {
+    derivedSessionsPerWeek = Math.min(Math.floor(weeklyHoursAvailable), maxDailySessionCap * 5);
+    pacingNotes.push('High availability detected. Sessions are capped at 3 per day to maintain sustainable pace.');
+  }
+  if (executionContext === 'part_time') {
+    derivedSessionsPerWeek = Math.max(1, Math.floor(derivedSessionsPerWeek * 0.8));
+  }
+  const blackoutDates = new Set([...(Array.isArray(scopedConstraints?.blackoutDates) ? scopedConstraints.blackoutDates : [])]);
+  const planningBlackouts = Array.isArray(planningIntake?.blackoutPeriods) ? planningIntake.blackoutPeriods : [];
+  planningBlackouts.forEach((period) => {
+    let cursor = String(period?.start || '').trim();
+    const endDayKey = String(period?.end || '').trim();
+    let guard = 0;
+    while (/^\d{4}-\d{2}-\d{2}$/.test(cursor) && /^\d{4}-\d{2}-\d{2}$/.test(endDayKey) && cursor <= endDayKey && guard < 5000) {
+      blackoutDates.add(cursor);
+      const next = addDays(cursor, 1, timeZone);
+      if (!next || next === cursor) {
+        break;
+      }
+      cursor = next;
+      guard += 1;
+    }
+  });
   const constraints = {
     ...scopedConstraints,
     timezone: timeZone,
@@ -5536,24 +7964,52 @@ function generatePlan(state, payload = {}) {
     dayEndAtHHMM: scopedConstraints?.dayEndAtHHMM || state?.availabilityPolicy?.dayEndAtHHMM,
     cycleStartDayKey: contractStartDayKey,
     cycleEndDayKey: contractEndDayKey,
+    blackoutDates: Array.from(blackoutDates).sort(),
   };
-  const horizonEnd = addDays(anchorDayKey, Math.max(0, horizonDays - 1), timeZone);
+  const recurringText = `${contract?.goalText || ''} ${contract?.goalLabel || ''} ${
+    contract?.terminalOutcome?.text || ''
+  } ${contract?.terminalOutcome?.verificationCriteria || ''}`.toLowerCase();
+  const isRecurringLongHorizon =
+    contract?.executionType === 'recurring' ||
+    contract?.cadence?.type === 'recurring' ||
+    contract?.recurrence?.type === 'recurring' ||
+    /\b(daily|weekly|monthly|every\s+(day|week|month)|per\s+(day|week|month)|cadence|recurring|ongoing)\b/.test(
+      recurringText
+    );
+  constraints.longHorizonNonRecurring = horizonDays >= 180 && !isRecurringLongHorizon;
+  constraints.earlyCompletionJustification = contract?.earlyCompletionJustification || null;
+  const horizonEnd = addDays(schedulerStartDayKey, Math.max(0, horizonDays - 1), timeZone);
   const { days } = materializeBlocksFromEvents(state.executionEvents || [], { todayISO: state.today?.date });
-  const acceptedBlocks = (days || [])
-    .filter((d) => d?.date && d.date >= anchorDayKey && d.date <= horizonEnd)
-    .flatMap((d) => (d.blocks || []).filter((b) => b?.cycleId === cycle.id));
+  const acceptedBlocks = (days || []).flatMap((d) =>
+    (d.blocks || []).filter((b) => {
+      if (!b || b?.cycleId !== cycle.id) {
+        return false;
+      }
+      if (d?.date && contractEndDayKey && d.date > contractEndDayKey) {
+        return false;
+      }
+      return true;
+    })
+  );
   const actionSequence = getCanonicalCycleActions(cycle);
-  const actionSequenceWithDeliverableIds = annotateActionsWithDeliverableIds(cycle, actionSequence);
+  const actionDeliverables = getCanonicalCycleDeliverables(
+    state?.deliverablesByCycleId || {},
+    cycle?.id || null,
+    cycle
+  );
+  const actionSequenceWithDeliverableIds = annotateActionsWithDeliverableIds(cycle, actionSequence, actionDeliverables);
   const explicitMaxPerWeek = Number(scopedConstraints?.maxBlocksPerWeek);
   const strategyMaxPerWeek = Number(cycle?.strategy?.constraints?.maxBlocksPerWeek);
   const horizonWeeks = Math.max(1, Math.ceil(horizonDays / 7));
-  const derivedMaxPerWeek = Math.max(1, Math.ceil(Math.max(1, actionSequence.length) / horizonWeeks));
+  const sessionPlanCount = Number(Array.isArray(cycle?.llmSessionPlan) ? cycle.llmSessionPlan.length : 0);
+  const schedulingDemandCount = Math.max(1, actionSequence.length, sessionPlanCount);
+  const derivedMaxPerWeek = Math.max(1, Math.ceil(schedulingDemandCount / horizonWeeks));
   const resolvedMaxPerWeek =
     Number.isFinite(explicitMaxPerWeek) && explicitMaxPerWeek > 0
       ? explicitMaxPerWeek
       : Number.isFinite(strategyMaxPerWeek) && strategyMaxPerWeek > 0
         ? strategyMaxPerWeek
-        : derivedMaxPerWeek;
+        : Math.max(1, derivedSessionsPerWeek || derivedMaxPerWeek);
   const explicitMaxPerDay = Number(scopedConstraints?.maxBlocksPerDay);
   const strategyMaxPerDay = Number(cycle?.strategy?.constraints?.maxBlocksPerDay);
   const resolvedMaxPerDay =
@@ -5561,7 +8017,7 @@ function generatePlan(state, payload = {}) {
       ? explicitMaxPerDay
       : Number.isFinite(strategyMaxPerDay) && strategyMaxPerDay > 0
         ? strategyMaxPerDay
-        : Math.max(1, Math.min(2, resolvedMaxPerWeek));
+        : Math.max(1, Math.min(maxDailySessionCap, Math.ceil(resolvedMaxPerWeek / 5)));
   constraints.maxBlocksPerWeek = resolvedMaxPerWeek;
   constraints.maxBlocksPerDay = resolvedMaxPerDay;
   const perfCompileStart = debugPerfActions ? Date.now() : 0;
@@ -5574,8 +8030,14 @@ function generatePlan(state, payload = {}) {
     horizonDays,
     acceptedBlocks,
     actionSequence: actionSequenceWithDeliverableIds,
-    sessionPlan: Array.isArray(cycle?.llmSessionPlan) ? cycle.llmSessionPlan : []
+    sessionPlan: Array.isArray(cycle?.llmSessionPlan) ? cycle.llmSessionPlan : [],
   });
+  if (compiledPlan?.summary) {
+    compiledPlan.summary.pacingNotes = pacingNotes;
+    if (cycle?.goalContract?.feasibilityAssessment) {
+      compiledPlan.summary.feasibilityAssessment = cycle.goalContract.feasibilityAssessment;
+    }
+  }
   const perfCompileMs = debugPerfActions ? Date.now() - perfCompileStart : 0;
   logGenerateDiagnostics({
     state,
@@ -5587,17 +8049,30 @@ function generatePlan(state, payload = {}) {
     status: compiledPlan?.horizonBlocks?.length > 0 ? 'ok' : 'fail',
     inputSummary: {
       actionSequenceCount: actionSequenceWithDeliverableIds?.length || 0,
-      sessionPlanCount: Array.isArray(cycle?.llmSessionPlan) ? cycle.llmSessionPlan.length : 0,
+      sessionPlanCount,
+      acceptedBlocksCount: acceptedBlocks.length,
       horizonDays,
+      resolvedMaxPerWeek,
+      resolvedMaxPerDay,
     },
     outputSummary: {
       horizonBlocksCount: compiledPlan?.horizonBlocks?.length || 0,
       placedDayKeys: (compiledPlan?.horizonBlocks || []).map((b) => b?.dayKey).filter(Boolean),
+      conflictCodes: (compiledPlan?.conflicts || [])
+        .map((conflict) => String(conflict?.code || conflict?.kind || '').trim())
+        .filter(Boolean)
+        .join(', '),
     },
     lastPlanErrorCode: compiledPlan?.horizonBlocks?.length > 0 ? null : 'NO_PROPOSED_BLOCKS',
     reasonCodes: [],
   });
   cycle.autoAsanaPlan = compiledPlan;
+  const candidateResolutionKinds = Array.isArray(compiledPlan?.summary?.candidateResolutionKinds)
+    ? compiledPlan.summary.candidateResolutionKinds
+    : [];
+  if (cycle.selectedPlanResolutionKind && !candidateResolutionKinds.includes(cycle.selectedPlanResolutionKind)) {
+    cycle.selectedPlanResolutionKind = null;
+  }
   const suggestions = (cycle.autoAsanaPlan?.horizonBlocks || []).map((block, index) => ({
     id: block.identityKey || block.id || `suggested:auto:${cycle.id}:${index}`,
     goalId: contract.goalId,
@@ -5608,21 +8083,45 @@ function generatePlan(state, payload = {}) {
     durationMinutes: Number(block.durationMinutes) || 30,
     createdAtISO: nowISO,
     startISO: block.startISO,
+    endISO: block.endISO || null,
     dayKey: block.dayKey,
     identityKey: block.identityKey || null,
     deliverableId: block.deliverableId || null,
     actionId: block.actionId || null,
+    directDependencyIds: Array.isArray(block.directDependencyIds) ? [...block.directDependencyIds] : [],
+    directDependencyDetails: Array.isArray(block.directDependencyDetails) ? [...block.directDependencyDetails] : [],
+    transitiveDependencyIds: Array.isArray(block.transitiveDependencyIds) ? [...block.transitiveDependencyIds] : [],
+    transitiveDependencyDetails: Array.isArray(block.transitiveDependencyDetails)
+      ? [...block.transitiveDependencyDetails]
+      : [],
+    commerceReadinessLevel: block.commerceReadinessLevel || null,
+    placementBasis: block.placementBasis || 'confirmed',
+    assumedDependencies: Array.isArray(block.assumedDependencies) ? [...block.assumedDependencies] : [],
+    blockType: block.blockType || 'execution',
+    waitType: block.waitType || null,
+    minimumDurationBusinessDays: block.minimumDurationBusinessDays || null,
+    parallelWorkSuggestions: Array.isArray(block.parallelWorkSuggestions) ? [...block.parallelWorkSuggestions] : [],
+    requiredWorkFamily: block.requiredWorkFamily || null,
+    capitalGateId: block.capitalGateId || null,
+    pathwayTag: block.pathwayTag || null,
     sessionIndex: Number.isFinite(block.sessionIndex) ? Number(block.sessionIndex) : index,
-    source: 'action_graph'
+    source: 'action_graph',
   }));
   setCycleProposedBlocks(state, cycle.id, suggestions);
+  suggestions.forEach((suggestion) => {
+    appendTransitionTrace(state, {
+      transition: 'generate',
+      blockId: suggestion.id || null,
+      label: suggestion.title || '',
+    });
+  });
   state.suggestionEvents = state.suggestionEvents || [];
   state.suggestionEvents.push({
     id: nextDeterministicId(state, `sev-suggestions-${contract.goalId}`),
     type: 'suggestions_generated',
     proposalIds: suggestions.map((s) => s.id),
     goalId: contract.goalId,
-    atISO: nowISO
+    atISO: nowISO,
   });
   const perfPreviewStart = debugPerfActions ? Date.now() : 0;
   state.planPreview = computePlanPreview({
@@ -5636,9 +8135,13 @@ function generatePlan(state, payload = {}) {
   const perfPreviewMs = debugPerfActions ? Date.now() - perfPreviewStart : 0;
   const suggestedCount = (state.proposedBlocks || []).filter((item) => item?.status === 'suggested').length;
   if (suggestedCount === 0) {
-    const conflictCodes = Array.from(new Set(
-      (cycle.autoAsanaPlan?.conflicts || []).map((conflict) => String(conflict?.code || conflict?.kind || '').trim()).filter(Boolean)
-    ));
+    const conflictCodes = Array.from(
+      new Set(
+        (cycle.autoAsanaPlan?.conflicts || [])
+          .map((conflict) => String(conflict?.code || conflict?.kind || '').trim())
+          .filter(Boolean)
+      )
+    );
     const normalizedConflicts = conflictCodes
       .map((code) => code.toUpperCase())
       .filter(Boolean)
@@ -5646,16 +8149,13 @@ function generatePlan(state, payload = {}) {
       .slice(0, 5);
     const reasonCodes = [];
     const hasWindowsConfigured = hasExplicitWeeklyWindows;
-    const hasAnyWindowRange = Object.values(weeklyWindows || {}).some((rows) =>
-      Array.isArray(rows) && rows.some((row) => row?.startHHMM && row?.endHHMM && row.startHHMM < row.endHHMM)
+    const hasAnyWindowRange = Object.values(weeklyWindows || {}).some(
+      (rows) => Array.isArray(rows) && rows.some((row) => row?.startHHMM && row?.endHHMM && row.startHHMM < row.endHHMM)
     );
     if (normalizedConflicts.includes('NO_ALLOWED_WINDOWS') || (hasWindowsConfigured && !hasAnyWindowRange)) {
       reasonCodes.push('NO_ALLOWED_WINDOWS');
     }
-    if (
-      normalizedConflicts.includes('OUT_OF_CYCLE_RANGE') ||
-      normalizedConflicts.includes('FILTERED_OUT_OF_RANGE')
-    ) {
+    if (normalizedConflicts.includes('OUT_OF_CYCLE_RANGE') || normalizedConflicts.includes('FILTERED_OUT_OF_RANGE')) {
       reasonCodes.push('OUT_OF_CYCLE_RANGE');
     }
     if (normalizedConflicts.includes('OVERLAP_ALL_SLOTS')) {
@@ -5667,21 +8167,57 @@ function generatePlan(state, payload = {}) {
     if (!reasonCodes.length || normalizedConflicts.includes('UNSCHEDULABLE')) {
       reasonCodes.push('UNSCHEDULABLE');
     }
-    const stableReasonOrder = ['NO_ALLOWED_WINDOWS', 'OUT_OF_CYCLE_RANGE', 'OVERLAP_ALL_SLOTS', 'CLAMP_FILTERED_ALL', 'UNSCHEDULABLE'];
+    const stableReasonOrder = [
+      'NO_ALLOWED_WINDOWS',
+      'OUT_OF_CYCLE_RANGE',
+      'OVERLAP_ALL_SLOTS',
+      'CLAMP_FILTERED_ALL',
+      'UNSCHEDULABLE',
+    ];
     const orderedReasonCodes = stableReasonOrder.filter((code) => reasonCodes.includes(code));
-    state.lastPlanError = {
-      code: 'NO_PROPOSED_BLOCKS',
-      reason: 'No proposed blocks could be scheduled under current constraints.',
-      reasonCodes: orderedReasonCodes,
-      conflicts: normalizedConflicts,
-      meta: {
-        ...baseErrorMeta,
-        anchorDow: dayKeyToDow(anchorDayKey),
-        anchorStartHHMM: getFirstWindowStartForDow(dayKeyToDow(anchorDayKey), contractWorkWindows),
-      }
-    };
-    setGenerateHeartbeat(state, cycle.id, 0, 'NO_PROPOSED_BLOCKS');
+    const alreadyFullyScheduled = normalizedConflicts.length === 0 && sessionPlanCount > 0 && acceptedBlocks.length > 0;
+    const planSummary = cycle?.autoAsanaPlan?.summary || null;
+    const isHorizonInsufficient = String(planSummary?.planStatus || '').toUpperCase() === 'VALID_BUT_HORIZON_INSUFFICIENT';
+    if (alreadyFullyScheduled) {
+      state.lastPlanError = null;
+      setGenerateHeartbeat(state, cycle.id, 0, null);
+    } else {
+      state.lastPlanError = {
+        code: isHorizonInsufficient ? 'HORIZON_INSUFFICIENT' : 'NO_PROPOSED_BLOCKS',
+        reason: isHorizonInsufficient
+          ? `Only ${Number(planSummary?.scheduledBlockCount || 0)} of ${Number(planSummary?.requiredBlockCount || 0)} required blocks fit in the current horizon.`
+          : 'No proposed blocks could be scheduled under current constraints.',
+        reasonCodes: orderedReasonCodes,
+        conflicts: normalizedConflicts,
+        meta: {
+          ...baseErrorMeta,
+          anchorDow: dayKeyToDow(schedulerStartDayKey),
+          anchorStartHHMM: getFirstWindowStartForDow(dayKeyToDow(schedulerStartDayKey), contractWorkWindows),
+          planStatus: planSummary?.planStatus || null,
+          requiredBlockCount: Number(planSummary?.requiredBlockCount || 0),
+          scheduledBlockCount: Number(planSummary?.scheduledBlockCount || 0),
+          unscheduledBlockCount: Number(planSummary?.unscheduledBlockCount || 0),
+          candidateResolutionKinds: Array.isArray(planSummary?.candidateResolutionKinds)
+            ? [...planSummary.candidateResolutionKinds]
+            : [],
+          recommendations: Array.isArray(planSummary?.recommendations)
+            ? planSummary.recommendations.map((recommendation) => ({ ...recommendation }))
+            : [],
+        },
+      };
+      setGenerateHeartbeat(state, cycle.id, 0, state.lastPlanError.code);
+    }
   } else if (!state.lastPlanError || state.lastPlanError.code === 'NO_PROPOSED_BLOCKS') {
+    if (suggestedCount > 0) {
+      cycle.scheduleLifecycle = 'draft_schedule_ready';
+      cycle.scheduleReviewBlocks = [];
+      cycle.scheduleAppliedAtISO = null;
+      cycle.scheduleActivatedAtISO = null;
+      state.scheduleLifecycle = 'draft_schedule_ready';
+      state.scheduleReviewBlocks = [];
+      state.scheduleApplied = false;
+      state.pendingPlanConfirmation = true;
+    }
     state.lastPlanError = null;
     setGenerateHeartbeat(state, cycle.id, suggestedCount, null);
   } else {
@@ -5703,6 +8239,31 @@ function generatePlan(state, payload = {}) {
     materializedWorkableDays: cycle?.autoAsanaPlan?.horizon?.daysCount || null,
     proposedBlocks: state.proposedBlocks || [],
     lastPlanErrorCode: state.lastPlanError?.code || null,
+    inputSummary: {
+      deliverableCount,
+      actionCount,
+      sessionPlanCount,
+      acceptedBlocksCount: acceptedBlocks.length,
+      horizonDays,
+      rawWorkWindowsCount,
+      normalizedCandidateWindowCount,
+      resolvedMaxPerWeek,
+      resolvedMaxPerDay,
+    },
+    outputSummary: {
+      proposedBlocksCount: Array.isArray(state.proposedBlocks) ? state.proposedBlocks.length : 0,
+      materializedWorkableDays: cycle?.autoAsanaPlan?.horizon?.daysCount || null,
+      conflictCodes: (cycle?.autoAsanaPlan?.conflicts || [])
+        .map((conflict) => String(conflict?.code || conflict?.kind || '').trim())
+        .filter(Boolean)
+        .join(', '),
+      firstThreeProposedBlocks: (state.proposedBlocks || []).slice(0, 3).map((block) => ({
+        id: block?.id || null,
+        dayKey: block?.dayKey || null,
+        startISO: block?.startISO || null,
+        status: block?.status || null,
+      })),
+    },
     reasonCodes: state.lastPlanError?.reasonCodes || [],
   });
   const autoApplyAuthorized = payload?.authorizeAutoApply === true;
@@ -5713,7 +8274,7 @@ function generatePlan(state, payload = {}) {
     applyDraftSchedule(state, {
       cycleId: cycle.id,
       goalId: contract.goalId,
-      source: payload?.source || 'AUTHORIZED_AUTO_APPLY'
+      source: payload?.source || 'AUTHORIZED_AUTO_APPLY',
     });
     state.scheduleApplied = true;
     state.pendingPlanConfirmation = false;
@@ -5757,14 +8318,16 @@ function applyGeneratedPlan(state, payload = {}) {
   const targetCycleId = payload?.cycleId || state.activeCycleId || null;
   const cycle = targetCycleId ? getTargetCycle(state, targetCycleId) : getActiveCycle(state);
   const contract = getCanonicalCycleContract(cycle, state.goalExecutionContract, cycle?.contract || null);
-  if (!cycle || !contract || !cycle.autoAsanaPlan) return;
+  if (!cycle || !contract || !cycle.autoAsanaPlan) {
+    return;
+  }
   const admission = state.goalAdmissionByGoal?.[contract.goalId] || cycle.goalAdmission;
-  if (admission && admission.status !== 'ADMITTED') {
+  if (admission && !isAdmittedGoalStatus(admission.status)) {
     state.lastPlanError = {
       code: 'GOAL_NOT_ADMITTED',
       reason: (admission.reasonCodes || []).join(', ') || 'Goal not admitted',
       cycleId: cycle.id,
-      goalId: contract.goalId
+      goalId: contract.goalId,
     };
     return;
   }
@@ -5773,7 +8336,7 @@ function applyGeneratedPlan(state, payload = {}) {
       code: 'PLAN_UNSCHEDULABLE',
       reason: 'Resolve conflicts before applying the plan.',
       cycleId: cycle.id,
-      goalId: contract.goalId
+      goalId: contract.goalId,
     };
     return;
   }
@@ -5783,7 +8346,9 @@ function applyGeneratedPlan(state, payload = {}) {
   const existingCreates = new Set((state.executionEvents || []).map((e) => e?.blockId).filter(Boolean));
   const domain = state.planDraft?.primaryDomain || 'FOCUS';
   (plan.horizonBlocks || []).forEach((block) => {
-    if (!block?.id || existingCreates.has(block.id)) return;
+    if (!block?.id || existingCreates.has(block.id)) {
+      return;
+    }
     createBlock(state, {
       id: block.id,
       cycleId: cycle.id,
@@ -5794,7 +8359,12 @@ function applyGeneratedPlan(state, payload = {}) {
       domain,
       title: block.title,
       surface: 'today',
-      timeZone
+      timeZone,
+    });
+    appendTransitionTrace(state, {
+      transition: 'apply',
+      blockId: block.id || null,
+      label: block.title || '',
     });
   });
   state.planEvents = state.planEvents || [];
@@ -5804,13 +8374,95 @@ function applyGeneratedPlan(state, payload = {}) {
     cycleId: cycle.id,
     goalId: contract.goalId,
     atISO: nowISO,
-    policyVersion: plan.audit?.policyVersion || 'auto_asana_v1'
+    policyVersion: plan.audit?.policyVersion || 'auto_asana_v1',
   });
   cycle.lastPlanAppliedAtISO = nowISO;
   state.pendingPlanConfirmation = false;
   state.scheduleApplied = true;
   state.lastPlanError = null;
   state.cyclesById[cycle.id] = cycle;
+}
+
+function inferPlanCycleNumber(value) {
+  const text = String(value || '').trim();
+  if (!text) {
+    return null;
+  }
+  const namespacedMatch = text.match(/brand:\d{2}:(\d+):/i);
+  if (namespacedMatch) {
+    return Number(namespacedMatch[1]);
+  }
+  const cycleMatch = text.match(/\bcycle\s+(\d+)\b/i);
+  if (cycleMatch) {
+    return Number(cycleMatch[1]);
+  }
+  return null;
+}
+
+function setPlanResolutionKind(state, payload = {}) {
+  const cycleId = payload?.cycleId || state.activeCycleId || null;
+  const cycle = getTargetCycle(state, cycleId);
+  if (!cycle) {
+    return;
+  }
+  const kind = String(payload?.kind || payload?.resolutionKind || '')
+    .trim()
+    .toUpperCase();
+  cycle.selectedPlanResolutionKind = kind || null;
+  if (!kind) {
+    cycle.selectedPlanResolutionAtISO = null;
+  }
+  state.cyclesById[cycle.id] = cycle;
+}
+
+function getPlanRecommendation(planSummary, kind) {
+  if (!planSummary || !Array.isArray(planSummary.recommendations)) {
+    return null;
+  }
+  const normalizedKind = String(kind || '')
+    .trim()
+    .toUpperCase();
+  return (
+    planSummary.recommendations.find(
+      (recommendation) =>
+        String(recommendation?.kind || '')
+          .trim()
+          .toUpperCase() === normalizedKind
+    ) || null
+  );
+}
+
+function updateCycleContractEndDayKey(cycle, nextEndDayKey) {
+  if (!cycle || !nextEndDayKey) {
+    return;
+  }
+  cycle.goalContract = cycle.goalContract || {};
+  cycle.goalContract.endDayKey = nextEndDayKey;
+  cycle.goalContract.deadlineISO = `${nextEndDayKey}T23:59:59.000Z`;
+  cycle.goalContract.endDateISO = `${nextEndDayKey}T23:59:59.000Z`;
+  if (Number.isFinite(Number(cycle.goalContract?.horizonDays))) {
+    cycle.goalContract.horizonDays = Math.max(1, Number(cycle.goalContract.horizonDays));
+  }
+  if (cycle.goalContract.deadline && typeof cycle.goalContract.deadline === 'object') {
+    cycle.goalContract.deadline = {
+      ...cycle.goalContract.deadline,
+      dayKey: nextEndDayKey,
+    };
+  }
+  if (cycle.goalGovernanceContract) {
+    cycle.goalGovernanceContract = {
+      ...cycle.goalGovernanceContract,
+      activeUntilISO: nextEndDayKey,
+    };
+  }
+  if (cycle.contract && typeof cycle.contract === 'object') {
+    cycle.contract = {
+      ...cycle.contract,
+      endDayKey: nextEndDayKey,
+      deadlineISO: `${nextEndDayKey}T23:59:59.000Z`,
+      endDateISO: `${nextEndDayKey}T23:59:59.000Z`,
+    };
+  }
 }
 
 function recordDraftPolicyParity(state, appliedPreview) {
@@ -5833,18 +8485,43 @@ function recordDraftPolicyParity(state, appliedPreview) {
   const previewPolicyId = state.planPreview?.qualityPolicyIdUsed || null;
   const previewReasonCodes = JSON.stringify(state.planPreview?.policySelectionReasonCodes || []);
   const appliedReasonCodes = JSON.stringify(appliedPreview?.policySelectionReasonCodes || []);
-  state.policySelectionParity = Boolean(previewPolicyId && previewPolicyId === appliedPolicyId && previewReasonCodes === appliedReasonCodes);
+  state.policySelectionParity = Boolean(
+    previewPolicyId && previewPolicyId === appliedPolicyId && previewReasonCodes === appliedReasonCodes
+  );
   state.scoreParity = Boolean(
     isNumericParity(state.planPreview?.qualityScoreBaseline, appliedPreview?.qualityScoreBaseline) &&
-      JSON.stringify(state.planPreview?.qualityScoreBaselineByComponent || {}) ===
-        JSON.stringify(appliedPreview?.qualityScoreBaselineByComponent || {})
+    JSON.stringify(state.planPreview?.qualityScoreBaselineByComponent || {}) ===
+      JSON.stringify(appliedPreview?.qualityScoreBaselineByComponent || {})
   );
   state.pacingParity = Boolean(
-    Number(state.planPreview?.pacingInjectedCheckpointCount || 0) === Number(appliedPreview?.pacingInjectedCheckpointCount || 0) &&
-      JSON.stringify(state.planPreview?.pacingInjectedByMilestone || {}) ===
-        JSON.stringify(appliedPreview?.pacingInjectedByMilestone || {})
+    Number(state.planPreview?.pacingInjectedCheckpointCount || 0) ===
+      Number(appliedPreview?.pacingInjectedCheckpointCount || 0) &&
+    JSON.stringify(state.planPreview?.pacingInjectedByMilestone || {}) ===
+      JSON.stringify(appliedPreview?.pacingInjectedByMilestone || {})
   );
   return appliedPolicyId;
+}
+
+function clearAppliedScheduleForCycle(state, cycleId) {
+  if (!cycleId) {
+    return;
+  }
+  const removableOrigins = new Set(['suggested_apply', 'auto_asana']);
+  const activeBlocks = getAllBlocks(state).filter((block) => {
+    if (!block || block.cycleId !== cycleId) {
+      return false;
+    }
+    if (!removableOrigins.has(String(block.origin || '').trim())) {
+      return false;
+    }
+    const status = String(block.status || 'planned')
+      .trim()
+      .toLowerCase();
+    return status === 'planned' || status === 'in_progress';
+  });
+  activeBlocks.forEach((block) => {
+    deleteBlock(state, block.id);
+  });
 }
 
 function applyDraftSchedule(state, payload = {}) {
@@ -5853,20 +8530,105 @@ function applyDraftSchedule(state, payload = {}) {
   const targetCycleId = payload?.cycleId || state.activeCycleId || null;
   const cycle = getTargetCycle(state, targetCycleId);
   const contract = getCanonicalCycleContract(cycle, state.goalExecutionContract, cycle?.contract || null);
-  if (!cycle || !contract) return;
+  if (!cycle || !contract) {
+    return;
+  }
   if (isCycleReadOnly(cycle)) {
     state.lastPlanError = {
       code: 'CYCLE_READ_ONLY',
       reason: 'Cannot apply schedule for an ended or archived cycle.',
-      cycleId: cycle.id || targetCycleId
+      cycleId: cycle.id || targetCycleId,
     };
     return;
   }
-  const nowDay = state.appTime?.activeDayKey || state.today?.date || nowDayKey(state.appTime?.timeZone || APP_TIME_ZONE);
+  const nowDay =
+    state.appTime?.activeDayKey || state.today?.date || nowDayKey(state.appTime?.timeZone || APP_TIME_ZONE);
   const previewDecisionBeforeApply = state.planPreview?.policySelectionDecision || null;
   const sourceBlocks = state.proposedBlocks || [];
   const suggestedBlocks = sourceBlocks.filter((block) => !block?.cycleId || block?.cycleId === cycle.id);
   const timeZone = state.appTime?.timeZone || 'UTC';
+  const planSummary = cycle?.autoAsanaPlan?.summary || null;
+  const normalizedPlanStatus = String(planSummary?.planStatus || '').trim().toUpperCase();
+  const resolutionKind = String(payload?.resolutionKind || payload?.horizonResolutionKind || '').trim().toUpperCase();
+  const resolutionAlreadyApplied = payload?._resolutionApplied === true;
+  if (normalizedPlanStatus === 'VALID_BUT_HORIZON_INSUFFICIENT' && resolutionKind !== 'ACCEPT_PARTIAL_PLAN') {
+    if (resolutionKind === 'EXTEND_HORIZON' && !resolutionAlreadyApplied) {
+      const recommendation = getPlanRecommendation(planSummary, 'EXTEND_HORIZON');
+      const nextEndDayKey =
+        recommendation?.earliestFeasibleCompletionDate ||
+        (cycle?.goalContract?.endDayKey ? addDays(cycle.goalContract.endDayKey, Number(recommendation?.extensionDays || 0), timeZone) : null);
+      if (!nextEndDayKey) {
+        state.lastPlanError = {
+          code: 'HORIZON_EXTENSION_UNAVAILABLE',
+          reason: 'Extend horizon recommendation is missing a feasible completion date.',
+          cycleId: cycle.id,
+          goalId: contract.goalId,
+        };
+        return;
+      }
+      updateCycleContractEndDayKey(cycle, nextEndDayKey);
+      state.cyclesById[cycle.id] = cycle;
+      if (state.activeCycleId === cycle.id && cycle.goalContract) {
+        state.goalExecutionContract = {
+          ...(state.goalExecutionContract || {}),
+          ...cycle.goalContract,
+        };
+      }
+      generatePlan(state, { cycleId: cycle.id, source: 'HORIZON_EXTENSION_APPLY' });
+      const regeneratedCycle = getTargetCycle(state, cycle.id);
+      const regeneratedSummary = regeneratedCycle?.autoAsanaPlan?.summary || null;
+      const regeneratedStatus = String(regeneratedSummary?.planStatus || '').trim().toUpperCase();
+      if (regeneratedStatus === 'VALID_BUT_HORIZON_INSUFFICIENT') {
+        state.lastPlanError = {
+          code: 'HORIZON_EXTENSION_INSUFFICIENT',
+          reason: 'Extending the horizon did not produce a fully schedulable plan.',
+          cycleId: cycle.id,
+          goalId: contract.goalId,
+          meta: {
+            planStatus: regeneratedSummary?.planStatus || null,
+            requiredBlockCount: Number(regeneratedSummary?.requiredBlockCount || 0),
+            scheduledBlockCount: Number(regeneratedSummary?.scheduledBlockCount || 0),
+            unscheduledBlockCount: Number(regeneratedSummary?.unscheduledBlockCount || 0),
+          },
+        };
+        return;
+      }
+      applyDraftSchedule(state, { ...payload, cycleId: cycle.id, resolutionKind, _resolutionApplied: true });
+      return;
+    }
+    if (resolutionKind === 'REDUCE_CYCLE_COUNT') {
+      // Reduction is handled below by filtering the suggested set before review blocks are built.
+    } else if (resolutionKind) {
+      state.lastPlanError = {
+        code: 'HORIZON_RESOLUTION_REQUIRED',
+        reason: 'Select a supported horizon resolution before applying a partial plan.',
+        cycleId: cycle.id,
+        goalId: contract.goalId,
+      };
+      return;
+    }
+  }
+  if (normalizedPlanStatus === 'VALID_BUT_HORIZON_INSUFFICIENT' && resolutionKind !== 'ACCEPT_PARTIAL_PLAN' && resolutionKind !== 'REDUCE_CYCLE_COUNT') {
+    state.lastPlanError = {
+      code: 'HORIZON_RESOLUTION_REQUIRED',
+      reason: 'Select a horizon resolution before applying a partial plan.',
+      cycleId: cycle.id,
+      goalId: contract.goalId,
+      meta: {
+        planStatus: planSummary?.planStatus || null,
+        requiredBlockCount: Number(planSummary?.requiredBlockCount || 0),
+        scheduledBlockCount: Number(planSummary?.scheduledBlockCount || 0),
+        unscheduledBlockCount: Number(planSummary?.unscheduledBlockCount || 0),
+        candidateResolutionKinds: Array.isArray(planSummary?.candidateResolutionKinds)
+          ? [...planSummary.candidateResolutionKinds]
+          : [],
+        recommendations: Array.isArray(planSummary?.recommendations)
+          ? planSummary.recommendations.map((recommendation) => ({ ...recommendation }))
+          : [],
+      },
+    };
+    return;
+  }
   const appliedPreview =
     state.planPreview ||
     computePlanPreview({
@@ -5878,14 +8640,58 @@ function applyDraftSchedule(state, payload = {}) {
       timeZone,
     });
   let proposedItems = (suggestedBlocks || []).filter((item) => item?.status === 'suggested');
+  if (normalizedPlanStatus === 'VALID_BUT_HORIZON_INSUFFICIENT' && resolutionKind === 'REDUCE_CYCLE_COUNT') {
+    const recommendation = getPlanRecommendation(planSummary, 'REDUCE_CYCLE_COUNT');
+    const recommendedCycleCount = Number(recommendation?.recommendedCycleCount || 0);
+    proposedItems = proposedItems.filter((item) => {
+      const cycleNumber = inferPlanCycleNumber(item?.actionId || item?.title || item?.displayTitle);
+      return !Number.isFinite(cycleNumber) || cycleNumber <= recommendedCycleCount;
+    });
+  }
   const appliedPolicyId = recordDraftPolicyParity(state, appliedPreview);
+  if (getCycleScheduleLifecycle(cycle, state) === 'active_schedule') {
+    state.lastPlanError = {
+      code: 'REGENERATE_BLOCKED_ACTIVE_SCHEDULE',
+      reason: 'Activate / Commit is already in effect for this cycle. Reschedule specific blocks instead.',
+      cycleId: cycle.id,
+      goalId: contract.goalId,
+    };
+    state.pendingPlanConfirmation = false;
+    state.scheduleApplied = true;
+    state.scheduleLifecycle = 'active_schedule';
+    cycle.scheduleLifecycle = 'active_schedule';
+    cycle.scheduleReviewBlocks = Array.isArray(cycle.scheduleReviewBlocks) ? cycle.scheduleReviewBlocks : [];
+    state.cyclesById[cycle.id] = cycle;
+    logGenerateDiagnostics({
+      state,
+      traceId: `trace-${cycle.id}-apply`,
+      cycleId: cycle.id,
+      goalId: contract?.goalId || null,
+      moduleName: 'applyDraftSchedule',
+      stepName: 'complete',
+      status: 'fail',
+      inputSummary: {
+        proposedBlocksCount: (state.proposedBlocks || []).length,
+        suggestedCount: proposedItems.length,
+        cycleId: cycle.id,
+      },
+      outputSummary: {
+        committedBlocksCount: (state.today?.blocks || []).length,
+        cycleBlocksCount: (state.cycle || []).flatMap((d) => d.blocks || []).length,
+        scheduleApplied: Boolean(state.scheduleApplied),
+      },
+      lastPlanErrorCode: 'REGENERATE_BLOCKED_ACTIVE_SCHEDULE',
+      reasonCodes: ['REGENERATE_BLOCKED_ACTIVE_SCHEDULE'],
+    });
+    return;
+  }
   if (!proposedItems.length) {
     // No-op apply: preserve deterministic preview/apply parity flags for diagnostics.
     state.scoreParity = true;
     state.lastPlanError = {
       code: 'NO_PROPOSED_BLOCKS',
       reason: 'No preview items to apply.',
-      cycleId: cycle.id
+      cycleId: cycle.id,
     };
     logGenerateDiagnostics({
       state,
@@ -5911,17 +8717,69 @@ function applyDraftSchedule(state, payload = {}) {
     return;
   }
   const perfCreateStart = debugPerfActions ? Date.now() : 0;
-  appendSuggestedApplyBlocks(state, proposedItems, {
-    cycleId: cycle.id,
-    goalId: contract.goalId,
-    timeZone,
-    defaultDomain: state.planDraft?.primaryDomain || 'FOCUS',
-  });
+  const reviewBlocks = proposedItems
+    .map((item) =>
+      buildScheduleReviewBlock(state, item, {
+        cycleId: cycle.id,
+        goalId: contract.goalId,
+        timeZone,
+        defaultDomain: state.planDraft?.primaryDomain || 'FOCUS',
+      })
+    )
+    .filter(Boolean);
+  annotateRepeatedSessionTitles(reviewBlocks);
+  cycle.scheduleReviewBlocks = reviewBlocks;
+  cycle.scheduleDraftHash = buildScheduleDraftHash(proposedItems);
+  cycle.scheduleAppliedAtISO = state.appTime?.nowISO || new Date().toISOString();
+  cycle.scheduleLifecycle = reviewBlocks.length > 0 ? 'applied_review' : 'no_schedule';
+  cycle.selectedPlanResolutionKind = resolutionKind || cycle.selectedPlanResolutionKind || null;
+  cycle.selectedPlanResolutionAtISO = state.appTime?.nowISO || new Date().toISOString();
+  cycle.deferredScheduleBlocks =
+    resolutionKind === 'ACCEPT_PARTIAL_PLAN'
+      ? (cycle.autoAsanaPlan?.unscheduledDrafts || []).map((draft) => ({
+          id: draft?.id || null,
+          title: draft?.title || 'Deferred block',
+          actionId: draft?.actionId || null,
+          targetDayKey: draft?.targetDayKey || null,
+          hardGateFloorISO: draft?.hardGateFloorISO || null,
+          deferredReason: 'horizon_insufficient',
+        }))
+      : [];
+  if (resolutionKind === 'ACCEPT_PARTIAL_PLAN') {
+    cycle.lastResolvedPlanSummary = {
+      ...(planSummary || {}),
+      planStatus: 'VALID_PARTIAL_BY_USER_CHOICE',
+      candidateResolutionKinds: [],
+      recommendations: [],
+    };
+  } else if (resolutionKind === 'REDUCE_CYCLE_COUNT') {
+    cycle.lastResolvedPlanSummary = {
+      ...(planSummary || {}),
+      planStatus: 'VALID_AND_FULLY_SCHEDULED',
+      requiredBlockCount: reviewBlocks.length,
+      scheduledBlockCount: reviewBlocks.length,
+      unscheduledBlockCount: 0,
+      candidateResolutionKinds: [],
+      recommendations: [],
+    };
+  } else if (planSummary) {
+    cycle.lastResolvedPlanSummary = {
+      ...planSummary,
+      planStatus: 'VALID_AND_FULLY_SCHEDULED',
+      candidateResolutionKinds: [],
+      recommendations: [],
+    };
+  }
+  state.scheduleLifecycle = cycle.scheduleLifecycle;
+  state.scheduleReviewBlocks = reviewBlocks;
+  mergeScheduleReviewBlocksIntoCycleProjection(state, cycle);
   const perfCreateMs = debugPerfActions ? Date.now() - perfCreateStart : 0;
   const perfAcceptStart = debugPerfActions ? Date.now() : 0;
   const acceptedSuggestionIds = new Set(proposedItems.map((item) => item.id));
   const nextSuggestions = sourceBlocks.map((item) => {
-    if (!acceptedSuggestionIds.has(item?.id)) return item;
+    if (!acceptedSuggestionIds.has(item?.id)) {
+      return item;
+    }
     return {
       ...item,
       status: 'accepted',
@@ -5938,6 +8796,11 @@ function applyDraftSchedule(state, payload = {}) {
       cycleId: cycle.id,
       goalId: contract.goalId,
       atISO: state.appTime?.nowISO || new Date().toISOString(),
+    });
+    appendTransitionTrace(state, {
+      transition: 'apply',
+      blockId: item.id || null,
+      label: item.title || '',
     });
   });
   const perfAcceptMs = debugPerfActions ? Date.now() - perfAcceptStart : 0;
@@ -5972,11 +8835,15 @@ function applyDraftSchedule(state, payload = {}) {
   state.draftScheduleAppliedAtISO = state.appTime?.nowISO || new Date().toISOString();
   state.pendingPlanConfirmation = false;
   state.scheduleApplied = true;
+  state.lastPlanError = null;
   state.planDraft = null;
   state.planPreview = null;
+  cycle.planDraft = null;
+  cycle.planPreview = null;
   cycle.autoAsanaPlan = null;
   cycle.coldPlan = { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } };
   cycle.lastPolicySelectionDecision = previewDecisionBeforeApply || appliedPreview.policySelectionDecision || null;
+  cycle.lastPlanAppliedAtISO = state.draftScheduleAppliedAtISO;
   state.cyclesById[cycle.id] = cycle;
   if (debugPerfActions) {
     state.debug = state.debug || {};
@@ -5985,6 +8852,7 @@ function applyDraftSchedule(state, payload = {}) {
       createBlocksMs: perfCreateMs,
       acceptSuggestionsMs: perfAcceptMs,
       proposedCount: proposedItems.length,
+      reviewCount: reviewBlocks.length,
     };
   }
   logGenerateDiagnostics({
@@ -6001,6 +8869,7 @@ function applyDraftSchedule(state, payload = {}) {
       cycleId: cycle.id,
     },
     outputSummary: {
+      appliedReviewBlocksCount: reviewBlocks.length,
       committedBlocksCount: (state.today?.blocks || []).length,
       cycleBlocksCount: (state.cycle || []).flatMap((d) => d.blocks || []).length,
       scheduleApplied: Boolean(state.scheduleApplied),
@@ -6010,13 +8879,140 @@ function applyDraftSchedule(state, payload = {}) {
   });
 }
 
+function activateSchedule(state, payload = {}) {
+  const targetCycleId = payload?.cycleId || state.activeCycleId || null;
+  const cycle = getTargetCycle(state, targetCycleId);
+  const contract = getCanonicalCycleContract(cycle, state.goalExecutionContract, cycle?.contract || null);
+  if (!cycle || !contract) {
+    return;
+  }
+  if (isCycleReadOnly(cycle)) {
+    state.lastPlanError = {
+      code: 'CYCLE_READ_ONLY',
+      reason: 'Cannot activate schedule for an ended or archived cycle.',
+      cycleId: cycle.id || targetCycleId,
+    };
+    return;
+  }
+  if (getCycleScheduleLifecycle(cycle, state) === 'active_schedule') {
+    state.lastPlanError = {
+      code: 'SCHEDULE_ALREADY_ACTIVE',
+      reason: 'Schedule is already active.',
+      cycleId: cycle.id,
+      goalId: contract.goalId,
+    };
+    return;
+  }
+  const reviewBlocks = Array.isArray(cycle.scheduleReviewBlocks) ? cycle.scheduleReviewBlocks : [];
+  if (!reviewBlocks.length) {
+    state.lastPlanError = {
+      code: 'NO_APPLIED_REVIEW_BLOCKS',
+      reason: 'No applied review blocks available to activate.',
+      cycleId: cycle.id,
+      goalId: contract.goalId,
+    };
+    return;
+  }
+  const nowISO = state.appTime?.nowISO || new Date().toISOString();
+  const timeZone = state.appTime?.timeZone || 'UTC';
+  let activatedCount = 0;
+  reviewBlocks.forEach((block) => {
+    if (!block?.id) {
+      return;
+    }
+    const activatedBlock = {
+      id: block.id,
+      cycleId: cycle.id,
+      goalId: contract.goalId,
+      origin: 'schedule_active',
+      suggestionId: block.suggestionId || block.id || null,
+      deliverableId: block.deliverableId ?? null,
+      actionId: block.actionId ?? null,
+      sessionIndex: Number.isFinite(block.sessionIndex) ? Number(block.sessionIndex) : null,
+      identityKey: block.identityKey || null,
+      criterionId: block.criterionId ?? null,
+      lockedUntilDayKey: block.lockedUntilDayKey ?? null,
+      requiredSystemBlock: true,
+      practice: block.practice || block.domain || 'Focus',
+      domain: block.domain || block.practice || 'Focus',
+      title: block.title || block.label || null,
+      label: block.title || block.label || null,
+      start: block.startISO || block.start || null,
+      end: block.endISO || block.end || null,
+      status: block.status || 'planned',
+      missedAtISO: null,
+    };
+    const event = buildExecutionEventFromBlock(block, {
+      kind: 'create',
+      completed: false,
+      cycleId: cycle.id,
+      goalId: contract.goalId,
+      origin: 'schedule_active',
+      requiredSystemBlock: true,
+      suggestionId: block.suggestionId || block.id || null,
+      deliverableId: block.deliverableId ?? null,
+      actionId: block.actionId ?? null,
+      sessionIndex: Number.isFinite(block.sessionIndex) ? Number(block.sessionIndex) : null,
+      identityKey: block.identityKey || null,
+      criterionId: block.criterionId ?? null,
+      lockedUntilDayKey: block.lockedUntilDayKey ?? null,
+      status: block.status || 'planned',
+      canonicalTitle: block.title || block.label || null,
+      rawLabel: block.title || block.label || null,
+    });
+    if (!canEmitExecutionEvent(state.executionEvents || [], event)) {
+      return;
+    }
+    appendExecutionEvent(state, event);
+    upsertCanonicalBlock(state, activatedBlock);
+    appendTransitionTrace(state, {
+      transition: 'activate',
+      blockId: block.id || null,
+      label: block.title || '',
+    });
+    activatedCount += 1;
+  });
+  if (activatedCount === 0) {
+    state.lastPlanError = {
+      code: 'SCHEDULE_DUPLICATE_ACTIVATION_BLOCKED',
+      reason: 'No review blocks could be activated.',
+      cycleId: cycle.id,
+      goalId: contract.goalId,
+    };
+    return;
+  }
+  cycle.scheduleReviewBlocks = [];
+  cycle.scheduleLifecycle = 'active_schedule';
+  cycle.scheduleActivatedAtISO = nowISO;
+  cycle.scheduleActiveHash = cycle.scheduleDraftHash || buildScheduleDraftHash(reviewBlocks);
+  state.scheduleLifecycle = 'active_schedule';
+  state.scheduleReviewBlocks = [];
+  state.scheduleApplied = true;
+  state.pendingPlanConfirmation = false;
+  state.draftScheduleAppliedAtISO = state.draftScheduleAppliedAtISO || nowISO;
+  state.lastPlanError = null;
+  state.cyclesById[cycle.id] = cycle;
+  state.planEvents = state.planEvents || [];
+  state.planEvents.push({
+    id: nextDeterministicId(state, `schedule-activated-${cycle.id}`),
+    type: 'SCHEDULE_ACTIVATED',
+    cycleId: cycle.id,
+    goalId: contract.goalId,
+    atISO: nowISO,
+    reviewCount: reviewBlocks.length,
+    timeZone,
+  });
+}
+
 function resolveRenegotiationOption(cycle, payload = {}) {
   const optionPool = Array.isArray(cycle?.metrics?.renegotiationOptions)
     ? cycle.metrics.renegotiationOptions
     : Array.isArray(cycle?.recoveryContract?.options)
       ? cycle.recoveryContract.options
       : [];
-  if (!optionPool.length) return null;
+  if (!optionPool.length) {
+    return null;
+  }
   if (payload?.option && typeof payload.option === 'object') {
     const exact = optionPool.find(
       (option) =>
@@ -6024,19 +9020,32 @@ function resolveRenegotiationOption(cycle, payload = {}) {
         Number(option?.delta ?? null) === Number(payload.option.delta ?? null) &&
         String(option?.summary || '') === String(payload.option.summary || '')
     );
-    if (exact) return exact;
+    if (exact) {
+      return exact;
+    }
   }
   if (Number.isInteger(payload?.optionIndex) && payload.optionIndex >= 0 && payload.optionIndex < optionPool.length) {
     return optionPool[payload.optionIndex];
   }
   if (payload?.optionType) {
-    const normalizedType = String(payload.optionType || '').trim().toUpperCase();
+    const normalizedType = String(payload.optionType || '')
+      .trim()
+      .toUpperCase();
     const preferredDelta = Number(payload?.delta);
-    const typed = optionPool.filter((option) => String(option?.type || '').trim().toUpperCase() === normalizedType);
-    if (typed.length === 0) return null;
+    const typed = optionPool.filter(
+      (option) =>
+        String(option?.type || '')
+          .trim()
+          .toUpperCase() === normalizedType
+    );
+    if (typed.length === 0) {
+      return null;
+    }
     if (Number.isFinite(preferredDelta)) {
       const exact = typed.find((option) => Number(option?.delta) === preferredDelta);
-      if (exact) return exact;
+      if (exact) {
+        return exact;
+      }
     }
     return typed[0];
   }
@@ -6045,7 +9054,9 @@ function resolveRenegotiationOption(cycle, payload = {}) {
 
 function applyRenegotiationOption(state, payload = {}) {
   const activeCycleId = state?.activeCycleId || null;
-  if (!activeCycleId) return;
+  if (!activeCycleId) {
+    return;
+  }
   const requestedCycleId = payload?.cycleId || activeCycleId;
   if (requestedCycleId !== activeCycleId) {
     state.lastPlanError = {
@@ -6057,7 +9068,9 @@ function applyRenegotiationOption(state, payload = {}) {
     return;
   }
   const cycle = state?.cyclesById?.[activeCycleId];
-  if (!cycle) return;
+  if (!cycle) {
+    return;
+  }
   const canonicalContract = getCanonicalCycleContract(cycle, state.goalExecutionContract, cycle?.contract || null);
   const goalId = canonicalContract?.goalId || null;
   if (payload?.goalId && goalId && payload.goalId !== goalId) {
@@ -6080,7 +9093,9 @@ function applyRenegotiationOption(state, payload = {}) {
     return;
   }
 
-  const optionType = String(selectedOption?.type || '').trim().toUpperCase();
+  const optionType = String(selectedOption?.type || '')
+    .trim()
+    .toUpperCase();
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
   const timeZone = state?.appTime?.timeZone || APP_TIME_ZONE;
   const priorContract = {
@@ -6138,23 +9153,27 @@ function applyRenegotiationOption(state, payload = {}) {
     }
   } else if (optionType === 'INCREASE_THROUGHPUT') {
     const deltaPerWeekRaw = Number(selectedOption?.delta);
-    const deltaPerWeek = Number.isFinite(deltaPerWeekRaw) && deltaPerWeekRaw > 0 ? Math.max(1, Math.round(deltaPerWeekRaw)) : 0;
+    const deltaPerWeek =
+      Number.isFinite(deltaPerWeekRaw) && deltaPerWeekRaw > 0 ? Math.max(1, Math.round(deltaPerWeekRaw)) : 0;
     if (!(deltaPerWeek > 0)) {
       unsupportedReason = 'RENEGOTIATION_THROUGHPUT_INPUT_INVALID';
     } else {
       const strategy = cycle.strategy || {};
       const strategyConstraints = strategy.constraints || {};
       const workWindows = canonicalContract?.workWindows || cycle?.goalContract?.workWindows || null;
-      const workDays = countRawWorkWindows(workWindows) > 0
-        ? getWorkDaysFromWindows(workWindows)
-        : strategyConstraints?.workableDayPolicy?.weekdays || state?.constraints?.workableDayPolicy?.weekdays || ['mon', 'tue', 'wed', 'thu', 'fri'];
+      const workDays =
+        countRawWorkWindows(workWindows) > 0
+          ? getWorkDaysFromWindows(workWindows)
+          : strategyConstraints?.workableDayPolicy?.weekdays ||
+            state?.constraints?.workableDayPolicy?.weekdays || ['mon', 'tue', 'wed', 'thu', 'fri'];
       const workDaysCount = Math.max(1, Array.isArray(workDays) ? workDays.length : 5);
       const priorWeek =
-        (Number.isFinite(Number(strategyConstraints.maxBlocksPerWeek)) && Number(strategyConstraints.maxBlocksPerWeek) > 0)
+        Number.isFinite(Number(strategyConstraints.maxBlocksPerWeek)) &&
+        Number(strategyConstraints.maxBlocksPerWeek) > 0
           ? Number(strategyConstraints.maxBlocksPerWeek)
           : resolveCycleCapacityPerDay(state, cycle) * 7;
       const priorDay =
-        (Number.isFinite(Number(strategyConstraints.maxBlocksPerDay)) && Number(strategyConstraints.maxBlocksPerDay) > 0)
+        Number.isFinite(Number(strategyConstraints.maxBlocksPerDay)) && Number(strategyConstraints.maxBlocksPerDay) > 0
           ? Number(strategyConstraints.maxBlocksPerDay)
           : Math.max(1, Math.ceil(priorWeek / workDaysCount));
       const nextWeek = Math.max(priorWeek, priorWeek + deltaPerWeek);
@@ -6231,17 +9250,21 @@ function applyRenegotiationOption(state, payload = {}) {
 function setDefiniteGoal(state, payload = {}) {
   ensureCycleStructures(state);
   const cycle = getActiveCycle(state);
-  if (!cycle) return;
+  if (!cycle) {
+    return;
+  }
   const outcome = (payload.outcome || '').trim();
   const deadlineDayKey = payload.deadlineDayKey || cycle.definiteGoal?.deadlineDayKey || '';
-  if (!deadlineDayKey) return;
+  if (!deadlineDayKey) {
+    return;
+  }
   cycle.definiteGoal = { outcome: outcome || cycle.definiteGoal?.outcome || 'Definite goal', deadlineDayKey };
   state.cyclesById[cycle.id] = cycle;
   if (state.goalExecutionContract) {
     state.goalExecutionContract = {
       ...state.goalExecutionContract,
       goalText: outcome || state.goalExecutionContract.goalText,
-      endDayKey: deadlineDayKey
+      endDayKey: deadlineDayKey,
     };
   }
 }
@@ -6250,9 +9273,13 @@ function compileGoalEquation(state, payload = {}) {
   ensureCycleStructures(state);
   ensureAdmissionStores(state);
   const cycle = getActiveCycle(state);
-  if (!cycle) return;
+  if (!cycle) {
+    return;
+  }
   const equation = payload?.equation;
-  if (!equation) return;
+  if (!equation) {
+    return;
+  }
   const timeZone = state.appTime?.timeZone || 'UTC';
   const nowKey = state.appTime?.activeDayKey || state.today?.date || nowDayKey(timeZone);
   const nowISO = state.appTime?.nowISO || new Date().toISOString();
@@ -6261,12 +9288,12 @@ function compileGoalEquation(state, payload = {}) {
     timeZone,
     cycleId: cycle.id,
     constraints: state.constraints,
-    acceptedBlocks: []
+    acceptedBlocks: [],
   });
   cycle.goalAdmission = {
     status: admission.status,
     reasonCodes: admission.reasonCodes,
-    admittedAtISO: admission.status === 'ADMITTED' ? nowISO : undefined
+    admittedAtISO: admission.status === 'ADMITTED' ? nowISO : undefined,
   };
   const goalIdForAdmission =
     state.goalExecutionContract?.goalId || cycle.goalContract?.goalId || cycle.contract?.goalId || null;
@@ -6280,7 +9307,7 @@ function compileGoalEquation(state, payload = {}) {
       createdAtISO: nowISO,
       draft: equation,
       admissionStatus: admission.status,
-      reasonCodes: admission.reasonCodes
+      reasonCodes: admission.reasonCodes,
     };
     const existing = state.aspirationsByCycleId[cycle.id] || [];
     state.aspirationsByCycleId[cycle.id] = [...existing, aspiration];
@@ -6288,7 +9315,7 @@ function compileGoalEquation(state, payload = {}) {
       code: admission.status,
       reason: admission.reasonCodes.join(', '),
       cycleId: cycle.id,
-      goalId: goalIdForAdmission || undefined
+      goalId: goalIdForAdmission || undefined,
     };
     state.cyclesById[cycle.id] = cycle;
     return;
@@ -6298,16 +9325,16 @@ function compileGoalEquation(state, payload = {}) {
   const label = equation.label || `${equation.objectiveValue} ${equation.objective.replace(/_/g, ' ')}`;
   cycle.definiteGoal = {
     outcome: label,
-    deadlineDayKey: equation.deadlineDayKey
+    deadlineDayKey: equation.deadlineDayKey,
   };
-  
+
   // AUTO-SEED DELIVERABLES AT ADMISSION TIME
   // This ensures generateColdPlanForCycle can find them in the workspace
   const workspace = getDeliverableWorkspace(state, cycle.id);
   if (workspace && (!workspace.deliverables || workspace.deliverables.length === 0)) {
     let autoDeliverables = [];
     let autoStrategy = null;
-    
+
     // Try mechanism-class first
     try {
       autoDeliverables = generateAutoDeliverables(equation) || [];
@@ -6317,14 +9344,14 @@ function compileGoalEquation(state, payload = {}) {
         console.warn('[ADMISSION] mechanism-class auto-seed failed, trying Phase 1 fallback', err?.message);
       }
     }
-    
+
     // FALLBACK: Use Phase 1 approach if mechanism-class didn't work
     if (!autoDeliverables || autoDeliverables.length === 0) {
       const autoResult = buildAutoDeliverablesFromGoalContract(equation, nowKey, timeZone);
       autoDeliverables = autoResult.deliverables || [];
       autoStrategy = { method: 'phase1-autostrategy', ...autoResult };
     }
-    
+
     // Persist to workspace AND cycle.strategy
     if (autoDeliverables && autoDeliverables.length > 0) {
       workspace.deliverables = autoDeliverables;
@@ -6332,14 +9359,14 @@ function compileGoalEquation(state, payload = {}) {
       workspace.autoGeneratedAt = nowISO;
       workspace.autoStrategy = autoStrategy;
       state.deliverablesByCycleId[cycle.id] = workspace;
-      
+
       // Also update cycle.strategy so they're visible immediately
       if (!cycle.strategy) {
-        cycle.strategy = buildDefaultStrategy({ 
-          goalId: cycle.goalContract?.goalId || 'goal', 
+        cycle.strategy = buildDefaultStrategy({
+          goalId: cycle.goalContract?.goalId || 'goal',
           deadlineISO: equation.deadlineDayKey ? `${equation.deadlineDayKey}T23:59:59Z` : '',
           timeZone,
-          deliverables: autoDeliverables
+          deliverables: autoDeliverables,
         });
       } else {
         cycle.strategy.deliverables = autoDeliverables;
@@ -6351,20 +9378,20 @@ function compileGoalEquation(state, payload = {}) {
     state.goalExecutionContract = {
       ...state.goalExecutionContract,
       goalText: label,
-      endDayKey: equation.deadlineDayKey
+      endDayKey: equation.deadlineDayKey,
     };
   }
   const { planProof, scheduleBlocks } = compileGoalEquationPlan({
     equation,
     nowDayKey: nowKey,
     timeZone,
-    cycleId: cycle.id
+    cycleId: cycle.id,
   });
   cycle.planProof = derivePlanProof(equation, { nowDayKey: nowKey, timeZone });
   cycle.goalPlan = {
     planProof,
     scheduleBlocks,
-    generatedAtISO: state.appTime?.nowISO || new Date().toISOString()
+    generatedAtISO: state.appTime?.nowISO || new Date().toISOString(),
   };
   state.cyclesById[cycle.id] = cycle;
   if (planProof.status === 'SUBMITTED' && planProof.verdict !== 'INFEASIBLE') {
@@ -6378,7 +9405,7 @@ function compileGoalEquation(state, payload = {}) {
     const domainMap = {
       BODY: 'BODY',
       SKILL: 'FOCUS',
-      OUTPUT: 'CREATION'
+      OUTPUT: 'CREATION',
     };
     const domain = domainMap[equation.family] || 'FOCUS';
     scheduleBlocks.forEach((block) => {
@@ -6393,21 +9420,28 @@ function compileGoalEquation(state, payload = {}) {
         title: block.title,
         surface: 'today',
         timeZone,
-        lockedUntilDayKey: block.locked ? lockUntilDayKey : null
+        lockedUntilDayKey: block.locked ? lockUntilDayKey : null,
       });
     });
   }
 }
 
 function acceptSuggestedBlock(state, proposalId) {
-  if (!proposalId) return;
+  if (!proposalId) {
+    return;
+  }
   const suggestions = (state.proposedBlocks || []).map((entry) => ({ ...entry }));
   const target = suggestions.find((s) => s.id === proposalId);
   const existingCreate = (state.executionEvents || []).find(
-    (event) => event?.kind === 'create' && (event?.suggestionId === proposalId || event?.blockId === `blk-${proposalId}`)
+    (event) =>
+      event?.kind === 'create' && (event?.suggestionId === proposalId || event?.blockId === `blk-${proposalId}`)
   );
-  if (!target || target.status !== 'suggested') return;
-  if (existingCreate) return;
+  if (!target || target.status !== 'suggested') {
+    return;
+  }
+  if (existingCreate) {
+    return;
+  }
   const link = getSuggestionLink(state, state.activeCycleId, proposalId);
   const blockId = `blk-${proposalId}`;
   createBlock(state, {
@@ -6423,7 +9457,7 @@ function acceptSuggestedBlock(state, proposalId) {
     deliverableId: link?.deliverableId ?? target.deliverableId ?? null,
     criterionId: link?.criterionId ?? target.criterionId ?? null,
     status: 'planned',
-    surface: 'week'
+    surface: 'week',
   });
   const nowISO = new Date().toISOString();
   target.status = 'accepted';
@@ -6434,7 +9468,7 @@ function acceptSuggestedBlock(state, proposalId) {
     type: 'suggested_block_accepted',
     proposalId,
     goalId: target.goalId,
-    atISO: nowISO
+    atISO: nowISO,
   });
   state.planPreview = computePlanPreview({
     suggestedBlocks: suggestions,
@@ -6449,14 +9483,18 @@ function acceptSuggestedBlock(state, proposalId) {
 
 function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
   const parsed = Number.parseInt(daysPerWeek, 10);
-  if (!Number.isFinite(parsed) || parsed < 3 || parsed > 7) return;
+  if (!Number.isFinite(parsed) || parsed < 3 || parsed > 7) {
+    return;
+  }
   const plan = state.planDraft;
   const contract = state.goalExecutionContract;
-  if (!plan || !contract) return;
-  if (plan.status === 'calibrated' && plan.daysPerWeek === parsed) return;
-  const prevSuggestionIds = (state.proposedBlocks || [])
-    .filter((s) => s && s.status === 'suggested')
-    .map((s) => s.id);
+  if (!plan || !contract) {
+    return;
+  }
+  if (plan.status === 'calibrated' && plan.daysPerWeek === parsed) {
+    return;
+  }
+  const prevSuggestionIds = (state.proposedBlocks || []).filter((s) => s && s.status === 'suggested').map((s) => s.id);
 
   const blocksPerWeek = Math.max(6, Math.min(14, parsed * 2));
   const templates = plan.templates || [];
@@ -6473,7 +9511,7 @@ function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
   calibration.daysPerWeek = parsed;
   calibration.assumptions = [
     `Assuming ${parsed} days/week execution.`,
-    `Default capacity ${blocksPerWeek} blocks/week.`
+    `Default capacity ${blocksPerWeek} blocks/week.`,
   ];
   calibration.missingInfo = (calibration.missingInfo || []).filter((entry) => entry !== 'daysPerWeek');
   state.planCalibration = calibration;
@@ -6494,7 +9532,7 @@ function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
     goalText: contract.goalText,
     primaryDomain: plan.primaryDomain,
     reservedIds,
-    timeZone: state.appTime?.timeZone
+    timeZone: state.appTime?.timeZone,
   });
 
   if (!IS_PRODUCTION) {
@@ -6534,7 +9572,7 @@ function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
     reason: 'capacity_calibration',
     prevSuggestionIds,
     nextSuggestionIds: nextSuggested.map((s) => s.id),
-    atISO: nowISO
+    atISO: nowISO,
   });
 
   state.planPreview = computePlanPreview({
@@ -6552,19 +9590,29 @@ function applyCalibrationDays(state, daysPerWeek, uncertain = false) {
     type: 'calibration_days_per_week_set',
     daysPerWeek: parsed,
     dayKey: nowDayKey(state.appTime?.timeZone),
-    contractId: state.activeCycleId ? state.cyclesById?.[state.activeCycleId]?.goalGovernanceContract?.contractId : undefined,
+    contractId: state.activeCycleId
+      ? state.cyclesById?.[state.activeCycleId]?.goalGovernanceContract?.contractId
+      : undefined,
     planId: plan.id,
-    atISO: nowISO
+    atISO: nowISO,
   });
 }
 
 function rejectSuggestedBlock(state, proposalId, reason) {
-  if (!proposalId) return;
+  if (!proposalId) {
+    return;
+  }
   const suggestions = (state.proposedBlocks || []).map((entry) => ({ ...entry }));
   const target = suggestions.find((s) => s.id === proposalId);
-  if (!target) return;
-  if (target.status === 'rejected') return;
-  if (target.status !== 'suggested') return;
+  if (!target) {
+    return;
+  }
+  if (target.status === 'rejected') {
+    return;
+  }
+  if (target.status !== 'suggested') {
+    return;
+  }
   const nowISO = new Date().toISOString();
   target.status = 'rejected';
   target.rejectedReason = reason || 'declined';
@@ -6576,9 +9624,11 @@ function rejectSuggestedBlock(state, proposalId, reason) {
     goalId: target.goalId,
     reason: target.rejectedReason,
     dayKey: nowDayKey(),
-    contractId: state.activeCycleId ? state.cyclesById?.[state.activeCycleId]?.goalGovernanceContract?.contractId : undefined,
+    contractId: state.activeCycleId
+      ? state.cyclesById?.[state.activeCycleId]?.goalGovernanceContract?.contractId
+      : undefined,
     planId: state.planDraft?.id,
-    atISO: nowISO
+    atISO: nowISO,
   });
   state.planPreview = computePlanPreview({
     suggestedBlocks: suggestions,
@@ -6592,10 +9642,14 @@ function rejectSuggestedBlock(state, proposalId, reason) {
 }
 
 function ignoreSuggestedBlock(state, proposalId) {
-  if (!proposalId) return;
+  if (!proposalId) {
+    return;
+  }
   const suggestions = (state.proposedBlocks || []).map((entry) => ({ ...entry }));
   const target = suggestions.find((s) => s.id === proposalId);
-  if (!target || target.status !== 'suggested') return;
+  if (!target || target.status !== 'suggested') {
+    return;
+  }
   const nowISO = new Date().toISOString();
   target.status = 'ignored';
   target.ignoredAtISO = nowISO;
@@ -6605,7 +9659,7 @@ function ignoreSuggestedBlock(state, proposalId) {
     type: 'suggestion_ignored',
     suggestionId: proposalId,
     goalId: target.goalId,
-    atISO: nowISO
+    atISO: nowISO,
   });
   state.planPreview = computePlanPreview({
     suggestedBlocks: suggestions,
@@ -6619,10 +9673,14 @@ function ignoreSuggestedBlock(state, proposalId) {
 }
 
 function dismissSuggestedBlock(state, proposalId) {
-  if (!proposalId) return;
+  if (!proposalId) {
+    return;
+  }
   const suggestions = (state.proposedBlocks || []).map((entry) => ({ ...entry }));
   const target = suggestions.find((s) => s.id === proposalId);
-  if (!target || target.status !== 'suggested') return;
+  if (!target || target.status !== 'suggested') {
+    return;
+  }
   const nowISO = new Date().toISOString();
   target.status = 'dismissed';
   target.dismissedAtISO = nowISO;
@@ -6632,7 +9690,7 @@ function dismissSuggestedBlock(state, proposalId) {
     type: 'suggestion_dismissed',
     suggestionId: proposalId,
     goalId: target.goalId,
-    atISO: nowISO
+    atISO: nowISO,
   });
   state.planPreview = computePlanPreview({
     suggestedBlocks: suggestions,
@@ -6647,9 +9705,13 @@ function dismissSuggestedBlock(state, proposalId) {
 
 function createDeliverable(state, payload = {}) {
   const cycleId = payload.cycleId || state.activeCycleId;
-  if (!cycleId) return;
+  if (!cycleId) {
+    return;
+  }
   const workspace = touchDeliverableWorkspace(state, cycleId);
-  if (!workspace) return;
+  if (!workspace) {
+    return;
+  }
   const nowISO = state.appTime?.nowISO || new Date().toISOString();
   const domain = (payload.domain || 'CREATION').toString().toUpperCase();
   const deliverable = {
@@ -6662,7 +9724,7 @@ function createDeliverable(state, payload = {}) {
     dueDayKey: payload.dueDayKey || null,
     criteria: [],
     createdAtISO: nowISO,
-    updatedAtISO: nowISO
+    updatedAtISO: nowISO,
   };
   workspace.deliverables = [...(workspace.deliverables || []), deliverable];
   workspace.lastUpdatedAtISO = nowISO;
@@ -6673,9 +9735,13 @@ function createDeliverable(state, payload = {}) {
 function updateDeliverable(state, payload = {}) {
   const cycleId = payload.cycleId || state.activeCycleId;
   const deliverableId = payload.deliverableId;
-  if (!cycleId || !deliverableId) return;
+  if (!cycleId || !deliverableId) {
+    return;
+  }
   const workspace = touchDeliverableWorkspace(state, cycleId);
-  if (!workspace) return;
+  if (!workspace) {
+    return;
+  }
   const patch = payload.patch || {};
   const nowISO = state.appTime?.nowISO || new Date().toISOString();
   workspace.deliverables = (workspace.deliverables || []).map((d) =>
@@ -6683,10 +9749,9 @@ function updateDeliverable(state, payload = {}) {
       ? {
           ...d,
           ...patch,
-          requiredBlocks:
-            patch.requiredBlocks !== undefined ? Number(patch.requiredBlocks) || 0 : d.requiredBlocks,
+          requiredBlocks: patch.requiredBlocks !== undefined ? Number(patch.requiredBlocks) || 0 : d.requiredBlocks,
           domain: patch.domain ? patch.domain.toString().toUpperCase() : d.domain,
-          updatedAtISO: nowISO
+          updatedAtISO: nowISO,
         }
       : d
   );
@@ -6698,9 +9763,13 @@ function updateDeliverable(state, payload = {}) {
 function deleteDeliverable(state, payload = {}) {
   const cycleId = payload.cycleId || state.activeCycleId;
   const deliverableId = payload.deliverableId;
-  if (!cycleId || !deliverableId) return;
+  if (!cycleId || !deliverableId) {
+    return;
+  }
   const workspace = touchDeliverableWorkspace(state, cycleId);
-  if (!workspace) return;
+  if (!workspace) {
+    return;
+  }
   workspace.deliverables = (workspace.deliverables || []).filter((d) => d.id !== deliverableId);
   if (workspace.suggestionLinks) {
     Object.keys(workspace.suggestionLinks).forEach((key) => {
@@ -6717,20 +9786,26 @@ function createCriterion(state, payload = {}) {
   const cycleId = payload.cycleId || state.activeCycleId;
   const deliverableId = payload.deliverableId;
   const text = (payload.text || '').toString().trim();
-  if (!cycleId || !deliverableId || !text) return;
+  if (!cycleId || !deliverableId || !text) {
+    return;
+  }
   const workspace = touchDeliverableWorkspace(state, cycleId);
-  if (!workspace) return;
+  if (!workspace) {
+    return;
+  }
   const nowISO = state.appTime?.nowISO || new Date().toISOString();
   workspace.deliverables = (workspace.deliverables || []).map((d) => {
-    if (d.id !== deliverableId) return d;
+    if (d.id !== deliverableId) {
+      return d;
+    }
     const nextCriteria = [
       ...(d.criteria || []),
       {
         id: `crit-${deliverableId}-${(d.criteria || []).length + 1}`,
         deliverableId,
         text,
-        isDone: false
-      }
+        isDone: false,
+      },
     ];
     return { ...d, criteria: nextCriteria, updatedAtISO: nowISO };
   });
@@ -6743,21 +9818,29 @@ function toggleCriterionDone(state, payload = {}) {
   const cycleId = payload.cycleId || state.activeCycleId;
   const deliverableId = payload.deliverableId;
   const criterionId = payload.criterionId;
-  if (!cycleId || !deliverableId || !criterionId) return;
+  if (!cycleId || !deliverableId || !criterionId) {
+    return;
+  }
   const workspace = touchDeliverableWorkspace(state, cycleId);
-  if (!workspace) return;
+  if (!workspace) {
+    return;
+  }
   const nowISO = state.appTime?.nowISO || new Date().toISOString();
   const dayKey = state.appTime?.activeDayKey || nowDayKey();
   workspace.deliverables = (workspace.deliverables || []).map((d) => {
-    if (d.id !== deliverableId) return d;
+    if (d.id !== deliverableId) {
+      return d;
+    }
     const nextCriteria = (d.criteria || []).map((c) => {
-      if (c.id !== criterionId) return c;
+      if (c.id !== criterionId) {
+        return c;
+      }
       const isDone = Boolean(payload.isDone);
       return {
         ...c,
         isDone,
         doneAtISO: isDone ? nowISO : null,
-        doneAtDayKey: isDone ? dayKey : null
+        doneAtDayKey: isDone ? dayKey : null,
       };
     });
     return { ...d, criteria: nextCriteria, updatedAtISO: nowISO };
@@ -6771,12 +9854,18 @@ function deleteCriterion(state, payload = {}) {
   const cycleId = payload.cycleId || state.activeCycleId;
   const deliverableId = payload.deliverableId;
   const criterionId = payload.criterionId;
-  if (!cycleId || !deliverableId || !criterionId) return;
+  if (!cycleId || !deliverableId || !criterionId) {
+    return;
+  }
   const workspace = touchDeliverableWorkspace(state, cycleId);
-  if (!workspace) return;
+  if (!workspace) {
+    return;
+  }
   const nowISO = state.appTime?.nowISO || new Date().toISOString();
   workspace.deliverables = (workspace.deliverables || []).map((d) => {
-    if (d.id !== deliverableId) return d;
+    if (d.id !== deliverableId) {
+      return d;
+    }
     return { ...d, criteria: (d.criteria || []).filter((c) => c.id !== criterionId), updatedAtISO: nowISO };
   });
   workspace.lastUpdatedAtISO = nowISO;
@@ -6786,34 +9875,42 @@ function deleteCriterion(state, payload = {}) {
 
 function linkBlockToDeliverable(state, payload = {}) {
   const id = payload.blockId || payload.id;
-  if (!id) return;
+  if (!id) {
+    return;
+  }
   updateBlock(state, {
     id,
     deliverableId: payload.deliverableId ?? null,
-    criterionId: payload.criterionId ?? null
+    criterionId: payload.criterionId ?? null,
   });
 }
 
 function assignSuggestionLink(state, payload = {}) {
   const cycleId = payload.cycleId || state.activeCycleId;
   const suggestionId = payload.suggestionId;
-  if (!cycleId || !suggestionId) return;
+  if (!cycleId || !suggestionId) {
+    return;
+  }
   const workspace = touchDeliverableWorkspace(state, cycleId);
-  if (!workspace) return;
+  if (!workspace) {
+    return;
+  }
   workspace.suggestionLinks = workspace.suggestionLinks || {};
   if (!payload.deliverableId && !payload.criterionId) {
     delete workspace.suggestionLinks[suggestionId];
   } else {
     workspace.suggestionLinks[suggestionId] = {
       deliverableId: payload.deliverableId ?? null,
-      criterionId: payload.criterionId ?? null
+      criterionId: payload.criterionId ?? null,
     };
   }
   state.deliverablesByCycleId[cycleId] = workspace;
 }
 
 function daysBetween(start, end) {
-  if (!start || !end) return 0;
+  if (!start || !end) {
+    return 0;
+  }
   const s = new Date(start);
   const e = new Date(end);
   const diff = e.getTime() - s.getTime();
@@ -6829,12 +9926,14 @@ function normalizeStatus(rawStatus, surface = 'today') {
     rawStatus === 'completed'
       ? 'completed'
       : rawStatus === 'in_progress'
-      ? 'in_progress'
-      : rawStatus === 'pending' || rawStatus === 'planned'
-      ? 'planned'
-      : 'planned';
+        ? 'in_progress'
+        : rawStatus === 'pending' || rawStatus === 'planned'
+          ? 'planned'
+          : 'planned';
   // Only Today may transition to in_progress/completed; planning surfaces remain planned.
-  if (surface !== 'today' && normalized !== 'planned') return 'planned';
+  if (surface !== 'today' && normalized !== 'planned') {
+    return 'planned';
+  }
   return normalized;
 }
 
@@ -6847,12 +9946,16 @@ function normalizeDomainValue(rawDomain) {
 }
 
 function ensureDraftEvents(state) {
-  if (!state.draftEvents) state.draftEvents = [];
+  if (!state.draftEvents) {
+    state.draftEvents = [];
+  }
   return state.draftEvents;
 }
 
 function recordDraftEvent(state, event) {
-  if (!event) return;
+  if (!event) {
+    return;
+  }
   ensureDraftEvents(state).push(event);
 }
 
@@ -6874,7 +9977,7 @@ function handleDraftScheduleClear(state, action = {}) {
       cycleId,
       completed: false,
       origin: 'draft',
-      status: block?.status || 'in_progress'
+      status: block?.status || 'in_progress',
     });
     if (canEmitExecutionEvent(state.executionEvents || [], event)) {
       appendExecutionEvent(state, event);
@@ -6884,7 +9987,7 @@ function handleDraftScheduleClear(state, action = {}) {
     id: `draft-schedule-clear:${cycleId}:${nowISO}`,
     type: 'DRAFT_SCHEDULE_CLEAR',
     cycleId,
-    atISO: nowISO
+    atISO: nowISO,
   });
   state._draftIdSequence = state._draftIdSequence || {};
   state._draftIdSequence[cycleId] = 0;
@@ -6893,10 +9996,14 @@ function handleDraftScheduleClear(state, action = {}) {
 function handleDraftBlockCreate(state, action = {}) {
   const startISO = action.startISO || action.start;
   const endISO = action.endISO || action.end;
-  if (!startISO || !endISO || !isValidISO(startISO) || !isValidISO(endISO)) return;
+  if (!startISO || !endISO || !isValidISO(startISO) || !isValidISO(endISO)) {
+    return;
+  }
   const startDate = new Date(startISO);
   const endDate = new Date(endISO);
-  if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime())) return;
+  if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime())) {
+    return;
+  }
   const minutes = clampDurationMinutes((endDate.getTime() - startDate.getTime()) / 60000);
   const cycleId = action.cycleId || state.activeCycleId || null;
   const blockId = generateDraftBlockId(state, { ...action, cycleId });
@@ -6910,6 +10017,7 @@ function handleDraftBlockCreate(state, action = {}) {
     dateISO,
     minutes,
     rawLabel,
+    canonicalTitle: action.title || action.label || null,
     domain,
     cycleId,
     goalId: action.goalId || null,
@@ -6921,7 +10029,7 @@ function handleDraftBlockCreate(state, action = {}) {
     kind: 'create',
     startISO,
     endISO,
-    status
+    status,
   };
   if (canEmitExecutionEvent(state.executionEvents || [], event)) {
     appendExecutionEvent(state, event);
@@ -6934,7 +10042,7 @@ function handleDraftBlockCreate(state, action = {}) {
     startISO,
     endISO,
     status,
-    createdAtISO: state.appTime?.nowISO || new Date().toISOString()
+    createdAtISO: state.appTime?.nowISO || new Date().toISOString(),
   });
 }
 
@@ -6949,7 +10057,9 @@ function deriveDateFromStart(startDate) {
 }
 
 function findBlockById(state, id) {
-  if (!id) return null;
+  if (!id) {
+    return null;
+  }
   const blocks = getAllBlocks(state);
   return blocks.find((b) => b.id === id) || null;
 }
@@ -6964,13 +10074,17 @@ function ensureBlockStore(state) {
 }
 
 function upsertCanonicalBlock(state, block) {
-  if (!block || !block.id) return;
+  if (!block || !block.id) {
+    return;
+  }
   ensureBlockStore(state);
   state.blockStore.blocks[block.id] = block;
 }
 
 export function getCanonicalBlocks(state) {
-  if (!state.blockStore?.blocks) return [];
+  if (!state.blockStore?.blocks) {
+    return [];
+  }
   return Object.values(state.blockStore.blocks);
 }
 
@@ -7021,7 +10135,7 @@ function createBlock(state, payload = {}) {
     end: endDate.toISOString(),
     status,
     optional: payload.optional || false,
-    objectiveId: payload.objectiveId || state.today?.primaryObjectiveId || null
+    objectiveId: payload.objectiveId || state.today?.primaryObjectiveId || null,
   };
 
   const event = buildExecutionEventFromBlock(newBlock, {
@@ -7034,9 +10148,11 @@ function createBlock(state, payload = {}) {
     suggestionId: payload.suggestionId || null,
     deliverableId,
     criterionId,
-    lockedUntilDayKey
+    lockedUntilDayKey,
   });
-  if (!canEmitExecutionEvent(state.executionEvents || [], event)) return;
+  if (!canEmitExecutionEvent(state.executionEvents || [], event)) {
+    return;
+  }
   appendExecutionEvent(state, event);
   const skipProjectionWrites = payload.skipProjectionWrites === true;
   if (skipProjectionWrites) {
@@ -7045,8 +10161,13 @@ function createBlock(state, payload = {}) {
   }
   const ensureDay = (arr = []) => {
     const existing = arr.find((d) => d.date === date);
-    if (existing) return arr.map((d) => (d.date === date ? { ...d, blocks: [...(d.blocks || []), newBlock] } : d));
-    return [...arr, { date, blocks: [newBlock], completionRate: 0, driftSignal: 'forming', loadByPractice: {}, practices: [] }];
+    if (existing) {
+      return arr.map((d) => (d.date === date ? { ...d, blocks: [...(d.blocks || []), newBlock] } : d));
+    }
+    return [
+      ...arr,
+      { date, blocks: [newBlock], completionRate: 0, driftSignal: 'forming', loadByPractice: {}, practices: [] },
+    ];
   };
 
   state.today.blocks = [...(state.today.blocks || []), newBlock];
@@ -7056,27 +10177,41 @@ function createBlock(state, payload = {}) {
     type: 'CREATE_BLOCK',
     timestamp: new Date().toISOString(),
     beforeSummary: '',
-    afterSummary: state.today?.summaryLine || ''
+    afterSummary: state.today?.summaryLine || '',
   };
   upsertCanonicalBlock(state, newBlock);
   return newBlock;
 }
 
-function appendSuggestedApplyBlocks(state, items = [], { cycleId = null, goalId = null, timeZone = 'UTC', defaultDomain = 'FOCUS' } = {}) {
-  if (!items.length) return 0;
+function appendSuggestedApplyBlocks(
+  state,
+  items = [],
+  { cycleId = null, goalId = null, timeZone = 'UTC', defaultDomain = 'FOCUS' } = {}
+) {
+  if (!items.length) {
+    return 0;
+  }
   const existingBlockIds = new Set((state.executionEvents || []).map((event) => event?.blockId).filter(Boolean));
   let created = 0;
   items.forEach((item) => {
-    if (!item?.startISO) return;
+    if (!item?.startISO) {
+      return;
+    }
     const startDate = new Date(item.startISO);
-    if (!Number.isFinite(startDate.getTime())) return;
+    if (!Number.isFinite(startDate.getTime())) {
+      return;
+    }
     const duration = Number.isFinite(item.durationMinutes) ? Number(item.durationMinutes) : 30;
     const minutes = clampDurationMinutes(duration);
     const endDate = item.endISO ? new Date(item.endISO) : new Date(startDate.getTime() + minutes * 60000);
-    if (!Number.isFinite(endDate.getTime())) return;
+    if (!Number.isFinite(endDate.getTime())) {
+      return;
+    }
     const { domain, practice } = normalizeDomainValue(item.domain || item.domainKey || defaultDomain || 'FOCUS');
     const blockId = nextDeterministicId(state, 'blk');
-    if (existingBlockIds.has(blockId)) return;
+    if (existingBlockIds.has(blockId)) {
+      return;
+    }
     existingBlockIds.add(blockId);
     const newBlock = {
       id: blockId,
@@ -7084,7 +10219,10 @@ function appendSuggestedApplyBlocks(state, items = [], { cycleId = null, goalId 
       goalId,
       origin: 'suggested_apply',
       suggestionId: item.id || null,
+      identityKey: item.identityKey || null,
       deliverableId: item.payload?.deliverableId ?? null,
+      actionId: item.actionId ?? null,
+      sessionIndex: Number.isFinite(item.sessionIndex) ? Number(item.sessionIndex) : null,
       criterionId: item.payload?.criterionId ?? null,
       lockedUntilDayKey: item.payload?.lockedUntilDayKey ?? null,
       practice,
@@ -7109,6 +10247,9 @@ function appendSuggestedApplyBlocks(state, items = [], { cycleId = null, goalId 
         origin: 'suggested_apply',
         suggestionId: item.id || null,
         deliverableId: item.payload?.deliverableId ?? null,
+        actionId: item.actionId ?? null,
+        sessionIndex: Number.isFinite(item.sessionIndex) ? Number(item.sessionIndex) : null,
+        identityKey: item.identityKey || null,
         criterionId: item.payload?.criterionId ?? null,
         lockedUntilDayKey: item.payload?.lockedUntilDayKey ?? null,
       })
@@ -7121,34 +10262,49 @@ function appendSuggestedApplyBlocks(state, items = [], { cycleId = null, goalId 
 
 function updateBlock(state, payload = {}) {
   const surface = (payload.surface || '').toString().toLowerCase() || 'today';
-  if (!payload.id) return;
-  if (surface === 'year') return; // Year is add/delete only per contract.
+  if (!payload.id) {
+    return;
+  }
+  if (surface === 'year') {
+    return;
+  } // Year is add/delete only per contract.
 
   const targetId = payload.id;
   const existing = findBlockById(state, targetId);
-  if (!existing) return;
+  if (!existing) {
+    return;
+  }
   const applyUpdate = (block) => {
-    if (block.id !== targetId) return block;
+    if (block.id !== targetId) {
+      return block;
+    }
     const startDate = payload.start ? new Date(payload.start) : new Date(block.start);
     const durationMinutes =
       payload.durationMinutes ||
       (payload.durationMs ? payload.durationMs / 60000 : null) ||
       (payload.duration ? payload.duration / 60000 : null) ||
-      ((new Date(block.end).getTime() - new Date(block.start).getTime()) / 60000);
+      (new Date(block.end).getTime() - new Date(block.start).getTime()) / 60000;
     const minutes = clampDurationMinutes(durationMinutes);
     const endDate = new Date(startDate.getTime() + minutes * 60 * 1000);
-    const { domain, practice } = normalizeDomainValue(payload.domain || payload.practice || block.domain || block.practice);
+    const { domain, practice } = normalizeDomainValue(
+      payload.domain || payload.practice || block.domain || block.practice
+    );
     const status = normalizeStatus(payload.status || block.status, surface);
     return {
       ...block,
       practice,
       domain,
+      title: payload.title || payload.label || block.title || block.label,
       label: payload.label || payload.title || block.label,
       start: startDate.toISOString(),
       end: endDate.toISOString(),
       status,
-      deliverableId: Object.prototype.hasOwnProperty.call(payload, 'deliverableId') ? payload.deliverableId : block.deliverableId,
-      criterionId: Object.prototype.hasOwnProperty.call(payload, 'criterionId') ? payload.criterionId : block.criterionId
+      deliverableId: Object.prototype.hasOwnProperty.call(payload, 'deliverableId')
+        ? payload.deliverableId
+        : block.deliverableId,
+      criterionId: Object.prototype.hasOwnProperty.call(payload, 'criterionId')
+        ? payload.criterionId
+        : block.criterionId,
     };
   };
 
@@ -7156,40 +10312,106 @@ function updateBlock(state, payload = {}) {
   state.today.blocks = updateBlocks(state.today.blocks);
   state.currentWeek.days = (state.currentWeek?.days || []).map((d) => ({
     ...d,
-    blocks: updateBlocks(d.blocks)
+    blocks: updateBlocks(d.blocks),
   }));
   state.cycle = (state.cycle || []).map((d) => ({
     ...d,
-    blocks: updateBlocks(d.blocks)
+    blocks: updateBlocks(d.blocks),
   }));
 
   const updated = applyUpdate(existing);
+  if (state.blockStore?.blocks && Object.prototype.hasOwnProperty.call(state.blockStore.blocks, targetId)) {
+    state.blockStore.blocks[targetId] = updated;
+  }
   const event = buildExecutionEventFromBlock(updated, {
     kind: 'update',
     completed: false,
     dateISO: null,
     startISO: null,
-    endISO: null
+    endISO: null,
   });
-  if (!canEmitExecutionEvent(state.executionEvents || [], event)) return;
+  delete event.dateISO;
+  delete event.startISO;
+  delete event.endISO;
+  if (!canEmitExecutionEvent(state.executionEvents || [], event)) {
+    return;
+  }
   appendExecutionEvent(state, event);
 }
 
-function deleteBlock(state, id) {
-  if (!id) return;
+function deleteBlock(state, id, meta = {}) {
+  if (!id) {
+    return;
+  }
   const existing = findBlockById(state, id);
-  if (!existing) return;
+  if (!existing) {
+    return;
+  }
+  const targetCycle = existing.cycleId ? getTargetCycle(state, existing.cycleId) : getActiveCycle(state);
+  const targetLifecycle = getCycleScheduleLifecycle(targetCycle, state);
+  const isActiveSystemBlock =
+    targetLifecycle === 'active_schedule' &&
+    Boolean(existing.requiredSystemBlock || String(existing.origin || '').trim() === 'schedule_active');
+  if (isActiveSystemBlock) {
+    state.lastPlanError = {
+      code: 'REQUIRED_BLOCK_DELETE_DISALLOWED',
+      reason: 'Required active schedule blocks must be rescheduled, not deleted.',
+      cycleId: targetCycle?.id || existing.cycleId || null,
+      goalId: existing.goalId || targetCycle?.goalContract?.goalId || null,
+      reasonCodes: ['REQUIRED_BLOCK_DELETE_DISALLOWED', 'RESCHEDULE_REQUIRED_FOR_ACTIVE_BLOCK'],
+    };
+    return;
+  }
   const event = buildExecutionEventFromBlock(existing, {
     kind: 'delete',
     completed: false,
-    minutes: 0
+    minutes: 0,
   });
-  if (!canEmitExecutionEvent(state.executionEvents || [], event)) return;
+  if (!canEmitExecutionEvent(state.executionEvents || [], event)) {
+    return;
+  }
   const remove = (blocks = []) => blocks.filter((b) => b.id !== id);
   state.today.blocks = remove(state.today.blocks);
   state.currentWeek.days = (state.currentWeek?.days || []).map((d) => ({ ...d, blocks: remove(d.blocks) }));
   state.cycle = (state.cycle || []).map((d) => ({ ...d, blocks: remove(d.blocks) }));
+  if (targetCycle) {
+    if (Array.isArray(targetCycle.scheduleReviewBlocks)) {
+      targetCycle.scheduleReviewBlocks = remove(targetCycle.scheduleReviewBlocks);
+    }
+    if (Array.isArray(targetCycle.proposedBlocks)) {
+      targetCycle.proposedBlocks = remove(targetCycle.proposedBlocks);
+    }
+    if (Array.isArray(targetCycle.suggestedBlocks)) {
+      targetCycle.suggestedBlocks = remove(targetCycle.suggestedBlocks);
+    }
+    if (Array.isArray(targetCycle.blocks)) {
+      targetCycle.blocks = remove(targetCycle.blocks);
+    }
+  }
+  if (Array.isArray(state.scheduleReviewBlocks)) {
+    state.scheduleReviewBlocks = remove(state.scheduleReviewBlocks);
+  }
+  if (Array.isArray(state.proposedBlocks)) {
+    state.proposedBlocks = remove(state.proposedBlocks);
+  }
+  if (Array.isArray(state.suggestedBlocks)) {
+    state.suggestedBlocks = remove(state.suggestedBlocks);
+  }
+  if (state.blockStore?.blocks && Object.prototype.hasOwnProperty.call(state.blockStore.blocks, id)) {
+    delete state.blockStore.blocks[id];
+  }
   appendExecutionEvent(state, event);
+  const removedAtISO = state.appTime?.nowISO || new Date().toISOString();
+  appendPlanMutationEvent(
+    state,
+    buildPlanMutationEventFromBlock(existing, {
+      blockId: id,
+      removedAtISO,
+      source: meta.source || 'user_action',
+      reasonCode: meta.reasonCode || 'user_removed',
+      note: meta.note || null,
+    })
+  );
 }
 
 function addRecurringPattern(state, pattern) {
@@ -7198,17 +10420,25 @@ function addRecurringPattern(state, pattern) {
 
 function applyRecurringPatterns(state) {
   const patterns = state.recurringPatterns || [];
-  if (!patterns.length || !state.today?.date) return;
+  if (!patterns.length || !state.today?.date) {
+    return;
+  }
   const date = new Date(state.today.date);
   const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
   patterns.forEach((p) => {
-    if (!p.weekdays || !p.weekdays.includes(weekday)) return;
+    if (!p.weekdays || !p.weekdays.includes(weekday)) {
+      return;
+    }
     const startDate = new Date(date.getTime());
     startDate.setUTCHours(0, 0, 0, 0);
     const startMs = startDate.getTime() + (p.startMs || 0);
     const endMs = startMs + (p.durationMs || 30 * 60 * 1000);
-    const exists = (state.today.blocks || []).some((b) => b.practice === p.practice && b.start === new Date(startMs).toISOString());
-    if (exists) return;
+    const exists = (state.today.blocks || []).some(
+      (b) => b.practice === p.practice && b.start === new Date(startMs).toISOString()
+    );
+    if (exists) {
+      return;
+    }
     state.today.blocks = [
       ...(state.today.blocks || []),
       {
@@ -7218,15 +10448,17 @@ function applyRecurringPatterns(state) {
         start: new Date(startMs).toISOString(),
         end: new Date(endMs).toISOString(),
         status: 'planned',
-        objectiveId: state.today.primaryObjectiveId || null
-      }
+        objectiveId: state.today.primaryObjectiveId || null,
+      },
     ];
   });
 }
 
 function applyNextSuggestion(state) {
   const suggestion = state.nextSuggestion;
-  if (!suggestion) return;
+  if (!suggestion) {
+    return;
+  }
   if (suggestion.type === 'resume' || suggestion.type === 'start_planned') {
     if (suggestion.blockId) {
       updateBlockStatus(state, suggestion.blockId, 'in_progress');
@@ -7234,14 +10466,13 @@ function applyNextSuggestion(state) {
     return;
   }
   if (suggestion.type === 'repair') {
-    const duration =
-      new Date(suggestion.endISO).getTime() - new Date(suggestion.startISO).getTime();
+    const duration = new Date(suggestion.endISO).getTime() - new Date(suggestion.startISO).getTime();
     const payload = {
       date: suggestion.startISO.slice(0, 10),
       practice: suggestion.practice,
       start: suggestion.startISO,
       duration,
-      status: 'in_progress'
+      status: 'in_progress',
     };
     createBlock(state, payload);
   }

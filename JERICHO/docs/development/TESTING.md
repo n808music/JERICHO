@@ -1,13 +1,15 @@
 # Testing Guide
 
-This guide covers testing practices, patterns, and requirements for JERICHO development.
+This guide covers testing practices, patterns, and requirements for JERICHO
+development.
 
 ## Testing Philosophy
 
 JERICHO follows a comprehensive testing approach with three core principles:
 
 1. **Determinism Validation**: Same input must produce identical output
-2. **Performance Assurance**: Time-critical operations must meet speed requirements
+2. **Performance Assurance**: Time-critical operations must meet speed
+   requirements
 3. **Complete Coverage**: Every code path must be tested
 
 ## Test Structure
@@ -136,7 +138,7 @@ describe('Integration Tests', () => {
     const goal = {
       goalId: 'test-goal-123',
       terminalOutcome: { text: 'Publish my music to Spotify' },
-      deadlineISO: '2025-03-31T23:59:59Z'
+      deadlineISO: '2025-03-31T23:59:59Z',
     };
 
     // 1. Derive mechanism class
@@ -294,7 +296,7 @@ const TEST_GOALS = {
   MARKET: { goalText: 'Grow user base by 20%' },
   LEARN: { goalText: 'Learn TypeScript fundamentals' },
   OPS: { goalText: 'Setup CI/CD pipeline' },
-  REVIEW: { goalText: 'Review and optimize codebase' }
+  REVIEW: { goalText: 'Review and optimize codebase' },
 };
 
 // Helper functions
@@ -303,7 +305,7 @@ function createTestGoal(overrides = {}) {
     goalId: 'test-goal-123',
     goalText: 'Test goal',
     deadlineISO: '2025-12-31T23:59:59Z',
-    ...overrides
+    ...overrides,
   };
 }
 ```
@@ -312,7 +314,8 @@ function createTestGoal(overrides = {}) {
 
 ### Common Issues
 
-1. **Non-deterministic behavior**: Check for random numbers, dates, or external calls
+1. **Non-deterministic behavior**: Check for random numbers, dates, or external
+   calls
 2. **Performance failures**: Profile with `console.time()` or browser dev tools
 3. **Async issues**: Ensure proper await/async usage
 
@@ -397,4 +400,5 @@ jobs:
 - Ignore performance requirements
 - Write tests that are too broad or unclear
 
-Remember: Tests are not just about catching bugs - they're about ensuring deterministic, performant, and reliable behavior across all scenarios.
+Remember: Tests are not just about catching bugs - they're about ensuring
+deterministic, performant, and reliable behavior across all scenarios.

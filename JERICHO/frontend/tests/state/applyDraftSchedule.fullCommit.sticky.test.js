@@ -13,7 +13,7 @@ function buildState() {
     status: 'todo',
     topoIndex: i,
     priority: i + 1,
-    estimateMin: 30
+    estimateMin: 30,
   }));
 
   return {
@@ -51,12 +51,12 @@ function buildState() {
           temporalBinding: {
             daysPerWeek: 7,
             specificDays: 'mon,tue,wed,thu,fri,sat,sun',
-            sessionDurationMinutes: 30
-          }
+            sessionDurationMinutes: 30,
+          },
         },
-        coldPlan: { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } }
-      }
-    }
+        coldPlan: { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } },
+      },
+    },
   };
 }
 
@@ -70,14 +70,18 @@ describe('apply draft schedule full commit sticky', () => {
     const firstDiagnostics = rebuilt.draftScheduleDiagnosticsByCycleId?.[cycleId] || {};
 
     const applied = computeDerivedState(rebuilt, { type: 'APPLY_DRAFT_SCHEDULE_FULL', payload: { cycleId } });
-    const firstCreates = (applied.executionEvents || []).filter((event) => event?.kind === 'create' && event?.cycleId === cycleId);
+    const firstCreates = (applied.executionEvents || []).filter(
+      (event) => event?.kind === 'create' && event?.cycleId === cycleId
+    );
 
     const rebuiltAgain = computeDerivedState(applied, { type: 'REBUILD_SCHEDULE', payload: { cycleId } });
     const secondPreview = rebuiltAgain.draftScheduleItemsByCycleId?.[cycleId] || [];
     const secondDiagnostics = rebuiltAgain.draftScheduleDiagnosticsByCycleId?.[cycleId] || {};
 
     const appliedAgain = computeDerivedState(rebuiltAgain, { type: 'APPLY_DRAFT_SCHEDULE_FULL', payload: { cycleId } });
-    const secondCreates = (appliedAgain.executionEvents || []).filter((event) => event?.kind === 'create' && event?.cycleId === cycleId);
+    const secondCreates = (appliedAgain.executionEvents || []).filter(
+      (event) => event?.kind === 'create' && event?.cycleId === cycleId
+    );
 
     expect(secondPreview).toEqual(firstPreview);
     expect(secondCreates).toEqual(firstCreates);

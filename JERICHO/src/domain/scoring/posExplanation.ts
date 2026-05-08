@@ -1,6 +1,14 @@
 export const POS_REASON_CODES = [
   'POS_NO_PLAN',
+  'POS_THROUGHPUT_MODEL_MISSING',
+  'POS_FEASIBILITY_INPUT_MISSING',
   'POS_UNSCHEDULABLE',
+  'POS_TRAJECTORY_ON_TRACK',
+  'POS_TRAJECTORY_RECOVERABLE_DRIFT',
+  'POS_TRAJECTORY_AT_RISK',
+  'POS_TRAJECTORY_INFEASIBLE',
+  'POS_REQUIRED_WEEKLY_THROUGHPUT_UP',
+  'POS_TERMINAL_DRIFT_EXPIRED',
   'POS_DOWN_MISSED_WORK',
   'POS_DOWN_LATE_COMPLETION',
   'POS_UP_ON_TIME_COMPLETION',
@@ -24,6 +32,8 @@ export type PosReason = {
 export type OutcomeAggregate = {
   missedMinutes: number;
   missedBlocks: number;
+  expiredMinutes: number;
+  expiredBlocks: number;
   lateMinutes: number;
   lateBlocks: number;
   onTimeMinutes: number;
@@ -71,7 +81,11 @@ function normalizeConflicts(conflicts: string[] = []): string[] {
   return Array.from(
     new Set(
       (conflicts || [])
-        .map((entry) => String(entry || '').trim().toUpperCase())
+        .map((entry) =>
+          String(entry || '')
+            .trim()
+            .toUpperCase()
+        )
         .filter((entry) => entry.length > 0)
     )
   ).sort((a, b) => a.localeCompare(b));
@@ -81,6 +95,8 @@ function zeroOutcomeAggregate(): OutcomeAggregate {
   return {
     missedMinutes: 0,
     missedBlocks: 0,
+    expiredMinutes: 0,
+    expiredBlocks: 0,
     lateMinutes: 0,
     lateBlocks: 0,
     onTimeMinutes: 0,
@@ -95,6 +111,20 @@ function zeroOutcomeAggregate(): OutcomeAggregate {
     canceledWeakBlocks: 0,
     totalMinutesCounted: 0,
   };
+}
+
+function inferOutcomeFromStatus(block: any): string {
+  const explicit = String(block?.outcome || '')
+    .trim()
+    .toUpperCase();
+  if (explicit) return explicit;
+  const status = String(block?.status || '')
+    .trim()
+    .toLowerCase();
+  if (status === 'completed' || status === 'complete') return 'COMPLETED_ON_TIME';
+  if (status === 'missed') return 'MISSED';
+  if (status === 'expired') return 'EXPIRED';
+  return '';
 }
 
 export function aggregateCycleOutcomes(args: {
@@ -115,11 +145,15 @@ export function aggregateCycleOutcomes(args: {
     if (!(minutes > 0)) return;
     agg.totalMinutesCounted += minutes;
 
-    const outcome = String(block?.outcome || '').toUpperCase();
+    const outcome = inferOutcomeFromStatus(block);
     switch (outcome) {
       case 'MISSED':
         agg.missedBlocks += 1;
         agg.missedMinutes += minutes;
+        break;
+      case 'EXPIRED':
+        agg.expiredBlocks += 1;
+        agg.expiredMinutes += minutes;
         break;
       case 'COMPLETED_LATE':
         agg.lateBlocks += 1;
@@ -210,15 +244,28 @@ export function buildPosExplanation(input: {
   const delta = posNow !== null && posPrev !== null ? posNow - posPrev : null;
 
   if (feasibilityNow === null) {
+    const hasThroughputModelMissing = conflicts.includes('POS_THROUGHPUT_MODEL_MISSING');
+    const hasFeasibilityInputMissing = conflicts.includes('POS_FEASIBILITY_INPUT_MISSING');
+    const reasonCode = hasThroughputModelMissing
+      ? 'POS_THROUGHPUT_MODEL_MISSING'
+      : hasFeasibilityInputMissing
+        ? 'POS_FEASIBILITY_INPUT_MISSING'
+        : 'POS_NO_PLAN';
+    const evidence = hasThroughputModelMissing
+      ? 'throughput model missing'
+      : hasFeasibilityInputMissing
+        ? 'feasibility input missing'
+        : undefined;
     return {
       delta,
       conflicts,
       generatedAtISO: nowISO,
       reasons: [
         {
-          code: 'POS_NO_PLAN',
+          code: reasonCode,
           direction: 'NEUTRAL',
           magnitude: 1,
+          evidence,
         },
       ],
     };
@@ -264,6 +311,17 @@ export function buildPosExplanation(input: {
       direction: 'DOWN',
       magnitude: reasonMagnitudeFromMinutesDelta(integrityPrev, integrityNow, deltaMinutes, totalMinutesCountedNow),
       evidence: `missed ${deltaMinutes}m`,
+    });
+  }
+
+  const expiredBlockDelta = blocksDelta(outcomeAggNow.expiredBlocks, outcomeAggPrev.expiredBlocks);
+  if (expiredBlockDelta > 0) {
+    const deltaMinutes = minutesDelta(outcomeAggNow.expiredMinutes, outcomeAggPrev.expiredMinutes);
+    reasons.push({
+      code: 'POS_TERMINAL_DRIFT_EXPIRED',
+      direction: 'DOWN',
+      magnitude: reasonMagnitudeFromMinutesDelta(integrityPrev, integrityNow, deltaMinutes, totalMinutesCountedNow),
+      evidence: `expired +${expiredBlockDelta} (${deltaMinutes}m)`,
     });
   }
 

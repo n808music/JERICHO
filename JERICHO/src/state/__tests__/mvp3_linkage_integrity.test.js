@@ -11,9 +11,16 @@ function buildBaseState() {
     lenses: {
       aim: { description: '', horizon: '90d', narrative: '' },
       pattern: { routines: { Body: [], Resources: [], Creation: [], Focus: [] }, dailyTargets: [], defaultMinutes: 30 },
-      flow: { streams: [] }
+      flow: { streams: [] },
     },
-    today: { date: FIXED_DAY, blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
+    today: {
+      date: FIXED_DAY,
+      blocks: [],
+      completionRate: 0,
+      driftSignal: 'contained',
+      loadByPractice: {},
+      practices: [],
+    },
     currentWeek: { weekStart: FIXED_DAY, days: [], metrics: {} },
     cycle: [],
     viewDate: FIXED_DAY,
@@ -26,7 +33,7 @@ function buildBaseState() {
       lastActiveDate: FIXED_DAY,
       scenarioLabel: '',
       demoScenarioEnabled: false,
-      showHints: false
+      showHints: false,
     },
     recurringPatterns: [],
     lastSessionChange: null,
@@ -37,8 +44,8 @@ function buildBaseState() {
       timeZone: 'UTC',
       nowISO: `${FIXED_DAY}T12:00:00.000Z`,
       activeDayKey: FIXED_DAY,
-      isFollowingNow: true
-    }
+      isFollowingNow: true,
+    },
   };
 }
 
@@ -73,8 +80,8 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
           domain: 'FOCUS',
           title: 'No Admission Block',
           timeZone: 'UTC',
-          linkToGoal: false
-        }
+          linkToGoal: false,
+        },
       });
 
       const block = withBlock.today.blocks[0];
@@ -84,7 +91,7 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
         completed: false,
         kind: 'create',
         dateISO: FIXED_DAY,
-        minutes: 30
+        minutes: 30,
       });
 
       expect(event.linkageStatus).toBe('UNLINKED_ACTIVITY');
@@ -103,8 +110,8 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
           narrative: '',
           focusAreas: ['Creation'],
           successDefinition: 'Ship X',
-          minimumDaysPerWeek: 4
-        }
+          minimumDaysPerWeek: 4,
+        },
       });
 
       const firstSuggestion = {
@@ -118,7 +125,7 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
         startISO: `${FIXED_DAY}T09:00:00.000Z`,
         endISO: `${FIXED_DAY}T10:00:00.000Z`,
         durationMinutes: 60,
-        domain: 'FOCUS'
+        domain: 'FOCUS',
       };
       const withSuggestions = {
         ...onboarded,
@@ -129,9 +136,9 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
           [onboarded.activeCycleId]: {
             ...onboarded.cyclesById[onboarded.activeCycleId],
             proposedBlocks: [firstSuggestion],
-            suggestedBlocks: [firstSuggestion]
-          }
-        }
+            suggestedBlocks: [firstSuggestion],
+          },
+        },
       };
 
       expect(firstSuggestion).toBeTruthy();
@@ -139,7 +146,7 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
       // Accept it (suggestions may have deliverable linkage or not)
       const accepted = computeDerivedState(withSuggestions, {
         type: 'ACCEPT_SUGGESTED_BLOCK',
-        proposalId: firstSuggestion.id
+        proposalId: firstSuggestion.id,
       });
 
       // Find the created event
@@ -167,8 +174,8 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
           narrative: '',
           focusAreas: ['Creation'],
           successDefinition: 'Ship Y',
-          minimumDaysPerWeek: 4
-        }
+          minimumDaysPerWeek: 4,
+        },
       });
 
       const cycleId = onboarded.activeCycleId;
@@ -179,8 +186,8 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
         payload: {
           cycleId,
           title: 'Y Deliverable',
-          requiredBlocks: 1
-        }
+          requiredBlocks: 1,
+        },
       });
 
       // Create and complete UNLINKED block
@@ -193,8 +200,8 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
           domain: 'FOCUS',
           title: 'Unlinked',
           timeZone: 'UTC',
-          linkToGoal: false
-        }
+          linkToGoal: false,
+        },
       });
 
       const block = withUnlinked.today.blocks[0];
@@ -202,7 +209,7 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
         completed: true,
         kind: 'complete',
         dateISO: FIXED_DAY,
-        minutes: 30
+        minutes: 30,
         // NO deliverableId or criterionId
       });
 
@@ -213,9 +220,9 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
           ...withUnlinked.cyclesById,
           [cycleId]: {
             ...withUnlinked.cyclesById[cycleId],
-            executionEvents: [...(withUnlinked.executionEvents || []), completeEvent]
-          }
-        }
+            executionEvents: [...(withUnlinked.executionEvents || []), completeEvent],
+          },
+        },
       };
 
       const ended = computeDerivedState(withComplete, { type: 'END_CYCLE', cycleId });
@@ -240,8 +247,8 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
           narrative: '',
           focusAreas: ['Creation'],
           successDefinition: 'Ship Z',
-          minimumDaysPerWeek: 4
-        }
+          minimumDaysPerWeek: 4,
+        },
       });
 
       const cycleId = onboarded.activeCycleId;
@@ -249,7 +256,7 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
       const normalized = seededId
         ? computeDerivedState(onboarded, {
             type: 'DELETE_DELIVERABLE',
-            payload: { cycleId, deliverableId: seededId }
+            payload: { cycleId, deliverableId: seededId },
           })
         : onboarded;
 
@@ -259,8 +266,8 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
         payload: {
           cycleId,
           title: 'Z Deliverable',
-          requiredBlocks: 1
-        }
+          requiredBlocks: 1,
+        },
       });
 
       // Create and complete LINKED block
@@ -273,8 +280,8 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
           domain: 'FOCUS',
           title: 'Linked',
           timeZone: 'UTC',
-          linkToGoal: true
-        }
+          linkToGoal: true,
+        },
       });
 
       const block = withLinked.today.blocks[0];
@@ -284,7 +291,7 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
         kind: 'complete',
         dateISO: FIXED_DAY,
         minutes: 30,
-        deliverableId: delivId
+        deliverableId: delivId,
       });
 
       const withComplete = {
@@ -294,9 +301,9 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
           ...withLinked.cyclesById,
           [cycleId]: {
             ...withLinked.cyclesById[cycleId],
-            executionEvents: [...(withLinked.executionEvents || []), completeEvent]
-          }
-        }
+            executionEvents: [...(withLinked.executionEvents || []), completeEvent],
+          },
+        },
       };
 
       const ended = computeDerivedState(withComplete, { type: 'END_CYCLE', cycleId });

@@ -14,7 +14,7 @@ function buildState() {
       status: 'todo',
       topoIndex: 0,
       priority: 1,
-      estimateMin: 30
+      estimateMin: 30,
     },
     {
       id: 'a-2',
@@ -26,8 +26,8 @@ function buildState() {
       status: 'todo',
       topoIndex: 1,
       priority: 2,
-      estimateMin: 30
-    }
+      estimateMin: 30,
+    },
   ];
 
   return {
@@ -65,12 +65,12 @@ function buildState() {
           temporalBinding: {
             daysPerWeek: 7,
             specificDays: 'mon,tue,wed,thu,fri,sat,sun',
-            sessionDurationMinutes: 30
-          }
+            sessionDurationMinutes: 30,
+          },
         },
-        coldPlan: { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } }
-      }
-    }
+        coldPlan: { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } },
+      },
+    },
   };
 }
 
@@ -81,12 +81,16 @@ describe('draftSchedule full plan scoring parity', () => {
 
     const rebuilt = computeDerivedState(seeded, { type: 'REBUILD_SCHEDULE', payload: { cycleId } });
     const previewDiagnostics = rebuilt.draftScheduleDiagnosticsByCycleId?.[cycleId] || {};
-    const previewTotal = Number(previewDiagnostics?.qualityScoreOptimized?.total || previewDiagnostics?.qualityScoreBaseline?.total || 0);
+    const previewTotal = Number(
+      previewDiagnostics?.qualityScoreOptimized?.total || previewDiagnostics?.qualityScoreBaseline?.total || 0
+    );
 
     const applied = computeDerivedState(rebuilt, { type: 'APPLY_DRAFT_SCHEDULE_FULL', payload: { cycleId } });
     const rebuiltAfterApply = computeDerivedState(applied, { type: 'REBUILD_SCHEDULE', payload: { cycleId } });
     const applyDiagnostics = rebuiltAfterApply.draftScheduleDiagnosticsByCycleId?.[cycleId] || {};
-    const appliedTotal = Number(applyDiagnostics?.qualityScoreOptimized?.total || applyDiagnostics?.qualityScoreBaseline?.total || 0);
+    const appliedTotal = Number(
+      applyDiagnostics?.qualityScoreOptimized?.total || applyDiagnostics?.qualityScoreBaseline?.total || 0
+    );
 
     expect(previewTotal).toBe(appliedTotal);
   });

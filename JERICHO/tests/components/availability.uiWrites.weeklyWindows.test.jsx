@@ -5,7 +5,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { StructurePageConsolidated } from '../../src/components/zion/StructurePageConsolidated.jsx';
 
-const setSchedulingConstraints = vi.fn();
+const updateWorkWindows = vi.fn();
 const noop = vi.fn();
 let mockStore = {};
 
@@ -32,6 +32,8 @@ function buildStore() {
     appTime: { activeDayKey: '2026-01-10', timeZone: 'UTC' },
     constraints: {},
     availabilityPolicy: {},
+    debug: { lastGenerateResult: { proposedBlocksCount: 0, lastPlanErrorCode: null } },
+    proposedBlocks: [],
     suggestedBlocks: [],
     lastPlanError: null,
     deliverablesByCycleId: {},
@@ -39,29 +41,35 @@ function buildStore() {
     generateColdPlan: noop,
     rebaseColdPlan: noop,
     applyPlan: noop,
-    setSchedulingConstraints,
+    updateWorkWindows,
     attemptGoalAdmission: noop,
     archiveAndCloneCycle: noop,
+    commitPreviewItems: noop,
+    startNewCycleWithDecision: noop,
+    deleteCycle: noop,
+    endCycle: noop,
   };
 }
 
 describe('availability work windows ui writes', () => {
   beforeEach(() => {
-    setSchedulingConstraints.mockClear();
+    updateWorkWindows.mockClear();
     mockStore = buildStore();
   });
 
-  it('writes weekly windows into availabilityPolicy + constraints when window is added', async () => {
+  it('dispatches work windows update when constraints are saved', async () => {
     render(<StructurePageConsolidated />);
 
     const user = userEvent.setup();
+    await user.click(screen.getByText(/advisory constraints/i));
     const addButtons = screen.getAllByRole('button', { name: /add window/i });
     await user.click(addButtons[0]);
+    await user.click(screen.getByRole('button', { name: /save constraints/i }));
 
-    expect(setSchedulingConstraints).toHaveBeenCalled();
-    const payload = setSchedulingConstraints.mock.calls.at(-1)?.[0];
-    expect(payload?.availabilityPolicy?.weeklyWindows?.MON?.length).toBe(1);
-    expect(payload?.availabilityPolicy?.weeklyWindows?.MON?.[0]).toEqual({ startHHMM: '09:00', endHHMM: '10:00' });
-    expect(payload?.constraints?.weeklyWindows?.MON?.length).toBe(1);
+    expect(updateWorkWindows).toHaveBeenCalled();
+    const payload = updateWorkWindows.mock.calls.at(-1)?.[0];
+    expect(payload?.cycleId).toBe('cycle-1');
+    expect(payload?.workWindows?.mon?.length).toBe(1);
+    expect(payload?.workWindows?.mon?.[0]).toEqual({ start: '09:00', end: '10:00' });
   });
 });

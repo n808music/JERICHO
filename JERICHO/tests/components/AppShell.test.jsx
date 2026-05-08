@@ -11,7 +11,7 @@ describe('AppShell', () => {
         <AppShell />
       </JerichoProvider>
     );
-    expect(html).toContain('Jericho System');
+    expect(html).toContain('Jericho // LIVE');
   });
 
   it('renders zion mode without crashing', () => {
@@ -20,6 +20,6 @@ describe('AppShell', () => {
         <AppShell />
       </JerichoProvider>
     );
-    expect(html).toContain('Jericho System');
+    expect(html).toContain('Jericho // LIVE');
   });
 });

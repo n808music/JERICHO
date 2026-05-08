@@ -17,6 +17,8 @@ export function dateKeyFromStart(start = '') {
 }
 
 export function minutesSinceMidnight(date) {
-  if (!date) return 0;
+  if (!date) {
+    return 0;
+  }
   return date.getHours() * 60 + date.getMinutes();
 }

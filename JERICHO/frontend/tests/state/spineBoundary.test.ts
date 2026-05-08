@@ -10,15 +10,15 @@ function buildState() {
       'cycle-1': {
         id: 'cycle-1',
         goalContract: { deadline: { dayKey: '2026-03-01' } },
-        actions: [{ id: 'a-1', status: 'todo' }]
-      }
+        actions: [{ id: 'a-1', status: 'todo' }],
+      },
     },
     actionsByCycleId: { 'cycle-1': { actions: [{ id: 'a-1', status: 'todo' }] } },
     deliverablesByCycleId: {
       'cycle-1': {
-        deliverables: [{ id: 'd-1', title: 'Milestone', dueDayKey: '2026-02-01', actionIds: ['a-1'] }]
-      }
-    }
+        deliverables: [{ id: 'd-1', title: 'Milestone', dueDayKey: '2026-02-01', actionIds: ['a-1'] }],
+      },
+    },
   };
 }
 

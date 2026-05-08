@@ -2,7 +2,7 @@ function makeStep(step, cause, effect, rule, scope) {
   return { step, cause, effect, rule, scope };
 }
 
-export function buildReasoningChain({ reasoning = {}, pipeline = {}, directives = {} }) {
+export function buildReasoningChain({ reasoning: _reasoning = {}, pipeline = {}, directives = {} }) {
   const chain = [];
   let step = 1;
 

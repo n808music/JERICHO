@@ -34,12 +34,7 @@ export default function ReinforcementDisclosure({
 
         <div className="rounded border border-amber-600/40 bg-amber-50 p-2">
           <label className="flex items-start gap-2">
-            <input
-              type="checkbox"
-              checked={current.dailyExposureEnabled}
-              disabled
-              className="mt-0.5"
-            />
+            <input type="checkbox" checked={current.dailyExposureEnabled} disabled className="mt-0.5" />
             <div>
               <p className="font-semibold text-amber-900">Daily visibility is required (cannot be disabled)</p>
               <p className="text-[11px] text-amber-800 mt-0.5">
@@ -50,7 +45,9 @@ export default function ReinforcementDisclosure({
         </div>
 
         <label className="block">
-          <span className="text-xs uppercase tracking-[0.12em] text-muted mb-1 block">How will you see this daily?</span>
+          <span className="text-xs uppercase tracking-[0.12em] text-muted mb-1 block">
+            How will you see this daily?
+          </span>
           <input
             type="text"
             value={current.dailyMechanism || ''}

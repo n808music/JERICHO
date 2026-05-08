@@ -2,7 +2,9 @@
 
 ## What Was Built
 
-A deterministic, keyword-based system to auto-generate deliverables and blocks when users click "Regenerate Route", eliminating the need for manual deliverable entry.
+A deterministic, keyword-based system to auto-generate deliverables and blocks
+when users click "Regenerate Route", eliminating the need for manual deliverable
+entry.
 
 ## Files Added
 
@@ -26,12 +28,14 @@ src/state/
 ## How It Works
 
 ### 1. User clicks "Regenerate Route" button
+
 ```
-StructurePageConsolidated.jsx → generateColdPlan() → 
+StructurePageConsolidated.jsx → generateColdPlan() →
 GENERATE_COLD_PLAN action → identityCompute.generateColdPlanForCycle()
 ```
 
 ### 2. Auto-seed logic triggers
+
 ```
 IF deliverables empty:
   PRIMARY:   Try generateAutoDeliverables() (mechanism-class)
@@ -40,36 +44,43 @@ IF deliverables empty:
 ```
 
 ### 3. Plan generation proceeds
+
 ```
-generateColdPlan() with auto-seeded deliverables → 
-proposedBlocks calculated → stored in state.suggestedBlocks → 
+generateColdPlan() with auto-seeded deliverables →
+proposedBlocks calculated → stored in state.suggestedBlocks →
 displayed in Today view
 ```
 
 ## Mechanism Classes & Templates
 
-| Mechanism | Deliverables | Total Blocks | Example Goals |
-|-----------|--------------|-------------|---------------|
-| **CREATE** | 3 | 22 | Build dashboard, Write code, Design system |
-| **PUBLISH** | 4 | 14 | Release album, Deploy app, Launch product |
-| **MARKET** | 4 | 22 | Grow acquisition, Promote brand, Campaign |
-| **LEARN** | 4 | 26 | Master TypeScript, Study AWS, Learn framework |
-| **OPS** | 4 | 17 | Set up CI/CD, Configure monitoring, Deploy infra |
-| **REVIEW** | 4 | 18 | Refactor code, Audit security, Improve tests |
+| Mechanism   | Deliverables | Total Blocks | Example Goals                                    |
+| ----------- | ------------ | ------------ | ------------------------------------------------ |
+| **CREATE**  | 3            | 22           | Build dashboard, Write code, Design system       |
+| **PUBLISH** | 4            | 14           | Release album, Deploy app, Launch product        |
+| **MARKET**  | 4            | 22           | Grow acquisition, Promote brand, Campaign        |
+| **LEARN**   | 4            | 26           | Master TypeScript, Study AWS, Learn framework    |
+| **OPS**     | 4            | 17           | Set up CI/CD, Configure monitoring, Deploy infra |
+| **REVIEW**  | 4            | 18           | Refactor code, Audit security, Improve tests     |
 
 ## Keyword Detection
 
 **Priority order** (more specific patterns checked first):
+
 1. **LEARN**: "learn", "study", "research", "course", "certification", "master"
-2. **MARKET**: "market", "promotion", "campaign", "acquisition", "sales", "growth"
-3. **OPS**: "ops", "infrastructure", "setup", "CI/CD", "deployment", "monitoring"
-4. **PUBLISH**: "publish", "launch", "release", "deploy" (excluding infra), "go live"
+2. **MARKET**: "market", "promotion", "campaign", "acquisition", "sales",
+   "growth"
+3. **OPS**: "ops", "infrastructure", "setup", "CI/CD", "deployment",
+   "monitoring"
+4. **PUBLISH**: "publish", "launch", "release", "deploy" (excluding infra), "go
+   live"
 5. **REVIEW**: "review", "refactor", "audit", "optimize", "fix", "improve"
-6. **CREATE**: "create", "build", "develop", "design", "code", "implement" (default)
+6. **CREATE**: "create", "build", "develop", "design", "code", "implement"
+   (default)
 
 ## Determinism
 
 Same goal text always produces identical deliverables:
+
 ```javascript
 const goal = { goalText: 'Learn TypeScript' };
 const d1 = generateAutoDeliverables(goal);
@@ -83,25 +94,29 @@ JSON.stringify(d1) === JSON.stringify(d2) === JSON.stringify(d3) ✓
 
 ## Test Coverage
 
-| Test Suite | Tests | Coverage |
-|-----------|-------|----------|
-| mechanismClass.test.ts | 35 | All 6 mechanisms, keyword detection, determinism |
-| autoDeliverables.test.ts | 24 | Structure, templates, noun extraction |
-| autoGeneration.integration.test.ts | 37 | End-to-end flows, acceptance criteria, performance |
-| **Total** | **96** | **100% Phase 2 code coverage** |
+| Test Suite                         | Tests  | Coverage                                           |
+| ---------------------------------- | ------ | -------------------------------------------------- |
+| mechanismClass.test.ts             | 35     | All 6 mechanisms, keyword detection, determinism   |
+| autoDeliverables.test.ts           | 24     | Structure, templates, noun extraction              |
+| autoGeneration.integration.test.ts | 37     | End-to-end flows, acceptance criteria, performance |
+| **Total**                          | **96** | **100% Phase 2 code coverage**                     |
 
 ### Acceptance Criteria Validation
 
 ✅ **AC1**: "Regenerate Route produces blocks without manual deliverables"
+
 - Validated: Auto-seed guarantees deliverables exist before plan generation
 
 ✅ **AC2**: "Deterministic - same goal produces identical plan"
+
 - Validated: Deep equality tests pass; same input = same output
 
 ✅ **AC3**: "No LLM calls - purely deterministic"
+
 - Validated: Pure regex, 100 generations in <500ms (no network delay)
 
 ✅ **AC4**: "No console noise in production"
+
 - Implemented: Logging only on fallback, respects dev flags
 
 ## Test Results
@@ -134,6 +149,7 @@ Regressions: 0
 ## Deployment
 
 ✅ Ready to deploy immediately
+
 - No dependencies added
 - No build configuration changes
 - All tests passing
@@ -143,6 +159,7 @@ Regressions: 0
 ## Monitoring
 
 Track these metrics post-deployment:
+
 - Success rate: Plan generation for admitted goals (should be ~100%)
 - Distribution: Which mechanisms are users creating most?
 - Fallback rate: How often does Phase 2 fail → Phase 1 kicks in?

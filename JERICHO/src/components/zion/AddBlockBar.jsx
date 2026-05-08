@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { traceAction, traceNoop } from '../../dev/uiWiringTrace.ts';
 
-const DOMAIN_ENUM = ['BODY', 'RESOURCES', 'CREATION', 'FOCUS'];
+const DEFAULT_BLOCK_DOMAIN = 'FOCUS';
 
 /**
  * Canonical add block bar used across Today/Week/Month/Year.
@@ -19,12 +19,11 @@ export default function AddBlockBar({
   showGoalLink = true,
   deliverables = [],
   criteriaByDeliverable = {},
-  strictMode = false
+  strictMode = false,
 }) {
   const [fallbackDate, setFallbackDate] = useState(dateKey || defaultDayKey);
   const [time, setTime] = useState('09:00');
   const [duration, setDuration] = useState(30);
-  const [domain, setDomain] = useState('CREATION');
   const [title, setTitle] = useState('');
   const [linkToGoal, setLinkToGoal] = useState(true);
   const [isProgress, setIsProgress] = useState(true);
@@ -47,22 +46,22 @@ export default function AddBlockBar({
       date: day,
       time,
       durationMinutes: duration,
-      domain,
+      domain: DEFAULT_BLOCK_DOMAIN,
       linkToGoal,
       isProgress,
       deliverableId,
-      criterionId
+      criterionId,
     });
     onAdd?.({
       date: day,
       time,
       durationMinutes: duration,
-      domain,
-      title: title?.trim() || 'Block',
+      domain: DEFAULT_BLOCK_DOMAIN,
+      title: title?.trim() || 'Untitled task',
       linkToGoal,
       isProgress,
-      deliverableId: isProgress ? (deliverableId || null) : null,
-      criterionId: isProgress ? (criterionId || null) : null
+      deliverableId: isProgress ? deliverableId || null : null,
+      criterionId: isProgress ? criterionId || null : null,
     });
   };
 
@@ -97,18 +96,6 @@ export default function AddBlockBar({
           onChange={(e) => setDuration(Math.max(1, Number(e.target.value) || 1))}
           disabled={readOnly}
         />
-        <select
-          className="rounded border border-line/60 bg-transparent px-2 py-1"
-          value={domain}
-          onChange={(e) => setDomain(e.target.value)}
-          disabled={readOnly}
-        >
-          {DOMAIN_ENUM.map((d) => (
-            <option key={d} value={d}>
-              {d.charAt(0) + d.slice(1).toLowerCase()}
-            </option>
-          ))}
-        </select>
         <input
           className="rounded border border-line/60 bg-transparent px-2 py-1 flex-1 min-w-[140px]"
           value={title}
@@ -192,7 +179,8 @@ export default function AddBlockBar({
         </div>
       ) : null}
       <p className="text-[11px] text-muted">
-        {surface === 'today' ? 'Execution anchor' : 'Planning surface'}: add/delete only; status changes remain in Today.
+        {surface === 'today' ? 'Execution anchor' : 'Planning surface'}: add/delete only; status changes remain in
+        Today.
       </p>
     </div>
   );

@@ -20,7 +20,10 @@ export default function DebugProvenance({ title = 'Debug', metrics, collapsedDef
       </div>
       {open ? (
         <div className="mt-1 space-y-1">
-          <p>Planned: {Math.round(plannedMinutes)}m · Completed: {Math.round(completedMinutes)}m · CR: {Math.round(cr * 100)}%</p>
+          <p>
+            Planned: {Math.round(plannedMinutes)}m · Completed: {Math.round(completedMinutes)}m · CR:{' '}
+            {Math.round(cr * 100)}%
+          </p>
           <p>
             Window: {provenance.window?.kind} [{provenance.window?.startDayKey || '—'} →{' '}
             {provenance.window?.endDayKeyExclusive || '—'}) · Mode: {provenance.mode || 'calendar'}
@@ -33,13 +36,19 @@ export default function DebugProvenance({ title = 'Debug', metrics, collapsedDef
           </p>
           {provenance.summary ? (
             <p>
-              Unknown: blocks {provenance.summary.unknownBlocks || 0} · planned {provenance.summary.unknownPlannedMinutes || 0}m ·
-              completed {provenance.summary.unknownCompletedMinutes || 0}m
+              Unknown: blocks {provenance.summary.unknownBlocks || 0} · planned{' '}
+              {provenance.summary.unknownPlannedMinutes || 0}m · completed{' '}
+              {provenance.summary.unknownCompletedMinutes || 0}m
             </p>
           ) : null}
           <p>
             Sample IDs: {provenance.includedBlockIds?.slice(0, 5).join(', ') || '—'}{' '}
-            {provenance.excluded?.length ? `| Excluded: ${provenance.excluded.slice(0, 5).map((e) => `${e.id}:${e.reason}`).join(', ')}` : ''}
+            {provenance.excluded?.length
+              ? `| Excluded: ${provenance.excluded
+                  .slice(0, 5)
+                  .map((e) => `${e.id}:${e.reason}`)
+                  .join(', ')}`
+              : ''}
           </p>
         </div>
       ) : null}

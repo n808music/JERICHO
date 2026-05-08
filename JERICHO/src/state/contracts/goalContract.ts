@@ -77,7 +77,7 @@ export function validateGoalContractForActivation(contract: GoalExecutionContrac
   errors.push(...mixErrors);
   return {
     valid: errors.length === 0,
-    errors
+    errors,
   };
 }
 
@@ -94,7 +94,7 @@ export function deriveGoalStatus(
   {
     nowISO = nowDayKey(),
     successMet = false,
-    degrade = false
+    degrade = false,
   }: { nowISO?: string; successMet?: boolean; degrade?: boolean } = {}
 ) {
   if (contract.deadlineISO && contract.deadlineISO < nowISO) return 'invalidated';
@@ -122,7 +122,11 @@ function validateExecutionRequirements(requirements: ExecutionRequirements) {
     sum += Number.isFinite(mixVal) ? mixVal : 0;
   });
   if (Math.abs(sum - 1) > EPSILON) errors.push('mix:sum');
-  if (!Number.isFinite(requirements.maxAllowedVariance) || requirements.maxAllowedVariance < 0 || requirements.maxAllowedVariance > 1) {
+  if (
+    !Number.isFinite(requirements.maxAllowedVariance) ||
+    requirements.maxAllowedVariance < 0 ||
+    requirements.maxAllowedVariance > 1
+  ) {
     errors.push('variance:invalid');
   }
   return errors;

@@ -4,7 +4,8 @@ This section contains the API documentation for JERICHO's backend services.
 
 ## 🚧 Under Construction
 
-The API documentation is currently under development as we transition from the frontend-only prototype to a full-stack application.
+The API documentation is currently under development as we transition from the
+frontend-only prototype to a full-stack application.
 
 ## 📋 Planned API Structure
 
@@ -285,4 +286,5 @@ pytest --cov=app tests/
 - Advanced features requiring server
 - Multi-user functionality
 
-This API documentation will be expanded as the backend implementation progresses. Check back for updates! 🎯
+This API documentation will be expanded as the backend implementation
+progresses. Check back for updates! 🎯

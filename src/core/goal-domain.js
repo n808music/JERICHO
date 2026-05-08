@@ -18,7 +18,7 @@ export function resolveGoalDomain(text = '') {
 
 export function normalizeGoalInput(rawGoal = '') {
   const resolution = resolveGoalDomain(rawGoal);
-  const numericSignal = (rawGoal.match(/[\d,\.]+/) || [null])[0];
+  const numericSignal = (rawGoal.match(/[\d,.]+/) || [null])[0];
   const targetDate =
     (rawGoal.match(/\d{4}-\d{2}-\d{2}/) || [null])[0] ||
     (rawGoal.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s*\d{4}\b/i) || [null])[0];

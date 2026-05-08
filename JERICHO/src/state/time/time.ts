@@ -7,7 +7,7 @@ const dayKeyFormatter = (timeZone: string) =>
     timeZone,
     year: 'numeric',
     month: '2-digit',
-    day: '2-digit'
+    day: '2-digit',
   });
 
 export const APP_TIME_ZONE = DEFAULT_TIME_ZONE;

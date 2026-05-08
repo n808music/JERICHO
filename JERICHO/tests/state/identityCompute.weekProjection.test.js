@@ -15,7 +15,7 @@ function makeState(overrides = {}) {
     lenses: {
       aim: { description: 'Test', horizon: '90d' },
       pattern: { routines: { Body: [], Resources: [], Creation: [], Focus: [] }, dailyTargets: [], defaultMinutes: 30 },
-      flow: { streams: [] }
+      flow: { streams: [] },
     },
     activeCycleId: 'cycle-1',
     cyclesById: {
@@ -34,18 +34,25 @@ function makeState(overrides = {}) {
           scope: {
             domainsAllowed: ['Body', 'Focus', 'Creation', 'Resources'],
             timeHorizon: 'week',
-            timezone: 'America/Chicago'
+            timezone: 'America/Chicago',
           },
           governance: {
             suggestionsEnabled: true,
             probabilityEnabled: true,
-            minEvidenceEvents: 1
-          }
-        }
-      }
+            minEvidenceEvents: 1,
+          },
+        },
+      },
     },
     history: { cycles: [] },
-    today: { date: '2026-02-01', blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
+    today: {
+      date: '2026-02-01',
+      blocks: [],
+      completionRate: 0,
+      driftSignal: 'contained',
+      loadByPractice: {},
+      practices: [],
+    },
     currentWeek: { weekStart: '2026-02-01', days: [] },
     cycle: [],
     templates: { objectives: {} },
@@ -53,7 +60,7 @@ function makeState(overrides = {}) {
     recurringPatterns: [],
     ledger: [],
     executionEvents: [{ id: 'e1', dateISO: '2026-02-01', completed: true }],
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -63,7 +70,7 @@ describe('identityCompute.projectWeekDays (Week projection)', () => {
       id: 'b1',
       start: iso('2025-12-03', '14:00'),
       end: iso('2025-12-03', '15:00'),
-      status: 'planned'
+      status: 'planned',
     });
 
     const days = projectWeekDays({ anchorDate: '2025-12-03', blocks: [block] });
@@ -84,7 +91,7 @@ describe('identityCompute.projectWeekDays (Week projection)', () => {
       id: 'b0',
       start: iso('2025-12-03', '14:00'),
       end: iso('2025-12-03', '14:00'),
-      status: 'planned'
+      status: 'planned',
     });
     const day = projectWeekDays({ anchorDate: '2025-12-03', blocks: [block] }).find((d) => d.date === '2025-12-03');
     expect(day).toBeTruthy();
@@ -99,7 +106,7 @@ describe('identityCompute.projectWeekDays (Week projection)', () => {
       id: 'x',
       start: iso('2025-12-03', '23:30'),
       end: iso('2025-12-04', '00:30'),
-      status: 'planned'
+      status: 'planned',
     });
     const day = projectWeekDays({ anchorDate: '2025-12-03', blocks: [block] }).find((d) => d.date === '2025-12-03');
     expect(day).toBeTruthy();
@@ -113,7 +120,7 @@ describe('identityCompute.projectWeekDays (Week projection)', () => {
       id: 'c1',
       start: iso('2025-12-03', '14:00'),
       end: iso('2025-12-03', '15:00'),
-      status: 'completed'
+      status: 'completed',
     });
     const day = projectWeekDays({ anchorDate: '2025-12-03', blocks: [block] }).find((d) => d.date === '2025-12-03');
     expect(day).toBeTruthy();
@@ -131,10 +138,10 @@ describe('probabilityStatusByGoal plumbing', () => {
           ...makeState().cyclesById['cycle-1'],
           goalGovernanceContract: {
             ...makeState().cyclesById['cycle-1'].goalGovernanceContract,
-            governance: { suggestionsEnabled: true, probabilityEnabled: true, minEvidenceEvents: 2 }
-          }
-        }
-      }
+            governance: { suggestionsEnabled: true, probabilityEnabled: true, minEvidenceEvents: 2 },
+          },
+        },
+      },
     });
     const next = computeDerivedState(state, { type: 'NO_OP' });
     const status = next.probabilityStatusByGoal?.['goal-1'];
@@ -153,10 +160,10 @@ describe('probabilityStatusByGoal plumbing', () => {
           ...makeState().cyclesById['cycle-1'],
           goalGovernanceContract: {
             ...makeState().cyclesById['cycle-1'].goalGovernanceContract,
-            activeUntilISO: '2000-01-01'
-          }
-        }
-      }
+            activeUntilISO: '2000-01-01',
+          },
+        },
+      },
     });
     const next = computeDerivedState(state, { type: 'NO_OP' });
     const status = next.probabilityStatusByGoal?.['goal-1'];

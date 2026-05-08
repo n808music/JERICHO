@@ -1,12 +1,7 @@
 import React from 'react';
 
 function Bar({ label, progress, status }) {
-  const tone =
-    status === 'blocked'
-      ? 'bg-hot/60'
-      : status === 'active'
-      ? 'bg-jericho-accent'
-      : 'bg-muted';
+  const tone = status === 'blocked' ? 'bg-hot/60' : status === 'active' ? 'bg-jericho-accent' : 'bg-muted';
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs text-muted">
@@ -58,10 +53,7 @@ export default function TimelinePanel({ projects = [], goals = [], trajectory = 
               key={`${value}-${idx}`}
               className="flex-1 h-10 rounded-md bg-jericho-bg/60 border border-line/40 flex items-end overflow-hidden"
             >
-              <div
-                className="w-full bg-jericho-accent"
-                style={{ height: `${Math.min(100, value)}%` }}
-              />
+              <div className="w-full bg-jericho-accent" style={{ height: `${Math.min(100, value)}%` }} />
             </div>
           ))}
         </div>

@@ -28,7 +28,7 @@ export function getDayStats(dayKey: string, blocksByDay: BlocksByDay) {
     plannedCount,
     completedCount,
     completionRate,
-    blocks
+    blocks,
   };
 }
 
@@ -41,7 +41,7 @@ export function getMonthStats(dayKeys: string[], blocksByDay: BlocksByDay) {
     plannedCount,
     completedCount,
     completionRate,
-    dayStats: stats
+    dayStats: stats,
   };
 }
 

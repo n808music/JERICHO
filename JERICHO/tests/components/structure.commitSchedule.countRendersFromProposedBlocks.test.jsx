@@ -11,7 +11,7 @@ vi.mock('../../src/state/identityStore', () => ({
   useIdentityStore: () => mockStore,
 }));
 
-function buildStore({ readOnly = false, proposedCount = 2 } = {}) {
+function buildStore({ readOnly = false, proposedCount = 2, lastPlanError = null } = {}) {
   const cycleId = 'cycle-1';
   const status = readOnly ? 'ended' : 'active';
   const proposedBlocks = Array.from({ length: proposedCount }).map((_, idx) => ({
@@ -43,39 +43,41 @@ function buildStore({ readOnly = false, proposedCount = 2 } = {}) {
     availabilityPolicy: {},
     proposedBlocks,
     suggestedBlocks: [],
-    lastPlanError: null,
+    lastPlanError,
     deliverablesByCycleId: {},
     goalAdmissionByGoal: {},
     debug: { lastGenerateResult: { proposedBlocksCount: proposedCount, lastPlanErrorCode: null } },
-    rebaseColdPlan: noop,
-    applyPlan: noop,
-    setSchedulingConstraints: noop,
+    updateWorkWindows: noop,
     attemptGoalAdmission: noop,
-    archiveAndCloneCycle: noop,
-    commitPreviewItems: noop,
     startNewCycleWithDecision: noop,
     deleteCycle: noop,
     endCycle: noop,
   };
 }
 
-describe('Structure Commit Schedule count uses canonical proposedBlocks', () => {
+describe('Structure schedule status uses canonical proposedBlocks', () => {
   beforeEach(() => {
     mockStore = buildStore({ proposedCount: 2 });
   });
 
-  it('renders proposed count from proposedBlocks and enables apply when active', () => {
+  it('shows ready status when suggested proposed blocks exist', () => {
     render(<StructurePageConsolidated />);
 
-    expect(screen.getByText('2 proposed blocks available to commit.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /apply schedule to calendar/i })).toBeEnabled();
+    expect(screen.getByText(/schedule status/i)).toBeInTheDocument();
+    expect(screen.getByText(/schedule draft ready\./i)).toBeInTheDocument();
   });
 
-  it('disables apply when no proposals exist', () => {
+  it('shows error status when lastPlanError exists', () => {
+    mockStore = buildStore({ proposedCount: 0, lastPlanError: { code: 'NO_PROPOSED_BLOCKS' } });
+    render(<StructurePageConsolidated />);
+
+    expect(screen.getByText(/generation failed: NO_PROPOSED_BLOCKS/i)).toBeInTheDocument();
+  });
+
+  it('shows idle status with no proposals and no error', () => {
     mockStore = buildStore({ proposedCount: 0 });
     render(<StructurePageConsolidated />);
 
-    expect(screen.getByText('0 proposed blocks available to commit.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /apply schedule to calendar/i })).toBeDisabled();
+    expect(screen.getByText(/no schedule proposal yet\. go to today tab to generate\./i)).toBeInTheDocument();
   });
 });

@@ -9,9 +9,16 @@ function buildBaseState() {
     lenses: {
       aim: { description: '', horizon: '90d', narrative: '' },
       pattern: { routines: { Body: [], Resources: [], Creation: [], Focus: [] }, dailyTargets: [], defaultMinutes: 30 },
-      flow: { streams: [] }
+      flow: { streams: [] },
     },
-    today: { date: FIXED_DAY, blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
+    today: {
+      date: FIXED_DAY,
+      blocks: [],
+      completionRate: 0,
+      driftSignal: 'contained',
+      loadByPractice: {},
+      practices: [],
+    },
     currentWeek: { weekStart: FIXED_DAY, days: [], metrics: {} },
     cycle: [],
     viewDate: FIXED_DAY,
@@ -24,7 +31,7 @@ function buildBaseState() {
       lastActiveDate: FIXED_DAY,
       scenarioLabel: '',
       demoScenarioEnabled: false,
-      showHints: false
+      showHints: false,
     },
     recurringPatterns: [],
     lastSessionChange: null,
@@ -35,8 +42,8 @@ function buildBaseState() {
       timeZone: 'UTC',
       nowISO: `${FIXED_DAY}T12:00:00.000Z`,
       activeDayKey: FIXED_DAY,
-      isFollowingNow: true
-    }
+      isFollowingNow: true,
+    },
   };
 }
 
@@ -52,8 +59,8 @@ describe('Generate plan wiring', () => {
         narrative: '',
         focusAreas: ['Creation'],
         successDefinition: 'A shipped',
-        minimumDaysPerWeek: 4
-      }
+        minimumDaysPerWeek: 4,
+      },
     });
 
     const beforeCount = (onboarded.suggestedBlocks || []).length;

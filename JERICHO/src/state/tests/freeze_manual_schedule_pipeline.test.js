@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { computeDerivedState } from '../identityCompute.js';
-import { buildBlankState, FIXED_DAY, NOW_ISO, localStartISOForHour, addCompletedEventsForBlocks } from './freeze_helpers.js';
+import {
+  buildBlankState,
+  FIXED_DAY,
+  NOW_ISO,
+  localStartISOForHour,
+  addCompletedEventsForBlocks,
+} from './freeze_helpers.js';
 
 describe('Freeze: Manual Scheduling Pipeline', () => {
   it('manual add -> materialize -> complete/reschedule/delete replay deterministically', () => {
@@ -16,8 +22,8 @@ describe('Freeze: Manual Scheduling Pipeline', () => {
         narrative: 'Test manual scheduling',
         focusAreas: ['Creation'],
         successDefinition: 'Deliverables done',
-        minimumDaysPerWeek: 3
-      }
+        minimumDaysPerWeek: 3,
+      },
     });
 
     expect(state.activeCycleId).toBeTruthy();
@@ -26,7 +32,7 @@ describe('Freeze: Manual Scheduling Pipeline', () => {
     // 2) Create a deliverable
     state = computeDerivedState(state, {
       type: 'CREATE_DELIVERABLE',
-      payload: { cycleId, title: 'Manual Task', requiredBlocks: 1 }
+      payload: { cycleId, title: 'Manual Task', requiredBlocks: 1 },
     });
 
     // 3) Manually create a committed block on the calendar
@@ -40,8 +46,8 @@ describe('Freeze: Manual Scheduling Pipeline', () => {
         title: 'Manual Block',
         timeZone: 'UTC',
         linkToGoal: true,
-        deliverableId: state.deliverablesByCycleId?.[cycleId]?.deliverables?.[0]?.id
-      }
+        deliverableId: state.deliverablesByCycleId?.[cycleId]?.deliverables?.[0]?.id,
+      },
     });
 
     // Ensure block materialized in today.blocks and cycle days
@@ -52,7 +58,11 @@ describe('Freeze: Manual Scheduling Pipeline', () => {
 
     // 4) Simulate completion events and replay deterministically
     const events = addCompletedEventsForBlocks(state, [created]);
-    state = { ...state, executionEvents: events, cyclesById: { ...state.cyclesById, [cycleId]: { ...(state.cyclesById[cycleId] || {}), executionEvents: events } } };
+    state = {
+      ...state,
+      executionEvents: events,
+      cyclesById: { ...state.cyclesById, [cycleId]: { ...(state.cyclesById[cycleId] || {}), executionEvents: events } },
+    };
 
     const ended = computeDerivedState(state, { type: 'END_CYCLE', cycleId });
     const endedCycle = ended.cyclesById[cycleId];

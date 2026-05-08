@@ -7,7 +7,7 @@ describe('draftSchedule milestone priority context', () => {
       { id: 'a1', estimateMin: 30 },
       { id: 'a2', estimateMin: 30 },
       { id: 'a3', estimateMin: 30 },
-      { id: 'a4', estimateMin: 30 }
+      { id: 'a4', estimateMin: 30 },
     ];
     const milestones = [
       {
@@ -15,15 +15,15 @@ describe('draftSchedule milestone priority context', () => {
         windowStartDayKey: '2026-02-01',
         windowEndDayKey: '2026-02-10',
         actionIds: ['a1'],
-        checkpointActionIds: ['a3']
+        checkpointActionIds: ['a3'],
       },
       {
         id: 'early',
         windowStartDayKey: '2026-01-01',
         windowEndDayKey: '2026-01-05',
         actionIds: ['a2'],
-        checkpointActionIds: ['a4']
-      }
+        checkpointActionIds: ['a4'],
+      },
     ];
 
     const context = buildMilestonePriorityContext(milestones, actions, 30);

@@ -1,5 +1,12 @@
 import React from 'react';
-import { TemporalBinding } from '../../domain/goal/GoalExecutionContract';
+
+type TemporalBinding = {
+  daysPerWeek: number;
+  activationTime: string;
+  sessionDurationMinutes: number;
+  weeklyMinutes: number;
+  startDayKey: string;
+};
 
 interface TemporalBindingPanelProps {
   temporalBinding: TemporalBinding | undefined;

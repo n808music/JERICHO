@@ -9,7 +9,7 @@ describe('backend persistence hydration', () => {
     const contract = standardAlbumGoalContract({
       goalId: 'goal-1',
       cycleId: 'cycle-1',
-      temporalBinding: { startDayKey: '2026-01-20' }
+      temporalBinding: { startDayKey: '2026-01-20' },
     });
     const block = {
       id: 'blk-1',
@@ -21,7 +21,7 @@ describe('backend persistence hydration', () => {
       start: '2026-01-20T09:00:00.000Z',
       end: '2026-01-20T10:00:00.000Z',
       status: 'planned',
-      domain: 'Focus'
+      domain: 'Focus',
     };
     const createEvent = buildExecutionEventFromBlock(block, {
       id: 'evt-create',
@@ -29,13 +29,13 @@ describe('backend persistence hydration', () => {
       completed: false,
       startISO: block.start,
       endISO: block.end,
-      minutes: 60
+      minutes: 60,
     });
     const completeEvent = buildExecutionEventFromBlock(block, {
       id: 'evt-complete',
       kind: 'complete',
       completed: true,
-      minutes: 60
+      minutes: 60,
     });
     const events = [createEvent, completeEvent];
     const expected = materializeBlocksFromEvents(events, { todayISO: '2026-01-20' });
@@ -45,15 +45,17 @@ describe('backend persistence hydration', () => {
       ...(baseState.appTime || {}),
       nowISO: '2026-01-20T12:00:00.000Z',
       activeDayKey: '2026-01-20',
-      timeZone: 'UTC'
+      timeZone: 'UTC',
     };
     const hydrated = buildBackendHydratedState(baseState, {
       activeCycleId: 'cycle-1',
       goalContract: contract,
-      events
+      events,
     });
     const blocks = getAllBlocks(hydrated);
-    const hydratedMaterialized = materializeBlocksFromEvents(hydrated.executionEvents || [], { todayISO: '2026-01-20' });
+    const hydratedMaterialized = materializeBlocksFromEvents(hydrated.executionEvents || [], {
+      todayISO: '2026-01-20',
+    });
     const hydratedBlocks = hydratedMaterialized.days.flatMap((d) => d.blocks || []);
 
     expect(hydratedBlocks).toHaveLength(expected.days.flatMap((d) => d.blocks || []).length);
@@ -68,7 +70,7 @@ describe('backend persistence hydration', () => {
     const contract = standardAlbumGoalContract({
       goalId: 'goal-2',
       cycleId: 'cycle-2',
-      temporalBinding: { startDayKey: '2026-02-10' }
+      temporalBinding: { startDayKey: '2026-02-10' },
     });
     const block = {
       id: 'blk-2',
@@ -80,7 +82,7 @@ describe('backend persistence hydration', () => {
       start: '2026-02-10T09:00:00.000Z',
       end: '2026-02-10T10:00:00.000Z',
       status: 'planned',
-      domain: 'Focus'
+      domain: 'Focus',
     };
     const createEvent = buildExecutionEventFromBlock(block, {
       id: 'evt-create-2',
@@ -88,7 +90,7 @@ describe('backend persistence hydration', () => {
       completed: false,
       startISO: block.start,
       endISO: block.end,
-      minutes: 60
+      minutes: 60,
     });
     const events = [createEvent];
 
@@ -97,17 +99,17 @@ describe('backend persistence hydration', () => {
       ...(baseState.appTime || {}),
       nowISO: '2026-02-10T12:00:00.000Z',
       activeDayKey: '2026-02-10',
-      timeZone: 'UTC'
+      timeZone: 'UTC',
     };
     const first = buildBackendHydratedState(baseState, {
       activeCycleId: 'cycle-2',
       goalContract: contract,
-      events
+      events,
     });
     const second = buildBackendHydratedState(first, {
       activeCycleId: 'cycle-2',
       goalContract: contract,
-      events
+      events,
     });
     const blocks = getAllBlocks(second);
 

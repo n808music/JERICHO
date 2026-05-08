@@ -46,7 +46,15 @@ function buildAdmittedState() {
           goalId,
           startDayKey: '2026-03-10',
           endDayKey: '2026-03-31',
-          workWindows: { mon: [{ start: '08:00', end: '10:00' }], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] },
+          workWindows: {
+            mon: [{ start: '08:00', end: '10:00' }],
+            tue: [],
+            wed: [],
+            thu: [],
+            fri: [],
+            sat: [],
+            sun: [],
+          },
         },
         planProof: {},
         actions: [{ id: 'act-1', title: 'A1', estimateMin: 60 }],
@@ -94,7 +102,9 @@ describe('accepted-state work windows canonical chain', () => {
       },
     });
 
-    expect(saved.cyclesById['cycle-accepted-1'].goalContract.workWindows.mon).toEqual([{ start: '07:00', end: '09:00' }]);
+    expect(saved.cyclesById['cycle-accepted-1'].goalContract.workWindows.mon).toEqual([
+      { start: '07:00', end: '09:00' },
+    ]);
     expect(saved.goalExecutionContract.workWindows.mon).toEqual([{ start: '07:00', end: '09:00' }]);
 
     const generated = computeDerivedState(saved, {
@@ -105,12 +115,14 @@ describe('accepted-state work windows canonical chain', () => {
     expect(compileAutoAsanaPlanMock).toHaveBeenCalledTimes(1);
     const compileInput = compileAutoAsanaPlanMock.mock.calls[0][0];
     expect(compileInput.constraints.weeklyWindows.MON).toEqual([{ startHHMM: '07:00', endHHMM: '09:00' }]);
-    expect((generated.proposedBlocks || []).filter((b) => b?.status === 'accepted').length).toBeGreaterThan(0);
-    expect(generated.scheduleApplied).toBe(true);
+    expect((generated.proposedBlocks || []).filter((b) => b?.status === 'suggested').length).toBeGreaterThan(0);
+    expect(generated.scheduleApplied).toBe(false);
+    expect(generated.pendingPlanConfirmation).toBe(true);
+    expect(generated.scheduleLifecycle).toBe('draft_schedule_ready');
     expect(generated.lastPlanError).toBeNull();
   });
 
-  it('GENERATE_PLAN auto-commits canonical proposed blocks in normal flow', () => {
+  it('GENERATE_PLAN leaves canonical proposed blocks in preview until apply', () => {
     compileAutoAsanaPlanMock.mockReturnValue({
       horizonBlocks: [
         {
@@ -128,27 +140,55 @@ describe('accepted-state work windows canonical chain', () => {
       type: 'GENERATE_PLAN',
       payload: { cycleId: 'cycle-accepted-1' },
     });
-    const accepted = (generated.proposedBlocks || []).find((b) => b?.id === 'hb-accepted-1');
+    const suggested = (generated.proposedBlocks || []).find((b) => b?.id === 'hb-accepted-1');
+    expect(suggested?.status).toBe('suggested');
+    expect(
+      (generated.executionEvents || []).some(
+        (event) => event?.kind === 'create' && event?.cycleId === 'cycle-accepted-1'
+      )
+    ).toBe(false);
+    expect(generated.scheduleApplied).toBe(false);
+    expect(generated.pendingPlanConfirmation).toBe(true);
+
+    const applied = computeDerivedState(generated, {
+      type: 'APPLY_DRAFT_SCHEDULE',
+      payload: { cycleId: 'cycle-accepted-1' },
+    });
+    const accepted = (applied.proposedBlocks || []).find((b) => b?.id === 'hb-accepted-1');
     expect(accepted?.status).toBe('accepted');
-    expect((generated.executionEvents || []).some((event) => event?.kind === 'create' && event?.cycleId === 'cycle-accepted-1')).toBe(true);
-    expect(generated.scheduleApplied).toBe(true);
+    expect(
+      (applied.executionEvents || []).some((event) => event?.kind === 'create' && event?.cycleId === 'cycle-accepted-1')
+    ).toBe(false);
+    expect(applied.scheduleApplied).toBe(true);
+
+    const activated = computeDerivedState(applied, {
+      type: 'ACTIVATE_SCHEDULE',
+      payload: { cycleId: 'cycle-accepted-1' },
+    });
+    expect(activated.scheduleLifecycle).toBe('active_schedule');
+    expect(
+      (activated.executionEvents || []).some(
+        (event) => event?.kind === 'create' && event?.cycleId === 'cycle-accepted-1'
+      )
+    ).toBe(true);
   });
 
-  it('returns deterministic error when canonical contract goalId is missing', () => {
+  it('falls back to deterministic no-proposal error when cycle goalId cannot bind proposals', () => {
     compileAutoAsanaPlanMock.mockReturnValue({
       horizonBlocks: [],
       conflicts: [],
     });
     const state = buildAdmittedState();
     state.cyclesById['cycle-accepted-1'].goalContract.goalId = null;
-    state.goalExecutionContract.goalId = null;
+    state.goalExecutionContract = null;
+    state.goalAdmissionByGoal = {};
 
     const generated = computeDerivedState(state, {
       type: 'GENERATE_PLAN',
       payload: { cycleId: 'cycle-accepted-1' },
     });
 
-    expect(generated.lastPlanError?.code).toBe('GOAL_ID_MISSING');
+    expect(generated.lastPlanError?.code).toBe('NO_PROPOSED_BLOCKS');
     expect((generated.proposedBlocks || []).length).toBe(0);
   });
 });

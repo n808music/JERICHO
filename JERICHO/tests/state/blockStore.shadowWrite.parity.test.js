@@ -68,17 +68,40 @@ describe('blockStore shadow-write parity', () => {
     compileAutoAsanaPlanMock.mockReset();
   });
 
-  it('getCanonicalBlocks matches getAllBlocks after GENERATE_PLAN commits blocks', () => {
+  it('getCanonicalBlocks matches getAllBlocks after GENERATE_PLAN + APPLY_PLAN review and ACTIVATE_SCHEDULE commit', () => {
     compileAutoAsanaPlanMock.mockReturnValue({
       horizonBlocks: [
-        { id: 'hb-parity-1', title: 'Parity block A', dayKey: DAY, startISO: `${DAY}T08:00:00.000Z`, durationMinutes: 60 },
-        { id: 'hb-parity-2', title: 'Parity block B', dayKey: DAY, startISO: `${DAY}T09:00:00.000Z`, durationMinutes: 60 },
+        {
+          id: 'hb-parity-1',
+          title: 'Parity block A',
+          dayKey: DAY,
+          startISO: `${DAY}T08:00:00.000Z`,
+          durationMinutes: 60,
+        },
+        {
+          id: 'hb-parity-2',
+          title: 'Parity block B',
+          dayKey: DAY,
+          startISO: `${DAY}T09:00:00.000Z`,
+          durationMinutes: 60,
+        },
       ],
       conflicts: [],
     });
 
-    const next = computeDerivedState(buildState(), {
+    const generated = computeDerivedState(buildState(), {
       type: 'GENERATE_PLAN',
+      payload: { cycleId: CYCLE_ID },
+    });
+    const reviewed = computeDerivedState(generated, {
+      type: 'APPLY_PLAN',
+      payload: { cycleId: CYCLE_ID },
+    });
+    expect((reviewed.executionEvents || []).filter((e) => e?.kind === 'create')).toHaveLength(0);
+    expect(reviewed.scheduleLifecycle || null).toBe('applied_review');
+
+    const next = computeDerivedState(reviewed, {
+      type: 'ACTIVATE_SCHEDULE',
       payload: { cycleId: CYCLE_ID },
     });
 
@@ -107,16 +130,30 @@ describe('blockStore shadow-write parity', () => {
     expect(getAllBlocks(next)).toHaveLength(0);
   });
 
-  it('store blocks carry the correct persisted fields and exclude projection fields', () => {
+  it('store blocks carry the correct persisted fields and exclude projection fields after APPLY_PLAN', () => {
     compileAutoAsanaPlanMock.mockReturnValue({
       horizonBlocks: [
-        { id: 'hb-schema-1', title: 'Schema check', dayKey: DAY, startISO: `${DAY}T08:00:00.000Z`, durationMinutes: 60 },
+        {
+          id: 'hb-schema-1',
+          title: 'Schema check',
+          dayKey: DAY,
+          startISO: `${DAY}T08:00:00.000Z`,
+          durationMinutes: 60,
+        },
       ],
       conflicts: [],
     });
 
-    const next = computeDerivedState(buildState(), {
+    const generated = computeDerivedState(buildState(), {
       type: 'GENERATE_PLAN',
+      payload: { cycleId: CYCLE_ID },
+    });
+    const reviewed = computeDerivedState(generated, {
+      type: 'APPLY_PLAN',
+      payload: { cycleId: CYCLE_ID },
+    });
+    const next = computeDerivedState(reviewed, {
+      type: 'ACTIVATE_SCHEDULE',
       payload: { cycleId: CYCLE_ID },
     });
 
@@ -135,5 +172,37 @@ describe('blockStore shadow-write parity', () => {
       expect(block.driftSignal).toBeUndefined();
       expect(block.loadByPractice).toBeUndefined();
     });
+  });
+
+  it('getAllBlocks surfaces canonical blocks even when only blockStore has been populated', () => {
+    const next = {
+      ...buildState(),
+      today: { ...buildState().today, blocks: [] },
+      currentWeek: { ...buildState().currentWeek, days: [] },
+      cycle: [],
+      blockStore: {
+        blocks: {
+          'blk-canonical-1': {
+            id: 'blk-canonical-1',
+            cycleId: CYCLE_ID,
+            goalId: GOAL_ID,
+            origin: 'schedule_active',
+            requiredSystemBlock: true,
+            practice: 'Focus',
+            domain: 'Focus',
+            title: 'Canonical block',
+            label: 'Canonical block',
+            start: `${DAY}T08:00:00.000Z`,
+            end: `${DAY}T09:00:00.000Z`,
+            status: 'planned',
+          },
+        },
+      },
+    };
+
+    const blocks = getAllBlocks(next);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].id).toBe('blk-canonical-1');
+    expect(blocks[0].title).toBe('Canonical block');
   });
 });

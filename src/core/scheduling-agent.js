@@ -7,6 +7,11 @@
  */
 
 import { randomUUID } from 'crypto';
+import {
+  assertMaterializedBlockDependencies,
+  buildDependencyAwareBlocks,
+  resolveTransitiveDependencyIds
+} from './schedule-dependency-enforcement.js';
 
 /**
  * Generate schedule proposal from scheduling policy
@@ -58,26 +63,52 @@ export function generateScheduleProposal(schedulingPolicy, effortEstimate, actio
     pacingPolicy,
     dateConstraints
   );
+  const dependencyAwareBlocks = buildDependencyAwareBlocks(placedBlocks, actionGraph);
+
+  try {
+    assertMaterializedBlockDependencies(dependencyAwareBlocks);
+  } catch (error) {
+    return {
+      proposedBlocks: dependencyAwareBlocks.map((block) => ({
+        ...block,
+        status: 'suggested',
+        goalId,
+        cycleId: `cycle-${goalId}-0`
+      })),
+      unscheduledItems: unplacedActions,
+      conflictReasons: [
+        ...conflicts,
+        ...(error.violations || []).map((violation) =>
+          `Dependency violation: ${violation.actionId} scheduled at ${violation.scheduledDate} before ${violation.dependencyActionId} completes at ${violation.dependencyCompletionDate}`
+        )
+      ],
+      schedulingStatus: 'FAILED',
+      coveragePercent: 0,
+      proposalSummary: { totalBlocks: dependencyAwareBlocks.length, totalHours: 0 },
+      errorCode: error.code || 'DEPENDENCY_ORDER_VIOLATED',
+      constraintViolations: error.violations || []
+    };
+  }
 
   // Calculate coverage
   const totalEstimatedHours = effortEstimate.estimatedTotalEffortHours;
-  const scheduledHours = placedBlocks.reduce((sum, block) => sum + block.durationMinutes, 0) / 60;
+  const scheduledHours = dependencyAwareBlocks.reduce((sum, block) => sum + block.durationMinutes, 0) / 60;
   const coveragePercent = totalEstimatedHours > 0 ? Math.round((scheduledHours / totalEstimatedHours) * 100) : 0;
 
   // Build proposal summary
   const proposalSummary = {
-    totalBlocks: placedBlocks.length,
+    totalBlocks: dependencyAwareBlocks.length,
     totalHours: scheduledHours,
-    firstBlockDate: placedBlocks.length ? placedBlocks[0].date : null,
-    lastBlockDate: placedBlocks.length ? placedBlocks[placedBlocks.length - 1].date : null,
+    firstBlockDate: dependencyAwareBlocks.length ? dependencyAwareBlocks[0].date : null,
+    lastBlockDate: dependencyAwareBlocks.length ? dependencyAwareBlocks[dependencyAwareBlocks.length - 1].date : null,
     pacingActual: pacingPolicy
   };
 
   const schedulingStatus = unplacedActions.length === 0 ? 'COMPLETE' :
-                          placedBlocks.length > 0 ? 'PARTIAL' : 'FAILED';
+                          dependencyAwareBlocks.length > 0 ? 'PARTIAL' : 'FAILED';
 
   return {
-    proposedBlocks: placedBlocks.map(block => ({
+    proposedBlocks: dependencyAwareBlocks.map(block => ({
       ...block,
       status: 'suggested',
       goalId,
@@ -188,8 +219,31 @@ function generateSlotsInWindow(date, window, sessionConstraints) {
  * Sort actions by dependency order
  */
 function sortActionsByDependency(actions) {
-  // Simplified: assume actions have dependencyPosition
-  return [...actions].sort((a, b) => (a.dependencyPosition || 0) - (b.dependencyPosition || 0));
+  const actionById = new Map((actions || []).map((action) => [action.actionId || action.id, action]));
+  const visited = new Set();
+  const ordered = [];
+
+  const visit = (action) => {
+    const actionId = action.actionId || action.id;
+    if (!actionId || visited.has(actionId)) {
+      return;
+    }
+
+    visited.add(actionId);
+    for (const dependencyId of action.dependsOn || []) {
+      const dependency = actionById.get(dependencyId);
+      if (dependency) {
+        visit(dependency);
+      }
+    }
+    ordered.push(action);
+  };
+
+  [...actions]
+    .sort((a, b) => (a.dependencyPosition || 0) - (b.dependencyPosition || 0))
+    .forEach((action) => visit(action));
+
+  return ordered;
 }
 
 /**
@@ -248,14 +302,37 @@ function scheduleActionsIntoSlots(actions, availableSlots, sessionConstraints, p
   const placedBlocks = [];
   const unplacedActions = [];
   const conflicts = [];
+  const placedBlocksByActionId = new Map();
+  const actionById = new Map((actions || []).map((action) => [action.actionId || action.id, action]));
+  const transitiveDependencyMemo = new Map();
 
   // Apply pacing policy to distribute actions
   const pacedActions = applyPacingPolicy(actions, pacingPolicy, dateConstraints);
 
   for (const action of pacedActions) {
-    const placed = tryPlaceAction(action, availableSlots, sessionConstraints);
+    const actionId = action.actionId || action.id;
+    const transitiveDependencyIds = resolveTransitiveDependencyIds(actionId, actionById, transitiveDependencyMemo);
+    const missingDependencyIds = transitiveDependencyIds.filter((dependencyId) => !placedBlocksByActionId.has(dependencyId));
+
+    if (missingDependencyIds.length > 0) {
+      unplacedActions.push({
+        ...action,
+        reason: `Blocked by unscheduled dependencies: ${missingDependencyIds.join(', ')}`
+      });
+      conflicts.push(`Could not place action: ${action.title || action.id}; blocked by dependencies`);
+      continue;
+    }
+
+    const earliestStartTime = transitiveDependencyIds.reduce((latestTimestamp, dependencyId) => {
+      const dependencyBlock = placedBlocksByActionId.get(dependencyId);
+      const dependencyCompletion = dependencyBlock?.completionDate ? new Date(dependencyBlock.completionDate).getTime() : 0;
+      return Math.max(latestTimestamp, dependencyCompletion);
+    }, 0);
+
+    const placed = tryPlaceAction(action, availableSlots, sessionConstraints, earliestStartTime, transitiveDependencyIds);
     if (placed) {
       placedBlocks.push(placed);
+      placedBlocksByActionId.set(placed.actionId, placed);
     } else {
       unplacedActions.push(action);
       conflicts.push(`Could not place action: ${action.title || action.id}`);
@@ -279,14 +356,17 @@ function applyPacingPolicy(actions, pacingPolicy, dateConstraints) {
 /**
  * Try to place an action in available slots
  */
-function tryPlaceAction(action, availableSlots, sessionConstraints) {
+function tryPlaceAction(action, availableSlots, sessionConstraints, earliestStartTime = 0, transitiveDependencyIds = []) {
   const requiredMinutes = action.estimatedMinutes || 60;
 
   for (const slot of availableSlots) {
     if (!slot.available) continue;
+    const slotStartTime = toUtcTimestamp(slot.date, slot.startTime);
+    if (slotStartTime < earliestStartTime) continue;
 
     if (slot.durationMinutes >= requiredMinutes) {
       slot.available = false;
+      const endTime = calculateEndTime(slot.startTime, requiredMinutes);
 
       // Place the action in this slot
       return {
@@ -294,10 +374,15 @@ function tryPlaceAction(action, availableSlots, sessionConstraints) {
         actionId: action.actionId || action.id,
         actionName: action.title || action.name || action.label || action.description || action.actionId,
         date: slot.date,
+        preferredDate: slot.date,
         startTime: slot.startTime,
-        endTime: calculateEndTime(slot.startTime, requiredMinutes),
+        endTime,
         durationMinutes: requiredMinutes,
-        dependencyPosition: action.dependencyPosition || 0
+        dependencyPosition: action.dependencyPosition || 0,
+        directDependencyIds: Array.isArray(action.dependsOn) ? action.dependsOn.filter(Boolean) : [],
+        transitiveDependencyIds,
+        scheduledDate: `${slot.date}T${slot.startTime}:00.000Z`,
+        completionDate: `${slot.date}T${endTime}:00.000Z`
       };
     }
   }
@@ -314,6 +399,10 @@ function calculateEndTime(startTime, minutes) {
   const endHours = Math.floor(totalMinutes / 60);
   const endMins = totalMinutes % 60;
   return `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
+}
+
+function toUtcTimestamp(date, time) {
+  return new Date(`${date}T${time}:00.000Z`).getTime();
 }
 
 /**

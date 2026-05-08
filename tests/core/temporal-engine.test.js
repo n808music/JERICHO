@@ -21,7 +21,7 @@ describe('temporal-engine', () => {
       pendingCount: 6,
       rawTotal: 0,
       maxPossible: 1
-    });
+    }, { currentDate: '2025-01-10' });
 
     const scheduledIds = result.daySlots.flatMap((d) => d.slots.flatMap((s) => s.taskIds));
     expect(scheduledIds.length).toBeGreaterThan(0);
@@ -42,7 +42,7 @@ describe('temporal-engine', () => {
       pendingCount: 2,
       rawTotal: 0,
       maxPossible: 1
-    });
+    }, { currentDate: '2025-01-10' });
 
     const todayIds = result.daySlots[0].slots.flatMap((s) => s.taskIds);
     expect(result.todayPriorityTaskId).toBe('t1');
@@ -59,7 +59,7 @@ describe('temporal-engine', () => {
       makeTask('t2', 0.8, 3, '2025-01-10T00:00:00.000Z')
     ];
 
-    const result = scheduleTasksIntoSlots(tasks, daySlots, { score: 50, completedCount: 0, missedCount: 0, pendingCount: 2, rawTotal: 0, maxPossible: 1 });
+    const result = scheduleTasksIntoSlots(tasks, daySlots, { score: 50, completedCount: 0, missedCount: 0, pendingCount: 2, rawTotal: 0, maxPossible: 1 }, { currentDate: '2025-01-10' });
     const todayIds = result.daySlots[0].slots.flatMap((s) => s.taskIds);
     expect(todayIds.length).toBe(0);
     expect(result.overflowTasks.length).toBe(2);
@@ -72,7 +72,7 @@ describe('temporal-engine', () => {
       makeTask('t2', 0.8, 2, '2025-01-12T00:00:00.000Z')
     ];
 
-    const result = scheduleTasksIntoSlots(tasks, daySlots, { score: 80, completedCount: 0, missedCount: 0, pendingCount: 2, rawTotal: 0, maxPossible: 1 });
+    const result = scheduleTasksIntoSlots(tasks, daySlots, { score: 80, completedCount: 0, missedCount: 0, pendingCount: 2, rawTotal: 0, maxPossible: 1 }, { currentDate: '2025-01-10' });
     const afterDue = result.daySlots
       .filter((d) => d.date > '2025-01-10')
       .flatMap((d) => d.slots.flatMap((s) => s.taskIds));
@@ -88,8 +88,8 @@ describe('temporal-engine', () => {
     ];
     const integrity = { score: 80, completedCount: 0, missedCount: 0, pendingCount: 2, rawTotal: 0, maxPossible: 1 };
 
-    const resultA = scheduleTasksIntoSlots(tasks, daySlotsA, integrity);
-    const resultB = scheduleTasksIntoSlots(tasks, daySlotsB, integrity);
+    const resultA = scheduleTasksIntoSlots(tasks, daySlotsA, integrity, { currentDate: '2025-01-10' });
+    const resultB = scheduleTasksIntoSlots(tasks, daySlotsB, integrity, { currentDate: '2025-01-10' });
 
     expect(resultA.daySlots).toEqual(resultB.daySlots);
     expect(resultA.overflowTasks).toEqual(resultB.overflowTasks);

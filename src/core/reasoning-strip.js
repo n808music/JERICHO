@@ -1,4 +1,4 @@
-export function buildReasoningStrip({ pipeline = {}, narrative = {}, directives = {}, scene = {}, state = {} }) {
+export function buildReasoningStrip({ pipeline = {}, narrative: _narrative = {}, directives = {}, scene = {}, state = {} }) {
   const integrity = pipeline.integrity || {};
   const analysis = pipeline.analysis || {};
   const governance = analysis.cycleGovernance || {};

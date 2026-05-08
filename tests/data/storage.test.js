@@ -53,7 +53,7 @@ describe('storage persistence', () => {
     await writeState({ goals: mockGoals.goals, identity: mockIdentity, history: [] });
     await appendGoal({ domain: 'focus', capability: 'deep-work', targetLevel: 5 });
     await updateIdentity('health', 'sleep', 4);
-    await recordTaskStatus('task-1', 'done');
+    await recordTaskStatus('task-1', 'done', {}, { nowIso: '2026-01-01T00:00:00.000Z' });
 
     const state = await readState();
     expect(state.goals.length).toBeGreaterThanOrEqual(mockGoals.goals.length + 1);

@@ -13,7 +13,7 @@ function makeBlock({ id, start, end, practice = 'Focus', status = 'planned' }) {
 describe('metrics policy (planSource + unknown treatment)', () => {
   it('planSource TARGETS does not override scheduled planned minutes when scheduled > 0', () => {
     const blocks = normalizeBlocks([
-      makeBlock({ id: 'b1', start: iso('2025-12-01', '10:00'), end: iso('2025-12-01', '11:00'), practice: 'Body' })
+      makeBlock({ id: 'b1', start: iso('2025-12-01', '10:00'), end: iso('2025-12-01', '11:00'), practice: 'Body' }),
     ]);
     const window = { kind: 'day', startDayKey: '2025-12-01', endDayKeyExclusive: addDays('2025-12-01', 1) };
     const patternTargets = { Body: 120, Resources: 0, Creation: 0, Focus: 0 };
@@ -38,7 +38,7 @@ describe('metrics policy (planSource + unknown treatment)', () => {
 
   it('unknown practice contributes to overall planned but not per-practice buckets', () => {
     const blocks = normalizeBlocks([
-      makeBlock({ id: 'u', start: iso('2025-12-01', '10:00'), end: iso('2025-12-01', '11:00'), practice: 'N/A' })
+      makeBlock({ id: 'u', start: iso('2025-12-01', '10:00'), end: iso('2025-12-01', '11:00'), practice: 'N/A' }),
     ]);
     const window = { kind: 'day', startDayKey: '2025-12-01', endDayKeyExclusive: addDays('2025-12-01', 1) };
     const m = computeWindowMetrics({ blocks, window });

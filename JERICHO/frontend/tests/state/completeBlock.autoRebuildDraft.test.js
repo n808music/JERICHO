@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildCycleDraftItems, hasScheduledOrActiveActionBlock, runAdvancementSpine } from '../helpers/advancementHarness.js';
+import {
+  buildCycleDraftItems,
+  hasScheduledOrActiveActionBlock,
+  runAdvancementSpine,
+} from '../helpers/advancementHarness.js';
 
 describe('completeBlock auto rebuild draft schedule', () => {
   it('rebuilds preview drafting after completing an action-linked block', async () => {

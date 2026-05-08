@@ -8,7 +8,11 @@ function DayCell({ day, onSelect, selected }) {
     <button
       data-testid={`year-day-${day.date}`}
       className={`w-8 h-8 rounded-sm border text-[10px] flex flex-col items-center justify-center ${
-        selected ? 'border-jericho-accent bg-jericho-accent/5' : hasData ? 'border-line/80 bg-jericho-surface/80' : 'border-line/30 bg-transparent'
+        selected
+          ? 'border-jericho-accent bg-jericho-accent/5'
+          : hasData
+            ? 'border-line/80 bg-jericho-surface/80'
+            : 'border-line/30 bg-transparent'
       } hover:border-jericho-accent`}
       onClick={() => onSelect?.(day)}
       title={`${day.date} · ${completionPercent}%`}

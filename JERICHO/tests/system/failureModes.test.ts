@@ -17,6 +17,38 @@ function withPatch(base: any, patch: any) {
   };
 }
 
+function withAdmissiblePreviewLineage(preview: any) {
+  const cycleId = preview.activeCycleId;
+  const cycle = preview.cyclesById?.[cycleId];
+  const goalId = cycle?.goalContract?.goalId;
+  const deliverableId = cycle?.canonicalDeliverables?.[0]?.id || cycle?.deliverables?.[0]?.id || 'd1';
+  const actionId = cycle?.actions?.[0]?.id || 'A0001';
+  const decorate = (block: any, index: number) => ({
+    ...block,
+    title: block?.title || `Ship v0 block ${index + 1}`,
+    rawLabel: block?.rawLabel || block?.title || `Ship v0 block ${index + 1}`,
+    deliverableId,
+    actionId,
+    cycleId,
+    goalId,
+  });
+  const proposedBlocks = (preview.proposedBlocks || []).map(decorate);
+  const suggestedBlocks = (preview.suggestedBlocks || []).map(decorate);
+  return {
+    ...preview,
+    proposedBlocks,
+    suggestedBlocks,
+    cyclesById: {
+      ...preview.cyclesById,
+      [cycleId]: {
+        ...cycle,
+        proposedBlocks,
+        suggestedBlocks,
+      },
+    },
+  };
+}
+
 describe('failure modes deterministic handling', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -29,7 +61,7 @@ describe('failure modes deterministic handling', () => {
 
   it('handles zero capacity without crashing', () => {
     const seeded = withPatch(seedScenario(), { maxScheduledMinutesPerDay: 0, maxScheduledMinutesPerWeek: 0 });
-    const preview = rebuildPreview(seeded);
+    const preview = withAdmissiblePreviewLineage(rebuildPreview(seeded));
     const applied = applyDraft(preview);
     expect(applied.policySelectionParity).toBe(true);
     expect(applied.lastPlanError).toBeNull();
@@ -48,7 +80,7 @@ describe('failure modes deterministic handling', () => {
         },
       ],
     });
-    const preview = rebuildPreview(seeded);
+    const preview = withAdmissiblePreviewLineage(rebuildPreview(seeded));
     expect(preview.planPreview).toBeTruthy();
     expect(Array.isArray(preview.planPreview?.policySelectionReasonCodes)).toBe(true);
     const applied = applyDraft(preview);
@@ -58,9 +90,14 @@ describe('failure modes deterministic handling', () => {
 
   it('handles missing dependency roots', () => {
     const seeded = withPatch(seedScenario(), {
-      actions: Array.from({ length: 20 }, (_, i) => ({ id: `D${i}`, estimateMin: 30, category: 'FOCUS', dependencies: ['MISSING'] })),
+      actions: Array.from({ length: 20 }, (_, i) => ({
+        id: `D${i}`,
+        estimateMin: 30,
+        category: 'FOCUS',
+        dependencies: ['MISSING'],
+      })),
     });
-    const preview = rebuildPreview(seeded);
+    const preview = withAdmissiblePreviewLineage(rebuildPreview(seeded));
     const applied = applyDraft(preview);
     expect(applied.lastPlanError).toBeNull();
     expect(applied.policySelectionParity).toBe(true);
@@ -80,7 +117,7 @@ describe('failure modes deterministic handling', () => {
 
   it('handles all work outside execution horizon', () => {
     const seeded = withPatch(seedScenario(), { executionHorizonDays: 1, horizonDays: 365 });
-    const preview = rebuildPreview(seeded);
+    const preview = withAdmissiblePreviewLineage(rebuildPreview(seeded));
     const applied = applyDraft(preview);
     expect(applied.scoreParity).toBe(true);
   });

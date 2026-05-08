@@ -107,7 +107,7 @@ export function buildWindowSpec(mode: WindowMode, anchorISO: string, timeZone: s
       anchorDayKey: '',
       startDayKey: '',
       endDayKey: '',
-      labelParts: { mode, anchorDayKey: '', startDayKey: '', endDayKey: '' }
+      labelParts: { mode, anchorDayKey: '', startDayKey: '', endDayKey: '' },
     };
   }
   if (mode === 'day') {
@@ -116,7 +116,7 @@ export function buildWindowSpec(mode: WindowMode, anchorISO: string, timeZone: s
       anchorDayKey,
       startDayKey: anchorDayKey,
       endDayKey: anchorDayKey,
-      labelParts: { mode, anchorDayKey, startDayKey: anchorDayKey, endDayKey: anchorDayKey }
+      labelParts: { mode, anchorDayKey, startDayKey: anchorDayKey, endDayKey: anchorDayKey },
     };
   }
   if (mode === 'week') {
@@ -128,7 +128,7 @@ export function buildWindowSpec(mode: WindowMode, anchorISO: string, timeZone: s
       anchorDayKey,
       startDayKey,
       endDayKey,
-      labelParts: { mode, anchorDayKey, startDayKey, endDayKey }
+      labelParts: { mode, anchorDayKey, startDayKey, endDayKey },
     };
   }
   const { year, monthIndex } = parseDayKey(anchorDayKey);
@@ -140,7 +140,7 @@ export function buildWindowSpec(mode: WindowMode, anchorISO: string, timeZone: s
       anchorDayKey,
       startDayKey,
       endDayKey,
-      labelParts: { mode, anchorDayKey, startDayKey, endDayKey }
+      labelParts: { mode, anchorDayKey, startDayKey, endDayKey },
     };
   }
   if (mode === 'quarter') {
@@ -154,7 +154,7 @@ export function buildWindowSpec(mode: WindowMode, anchorISO: string, timeZone: s
       anchorDayKey,
       startDayKey: start,
       endDayKey: end,
-      labelParts: { mode, anchorDayKey, startDayKey: start, endDayKey: end }
+      labelParts: { mode, anchorDayKey, startDayKey: start, endDayKey: end },
     };
   }
   const startDayKey = dayKeyFromParts(year, 0, 1, timeZone);
@@ -164,7 +164,7 @@ export function buildWindowSpec(mode: WindowMode, anchorISO: string, timeZone: s
     anchorDayKey,
     startDayKey,
     endDayKey,
-    labelParts: { mode, anchorDayKey, startDayKey, endDayKey }
+    labelParts: { mode, anchorDayKey, startDayKey, endDayKey },
   };
 }
 
@@ -176,7 +176,7 @@ function formatDayKeyLong(dayKey: string, timeZone: string) {
     timeZone,
     month: 'short',
     day: 'numeric',
-    year: 'numeric'
+    year: 'numeric',
   });
   return formatter.format(date);
 }
@@ -187,7 +187,7 @@ function formatMonthLabel(dayKey: string, timeZone: string) {
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone,
     month: 'long',
-    year: 'numeric'
+    year: 'numeric',
   });
   return formatter.format(date);
 }

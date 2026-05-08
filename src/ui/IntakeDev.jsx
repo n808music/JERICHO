@@ -14,37 +14,15 @@ export default function IntakeDev() {
   const [goalPayload, setGoalPayload] = useState(null);
   const [feasibilityPayload, setFeasibilityPayload] = useState(null);
   const [scheduleResult, setScheduleResult] = useState(null);
-  const shellStyle = { maxWidth: '600px', margin: '40px auto', padding: '0 20px' };
 
   if (stage === 'intake') {
     return (
-      <div style={shellStyle}>
-        <GoalIntakeUI
-          onConfirmed={(payload) => {
-            setGoalPayload(payload);
-            setStage('feasibility');
-          }}
-        />
-        <button
-          style={{ marginTop: 16, fontSize: 12, color: '#999' }}
-          onClick={() => {
-            setScheduleResult({
-              goalId: 'dev-goal-001',
-              cycleId: 'dev-cycle-001',
-              traceId: 'dev-trace-001',
-              goalSubtype: 'Music Project Production',
-              goalFamily: 'CreativeProduction',
-              feasibilityScore: 72,
-              feasibilityBand: 'YELLOW',
-              committedBlocks: 7,
-              scheduleId: 'dev-schedule-001'
-            });
-            setStage('done');
-          }}
-        >
-          [DEV] Skip to Surface 4
-        </button>
-      </div>
+      <GoalIntakeUI
+        onConfirmed={(payload) => {
+          setGoalPayload(payload);
+          setStage('feasibility');
+        }}
+      />
     );
   }
 

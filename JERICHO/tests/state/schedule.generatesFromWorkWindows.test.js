@@ -61,12 +61,12 @@ function buildState() {
 
 describe('schedule generation from goalContract.workWindows', () => {
   it('generates blocks only on configured work-window days and uses window start time', () => {
-    const next = computeDerivedState(buildState(), { type: 'GENERATE_PLAN', payload: { cycleId: 'cycle-1' } });
+    const generated = computeDerivedState(buildState(), { type: 'GENERATE_PLAN', payload: { cycleId: 'cycle-1' } });
 
-    const committed = (next.proposedBlocks || []).filter((item) => item?.status === 'accepted');
-    expect(committed.length).toBeGreaterThan(0);
+    const proposed = generated.proposedBlocks || [];
+    expect(proposed.length).toBeGreaterThan(0);
 
-    committed.forEach((block) => {
+    proposed.forEach((block) => {
       const dow = dayKeyToDow(block.dayKey || block.startISO?.slice(0, 10));
       expect(['mon', 'wed']).toContain(dow);
 
@@ -75,7 +75,6 @@ describe('schedule generation from goalContract.workWindows', () => {
       expect(block.startISO).toBe(expectedISO);
     });
 
-    expect(next.scheduleApplied).toBe(true);
-    expect(next.lastPlanError).toBeNull();
+    expect(generated.lastPlanError).toBeNull();
   });
 });

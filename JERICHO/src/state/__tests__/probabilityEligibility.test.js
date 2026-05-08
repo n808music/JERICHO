@@ -17,10 +17,10 @@ describe('probability eligibility', () => {
           suggestionsEnabled: true,
           probabilityEnabled: false,
           minEvidenceEvents: 1,
-          cooldowns: { resuggestMinutes: 30, maxSuggestionsPerDay: 6 }
+          cooldowns: { resuggestMinutes: 30, maxSuggestionsPerDay: 6 },
         },
-        constraints: { forbiddenDirectives: [], maxActiveBlocks: 6 }
-      }
+        constraints: { forbiddenDirectives: [], maxActiveBlocks: 6 },
+      },
     ];
 
     const result = deriveProbabilityStatus({
@@ -28,7 +28,7 @@ describe('probability eligibility', () => {
       nowISO,
       executionEventCount: 0,
       contracts,
-      executionEvents: []
+      executionEvents: [],
     });
 
     expect(result.status).not.toBe('disabled');

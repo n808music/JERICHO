@@ -22,13 +22,29 @@ function createValidContract(overrides = {}) {
   const contract = buildValidGoalContract({
     terminalOutcome: { text: 'Ship MVP feature X', verificationCriteria: 'Feature is live', isConcrete: true },
     deadline: { dayKey: '2026-02-20', isHardDeadline: true },
-    sacrifice: { whatIsGivenUp: 'Weekend social activities', duration: '6 weeks', quantifiedImpact: '10 hours/week', rationale: 'Focus on delivery' },
-    temporalBinding: { daysPerWeek: 5, activationTime: '09:00', sessionDurationMinutes: 120, weeklyMinutes: 600, startDayKey: '2026-01-10' },
+    sacrifice: {
+      whatIsGivenUp: 'Weekend social activities',
+      duration: '6 weeks',
+      quantifiedImpact: '10 hours/week',
+      rationale: 'Focus on delivery',
+    },
+    temporalBinding: {
+      daysPerWeek: 5,
+      activationTime: '09:00',
+      sessionDurationMinutes: 120,
+      weeklyMinutes: 600,
+      startDayKey: '2026-01-10',
+    },
     causalChain: { steps: [{ sequence: 1, description: 'Design', approximateDayOffset: 7 }] },
-    reinforcement: { dailyExposureEnabled: true, dailyMechanism: 'Calendar title', checkInFrequency: 'DAILY', triggerDescription: 'Morning' },
+    reinforcement: {
+      dailyExposureEnabled: true,
+      dailyMechanism: 'Calendar title',
+      checkInFrequency: 'DAILY',
+      triggerDescription: 'Morning',
+    },
     inscription: { inscribedAtISO: NOW_ISO, acknowledgment: 'I accept', isCompromised: false },
     isAspirational: false,
-    ...overrides
+    ...overrides,
   });
 
   if (contract.inscription) {
@@ -52,7 +68,11 @@ describe('identityStore.attemptGoalAdmissionPure', () => {
   it('creates an aspiration on rejected contract and does not change activeCycle', () => {
     const state = buildMinimalState();
     // add an existing active cycle to ensure invariant
-    state.cyclesById['cycle-1'] = { id: 'cycle-1', status: 'Active', goalContract: { terminalOutcome: { text: 'Other goal' } } };
+    state.cyclesById['cycle-1'] = {
+      id: 'cycle-1',
+      status: 'Active',
+      goalContract: { terminalOutcome: { text: 'Other goal' } },
+    };
     state.activeCycleId = 'cycle-1';
     state.cycleOrder = ['cycle-1'];
 
@@ -72,7 +92,11 @@ describe('identityStore.attemptGoalAdmissionPure', () => {
   it('creates a new active cycle on admitted contract and leaves aspirations unchanged', () => {
     const state = buildMinimalState();
     // pre-existing cycle present
-    state.cyclesById['cycle-1'] = { id: 'cycle-1', status: 'Active', goalContract: { terminalOutcome: { text: 'Other goal' } } };
+    state.cyclesById['cycle-1'] = {
+      id: 'cycle-1',
+      status: 'Active',
+      goalContract: { terminalOutcome: { text: 'Other goal' } },
+    };
     state.activeCycleId = 'cycle-1';
     state.cycleOrder = ['cycle-1'];
 
@@ -122,7 +146,7 @@ describe('identityStore.attemptGoalAdmissionPure', () => {
       executionEvents: [],
       suggestionEvents: [],
       suggestedBlocks: [],
-      truthEntries: []
+      truthEntries: [],
     };
     newState.activeCycleId = blankCycleId;
 
@@ -136,18 +160,18 @@ describe('identityStore.attemptGoalAdmissionPure', () => {
   it('rejects duplicates when multiple active cycles share the same signature', () => {
     const state = buildMinimalState();
     const contract = createValidContract({
-      terminalOutcome: { text: 'Duplicate goal', verificationCriteria: 'Goal complete', isConcrete: true }
+      terminalOutcome: { text: 'Duplicate goal', verificationCriteria: 'Goal complete', isConcrete: true },
     });
     // create two active cycles with same terminal outcome
     state.cyclesById['cycle-1'] = {
       id: 'cycle-1',
       status: 'Active',
-      goalContract: { terminalOutcome: { text: 'Duplicate goal' } }
+      goalContract: { terminalOutcome: { text: 'Duplicate goal' } },
     };
     state.cyclesById['cycle-2'] = {
       id: 'cycle-2',
       status: 'Active',
-      goalContract: { terminalOutcome: { text: 'Duplicate goal' } }
+      goalContract: { terminalOutcome: { text: 'Duplicate goal' } },
     };
     state.activeCycleId = 'cycle-1';
 

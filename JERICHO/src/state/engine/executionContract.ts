@@ -37,6 +37,15 @@ function buildSnapshot(events: ExecutionEvent[] = []) {
   return map;
 }
 
+function latestEventForBlock(events: ExecutionEvent[] = [], blockId?: string) {
+  if (!blockId) return null;
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (event?.blockId === blockId) return event;
+  }
+  return null;
+}
+
 export function canEmitExecutionEvent(
   events: ExecutionEvent[] = [],
   event?: ExecutionEvent,
@@ -60,6 +69,21 @@ export function canEmitExecutionEvent(
   if (event.kind === 'update') {
     if (!exists || status.deleted) return false;
     if (event.dateISO || event.startISO || event.endISO) return false;
+    const latestEvent = latestEventForBlock(events, event.blockId);
+    const latestStatus = String(latestEvent?.status || '')
+      .trim()
+      .toLowerCase();
+    const nextStatus = String(event.status || '')
+      .trim()
+      .toLowerCase();
+    if (
+      latestEvent?.kind === 'update' &&
+      latestStatus &&
+      latestStatus === nextStatus &&
+      String(latestEvent?.reason || '').trim() === String(event.reason || '').trim()
+    ) {
+      return false;
+    }
     return true;
   }
 
@@ -69,6 +93,11 @@ export function canEmitExecutionEvent(
   }
 
   if (event.kind === 'complete') {
+    if (!exists || status.deleted) return false;
+    return true;
+  }
+
+  if (event.kind === 'missed' || event.kind === 'skipped') {
     if (!exists || status.deleted) return false;
     return true;
   }

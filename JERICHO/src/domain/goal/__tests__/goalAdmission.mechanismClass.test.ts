@@ -2,7 +2,7 @@
  * goalAdmission.mechanismClass.test.ts
  *
  * Tests for plan generation mechanism class gating in admission policy
- * Phase 3 v1: GENERIC_DETERMINISTIC required and only supported mechanism
+ * Phase 3 v1: GENERIC_DETERMINISTIC and LLM_TYPED are supported mechanisms
  */
 
 import { describe, it, expect } from 'vitest';
@@ -32,13 +32,14 @@ describe('GoalAdmissionPolicy - MechanismClass Gating (Phase 3)', () => {
       rationale: 'To focus on shipping',
       hash: 'hash2',
     },
-    temporalBinding: {
-      daysPerWeek: 5,
-      specificDays: 'Mon-Fri',
-      activationTime: '09:00',
-      sessionDurationMinutes: 60,
-      weeklyMinutes: 300,
-      startDayKey: '2025-02-01',
+    workWindows: {
+      mon: [{ start: '09:00', end: '11:00' }],
+      tue: [{ start: '09:00', end: '11:00' }],
+      wed: [{ start: '09:00', end: '11:00' }],
+      thu: [{ start: '09:00', end: '11:00' }],
+      fri: [{ start: '09:00', end: '11:00' }],
+      sat: [],
+      sun: [],
     },
     causalChain: {
       steps: [
@@ -75,12 +76,18 @@ describe('GoalAdmissionPolicy - MechanismClass Gating (Phase 3)', () => {
       const result = validateGoalAdmission(contract, '2025-02-01T00:00:00Z');
 
       // Should not include mechanism rejection codes
-      expect(result.rejectionCodes).not.toContain(
-        GoalRejectionCode.PLAN_GENERATION_MECHANISM_MISSING
-      );
-      expect(result.rejectionCodes).not.toContain(
-        GoalRejectionCode.PLAN_GENERATION_MECHANISM_UNSUPPORTED
-      );
+      expect(result.rejectionCodes).not.toContain(GoalRejectionCode.PLAN_GENERATION_MECHANISM_MISSING);
+      expect(result.rejectionCodes).not.toContain(GoalRejectionCode.PLAN_GENERATION_MECHANISM_UNSUPPORTED);
+    });
+
+    it('admits valid contract with LLM_TYPED', () => {
+      const contract = buildMinimalValidContract({
+        planGenerationMechanismClass: 'LLM_TYPED',
+      });
+      const result = validateGoalAdmission(contract, '2025-02-01T00:00:00Z');
+
+      expect(result.rejectionCodes).not.toContain(GoalRejectionCode.PLAN_GENERATION_MECHANISM_MISSING);
+      expect(result.rejectionCodes).not.toContain(GoalRejectionCode.PLAN_GENERATION_MECHANISM_UNSUPPORTED);
     });
 
     it('rejects missing planGenerationMechanismClass', () => {
@@ -89,9 +96,7 @@ describe('GoalAdmissionPolicy - MechanismClass Gating (Phase 3)', () => {
       });
       const result = validateGoalAdmission(contract, '2025-02-01T00:00:00Z');
 
-      expect(result.rejectionCodes).toContain(
-        GoalRejectionCode.PLAN_GENERATION_MECHANISM_MISSING
-      );
+      expect(result.rejectionCodes).toContain(GoalRejectionCode.PLAN_GENERATION_MECHANISM_MISSING);
       expect(result.status).toBe('REJECTED');
     });
 
@@ -101,9 +106,7 @@ describe('GoalAdmissionPolicy - MechanismClass Gating (Phase 3)', () => {
       });
       const result = validateGoalAdmission(contract, '2025-02-01T00:00:00Z');
 
-      expect(result.rejectionCodes).toContain(
-        GoalRejectionCode.PLAN_GENERATION_MECHANISM_MISSING
-      );
+      expect(result.rejectionCodes).toContain(GoalRejectionCode.PLAN_GENERATION_MECHANISM_MISSING);
     });
 
     it('rejects TEMPLATE_PIPELINE (not supported in v1)', () => {
@@ -112,9 +115,7 @@ describe('GoalAdmissionPolicy - MechanismClass Gating (Phase 3)', () => {
       });
       const result = validateGoalAdmission(contract, '2025-02-01T00:00:00Z');
 
-      expect(result.rejectionCodes).toContain(
-        GoalRejectionCode.PLAN_GENERATION_MECHANISM_UNSUPPORTED
-      );
+      expect(result.rejectionCodes).toContain(GoalRejectionCode.PLAN_GENERATION_MECHANISM_UNSUPPORTED);
     });
 
     it('rejects HABIT_LOOP (not supported in v1)', () => {
@@ -123,9 +124,7 @@ describe('GoalAdmissionPolicy - MechanismClass Gating (Phase 3)', () => {
       });
       const result = validateGoalAdmission(contract, '2025-02-01T00:00:00Z');
 
-      expect(result.rejectionCodes).toContain(
-        GoalRejectionCode.PLAN_GENERATION_MECHANISM_UNSUPPORTED
-      );
+      expect(result.rejectionCodes).toContain(GoalRejectionCode.PLAN_GENERATION_MECHANISM_UNSUPPORTED);
     });
 
     it('rejects PROJECT_MILESTONE (not supported in v1)', () => {
@@ -134,9 +133,7 @@ describe('GoalAdmissionPolicy - MechanismClass Gating (Phase 3)', () => {
       });
       const result = validateGoalAdmission(contract, '2025-02-01T00:00:00Z');
 
-      expect(result.rejectionCodes).toContain(
-        GoalRejectionCode.PLAN_GENERATION_MECHANISM_UNSUPPORTED
-      );
+      expect(result.rejectionCodes).toContain(GoalRejectionCode.PLAN_GENERATION_MECHANISM_UNSUPPORTED);
     });
 
     it('rejects DELIVERABLE_DRIVEN (not supported in v1)', () => {
@@ -145,9 +142,7 @@ describe('GoalAdmissionPolicy - MechanismClass Gating (Phase 3)', () => {
       });
       const result = validateGoalAdmission(contract, '2025-02-01T00:00:00Z');
 
-      expect(result.rejectionCodes).toContain(
-        GoalRejectionCode.PLAN_GENERATION_MECHANISM_UNSUPPORTED
-      );
+      expect(result.rejectionCodes).toContain(GoalRejectionCode.PLAN_GENERATION_MECHANISM_UNSUPPORTED);
     });
 
     it('rejects CUSTOM (not supported in v1)', () => {
@@ -156,9 +151,7 @@ describe('GoalAdmissionPolicy - MechanismClass Gating (Phase 3)', () => {
       });
       const result = validateGoalAdmission(contract, '2025-02-01T00:00:00Z');
 
-      expect(result.rejectionCodes).toContain(
-        GoalRejectionCode.PLAN_GENERATION_MECHANISM_UNSUPPORTED
-      );
+      expect(result.rejectionCodes).toContain(GoalRejectionCode.PLAN_GENERATION_MECHANISM_UNSUPPORTED);
     });
   });
 
@@ -170,9 +163,7 @@ describe('GoalAdmissionPolicy - MechanismClass Gating (Phase 3)', () => {
       });
       const result = validateGoalAdmission(contract, '2025-02-01T00:00:00Z');
 
-      expect(result.rejectionCodes).toContain(
-        GoalRejectionCode.PLAN_GENERATION_MECHANISM_UNSUPPORTED
-      );
+      expect(result.rejectionCodes).toContain(GoalRejectionCode.PLAN_GENERATION_MECHANISM_UNSUPPORTED);
       expect(result.rejectionCodes).toContain(GoalRejectionCode.DEADLINE_TOO_SOON);
       expect(result.status).toBe('REJECTED');
     });
@@ -183,15 +174,10 @@ describe('GoalAdmissionPolicy - MechanismClass Gating (Phase 3)', () => {
         planGenerationMechanismClass: undefined,
         terminalOutcome: undefined, // also missing
       });
-      const result = validateGoalAdmission(
-        contractWithMissingMechanism,
-        '2025-02-01T00:00:00Z'
-      );
+      const result = validateGoalAdmission(contractWithMissingMechanism, '2025-02-01T00:00:00Z');
 
       // Should include both errors
-      expect(result.rejectionCodes).toContain(
-        GoalRejectionCode.PLAN_GENERATION_MECHANISM_MISSING
-      );
+      expect(result.rejectionCodes).toContain(GoalRejectionCode.PLAN_GENERATION_MECHANISM_MISSING);
       expect(result.rejectionCodes).toContain(GoalRejectionCode.TERMINAL_OUTCOME_MISSING);
     });
   });
@@ -203,9 +189,7 @@ describe('GoalAdmissionPolicy - MechanismClass Gating (Phase 3)', () => {
       });
       const result = validateGoalAdmission(contract, '2025-02-01T00:00:00Z');
 
-      const message = result.rejectionMessages.find((m) =>
-        m.toLowerCase().includes('mechanism')
-      );
+      const message = result.rejectionMessages.find((m) => m.toLowerCase().includes('mechanism'));
       expect(message).toBeDefined();
       expect(message).toContain('required');
     });
@@ -216,9 +200,7 @@ describe('GoalAdmissionPolicy - MechanismClass Gating (Phase 3)', () => {
       });
       const result = validateGoalAdmission(contract, '2025-02-01T00:00:00Z');
 
-      const message = result.rejectionMessages.find((m) =>
-        m.toLowerCase().includes('generic_deterministic')
-      );
+      const message = result.rejectionMessages.find((m) => m.toLowerCase().includes('generic_deterministic'));
       expect(message).toBeDefined();
       expect(message).toContain('v1');
     });

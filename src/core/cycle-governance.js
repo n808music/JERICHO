@@ -43,8 +43,7 @@ export function evaluateCycleGovernance({
     completionRateEffective = 1 - GOVERNANCE_CONFIG.normal.failureRateMax / 2;
   }
   const failureRate = Math.max(0, Math.min(1, 1 - completionRateEffective));
-  const recentCycles = summary.recentCycles ?? 0;
-  const effectiveLookback = Math.max(1, Math.min(GOVERNANCE_CONFIG.lookbackCycles, recentCycles || 1));
+  const _recentCycles = summary.recentCycles ?? 0;
 
   let deadlineThreat = false;
   const gf = forecast?.goalForecast || {};

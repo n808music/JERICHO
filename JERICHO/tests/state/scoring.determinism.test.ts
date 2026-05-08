@@ -2,8 +2,24 @@ import { describe, expect, it } from 'vitest';
 import { scoreSchedule } from '../../src/planner/scoring/scoreSchedule.ts';
 
 const assignments = [
-  { actionId: 'a', chunkIndex: 0, chunkCount: 1, dayKey: '2026-01-01', startMin: 540, durationMin: 60, category: 'focus' },
-  { actionId: 'b', chunkIndex: 0, chunkCount: 1, dayKey: '2026-01-01', startMin: 660, durationMin: 30, category: 'creation' },
+  {
+    actionId: 'a',
+    chunkIndex: 0,
+    chunkCount: 1,
+    dayKey: '2026-01-01',
+    startMin: 540,
+    durationMin: 60,
+    category: 'focus',
+  },
+  {
+    actionId: 'b',
+    chunkIndex: 0,
+    chunkCount: 1,
+    dayKey: '2026-01-01',
+    startMin: 660,
+    durationMin: 30,
+    category: 'creation',
+  },
 ];
 
 describe('scoreSchedule determinism', () => {

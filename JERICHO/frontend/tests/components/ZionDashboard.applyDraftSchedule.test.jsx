@@ -21,7 +21,7 @@ function buildDraftState() {
     deps: [],
     status: 'todo',
     topoIndex: 0,
-    priority: 1
+    priority: 1,
   };
   const action2 = {
     id: 'goal-1:episode-list',
@@ -34,11 +34,15 @@ function buildDraftState() {
     deps: ['goal-1:season-thesis'],
     status: 'todo',
     topoIndex: 1,
-    priority: 1
+    priority: 1,
   };
   return {
     vector: {},
-    lenses: { aim: { description: '', horizon: '90d' }, pattern: { dailyTargets: [], flow: { streams: [] } }, flow: { streams: [] } },
+    lenses: {
+      aim: { description: '', horizon: '90d' },
+      pattern: { dailyTargets: [], flow: { streams: [] } },
+      flow: { streams: [] },
+    },
     today: { date: DAY_KEY, blocks: [], completionRate: 0, practices: [], loadByPractice: {} },
     currentWeek: { weekStart: DAY_KEY, days: [] },
     stability: { headline: '', actionLine: '' },
@@ -58,8 +62,8 @@ function buildDraftState() {
         domain: 'CREATION',
         durationMinutes: 60,
         status: 'suggested',
-        startISO: '2026-01-20T09:00:00.000Z'
-      }
+        startISO: '2026-01-20T09:00:00.000Z',
+      },
     ],
     deliverablesByCycleId: {},
     goalAdmissionByGoal: {},
@@ -71,7 +75,7 @@ function buildDraftState() {
     profileLearning: {},
     activeCycleId: cycleId,
     actionsByCycleId: {
-      [cycleId]: { cycleId, goalId: 'goal-1', actions: [action, action2] }
+      [cycleId]: { cycleId, goalId: 'goal-1', actions: [action, action2] },
     },
     cyclesById: {
       [cycleId]: {
@@ -81,12 +85,12 @@ function buildDraftState() {
         goalContract: { goalId: 'goal-1', startDateISO: `${DAY_KEY}T00:00:00.000Z` },
         coldPlan: {
           forecastByDayKey: {
-            [DAY_KEY]: { totalBlocks: 1, summary: 'Forecast' }
+            [DAY_KEY]: { totalBlocks: 1, summary: 'Forecast' },
           },
-          dailyProjection: { forecastByDayKey: {} }
+          dailyProjection: { forecastByDayKey: {} },
         },
-        summary: { completionCount: 0, completionRate: 0 }
-      }
+        summary: { completionCount: 0, completionRate: 0 },
+      },
     },
     goalExecutionContract: { goalId: 'goal-1', startDateISO: `${DAY_KEY}T00:00:00.000Z` },
     planDraft: { blocksPerWeek: 4, daysPerWeek: 4, primaryDomain: 'CREATION', minutesPerDay: 90 },
@@ -94,7 +98,7 @@ function buildDraftState() {
     correctionSignals: null,
     deliverables: [],
     goalDirective: { goalId: 'goal-1', directiveId: 'dir-1' },
-    directiveEligibilityByGoal: { 'goal-1': { eligible: true } }
+    directiveEligibilityByGoal: { 'goal-1': { eligible: true } },
   };
 }
 

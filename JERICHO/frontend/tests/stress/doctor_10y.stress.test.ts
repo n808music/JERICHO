@@ -19,8 +19,8 @@ describe('stress scenario: doctor_10y', () => {
       determinismBaseline: {
         proposedSchedulePreview: first.proposedSchedulePreview,
         committedEvents: first.committedEvents,
-        materializedSchedule: first.materializedSchedule
-      }
+        materializedSchedule: first.materializedSchedule,
+      },
     });
 
     const hardFailures = second.invariantViolations.filter((violation) => violation.severity === 'hard');
@@ -37,7 +37,9 @@ describe('stress scenario: doctor_10y', () => {
     expect(second.metrics.scheduleCoverageRatio).toBeLessThan(1);
     expect(second.metrics.outsideExecutionHorizonCount).toBeGreaterThan(0);
     expect(second.metrics.outsideExecutionHorizonEstimateMinTotal).toBeGreaterThan(0);
-    expect(second.metrics.milestoneWindowSlack.byMilestone['milestone:med_school_complete']?.overlapDays || 0).toBeGreaterThan(0);
+    expect(
+      second.metrics.milestoneWindowSlack.byMilestone['milestone:med_school_complete']?.overlapDays || 0
+    ).toBeGreaterThan(0);
   });
 
   it('writes a machine-readable report artifact', () => {

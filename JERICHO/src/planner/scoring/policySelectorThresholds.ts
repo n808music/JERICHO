@@ -18,7 +18,7 @@ export const POLICY_SELECTOR_THRESHOLDS = {
   histVelocityLow: 75,
   histChurnHigh: 30,
   histAnchoringMissHigh: 2,
-  histDepTightHigh: 3
+  histDepTightHigh: 3,
 } as const;
 
 export type PolicySelectorThresholds = typeof POLICY_SELECTOR_THRESHOLDS;

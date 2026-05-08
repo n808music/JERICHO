@@ -6,7 +6,16 @@ function buildState() {
   const startDay = '2026-01-01';
   const deadlineDay = '2026-01-02';
   const actions = [
-    { id: 'a-late', title: 'late outcome', detail: 'detail', category: 'Focus', estimateMin: 30, deps: [], topoIndex: 0, priority: 1 },
+    {
+      id: 'a-late',
+      title: 'late outcome',
+      detail: 'detail',
+      category: 'Focus',
+      estimateMin: 30,
+      deps: [],
+      topoIndex: 0,
+      priority: 1,
+    },
     {
       id: 'a-early-checkpoint',
       title: 'early checkpoint',
@@ -15,7 +24,7 @@ function buildState() {
       estimateMin: 30,
       deps: [],
       topoIndex: 1,
-      priority: 2
+      priority: 2,
     },
     {
       id: 'a-early-outcome',
@@ -25,9 +34,18 @@ function buildState() {
       estimateMin: 30,
       deps: [],
       topoIndex: 2,
-      priority: 3
+      priority: 3,
     },
-    { id: 'a-unbound', title: 'unbound', detail: 'detail', category: 'Resources', estimateMin: 30, deps: [], topoIndex: 3, priority: 4 }
+    {
+      id: 'a-unbound',
+      title: 'unbound',
+      detail: 'detail',
+      category: 'Resources',
+      estimateMin: 30,
+      deps: [],
+      topoIndex: 3,
+      priority: 4,
+    },
   ];
 
   const goalContract = {
@@ -40,17 +58,17 @@ function buildState() {
         windowStartDayKey: '2026-01-01',
         windowEndDayKey: '2026-01-02',
         actionIds: ['a-early-outcome'],
-        checkpointActionIds: ['a-early-checkpoint']
+        checkpointActionIds: ['a-early-checkpoint'],
       },
       {
         id: 'm-late',
         windowStartDayKey: '2026-01-10',
         windowEndDayKey: '2026-01-20',
         actionIds: ['a-late'],
-        checkpointActionIds: []
-      }
+        checkpointActionIds: [],
+      },
     ],
-    temporalBinding: { daysPerWeek: 7, specificDays: 'mon,tue,wed,thu,fri,sat,sun', sessionDurationMinutes: 30 }
+    temporalBinding: { daysPerWeek: 7, specificDays: 'mon,tue,wed,thu,fri,sat,sun', sessionDurationMinutes: 30 },
   };
 
   return {
@@ -67,14 +85,14 @@ function buildState() {
           id: cycleId,
           actions,
           goalContract,
-          coldPlan: { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } }
-        }
+          coldPlan: { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } },
+        },
       },
-      deliverablesByCycleId: { [cycleId]: { cycleId, deliverables: [] } }
+      deliverablesByCycleId: { [cycleId]: { cycleId, deliverables: [] } },
     },
     cycleId,
     actions,
-    goalContract
+    goalContract,
   };
 }
 
@@ -86,7 +104,7 @@ describe('draftSchedule full plan milestone ordering', () => {
       actions,
       contract: goalContract,
       timeZone: 'UTC',
-      defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' }
+      defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' },
     });
 
     const placedActionIds = Array.from(new Set(items.map((item) => item.actionId)));

@@ -28,7 +28,9 @@ describe('autoAsana cycle window clamp', () => {
       },
     });
 
-    expect(plan.horizonBlocks.every((block) => block.dayKey >= '2026-03-03' && block.dayKey <= '2026-03-04')).toBe(true);
+    expect(plan.horizonBlocks.every((block) => block.dayKey >= '2026-03-03' && block.dayKey <= '2026-03-04')).toBe(
+      true
+    );
     expect(plan.conflicts.some((conflict: any) => conflict.code === 'FILTERED_OUT_OF_RANGE')).toBe(true);
   });
 

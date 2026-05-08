@@ -10,11 +10,10 @@ export default function WeekGrid({
   selectedDayKey,
   setSelectedDayKey,
   selectedBlockId,
-  setSelectedBlockId
+  setSelectedBlockId,
 }) {
   const completionRate =
-    metrics.completionRate ||
-    days.reduce((sum, d) => sum + (d.completionRate || 0), 0) / Math.max(1, days.length || 1);
+    metrics.completionRate || days.reduce((sum, d) => sum + (d.completionRate || 0), 0) / Math.max(1, days.length || 1);
   const loadByPractice =
     metrics.loadByPractice ||
     days.reduce(
@@ -31,19 +30,14 @@ export default function WeekGrid({
     (days.some((d) => d.driftSignal === 'elevated')
       ? 'elevated'
       : days.some((d) => d.driftSignal === 'forming')
-      ? 'forming'
-      : 'contained');
+        ? 'forming'
+        : 'contained');
 
   return (
     <div className="space-y-4">
       <div className="grid md:grid-cols-7 gap-3">
         {days.map((day) => (
-          <div
-            key={day.label || day.date}
-            className="text-left"
-            data-testid={`day-${day.date}`}
-            data-day={day.date}
-          >
+          <div key={day.label || day.date} className="text-left" data-testid={`day-${day.date}`} data-day={day.date}>
             <BlockColumn
               dateLabel={day.label || day.date}
               blocks={day.blocks}
@@ -54,7 +48,8 @@ export default function WeekGrid({
             />
             <div className="mt-2 text-[11px] text-muted flex flex-col items-center gap-1">
               <span>
-                {(day.blocks || []).length} blocks · {Math.round((Number.isFinite(day.completionRate) ? day.completionRate : 0) * 100)}%
+                {(day.blocks || []).length} blocks ·{' '}
+                {Math.round((Number.isFinite(day.completionRate) ? day.completionRate : 0) * 100)}%
               </span>
               <div className="h-1 w-10 rounded-full bg-line/30 overflow-hidden">
                 <div

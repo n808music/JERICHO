@@ -16,7 +16,7 @@ function makeItem(overrides = {}) {
     producesOutput: false,
     unblockType: null,
     dependencies: [],
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -24,7 +24,7 @@ function makeState(overrides = {}) {
   return {
     goalWorkById: { [GOAL_ID]: [] },
     executionEvents: [],
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -32,8 +32,8 @@ describe('selectGuidance', () => {
   it('returns NONE when infeasible and no recovery block exists', () => {
     const state = makeState({
       goalWorkById: {
-        [GOAL_ID]: [makeItem({ workItemId: 'a', category: 'Focus' })]
-      }
+        [GOAL_ID]: [makeItem({ workItemId: 'a', category: 'Focus' })],
+      },
     });
     const result = selectGuidance(
       { goalId: GOAL_ID, deadlineISO: '2026-01-02T00:00:00.000Z' },
@@ -51,9 +51,9 @@ describe('selectGuidance', () => {
       goalWorkById: {
         [GOAL_ID]: [
           makeItem({ workItemId: 'a', category: 'Focus' }),
-          makeItem({ workItemId: 'b', category: 'Body', unblockType: 'dependency' })
-        ]
-      }
+          makeItem({ workItemId: 'b', category: 'Body', unblockType: 'dependency' }),
+        ],
+      },
     });
     const result = selectGuidance(
       { goalId: GOAL_ID, deadlineISO: '2026-01-02T00:00:00.000Z' },
@@ -69,9 +69,9 @@ describe('selectGuidance', () => {
   it('returns NONE when directive eligibility is missing', () => {
     const state = makeState({
       goalWorkById: {
-        [GOAL_ID]: [makeItem({ workItemId: 'a', category: 'Focus' })]
+        [GOAL_ID]: [makeItem({ workItemId: 'a', category: 'Focus' })],
       },
-      directiveEligibilityByGoal: {}
+      directiveEligibilityByGoal: {},
     });
     const result = selectGuidance(
       { goalId: GOAL_ID, deadlineISO: '2026-01-02T23:59:00.000Z' },
@@ -88,11 +88,11 @@ describe('selectGuidance', () => {
   it('returns NONE when directive eligibility denies guidance', () => {
     const state = makeState({
       goalWorkById: {
-        [GOAL_ID]: [makeItem({ workItemId: 'a', category: 'Focus' })]
+        [GOAL_ID]: [makeItem({ workItemId: 'a', category: 'Focus' })],
       },
       directiveEligibilityByGoal: {
-        [GOAL_ID]: { allowed: false, reasons: ['cooldown'] }
-      }
+        [GOAL_ID]: { allowed: false, reasons: ['cooldown'] },
+      },
     });
     const result = selectGuidance(
       { goalId: GOAL_ID, deadlineISO: '2026-01-02T23:59:00.000Z' },
@@ -111,12 +111,12 @@ describe('selectGuidance', () => {
       goalWorkById: {
         [GOAL_ID]: [
           makeItem({ workItemId: 'create', category: 'Creation', producesOutput: true }),
-          makeItem({ workItemId: 'focus', category: 'Focus', producesOutput: false })
-        ]
+          makeItem({ workItemId: 'focus', category: 'Focus', producesOutput: false }),
+        ],
       },
       directiveEligibilityByGoal: {
-        [GOAL_ID]: { allowed: true, reasons: [] }
-      }
+        [GOAL_ID]: { allowed: true, reasons: [] },
+      },
     });
     const result = selectGuidance(
       { goalId: GOAL_ID, deadlineISO: '2026-01-02T23:59:00.000Z' },
@@ -134,12 +134,12 @@ describe('selectGuidance', () => {
       goalWorkById: {
         [GOAL_ID]: [
           makeItem({ workItemId: 'deep', focusMode: 'deep', category: 'Creation' }),
-          makeItem({ workItemId: 'shallow', focusMode: 'shallow', category: 'Focus' })
-        ]
+          makeItem({ workItemId: 'shallow', focusMode: 'shallow', category: 'Focus' }),
+        ],
       },
       directiveEligibilityByGoal: {
-        [GOAL_ID]: { allowed: true, reasons: [] }
-      }
+        [GOAL_ID]: { allowed: true, reasons: [] },
+      },
     });
     const result = selectGuidance(
       { goalId: GOAL_ID, deadlineISO: '2026-01-03T23:59:00.000Z' },
@@ -154,14 +154,11 @@ describe('selectGuidance', () => {
   it('respects dependency blocking', () => {
     const state = makeState({
       goalWorkById: {
-        [GOAL_ID]: [
-          makeItem({ workItemId: 'a', dependencies: ['b'] }),
-          makeItem({ workItemId: 'b' })
-        ]
+        [GOAL_ID]: [makeItem({ workItemId: 'a', dependencies: ['b'] }), makeItem({ workItemId: 'b' })],
       },
       directiveEligibilityByGoal: {
-        [GOAL_ID]: { allowed: true, reasons: [] }
-      }
+        [GOAL_ID]: { allowed: true, reasons: [] },
+      },
     });
     const result = selectGuidance(
       { goalId: GOAL_ID, deadlineISO: '2026-01-03T23:59:00.000Z' },
@@ -177,8 +174,8 @@ describe('selectGuidance', () => {
     const state = makeState({
       goalWorkById: { [GOAL_ID]: [makeItem({ workItemId: 'a' })] },
       suggestionHistoryByGoal: {
-        [GOAL_ID]: { dailyCountByDate: { '2026-01-01': 1 } }
-      }
+        [GOAL_ID]: { dailyCountByDate: { '2026-01-01': 1 } },
+      },
     });
     const result = selectGuidance(
       { goalId: GOAL_ID, deadlineISO: '2026-01-03T23:59:00.000Z' },
@@ -195,11 +192,11 @@ describe('selectGuidance', () => {
     const state = makeState({
       goalWorkById: { [GOAL_ID]: [makeItem({ workItemId: 'a' })] },
       suggestionHistoryByGoal: {
-        [GOAL_ID]: { lastSuggestedWorkItemId: 'a', lastSuggestedAtISO: '2026-01-01T08:40:00.000Z' }
+        [GOAL_ID]: { lastSuggestedWorkItemId: 'a', lastSuggestedAtISO: '2026-01-01T08:40:00.000Z' },
       },
       directiveEligibilityByGoal: {
-        [GOAL_ID]: { allowed: true, reasons: [] }
-      }
+        [GOAL_ID]: { allowed: true, reasons: [] },
+      },
     });
     const result = selectGuidance(
       { goalId: GOAL_ID, deadlineISO: '2026-01-03T23:59:00.000Z' },
@@ -214,11 +211,21 @@ describe('selectGuidance', () => {
 
   it('is deterministic across identical inputs', () => {
     const state = makeState({
-      goalWorkById: { [GOAL_ID]: [makeItem({ workItemId: 'a' })] }
+      goalWorkById: { [GOAL_ID]: [makeItem({ workItemId: 'a' })] },
     });
     const constraints = { timezone: 'UTC', maxBlocksPerDay: 2 };
-    const first = selectGuidance({ goalId: GOAL_ID, deadlineISO: '2026-01-03T23:59:00.000Z' }, state, constraints, NOW_ISO);
-    const second = selectGuidance({ goalId: GOAL_ID, deadlineISO: '2026-01-03T23:59:00.000Z' }, state, constraints, NOW_ISO);
+    const first = selectGuidance(
+      { goalId: GOAL_ID, deadlineISO: '2026-01-03T23:59:00.000Z' },
+      state,
+      constraints,
+      NOW_ISO
+    );
+    const second = selectGuidance(
+      { goalId: GOAL_ID, deadlineISO: '2026-01-03T23:59:00.000Z' },
+      state,
+      constraints,
+      NOW_ISO
+    );
     expect(first).toEqual(second);
   });
 });

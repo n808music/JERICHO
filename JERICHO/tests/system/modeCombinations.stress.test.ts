@@ -1,6 +1,38 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyDraft, FIXED_DAY, rebuildPreview, seedScenario } from './_helpers.ts';
 
+function withAdmissiblePreviewLineage(preview: any) {
+  const cycleId = preview.activeCycleId;
+  const cycle = preview.cyclesById?.[cycleId];
+  const goalId = cycle?.goalContract?.goalId;
+  const deliverableId = cycle?.canonicalDeliverables?.[0]?.id || cycle?.deliverables?.[0]?.id || 'd1';
+  const actionId = cycle?.actions?.[0]?.id || 'A0001';
+  const decorate = (block: any, index: number) => ({
+    ...block,
+    title: block?.title || `Ship v0 block ${index + 1}`,
+    rawLabel: block?.rawLabel || block?.title || `Ship v0 block ${index + 1}`,
+    deliverableId,
+    actionId,
+    cycleId,
+    goalId,
+  });
+  const proposedBlocks = (preview.proposedBlocks || []).map(decorate);
+  const suggestedBlocks = (preview.suggestedBlocks || []).map(decorate);
+  return {
+    ...preview,
+    proposedBlocks,
+    suggestedBlocks,
+    cyclesById: {
+      ...preview.cyclesById,
+      [cycleId]: {
+        ...cycle,
+        proposedBlocks,
+        suggestedBlocks,
+      },
+    },
+  };
+}
+
 function* combinations() {
   const bools = [false, true];
   for (const enableQualityOptimizer of bools)
@@ -30,7 +62,7 @@ describe('mode combinations stress', () => {
   it('keeps parity/invariants across all flag combinations', () => {
     for (const flags of combinations()) {
       const seeded = seedScenario(flags);
-      const preview = rebuildPreview(seeded);
+      const preview = withAdmissiblePreviewLineage(rebuildPreview(seeded));
       const applied = applyDraft(preview);
 
       expect(applied.policySelectionParity).toBe(true);

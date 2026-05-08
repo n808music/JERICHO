@@ -23,10 +23,10 @@ function buildBaseState(date = '2026-01-09', timeZone = 'UTC') {
       timeZone,
       nowISO,
       activeDayKey: date,
-      isFollowingNow: true
+      isFollowingNow: true,
     },
     directiveEligibilityByGoal: {},
-    goalDirective: null
+    goalDirective: null,
   };
 }
 
@@ -41,8 +41,8 @@ describe('timezone consistency', () => {
         durationMinutes: 30,
         domain: 'FOCUS',
         title: 'UTC Anchor',
-        timeZone: 'UTC'
-      }
+        timeZone: 'UTC',
+      },
     });
 
     const expectedDayKey = dayKeyFromISO(startISO, 'UTC');

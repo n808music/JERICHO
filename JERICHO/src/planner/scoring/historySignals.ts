@@ -114,7 +114,9 @@ export function deriveCycleHistorySignals(
     const start = Date.parse(block?.start || '');
     const end = Date.parse(block?.end || '');
     const duration =
-      Number.isFinite(start) && Number.isFinite(end) ? Math.max(0, Math.round((end - start) / 60000)) : toInt(block?.durationMinutes);
+      Number.isFinite(start) && Number.isFinite(end)
+        ? Math.max(0, Math.round((end - start) / 60000))
+        : toInt(block?.durationMinutes);
     const dayKey = extractDayKey(block?.start);
     if (dayKey) {
       dayLoads.set(dayKey, (dayLoads.get(dayKey) || 0) + duration);
@@ -128,7 +130,9 @@ export function deriveCycleHistorySignals(
     const start = Date.parse(block?.start || '');
     const end = Date.parse(block?.end || '');
     const duration =
-      Number.isFinite(start) && Number.isFinite(end) ? Math.max(0, Math.round((end - start) / 60000)) : toInt(block?.durationMinutes);
+      Number.isFinite(start) && Number.isFinite(end)
+        ? Math.max(0, Math.round((end - start) / 60000))
+        : toInt(block?.durationMinutes);
     return sum + duration;
   }, 0);
 
@@ -151,25 +155,31 @@ export function deriveCycleHistorySignals(
     }
   });
 
-  const churnIndex = scheduledMinutesTotal > 0 ? round6(((movedMinutesTotal + droppedMinutesTotal) / scheduledMinutesTotal) * 100) : 0;
+  const churnIndex =
+    scheduledMinutesTotal > 0 ? round6(((movedMinutesTotal + droppedMinutesTotal) / scheduledMinutesTotal) * 100) : 0;
   const dayCaps = toInt(cycle?.planDraft?.maxScheduledMinutesPerDay) || 1440;
   const dailyLoads = [...dayLoads.values()];
   const overCapDaysCount = dailyLoads.filter((minutes) => minutes > dayCaps).length;
   const avgDailyScheduledMin = round6(safeAvg(dailyLoads));
   const maxDailyScheduledMin = dailyLoads.length ? Math.max(...dailyLoads) : 0;
 
-  const depTightCount = toInt(diagnostics?.depTightCount ?? cycle?.planPreview?.policySelectionSignalsSnapshot?.depTightCount);
+  const depTightCount = toInt(
+    diagnostics?.depTightCount ?? cycle?.planPreview?.policySelectionSignalsSnapshot?.depTightCount
+  );
   const depWindowBlockedCount = toInt(diagnostics?.depWindowBlockedCount);
   const milestoneAtRiskCount = toInt(
     diagnostics?.milestoneAtRiskCount ?? cycle?.planPreview?.policySelectionSignalsSnapshot?.milestoneAtRiskCount
   );
-  const placementAnchoringMissCount = toInt(diagnostics?.placementAnchoringMissCount ?? cycle?.planPreview?.pacingAnchoringMissCount);
+  const placementAnchoringMissCount = toInt(
+    diagnostics?.placementAnchoringMissCount ?? cycle?.planPreview?.pacingAnchoringMissCount
+  );
   const outsideExecutionHorizonMinutes = toInt(
     diagnostics?.outsideExecutionHorizonMinutes ??
       cycle?.planPreview?.policySelectionSignalsSnapshot?.outsideExecutionHorizonEstimateMinTotal
   );
   const unplacedEstimateMinTotal = toInt(
-    diagnostics?.unplacedEstimateMinTotal ?? cycle?.planPreview?.policySelectionSignalsSnapshot?.unplacedEstimateMinTotal
+    diagnostics?.unplacedEstimateMinTotal ??
+      cycle?.planPreview?.policySelectionSignalsSnapshot?.unplacedEstimateMinTotal
   );
 
   return {
@@ -201,9 +211,7 @@ export function buildHistoryProfile(
   opts: HistoryProfileOpts = {}
 ): HistoryProfile {
   const windowCycles = Number.isFinite(opts.windowCycles) ? Math.max(1, Number(opts.windowCycles)) : 5;
-  const sorted = [...endedCyclesSignals]
-    .filter((entry) => entry && entry.cycleId && entry.endDayKey)
-    .sort(byCycleEnd);
+  const sorted = [...endedCyclesSignals].filter((entry) => entry && entry.cycleId && entry.endDayKey).sort(byCycleEnd);
   const used = sorted.slice(-windowCycles);
   if (!used.length) {
     return {

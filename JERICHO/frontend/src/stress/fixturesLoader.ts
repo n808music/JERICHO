@@ -126,7 +126,7 @@ export type StressScenarioFixture = {
 const SCENARIOS: Record<StressScenarioId, StressScenarioFixture> = {
   podcast_30d: podcastScenario as StressScenarioFixture,
   doctor_10y: doctorScenario as StressScenarioFixture,
-  doctor_10y_tight_capacity: doctorTightScenario as StressScenarioFixture
+  doctor_10y_tight_capacity: doctorTightScenario as StressScenarioFixture,
 };
 
 export function loadStressScenario(scenarioId: StressScenarioId): StressScenarioFixture {

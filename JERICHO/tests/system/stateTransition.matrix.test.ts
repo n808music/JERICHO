@@ -37,7 +37,11 @@ describe('state transition matrix', () => {
   });
 
   it('preserves invariants across core transitions', () => {
-    const state0 = seedScenario({ autoPolicySelection: true, enableHistoryPolicySelection: true, enableMilestonePacing: true });
+    const state0 = seedScenario({
+      autoPolicySelection: true,
+      enableHistoryPolicySelection: true,
+      enableMilestonePacing: true,
+    });
     const cycleId = state0.activeCycleId;
 
     const transitions = [
@@ -68,14 +72,20 @@ describe('state transition matrix', () => {
     const cycleId = seeded.activeCycleId;
     const ended = computeDerivedState(seeded, { type: 'END_CYCLE', cycleId });
 
-    const restarted = computeDerivedState(ended, { type: 'START_NEW_CYCLE', payload: { goalText: 'Delete path', horizonDays: 60 } });
+    const restarted = computeDerivedState(ended, {
+      type: 'START_NEW_CYCLE',
+      payload: { goalText: 'Delete path', horizonDays: 60 },
+    });
     const deleted = computeDerivedState(restarted, { type: 'DELETE_CYCLE', cycleId });
     assertEndedOnlyHistory(deleted);
 
     const seeded2 = seedScenario({ autoPolicySelection: true, enableHistoryPolicySelection: true });
     const cycleId2 = seeded2.activeCycleId;
     const ended2 = computeDerivedState(seeded2, { type: 'END_CYCLE', cycleId: cycleId2 });
-    const restarted2 = computeDerivedState(ended2, { type: 'START_NEW_CYCLE', payload: { goalText: 'Hard delete path', horizonDays: 60 } });
+    const restarted2 = computeDerivedState(ended2, {
+      type: 'START_NEW_CYCLE',
+      payload: { goalText: 'Hard delete path', horizonDays: 60 },
+    });
     const hardDeleted = computeDerivedState(restarted2, { type: 'HARD_DELETE_CYCLE', cycleId: cycleId2 });
     assertEndedOnlyHistory(hardDeleted);
   });

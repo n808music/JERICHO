@@ -11,9 +11,16 @@ function buildBaseState() {
     lenses: {
       aim: { description: '', horizon: '90d', narrative: '' },
       pattern: { routines: { Body: [], Resources: [], Creation: [], Focus: [] }, dailyTargets: [], defaultMinutes: 30 },
-      flow: { streams: [] }
+      flow: { streams: [] },
     },
-    today: { date: FIXED_DAY, blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
+    today: {
+      date: FIXED_DAY,
+      blocks: [],
+      completionRate: 0,
+      driftSignal: 'contained',
+      loadByPractice: {},
+      practices: [],
+    },
     currentWeek: { weekStart: FIXED_DAY, days: [], metrics: {} },
     cycle: [],
     viewDate: FIXED_DAY,
@@ -26,7 +33,7 @@ function buildBaseState() {
       lastActiveDate: FIXED_DAY,
       scenarioLabel: '',
       demoScenarioEnabled: false,
-      showHints: false
+      showHints: false,
     },
     recurringPatterns: [],
     lastSessionChange: null,
@@ -37,8 +44,8 @@ function buildBaseState() {
       timeZone: 'UTC',
       nowISO: `${FIXED_DAY}T12:00:00.000Z`,
       activeDayKey: FIXED_DAY,
-      isFollowingNow: true
-    }
+      isFollowingNow: true,
+    },
   };
 }
 
@@ -55,8 +62,8 @@ describe('MVP 3.0 Invariants', () => {
           narrative: '',
           focusAreas: ['Creation'],
           successDefinition: 'Ship A',
-          minimumDaysPerWeek: 4
-        }
+          minimumDaysPerWeek: 4,
+        },
       });
 
       const cycleId = onboarded.activeCycleId;
@@ -64,7 +71,7 @@ describe('MVP 3.0 Invariants', () => {
       const normalized = seededId
         ? computeDerivedState(onboarded, {
             type: 'DELETE_DELIVERABLE',
-            payload: { cycleId, deliverableId: seededId }
+            payload: { cycleId, deliverableId: seededId },
           })
         : onboarded;
 
@@ -74,8 +81,8 @@ describe('MVP 3.0 Invariants', () => {
         payload: {
           cycleId,
           title: 'Primary Deliverable',
-          requiredBlocks: 1
-        }
+          requiredBlocks: 1,
+        },
       });
 
       // Complete a linked block (before deadline)
@@ -88,8 +95,8 @@ describe('MVP 3.0 Invariants', () => {
           domain: 'FOCUS',
           title: 'Deliver A',
           timeZone: 'UTC',
-          linkToGoal: true
-        }
+          linkToGoal: true,
+        },
       });
 
       const block = withBlock.today.blocks[0];
@@ -98,7 +105,7 @@ describe('MVP 3.0 Invariants', () => {
         kind: 'complete',
         dateISO: FIXED_DAY,
         minutes: 30,
-        deliverableId: (withBlock.deliverablesByCycleId?.[cycleId]?.deliverables || [])[0]?.id || null
+        deliverableId: (withBlock.deliverablesByCycleId?.[cycleId]?.deliverables || [])[0]?.id || null,
       });
 
       const withCompletion = {
@@ -108,9 +115,9 @@ describe('MVP 3.0 Invariants', () => {
           ...withBlock.cyclesById,
           [cycleId]: {
             ...withBlock.cyclesById[cycleId],
-            executionEvents: [...(withBlock.executionEvents || []), completeEvent]
-          }
-        }
+            executionEvents: [...(withBlock.executionEvents || []), completeEvent],
+          },
+        },
       };
 
       // End cycle
@@ -135,8 +142,8 @@ describe('MVP 3.0 Invariants', () => {
           narrative: '',
           focusAreas: ['Creation'],
           successDefinition: 'Ship B',
-          minimumDaysPerWeek: 4
-        }
+          minimumDaysPerWeek: 4,
+        },
       });
 
       const cycleId = onboarded.activeCycleId;
@@ -144,7 +151,7 @@ describe('MVP 3.0 Invariants', () => {
       const normalized = seededId
         ? computeDerivedState(onboarded, {
             type: 'DELETE_DELIVERABLE',
-            payload: { cycleId, deliverableId: seededId }
+            payload: { cycleId, deliverableId: seededId },
           })
         : onboarded;
 
@@ -154,8 +161,8 @@ describe('MVP 3.0 Invariants', () => {
         payload: {
           cycleId,
           title: 'Primary Deliverable',
-          requiredBlocks: 2
-        }
+          requiredBlocks: 2,
+        },
       });
 
       // Complete only 1 block
@@ -168,8 +175,8 @@ describe('MVP 3.0 Invariants', () => {
           domain: 'FOCUS',
           title: 'Deliver B',
           timeZone: 'UTC',
-          linkToGoal: true
-        }
+          linkToGoal: true,
+        },
       });
 
       const block = withBlock.today.blocks[0];
@@ -179,7 +186,7 @@ describe('MVP 3.0 Invariants', () => {
         kind: 'complete',
         dateISO: FIXED_DAY,
         minutes: 30,
-        deliverableId
+        deliverableId,
       });
 
       const withCompletion = {
@@ -189,9 +196,9 @@ describe('MVP 3.0 Invariants', () => {
           ...withBlock.cyclesById,
           [cycleId]: {
             ...withBlock.cyclesById[cycleId],
-            executionEvents: [...(withBlock.executionEvents || []), completeEvent]
-          }
-        }
+            executionEvents: [...(withBlock.executionEvents || []), completeEvent],
+          },
+        },
       };
 
       // End cycle
@@ -217,8 +224,8 @@ describe('MVP 3.0 Invariants', () => {
           narrative: '',
           focusAreas: ['Creation'],
           successDefinition: 'Ship C',
-          minimumDaysPerWeek: 4
-        }
+          minimumDaysPerWeek: 4,
+        },
       });
 
       const cycleId = onboarded.activeCycleId;
@@ -226,7 +233,7 @@ describe('MVP 3.0 Invariants', () => {
       const normalized = seededId
         ? computeDerivedState(onboarded, {
             type: 'DELETE_DELIVERABLE',
-            payload: { cycleId, deliverableId: seededId }
+            payload: { cycleId, deliverableId: seededId },
           })
         : onboarded;
 
@@ -236,8 +243,8 @@ describe('MVP 3.0 Invariants', () => {
         payload: {
           cycleId,
           title: 'Primary Deliverable',
-          requiredBlocks: 1
-        }
+          requiredBlocks: 1,
+        },
       });
 
       // Create and complete an UNLINKED block (linkToGoal: false)
@@ -250,8 +257,8 @@ describe('MVP 3.0 Invariants', () => {
           domain: 'FOCUS',
           title: 'Unlinked activity',
           timeZone: 'UTC',
-          linkToGoal: false
-        }
+          linkToGoal: false,
+        },
       });
 
       const block = withUnlinked.today.blocks[0];
@@ -259,7 +266,7 @@ describe('MVP 3.0 Invariants', () => {
         completed: true,
         kind: 'complete',
         dateISO: FIXED_DAY,
-        minutes: 30
+        minutes: 30,
         // NO deliverableId or criterionId
       });
 
@@ -270,9 +277,9 @@ describe('MVP 3.0 Invariants', () => {
           ...withUnlinked.cyclesById,
           [cycleId]: {
             ...withUnlinked.cyclesById[cycleId],
-            executionEvents: [...(withUnlinked.executionEvents || []), completeEvent]
-          }
-        }
+            executionEvents: [...(withUnlinked.executionEvents || []), completeEvent],
+          },
+        },
       };
 
       // End cycle
@@ -301,8 +308,8 @@ describe('MVP 3.0 Invariants', () => {
           narrative: '',
           focusAreas: ['Creation'],
           successDefinition: 'Ship D',
-          minimumDaysPerWeek: 4
-        }
+          minimumDaysPerWeek: 4,
+        },
       });
 
       const cycle1Id = converged.activeCycleId;
@@ -310,12 +317,12 @@ describe('MVP 3.0 Invariants', () => {
       const normalizedCycle1 = seededCycle1Id
         ? computeDerivedState(converged, {
             type: 'DELETE_DELIVERABLE',
-            payload: { cycleId: cycle1Id, deliverableId: seededCycle1Id }
+            payload: { cycleId: cycle1Id, deliverableId: seededCycle1Id },
           })
         : converged;
       const withDeliv1 = computeDerivedState(normalizedCycle1, {
         type: 'CREATE_DELIVERABLE',
-        payload: { cycleId: cycle1Id, title: 'D Deliverable', requiredBlocks: 1 }
+        payload: { cycleId: cycle1Id, title: 'D Deliverable', requiredBlocks: 1 },
       });
 
       const startISO = buildLocalStartISO(FIXED_DAY, '09:00', 'UTC').startISO;
@@ -327,8 +334,8 @@ describe('MVP 3.0 Invariants', () => {
           domain: 'FOCUS',
           title: 'Deliver D',
           timeZone: 'UTC',
-          linkToGoal: true
-        }
+          linkToGoal: true,
+        },
       });
 
       const block1 = withBlock1.today.blocks[0];
@@ -338,7 +345,7 @@ describe('MVP 3.0 Invariants', () => {
         kind: 'complete',
         dateISO: FIXED_DAY,
         minutes: 30,
-        deliverableId: deliv1Id
+        deliverableId: deliv1Id,
       });
 
       const convergedComplete = {
@@ -348,9 +355,9 @@ describe('MVP 3.0 Invariants', () => {
           ...withBlock1.cyclesById,
           [cycle1Id]: {
             ...withBlock1.cyclesById[cycle1Id],
-            executionEvents: [...(withBlock1.executionEvents || []), event1]
-          }
-        }
+            executionEvents: [...(withBlock1.executionEvents || []), event1],
+          },
+        },
       };
 
       const ended1 = computeDerivedState(convergedComplete, { type: 'END_CYCLE', cycleId: cycle1Id });
@@ -360,8 +367,8 @@ describe('MVP 3.0 Invariants', () => {
         type: 'START_NEW_CYCLE',
         payload: {
           goalText: 'Goal E',
-          deadlineDayKey: '2026-02-07'
-        }
+          deadlineDayKey: '2026-02-07',
+        },
       });
 
       const cycle2Id = newCycle2.activeCycleId;
@@ -369,12 +376,12 @@ describe('MVP 3.0 Invariants', () => {
       const normalizedCycle2 = seededCycle2Id
         ? computeDerivedState(newCycle2, {
             type: 'DELETE_DELIVERABLE',
-            payload: { cycleId: cycle2Id, deliverableId: seededCycle2Id }
+            payload: { cycleId: cycle2Id, deliverableId: seededCycle2Id },
           })
         : newCycle2;
       const withDeliv2 = computeDerivedState(normalizedCycle2, {
         type: 'CREATE_DELIVERABLE',
-        payload: { cycleId: cycle2Id, title: 'E Deliverable', requiredBlocks: 2 }
+        payload: { cycleId: cycle2Id, title: 'E Deliverable', requiredBlocks: 2 },
       });
 
       // Complete only 1 of 2 required
@@ -386,8 +393,8 @@ describe('MVP 3.0 Invariants', () => {
           domain: 'FOCUS',
           title: 'Partial E',
           timeZone: 'UTC',
-          linkToGoal: true
-        }
+          linkToGoal: true,
+        },
       });
 
       const block2 = withBlock2.today.blocks[0];
@@ -397,7 +404,7 @@ describe('MVP 3.0 Invariants', () => {
         kind: 'complete',
         dateISO: FIXED_DAY,
         minutes: 30,
-        deliverableId: deliv2Id
+        deliverableId: deliv2Id,
       });
 
       const incomplete = {
@@ -407,9 +414,9 @@ describe('MVP 3.0 Invariants', () => {
           ...withBlock2.cyclesById,
           [cycle2Id]: {
             ...withBlock2.cyclesById[cycle2Id],
-            executionEvents: [...(withBlock2.executionEvents || []), event2]
-          }
-        }
+            executionEvents: [...(withBlock2.executionEvents || []), event2],
+          },
+        },
       };
 
       const ended2 = computeDerivedState(incomplete, { type: 'END_CYCLE', cycleId: cycle2Id });
@@ -433,8 +440,8 @@ describe('MVP 3.0 Invariants', () => {
           narrative: '',
           focusAreas: ['Creation'],
           successDefinition: 'Ship F',
-          minimumDaysPerWeek: 4
-        }
+          minimumDaysPerWeek: 4,
+        },
       });
 
       const cycleId = onboarded.activeCycleId;

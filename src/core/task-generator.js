@@ -139,20 +139,6 @@ const LADDERS = {
       T2: [],
       T3: []
     }
-    ,
-    consistency: {
-      T1: [
-        {
-          title: 'Set and follow a daily start time',
-          description: () => 'Choose a realistic daily start time and honor it for this cycle.',
-          effortMinutes: 30,
-          difficulty: 2,
-          estimatedImpact: 0.7
-        }
-      ],
-      T2: [],
-      T3: []
-    }
   },
   focus: {
     deep_work: {
@@ -208,7 +194,8 @@ export function generateTasksForCycle(goal, rankedGaps, options = {}) {
   const goalLink = options.goalLink || slugifyGoal(goal?.raw || goal?.outcome || 'goal');
   const cycleMode = options.cycleMode || (healthBand === 'red' ? 'reset_identity' : 'normal');
 
-  const createdAt = new Date();
+  const now = options.now ? new Date(options.now) : new Date();
+  const createdAt = now;
   const dueDate = new Date(createdAt.getTime() + cycleDays * 24 * 60 * 60 * 1000);
   const createdAtISO = createdAt.toISOString();
   const dueDateISO = dueDate.toISOString();

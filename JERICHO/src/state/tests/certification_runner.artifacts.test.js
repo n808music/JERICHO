@@ -2,14 +2,22 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { computeDerivedState } from '../identityCompute.js';
-import { buildBlankState, FIXED_DAY, NOW_ISO, addCompletedEventsForBlocks, localStartISOForHour } from './freeze_helpers.js';
+import {
+  buildBlankState,
+  FIXED_DAY,
+  NOW_ISO,
+  addCompletedEventsForBlocks,
+  localStartISOForHour,
+} from './freeze_helpers.js';
 import { dayKeyFromISO } from '../time/time.ts';
 
 const WRITE_ARTIFACTS = process.env.JERICHO_WRITE_ARTIFACTS === '1';
 const OUT_DIR = path.join(process.cwd(), 'artifacts', 'certification');
 
 async function writeArtifact(filename, payload) {
-  if (!WRITE_ARTIFACTS) return;
+  if (!WRITE_ARTIFACTS) {
+    return;
+  }
   await fs.mkdir(OUT_DIR, { recursive: true });
   const fullPath = path.join(OUT_DIR, filename);
   await fs.writeFile(fullPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
@@ -19,8 +27,12 @@ function stableSortByKey(list, key) {
   return [...list].sort((a, b) => {
     const aKey = a?.[key] || '';
     const bKey = b?.[key] || '';
-    if (aKey < bKey) return -1;
-    if (aKey > bKey) return 1;
+    if (aKey < bKey) {
+      return -1;
+    }
+    if (aKey > bKey) {
+      return 1;
+    }
     return String(a?.id || '').localeCompare(String(b?.id || ''));
   });
 }
@@ -33,21 +45,19 @@ function snapshotCommittedBlocks(blocks = []) {
     durationMinutes: b.durationMinutes || b.duration || 0,
     goalId: b.goalId || null,
     deliverableId: b.deliverableId || null,
-    criterionId: b.criterionId || null
+    criterionId: b.criterionId || null,
   }));
 }
 
 function snapshotProposedSummary(suggestions = []) {
   const proposed = suggestions.filter((s) => s && s.status === 'suggested');
-  const dayKeys = proposed
-    .map((s) => (s.startISO ? dayKeyFromISO(s.startISO, 'UTC') : null))
-    .filter(Boolean);
+  const dayKeys = proposed.map((s) => (s.startISO ? dayKeyFromISO(s.startISO, 'UTC') : null)).filter(Boolean);
   const sortedDayKeys = [...new Set(dayKeys)].sort();
   return {
     count: proposed.length,
     dayKeys: sortedDayKeys,
     startDayKey: sortedDayKeys[0] || null,
-    endDayKey: sortedDayKeys[sortedDayKeys.length - 1] || null
+    endDayKey: sortedDayKeys[sortedDayKeys.length - 1] || null,
   };
 }
 
@@ -73,8 +83,8 @@ describe('Certification runner (artifacts)', () => {
         narrative: 'Freeze certification run',
         focusAreas: ['Creation'],
         successDefinition: 'Deliverables done',
-        minimumDaysPerWeek: 3
-      }
+        minimumDaysPerWeek: 3,
+      },
     });
 
     const cycleId = state.activeCycleId;
@@ -115,17 +125,15 @@ describe('Certification runner (artifacts)', () => {
           acceptsDailyMinimum: true,
           acceptsFixedSchedule: true,
           acceptsNoRenegotiation7d: true,
-          acceptsAutomaticCatchUp: true
-        }
-      }
+          acceptsAutomaticCatchUp: true,
+        },
+      },
     });
 
     state = computeDerivedState(state, { type: 'GENERATE_PLAN' });
     const proposedSummary = snapshotProposedSummary(state.suggestedBlocks || []);
-    const committedAfterGenerate = snapshotCommittedBlocks(state.today?.blocks || []);
-    expect(state.scheduleApplied).toBe(true);
-    expect((state.proposedBlocks || []).some((block) => block?.status === 'accepted')).toBe(true);
-    expect(committedAfterGenerate.length).toBeGreaterThan(0);
+    expect(state.scheduleApplied).toBe(false);
+    expect((state.proposedBlocks || []).length).toBeGreaterThan(0);
 
     state = computeDerivedState(state, { type: 'APPLY_PLAN' });
 
@@ -139,8 +147,8 @@ describe('Certification runner (artifacts)', () => {
           domain: 'CREATION',
           title: 'Certification Manual Block',
           timeZone: 'UTC',
-          linkToGoal: true
-        }
+          linkToGoal: true,
+        },
       });
       committedBlocks = snapshotCommittedBlocks(state.today?.blocks || []);
     }
@@ -160,12 +168,12 @@ describe('Certification runner (artifacts)', () => {
 
     const committedSchedule = {
       dayKey: FIXED_DAY,
-      blocks: committedBlocks
+      blocks: committedBlocks,
     };
 
     const planProofPayload = {
       planProof,
-      P_end: cycle?.convergenceReport?.P_end || null
+      P_end: cycle?.convergenceReport?.P_end || null,
     };
 
     await writeArtifact('planProof.json', planProofPayload);
@@ -177,7 +185,7 @@ describe('Certification runner (artifacts)', () => {
       cycleId,
       nowISO: NOW_ISO,
       dayKey: FIXED_DAY,
-      generatedAtISO: NOW_ISO
+      generatedAtISO: NOW_ISO,
     });
   });
 });

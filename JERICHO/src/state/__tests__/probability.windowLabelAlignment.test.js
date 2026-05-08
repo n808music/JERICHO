@@ -14,15 +14,15 @@ function buildBaseState(goalId, deadlineDayKey) {
           activeFromISO: '2026-01-01',
           activeUntilISO: deadlineDayKey,
           scope: { domainsAllowed: ['Body'], timeHorizon: 'week', timezone: 'UTC' },
-          governance: { suggestionsEnabled: true, probabilityEnabled: true, minEvidenceEvents: 0 }
+          governance: { suggestionsEnabled: true, probabilityEnabled: true, minEvidenceEvents: 0 },
         },
-        definiteGoal: { deadlineDayKey }
-      }
+        definiteGoal: { deadlineDayKey },
+      },
     },
     goalWorkById: {
-      [goalId]: [{ workItemId: `${goalId}-body`, blocksRemaining: 4 }]
+      [goalId]: [{ workItemId: `${goalId}-body`, blocksRemaining: 4 }],
     },
-    executionEvents: []
+    executionEvents: [],
   };
 }
 
@@ -65,5 +65,18 @@ describe('probability window label alignment', () => {
     );
     expect(result.scoringSummary?.K).toBe(7);
     expect(spec.windowDays).toBe(7);
+  });
+
+  it('clamps future cycle start to active day to prevent inverted cycle-to-date labels', () => {
+    const nowISO = '2026-03-12T12:00:00.000Z';
+    const activeContract = { goalId: 'goal-3', startDayKey: '2026-03-16', endDayKey: '2026-06-30' };
+
+    const spec = getProbabilityWindowSpec({ activeContract, nowISO, timeZone: 'UTC' });
+    const label = formatProbabilityWindowLabel(spec);
+
+    expect(spec.mode).toBe('cycle_to_date');
+    expect(spec.startDayKey).toBe('2026-03-12');
+    expect(spec.endDayKey).toBe('2026-03-12');
+    expect(label).toBe('Active cycle to date (2026-03-12 → 2026-03-12)');
   });
 });

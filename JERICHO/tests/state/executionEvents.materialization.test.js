@@ -14,7 +14,7 @@ describe('execution event materialization', () => {
         minutes: 60,
         rawLabel: 'Alpha',
         domain: 'Focus',
-        completed: false
+        completed: false,
       },
       {
         id: 'e2',
@@ -22,7 +22,7 @@ describe('execution event materialization', () => {
         blockId: 'b1',
         rawLabel: 'Beta',
         minutes: 60,
-        completed: false
+        completed: false,
       },
       {
         id: 'e3',
@@ -31,14 +31,14 @@ describe('execution event materialization', () => {
         startISO: '2025-12-10T11:00:00.000Z',
         endISO: '2025-12-10T12:30:00.000Z',
         minutes: 90,
-        completed: false
+        completed: false,
       },
       {
         id: 'e4',
         kind: 'complete',
         blockId: 'b1',
-        completed: true
-      }
+        completed: true,
+      },
     ];
 
     const { todayBlocks } = materializeBlocksFromEvents(events, { todayISO: '2025-12-10' });
@@ -49,6 +49,40 @@ describe('execution event materialization', () => {
     expect(block.status).toBe('completed');
     expect(block.start).toBe('2025-12-10T11:00:00.000Z');
     expect(block.end).toBe('2025-12-10T12:30:00.000Z');
+  });
+
+  it('prefers canonical titles over generic raw labels when materializing', () => {
+    const events = [
+      {
+        id: 'e1',
+        kind: 'create',
+        blockId: 'b1',
+        dateISO: '2025-12-10',
+        startISO: '2025-12-10T09:00:00.000Z',
+        endISO: '2025-12-10T10:00:00.000Z',
+        minutes: 60,
+        rawLabel: 'Create production outline and scene/content map',
+        canonicalTitle: 'Record episode 1',
+        domain: 'Creation',
+        completed: false,
+      },
+      {
+        id: 'e2',
+        kind: 'update',
+        blockId: 'b1',
+        rawLabel: 'Create production outline and scene/content map',
+        canonicalTitle: 'Record episode 1',
+        minutes: 60,
+        completed: false,
+      },
+    ];
+
+    const { todayBlocks } = materializeBlocksFromEvents(events, { todayISO: '2025-12-10' });
+    const block = todayBlocks.find((b) => b.id === 'b1');
+
+    expect(block).toBeTruthy();
+    expect(block.title).toBe('Record episode 1');
+    expect(block.label).toBe('Record episode 1');
   });
 
   it('removes blocks when delete arrives last', () => {
@@ -63,14 +97,14 @@ describe('execution event materialization', () => {
         minutes: 60,
         rawLabel: 'To Remove',
         domain: 'Creation',
-        completed: false
+        completed: false,
       },
       {
         id: 'e2',
         kind: 'delete',
         blockId: 'b2',
-        completed: false
-      }
+        completed: false,
+      },
     ];
 
     const { todayBlocks } = materializeBlocksFromEvents(events, { todayISO: '2025-12-10' });
@@ -88,14 +122,14 @@ describe('execution event materialization', () => {
         minutes: 30,
         rawLabel: 'Deterministic',
         domain: 'Body',
-        completed: false
+        completed: false,
       },
       {
         id: 'e2',
         kind: 'complete',
         blockId: 'b3',
-        completed: true
-      }
+        completed: true,
+      },
     ];
 
     const first = materializeBlocksFromEvents(events, { todayISO: '2025-12-10' });
@@ -112,7 +146,7 @@ describe('execution event materialization', () => {
         kind: 'update',
         blockId: 'missing',
         rawLabel: 'Should not appear',
-        completed: false
+        completed: false,
       },
       {
         id: 'e2',
@@ -123,21 +157,21 @@ describe('execution event materialization', () => {
         minutes: 60,
         rawLabel: 'Before Complete',
         domain: 'Focus',
-        completed: false
+        completed: false,
       },
       {
         id: 'e3',
         kind: 'complete',
         blockId: 'b4',
-        completed: true
+        completed: true,
       },
       {
         id: 'e4',
         kind: 'update',
         blockId: 'b4',
         rawLabel: 'After Complete',
-        completed: false
-      }
+        completed: false,
+      },
     ];
 
     const { todayBlocks } = materializeBlocksFromEvents(events, { todayISO: '2025-12-10' });
@@ -160,7 +194,7 @@ describe('execution event materialization', () => {
         minutes: 30,
         rawLabel: 'Late Block',
         domain: 'Resources',
-        completed: false
+        completed: false,
       },
       {
         id: 'e2',
@@ -168,8 +202,8 @@ describe('execution event materialization', () => {
         blockId: 'b5',
         startISO: '2025-12-11T08:00:00.000Z',
         minutes: 30,
-        completed: false
-      }
+        completed: false,
+      },
     ];
 
     const { days } = materializeBlocksFromEvents(events, { todayISO: '2025-12-10' });
@@ -190,20 +224,20 @@ describe('execution event materialization', () => {
         minutes: 30,
         rawLabel: 'To Delete',
         domain: 'Creation',
-        completed: false
+        completed: false,
       },
       {
         id: 'e2',
         kind: 'delete',
         blockId: 'b6',
-        completed: false
+        completed: false,
       },
       {
         id: 'e3',
         kind: 'complete',
         blockId: 'b6',
-        completed: true
-      }
+        completed: true,
+      },
     ];
 
     const { todayBlocks } = materializeBlocksFromEvents(events, { todayISO: '2025-12-10' });
@@ -221,13 +255,13 @@ describe('execution event materialization', () => {
         minutes: 30,
         rawLabel: 'Before',
         domain: 'Focus',
-        completed: false
+        completed: false,
       },
       {
         id: 'e2',
         kind: 'complete',
         blockId: 'b7',
-        completed: true
+        completed: true,
       },
       {
         id: 'e3',
@@ -236,8 +270,8 @@ describe('execution event materialization', () => {
         rawLabel: 'After',
         dateISO: '2026-01-08',
         startISO: '2026-01-08T09:00:00.000Z',
-        completed: false
-      }
+        completed: false,
+      },
     ];
 
     const { todayBlocks, days } = materializeBlocksFromEvents(events, { todayISO: '2026-01-07' });

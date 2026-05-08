@@ -52,9 +52,9 @@ export function renderTruthPanel(state: any, nowISO: string): TruthPanelViewMode
       sections: {
         feasibility: emptyFeasibility(),
         guidance: emptyGuidance(),
-        probabilityEligibility: emptyProbability()
+        probabilityEligibility: emptyProbability(),
       },
-      errors: [{ code: 'UNKNOWN_GOAL' }]
+      errors: [{ code: 'UNKNOWN_GOAL' }],
     };
   }
 
@@ -82,15 +82,15 @@ export function renderTruthPanel(state: any, nowISO: string): TruthPanelViewMode
         hasDirective: true,
         directive: {
           title: directive.title || directive.workItemId || directive.blockId || 'Directive',
-          workItemId: directive.workItemId || directive.blockId || directive.title || ''
+          workItemId: directive.workItemId || directive.blockId || directive.title || '',
         },
         enabled: eligibility ? Boolean(eligibility.allowed) : null,
-        reasons: eligibility && !eligibility.allowed ? eligibility.reasons || [] : []
+        reasons: eligibility && !eligibility.allowed ? eligibility.reasons || [] : [],
       }
     : {
         hasDirective: false,
         enabled: null,
-        reasons: []
+        reasons: [],
       };
 
   const probabilitySection = probability
@@ -98,7 +98,7 @@ export function renderTruthPanel(state: any, nowISO: string): TruthPanelViewMode
         status: probability.status === 'computed' ? 'eligible' : probability.status,
         requiredEvents: Number.isFinite(probability.requiredEvents) ? probability.requiredEvents : null,
         evidenceSummary: probability.evidenceSummary,
-        reasons: probability.reasons || []
+        reasons: probability.reasons || [],
       }
     : emptyProbability();
 
@@ -111,7 +111,7 @@ export function renderTruthPanel(state: any, nowISO: string): TruthPanelViewMode
         requiredBlocksToday: feasibility.requiredBlocksToday,
         completedBlocksToday: feasibility.completedBlocksToday,
         delta: feasibility.delta,
-        reasons: feasibility.reasons || []
+        reasons: feasibility.reasons || [],
       }
     : emptyFeasibility();
 
@@ -121,9 +121,9 @@ export function renderTruthPanel(state: any, nowISO: string): TruthPanelViewMode
     sections: {
       feasibility: feasibilitySection,
       guidance: guidanceSection,
-      probabilityEligibility: probabilitySection
+      probabilityEligibility: probabilitySection,
     },
-    errors: errors.length ? errors : undefined
+    errors: errors.length ? errors : undefined,
   };
 }
 
@@ -146,7 +146,7 @@ function emptyFeasibility(): TruthPanelViewModel['sections']['feasibility'] {
     requiredBlocksToday: null,
     completedBlocksToday: 0,
     delta: {},
-    reasons: []
+    reasons: [],
   };
 }
 
@@ -154,7 +154,7 @@ function emptyGuidance(): TruthPanelViewModel['sections']['guidance'] {
   return {
     hasDirective: false,
     enabled: null,
-    reasons: []
+    reasons: [],
   };
 }
 
@@ -162,6 +162,6 @@ function emptyProbability(): TruthPanelViewModel['sections']['probabilityEligibi
   return {
     status: 'disabled',
     requiredEvents: null,
-    reasons: []
+    reasons: [],
   };
 }

@@ -8,6 +8,7 @@ const OUTCOME_POINTS: Record<string, number> = {
   CANCELED_VALID: 0.6,
   CANCELED_WEAK: 0.2,
   MISSED: 0.0,
+  EXPIRED: 0.0,
 };
 
 export function clamp01(x: number): number {
@@ -20,6 +21,20 @@ export function clamp01(x: number): number {
 export function outcomeToPoints(outcome: string | null | undefined): number {
   if (!outcome) return 0;
   return OUTCOME_POINTS[String(outcome)] ?? 0;
+}
+
+function inferOutcomeFromStatus(block: any): string | null {
+  const explicit = String(block?.outcome || '')
+    .trim()
+    .toUpperCase();
+  if (explicit) return explicit;
+  const status = String(block?.status || '')
+    .trim()
+    .toLowerCase();
+  if (status === 'completed' || status === 'complete') return 'COMPLETED_ON_TIME';
+  if (status === 'missed') return 'MISSED';
+  if (status === 'expired') return 'EXPIRED';
+  return null;
 }
 
 type CycleScoreArgs = {
@@ -62,7 +77,7 @@ export function computeCycleIntegrityScore(args: CycleScoreArgs): {
     const minutes = resolveDurationMinutes(block);
     if (!(minutes > 0)) return;
     minutesTotal += minutes;
-    weighted += outcomeToPoints(block?.outcome) * minutes;
+    weighted += outcomeToPoints(inferOutcomeFromStatus(block)) * minutes;
   });
 
   if (minutesTotal <= 0) {

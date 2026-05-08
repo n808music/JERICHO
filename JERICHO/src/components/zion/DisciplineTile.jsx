@@ -5,10 +5,19 @@ const STATE_DOT = {
   drifting: 'bg-amber-400',
   missed: 'bg-hot',
   complete: 'bg-emerald-400',
-  pending: 'bg-line/80'
+  pending: 'bg-line/80',
 };
 
-export default function DisciplineTile({ domain, horizon, label, state = 'pending', metric, delta, onInsert, onReveal }) {
+export default function DisciplineTile({
+  domain,
+  horizon,
+  label,
+  state = 'pending',
+  metric,
+  delta,
+  onInsert,
+  onReveal,
+}) {
   const dot = STATE_DOT[state] || STATE_DOT.pending;
   return (
     <button

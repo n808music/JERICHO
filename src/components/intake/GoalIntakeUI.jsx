@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import '../../ui/styles.css';
+import '../../../JERICHO/src/index.css';
 
 /**
  * GoalIntakeUI — Surface 1
- * 
  * Three-state component for goal intake:
  * 1. State 1 (Input) — collect goal description, priority, timeframe, status
  * 2. State 2 (Clarification) — ask clarification questions if needed (max 2)
@@ -76,7 +75,25 @@ const GOAL_TAXONOMY = {
   ]
 };
 
-export default function GoalIntakeUI({ onConfirmed }) {
+export default function GoalIntakeUI({ onConfirmed: _onConfirmed }) {
+  // Test helper to verify Zion theme is applied
+  if (typeof window !== 'undefined' && window.location?.pathname === '/intake-dev') {
+    const testZionTheme = () => {
+      const rootStyles = getComputedStyle(document.documentElement);
+      const bgColor = rootStyles.getPropertyValue('--bg').trim();
+      const textColor = rootStyles.getPropertyValue('--text').trim();
+
+      if (bgColor === '#ffffff' && textColor === '#0a0a0a') {
+        console.log('✅ GoalIntakeUI: Zion light theme confirmed');
+      } else {
+        console.error('❌ GoalIntakeUI: Dark theme still detected', { bgColor, textColor });
+      }
+    };
+
+    // Run test after component mounts
+    setTimeout(testZionTheme, 100);
+  }
+
   // State 1: Input form
   const [goalDescription, setGoalDescription] = useState('');
   const [priorityLevel, setPriorityLevel] = useState('MEDIUM');
@@ -634,11 +651,11 @@ export default function GoalIntakeUI({ onConfirmed }) {
   // ============================================================
   if (isLoading) {
     return (
-      <div className="goal-intake-container">
-        <div className="loading-state">
-          <h2>Analyzing your goal...</h2>
-          <div className="progress-bar">
-            <div className="progress-fill"></div>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="text-center">
+          <h2 className="text-2xl font-semibold mb-4">Analyzing your goal...</h2>
+          <div className="w-64 h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div className="h-full bg-blue-500 rounded-full animate-pulse"></div>
           </div>
         </div>
       </div>
@@ -650,13 +667,15 @@ export default function GoalIntakeUI({ onConfirmed }) {
   // ============================================================
   if (currentState === 1) {
     return (
-      <div className="goal-intake-container">
-        <div className="goal-intake-panel">
-          <h1>What do you want to achieve?</h1>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="w-full max-w-2xl bg-white rounded-lg shadow-lg p-8 border border-gray-200">
+          <h1 className="text-3xl font-bold mb-8 text-center">What do you want to achieve?</h1>
 
-          <form onSubmit={handleStateOneSubmit}>
-            <div className="form-group">
-              <label htmlFor="goal-description">Describe your goal...</label>
+          <form onSubmit={handleStateOneSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <label htmlFor="goal-description" className="block text-sm font-semibold uppercase tracking-wide text-gray-700">
+                Describe your goal...
+              </label>
               <textarea
                 id="goal-description"
                 value={goalDescription}
@@ -664,37 +683,43 @@ export default function GoalIntakeUI({ onConfirmed }) {
                 onBlur={(e) => handleBlur('goalDescription', e.target.value)}
                 placeholder="I want to..."
                 rows={4}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical"
               />
               {(goalDescription.length > 0 || touched.goalDescription) && (
-                <span className={`char-count ${goalDescription.length > 450 ? (goalDescription.length > 490 ? 'error' : 'warning') : ''}`}>
+                <span className={`text-sm text-right block ${goalDescription.length > 450 ? (goalDescription.length > 490 ? 'text-red-600' : 'text-yellow-600') : 'text-gray-500'}`}>
                   {goalDescription.length} / 500
                 </span>
               )}
               {touched.goalDescription && errors.goalDescription && (
-                <div className="error-message">{errors.goalDescription}</div>
+                <div className="text-red-600 text-sm mt-1">{errors.goalDescription}</div>
               )}
             </div>
 
-            <div className="form-group">
-              <label>How urgent is this goal?</label>
-              <div className="radio-group">
+            <div className="space-y-3">
+              <label className="block text-sm font-semibold uppercase tracking-wide text-gray-700">
+                How urgent is this goal?
+              </label>
+              <div className="space-y-2">
                 {['HIGH', 'MEDIUM', 'LOW'].map((level) => (
-                  <label key={level} className="radio-label">
+                  <label key={level} className="flex items-center space-x-3 cursor-pointer">
                     <input
                       type="radio"
                       name="priorityLevel"
                       value={level}
                       checked={priorityLevel === level}
                       onChange={(e) => handleChange('priorityLevel', e.target.value)}
+                      className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                     />
-                    {level}
+                    <span className="text-gray-900">{level}</span>
                   </label>
                 ))}
               </div>
             </div>
 
-            <div className="form-group">
-              <label htmlFor="timeframe">When do you need it done?</label>
+            <div className="space-y-2">
+              <label htmlFor="timeframe" className="block text-sm font-semibold uppercase tracking-wide text-gray-700">
+                When do you need it done?
+              </label>
               <input
                 id="timeframe"
                 type="text"
@@ -702,34 +727,39 @@ export default function GoalIntakeUI({ onConfirmed }) {
                 onChange={(e) => handleChange('timeframe', e.target.value)}
                 onBlur={(e) => handleBlur('timeframe', e.target.value)}
                 placeholder="e.g. by June, in 3 months, this year"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               {touched.timeframe && errors.timeframe && (
-                <div className="error-message">{errors.timeframe}</div>
+                <div className="text-red-600 text-sm mt-1">{errors.timeframe}</div>
               )}
             </div>
 
-            <div className="form-group">
-              <label>Where are you starting from?</label>
-              <div className="radio-group">
-                <label className="radio-label">
+            <div className="space-y-3">
+              <label className="block text-sm font-semibold uppercase tracking-wide text-gray-700">
+                Where are you starting from?
+              </label>
+              <div className="space-y-2">
+                <label className="flex items-center space-x-3 cursor-pointer">
                   <input
                     type="radio"
                     name="currentStatus"
                     value="NOT_STARTED"
                     checked={currentStatus === 'NOT_STARTED'}
                     onChange={(e) => handleChange('currentStatus', e.target.value)}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                   />
-                  Starting from zero
+                  <span className="text-gray-900">Starting from zero</span>
                 </label>
-                <label className="radio-label">
+                <label className="flex items-center space-x-3 cursor-pointer">
                   <input
                     type="radio"
                     name="currentStatus"
                     value="IN_PROGRESS"
                     checked={currentStatus === 'IN_PROGRESS'}
                     onChange={(e) => handleChange('currentStatus', e.target.value)}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                   />
-                  Already in progress
+                  <span className="text-gray-900">Already in progress</span>
                 </label>
               </div>
             </div>
@@ -739,7 +769,7 @@ export default function GoalIntakeUI({ onConfirmed }) {
             <button
               type="submit"
               disabled={!canSubmit || isLoading}
-              className="btn btn-primary"
+              className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isLoading ? 'Analyzing...' : 'Analyze my goal'}
             </button>
@@ -755,20 +785,22 @@ export default function GoalIntakeUI({ onConfirmed }) {
   // ============================================================
   if (currentState === 2) {
     return (
-      <div className="goal-intake-container">
-        <div className="goal-intake-panel">
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="w-full max-w-2xl bg-white rounded-lg shadow-lg p-8 border border-gray-200">
           {clarificationLoading ? (
-            <div className="clarification-loading">Analyzing your answer...</div>
+            <div className="text-center py-8">
+              <div className="text-lg font-semibold text-gray-700">Analyzing your answer...</div>
+            </div>
           ) : (
             <>
-              <h2>Got it. One quick question:</h2>
-              <p className="clarification-question">{clarificationQuestion}</p>
+              <h2 className="text-2xl font-bold mb-4">Got it. One quick question:</h2>
+              <p className="text-lg text-gray-800 mb-6">{clarificationQuestion}</p>
 
-              <div className="clarification-options">
+              <div className="space-y-3 mb-6">
                 {clarificationOptions.map((option, index) => (
                   <button
                     key={index}
-                    className="clarification-option-btn"
+                    className="w-full text-left p-4 border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
                     onClick={() => handleClarificationAnswer(option)}
                   >
                     {option}
@@ -778,8 +810,12 @@ export default function GoalIntakeUI({ onConfirmed }) {
 
               {error && renderError(error)}
 
-              <button onClick={handleBackToInput} className="back-link">
-                ← Back to my goal description
+              <button
+                onClick={handleBackToInput}
+                className="text-blue-600 hover:text-blue-800 font-semibold flex items-center space-x-2"
+              >
+                <span>←</span>
+                <span>Back to my goal description</span>
               </button>
             </>
           )}
@@ -815,73 +851,79 @@ export default function GoalIntakeUI({ onConfirmed }) {
     }[deadlineConfidence] || 'Unknown';
 
     return (
-      <div className="intake-container">
-        <div className="intake-confirmation">
+      <div className="max-w-2xl mx-auto p-6">
+        <div className="bg-white rounded-lg shadow-lg p-8 border border-gray-200">
           {!showGoalTypeCorrection && !showDeadlineCorrection && (
-            <div className="confirmation-gate">
-              <h2 className="confirmation-title">Here's what I understood:</h2>
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-center mb-8">Here's what I understood:</h2>
 
-              <div className="confirmation-original">
-                <p className="confirmation-label">Your goal</p>
-                <p className="confirmation-value-quoted">"{resolvedStatement}"</p>
+              <div className="bg-gray-50 p-4 rounded-lg border-l-4 border-blue-500">
+                <p className="text-sm font-semibold uppercase tracking-wide text-gray-700 mb-2">Your goal</p>
+                <p className="text-lg font-medium text-gray-900 italic">"{resolvedStatement}"</p>
               </div>
 
-              <div className="confirmation-row">
-                <div className="confirmation-field">
-                  <p className="confirmation-label">Goal type</p>
-                  <p className="confirmation-value">{resolvedFamily}</p>
-                  <p className="confirmation-subvalue">{resolvedSubtype}</p>
+              <div className="flex justify-between items-start py-4 border-b border-gray-200">
+                <div className="flex-1">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-gray-700 mb-1">Goal type</p>
+                  <p className="text-base font-medium text-gray-900">{resolvedFamily}</p>
+                  <p className="text-sm text-gray-600">{resolvedSubtype}</p>
                 </div>
                 <button
-                  className="correction-link"
+                  className="text-blue-600 hover:text-blue-800 font-semibold underline"
                   onClick={openGoalTypeCorrection}
                 >
                   Change
                 </button>
               </div>
 
-              <div className="confirmation-row">
-                <div className="confirmation-field">
-                  <p className="confirmation-label">Target deadline</p>
-                  <p className="confirmation-value">{deadlineStr}</p>
-                  <p className="confirmation-subvalue">
+              <div className="flex justify-between items-start py-4 border-b border-gray-200">
+                <div className="flex-1">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-gray-700 mb-1">Target deadline</p>
+                  <p className="text-base font-medium text-gray-900">{deadlineStr}</p>
+                  <p className="text-sm text-gray-600">
                     {deadlineType === 'HARD' ? 'Hard deadline' : 'Target date'}
                   </p>
-                  <p className={`confidence-badge confidence-${deadlineConfidence?.toLowerCase()}`}>
+                  <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold uppercase tracking-wide ${
+                    deadlineConfidence === 'HIGH' ? 'bg-green-100 text-green-800' :
+                    deadlineConfidence === 'MED' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-red-100 text-red-800'
+                  }`}>
                     {confidenceLabel}
-                  </p>
+                  </span>
                   {deadlineConfidence === 'LOW' && (
-                    <p className="confidence-warning">
+                    <p className="text-red-600 text-sm mt-2 font-medium">
                       We weren't sure about this date — please confirm or correct it before proceeding.
                     </p>
                   )}
                 </div>
                 <button
-                  className={`correction-link ${deadlineConfidence === 'LOW' ? 'correction-required' : ''}`}
+                  className={`font-semibold underline ${
+                    deadlineConfidence === 'LOW' ? 'text-red-600 hover:text-red-800' : 'text-blue-600 hover:text-blue-800'
+                  }`}
                   onClick={openDeadlineCorrection}
                 >
                   {deadlineConfidence === 'LOW' ? 'Set date (required)' : 'Change'}
                 </button>
               </div>
 
-              <div className="confirmation-row">
-                <div className="confirmation-field">
-                  <p className="confirmation-label">Priority</p>
-                  <p className="confirmation-value">{priorityLevel}</p>
+              <div className="flex justify-between items-start py-4 border-b border-gray-200">
+                <div className="flex-1">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-gray-700 mb-1">Priority</p>
+                  <p className="text-base font-medium text-gray-900">{priorityLevel}</p>
                 </div>
               </div>
 
-              <div className="confirmation-row">
-                <div className="confirmation-field">
-                  <p className="confirmation-label">Starting from</p>
-                  <p className="confirmation-value">
+              <div className="flex justify-between items-start py-4">
+                <div className="flex-1">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-gray-700 mb-1">Starting from</p>
+                  <p className="text-base font-medium text-gray-900">
                     {currentStatus === 'NOT_STARTED' ? 'Zero' : 'Already in progress'}
                   </p>
                 </div>
               </div>
 
               <button
-                className="btn btn-primary"
+                className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mt-8"
                 disabled={!canProceed || proceedLoading}
                 onClick={handleProceed}
               >
@@ -890,8 +932,11 @@ export default function GoalIntakeUI({ onConfirmed }) {
 
               {proceedError && renderProceedError(proceedError)}
 
-              <button className="start-over-link" onClick={handleStartOver}>
-                Start over with a different goal
+              <button
+                className="text-blue-600 hover:text-blue-800 font-semibold flex items-center justify-center space-x-2 mt-4"
+                onClick={handleStartOver}
+              >
+                <span>Start over with a different goal</span>
               </button>
             </div>
           )}
@@ -905,12 +950,12 @@ export default function GoalIntakeUI({ onConfirmed }) {
 
   function renderGoalTypeCorrection() {
     return (
-      <div className="correction-panel">
-        <h3>Select the closest match:</h3>
+      <div className="mt-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Select the closest match:</h3>
 
-        <div className="correction-families">
+        <div className="space-y-3 mb-6">
           {Object.keys(GOAL_TAXONOMY).map((family) => (
-            <label key={family} className="correction-radio-row">
+            <label key={family} className="flex items-center space-x-3 cursor-pointer">
               <input
                 type="radio"
                 name="correctionFamily"
@@ -920,42 +965,44 @@ export default function GoalIntakeUI({ onConfirmed }) {
                   setCorrectionFamily(family);
                   setCorrectionSubtype(GOAL_TAXONOMY[family][0]);
                 }}
+                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
               />
-              {family}
+              <span className="text-gray-900">{family}</span>
             </label>
           ))}
         </div>
 
         {correctionFamily && (
           <>
-            <h3>Then select subtype:</h3>
-            <div className="correction-subtypes">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Then select subtype:</h3>
+            <div className="space-y-3">
               {GOAL_TAXONOMY[correctionFamily].map((subtype) => (
-                <label key={subtype} className="correction-radio-row">
+                <label key={subtype} className="flex items-center space-x-3 cursor-pointer">
                   <input
                     type="radio"
                     name="correctionSubtype"
                     value={subtype}
                     checked={correctionSubtype === subtype}
                     onChange={() => setCorrectionSubtype(subtype)}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                   />
-                  {subtype}
+                  <span className="text-gray-900">{subtype}</span>
                 </label>
               ))}
             </div>
           </>
         )}
 
-        <div className="correction-actions">
+        <div className="flex space-x-4 mt-6">
           <button
-            className="btn btn-primary"
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             disabled={!correctionFamily || !correctionSubtype}
             onClick={applyGoalTypeCorrection}
           >
             Confirm selection
           </button>
           <button
-            className="btn btn-secondary"
+            className="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-semibold hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
             onClick={() => {
               setCorrectionFamily(resolvedFamily);
               setCorrectionSubtype(resolvedSubtype);
@@ -975,14 +1022,14 @@ export default function GoalIntakeUI({ onConfirmed }) {
     const hasPastDateSelection = Boolean(dateValue && dateValue < today);
 
     return (
-      <div className="correction-panel">
-        <h3>When do you need this done?</h3>
+      <div className="mt-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">When do you need this done?</h3>
 
-        <div className="correction-field">
-          <label>Select a date</label>
+        <div className="space-y-2 mb-6">
+          <label className="block text-sm font-semibold uppercase tracking-wide text-gray-700">Select a date</label>
           <input
             type="date"
-            className="date-input"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             value={dateValue}
             min={today}
             onChange={(e) =>
@@ -990,37 +1037,39 @@ export default function GoalIntakeUI({ onConfirmed }) {
             }
           />
           {hasPastDateSelection && (
-            <div className="error-message">Please choose today or a future date.</div>
+            <div className="text-red-600 text-sm mt-1">Please choose today or a future date.</div>
           )}
         </div>
 
-        <div className="correction-field">
-          <label>Is this a hard deadline?</label>
-          <label className="correction-radio-row">
+        <div className="space-y-3 mb-6">
+          <label className="block text-sm font-semibold uppercase tracking-wide text-gray-700">Is this a hard deadline?</label>
+          <label className="flex items-center space-x-3 cursor-pointer">
             <input
               type="radio"
               name="deadlineType"
               value="HARD"
               checked={correctionDeadlineType === 'HARD'}
               onChange={() => setCorrectionDeadlineType('HARD')}
+              className="w-4 h-4 text-blue-600 focus:ring-blue-500"
             />
-            Yes — this date cannot move
+            <span className="text-gray-900">Yes — this date cannot move</span>
           </label>
-          <label className="correction-radio-row">
+          <label className="flex items-center space-x-3 cursor-pointer">
             <input
               type="radio"
               name="deadlineType"
               value="TARGET"
               checked={correctionDeadlineType === 'TARGET'}
               onChange={() => setCorrectionDeadlineType('TARGET')}
+              className="w-4 h-4 text-blue-600 focus:ring-blue-500"
             />
-            No — this is a target
+            <span className="text-gray-900">No — this is a target</span>
           </label>
         </div>
 
-        <div className="correction-actions">
+        <div className="flex space-x-4">
           <button
-            className="btn btn-primary"
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             disabled={!correctionDeadline || hasPastDateSelection}
             onClick={() => {
               applyDeadlineCorrection();
@@ -1029,7 +1078,7 @@ export default function GoalIntakeUI({ onConfirmed }) {
             Confirm
           </button>
           <button
-            className="btn btn-secondary"
+            className="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-semibold hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
             onClick={() => {
               setCorrectionDeadline(resolvedDeadline || '');
               setCorrectionDeadlineType(deadlineType);

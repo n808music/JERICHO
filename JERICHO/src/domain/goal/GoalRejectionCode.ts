@@ -1,6 +1,6 @@
 /**
  * GoalRejectionCode: Hard constraints that prevent goal admission
- * 
+ *
  * No soft validations. No warnings that can be overridden.
  * Each code represents a contract violation that makes the goal non-admissible.
  */
@@ -8,7 +8,7 @@
 export enum GoalRejectionCode {
   // Plan generation mechanism violations (Phase 3)
   PLAN_GENERATION_MECHANISM_MISSING = 'PLAN_GENERATION_MECHANISM_MISSING',
-  PLAN_GENERATION_MECHANISM_UNSUPPORTED = 'PLAN_GENERATION_MECHANISM_UNSUPPORTED', // Only GENERIC_DETERMINISTIC supported in v1
+  PLAN_GENERATION_MECHANISM_UNSUPPORTED = 'PLAN_GENERATION_MECHANISM_UNSUPPORTED', // Unsupported mechanism for v1 allowlist
 
   // Terminal outcome violations
   TERMINAL_OUTCOME_MISSING = 'TERMINAL_OUTCOME_MISSING',
@@ -19,11 +19,13 @@ export enum GoalRejectionCode {
   DEADLINE_MISSING = 'DEADLINE_MISSING',
   DEADLINE_IN_PAST = 'DEADLINE_IN_PAST',
   DEADLINE_TOO_SOON = 'DEADLINE_TOO_SOON', // Less than 3 days from now
+  START_DAY_BEFORE_ACTIVE_DAY = 'START_DAY_BEFORE_ACTIVE_DAY', // Inferred start precedes app active day
 
   // Sacrifice declaration violations
   SACRIFICE_MISSING = 'SACRIFICE_MISSING',
   SACRIFICE_VAGUE = 'SACRIFICE_VAGUE',
   SACRIFICE_NOT_BINDING = 'SACRIFICE_NOT_BINDING', // Claimed cost is trivial
+  NO_WORK_WINDOWS = 'NO_WORK_WINDOWS',
 
   // Temporal binding violations
   TEMPORAL_BINDING_INVALID = 'TEMPORAL_BINDING_INVALID', // No calendar commitment
@@ -60,7 +62,8 @@ export enum GoalRejectionSeverity {
  */
 export const GOAL_REJECTION_MESSAGES: Record<GoalRejectionCode, string> = {
   [GoalRejectionCode.PLAN_GENERATION_MECHANISM_MISSING]: 'Plan generation mechanism is required.',
-  [GoalRejectionCode.PLAN_GENERATION_MECHANISM_UNSUPPORTED]: 'Plan generation mechanism must be GENERIC_DETERMINISTIC (only supported type in v1).',
+  [GoalRejectionCode.PLAN_GENERATION_MECHANISM_UNSUPPORTED]:
+    'Plan generation mechanism must be one of GENERIC_DETERMINISTIC or LLM_TYPED (supported in v1).',
 
   [GoalRejectionCode.TERMINAL_OUTCOME_MISSING]: 'Terminal outcome is required.',
   [GoalRejectionCode.TERMINAL_OUTCOME_VAGUE]: 'Terminal outcome must be concrete and unambiguous.',
@@ -69,10 +72,12 @@ export const GOAL_REJECTION_MESSAGES: Record<GoalRejectionCode, string> = {
   [GoalRejectionCode.DEADLINE_MISSING]: 'Deadline date is required.',
   [GoalRejectionCode.DEADLINE_IN_PAST]: 'Deadline cannot be in the past.',
   [GoalRejectionCode.DEADLINE_TOO_SOON]: 'Deadline must be at least 3 days from today.',
+  [GoalRejectionCode.START_DAY_BEFORE_ACTIVE_DAY]: 'Start date cannot be earlier than the current active day.',
 
   [GoalRejectionCode.SACRIFICE_MISSING]: 'You must declare what you will sacrifice to achieve this.',
   [GoalRejectionCode.SACRIFICE_VAGUE]: 'Sacrifice must be specific and quantified.',
   [GoalRejectionCode.SACRIFICE_NOT_BINDING]: 'Declared sacrifice must represent real cost.',
+  [GoalRejectionCode.NO_WORK_WINDOWS]: 'At least one work window is required.',
 
   [GoalRejectionCode.TEMPORAL_BINDING_INVALID]: 'You must commit to a recurring schedule (days/week).',
   [GoalRejectionCode.TEMPORAL_BINDING_INSUFFICIENT]: 'Committed days must be at least 3 per week.',

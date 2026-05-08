@@ -7,11 +7,7 @@ interface CausalChainBuilderProps {
   isValid: boolean;
 }
 
-export default function CausalChainBuilder({
-  causalChain,
-  onCausalChange,
-  isValid,
-}: CausalChainBuilderProps) {
+export default function CausalChainBuilder({ causalChain, onCausalChange, isValid }: CausalChainBuilderProps) {
   const current = causalChain || {
     steps: [],
     hash: '',
@@ -38,9 +34,7 @@ export default function CausalChainBuilder({
   };
 
   const removeStep = (idx: number) => {
-    const updated = (current.steps || [])
-      .filter((_, i) => i !== idx)
-      .map((s, i) => ({ ...s, sequence: i + 1 }));
+    const updated = (current.steps || []).filter((_, i) => i !== idx).map((s, i) => ({ ...s, sequence: i + 1 }));
     onCausalChange({
       ...current,
       steps: updated,
@@ -75,16 +69,11 @@ export default function CausalChainBuilder({
                 <input
                   type="number"
                   value={step.approximateDayOffset || ''}
-                  onChange={(e) =>
-                    updateStep(idx, { approximateDayOffset: Number(e.target.value) || undefined })
-                  }
+                  onChange={(e) => updateStep(idx, { approximateDayOffset: Number(e.target.value) || undefined })}
                   placeholder="Days"
                   className="w-12 rounded border border-line/40 bg-transparent px-1 py-0.5 text-[11px]"
                 />
-                <button
-                  onClick={() => removeStep(idx)}
-                  className="text-[10px] text-muted hover:text-red-600"
-                >
+                <button onClick={() => removeStep(idx)} className="text-[10px] text-muted hover:text-red-600">
                   Remove
                 </button>
               </div>

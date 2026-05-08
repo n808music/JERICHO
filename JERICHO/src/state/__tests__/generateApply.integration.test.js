@@ -9,9 +9,16 @@ function buildBaseState() {
     lenses: {
       aim: { description: '', horizon: '90d', narrative: '' },
       pattern: { routines: { Body: [], Resources: [], Creation: [], Focus: [] }, dailyTargets: [], defaultMinutes: 30 },
-      flow: { streams: [] }
+      flow: { streams: [] },
     },
-    today: { date: FIXED_DAY, blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
+    today: {
+      date: FIXED_DAY,
+      blocks: [],
+      completionRate: 0,
+      driftSignal: 'contained',
+      loadByPractice: {},
+      practices: [],
+    },
     currentWeek: { weekStart: FIXED_DAY, days: [], metrics: {} },
     cycle: [],
     viewDate: FIXED_DAY,
@@ -28,12 +35,12 @@ function buildBaseState() {
       timeZone: 'UTC',
       nowISO: `${FIXED_DAY}T12:00:00.000Z`,
       activeDayKey: FIXED_DAY,
-      isFollowingNow: true
+      isFollowingNow: true,
     },
     constraints: {
       maxBlocksPerDay: 4,
-      maxBlocksPerWeek: 16
-    }
+      maxBlocksPerWeek: 16,
+    },
   };
 }
 
@@ -69,7 +76,7 @@ const EQUATION_PAYLOAD = {
   acceptsDailyMinimum: true,
   acceptsFixedSchedule: true,
   acceptsNoRenegotiation7d: true,
-  acceptsAutomaticCatchUp: true
+  acceptsAutomaticCatchUp: true,
 };
 
 function buildCompiledState() {
@@ -83,15 +90,15 @@ function buildCompiledState() {
       narrative: '',
       focusAreas: ['Focus'],
       successDefinition: 'Practice complete',
-      minimumDaysPerWeek: 4
-    }
+      minimumDaysPerWeek: 4,
+    },
   });
 
   return computeDerivedState(onboarded, {
     type: 'COMPILE_GOAL_EQUATION',
     payload: {
-      equation: EQUATION_PAYLOAD
-    }
+      equation: EQUATION_PAYLOAD,
+    },
   });
 }
 
@@ -123,11 +130,11 @@ describe('generate/apply integration', () => {
     expect(cycle.autoAsanaPlan).toBeTruthy();
   });
 
-  it('RENEGOTIATION_APPLY source preserves preview state - APPLY_PLAN commits from reviewed draft proposals', () => {
+  it('RENEGOTIATION_APPLY source preserves preview state - APPLY_PLAN applies review then ACTIVATE_SCHEDULE commits it', () => {
     const compiled = buildCompiledState();
     const previewed = computeDerivedState(compiled, {
       type: 'GENERATE_PLAN',
-      payload: { source: 'RENEGOTIATION_APPLY' }
+      payload: { source: 'RENEGOTIATION_APPLY' },
     });
 
     const cycleAfterPreview = previewed.cyclesById[previewed.activeCycleId];
@@ -137,9 +144,16 @@ describe('generate/apply integration', () => {
     expect((previewed.proposedBlocks || []).some((b) => b?.status === 'suggested')).toBe(true);
 
     const applied = computeDerivedState(previewed, { type: 'APPLY_PLAN' });
-    const created = (applied.executionEvents || []).filter((e) => e?.kind === 'create');
-    expect(created.length).toBeGreaterThan(0);
+    const createdBeforeApply = (previewed.executionEvents || []).filter((e) => e?.kind === 'create');
+    const createdAfterApply = (applied.executionEvents || []).filter((e) => e?.kind === 'create');
+    expect(createdAfterApply.length).toBe(createdBeforeApply.length);
+    expect(applied.scheduleLifecycle).toBe('applied_review');
     expect(applied.pendingPlanConfirmation).toBe(false);
     expect(applied.scheduleApplied).toBe(true);
+
+    const activated = computeDerivedState(applied, { type: 'ACTIVATE_SCHEDULE' });
+    const activatedCreates = (activated.executionEvents || []).filter((e) => e?.kind === 'create');
+    expect(activatedCreates.length).toBeGreaterThan(0);
+    expect(activated.scheduleLifecycle).toBe('active_schedule');
   });
 });

@@ -11,17 +11,44 @@ function buildState() {
   const dayKey = '2026-01-20';
   const actions = [
     {
-      id: 'a-1', goalId: 'goal-1', title: 'Define season thesis', brief: 'Write thesis', definitionOfDone: 'Done',
-      estimateMin: 30, category: 'Focus', deps: [], status: 'todo', topoIndex: 0, priority: 1
+      id: 'a-1',
+      goalId: 'goal-1',
+      title: 'Define season thesis',
+      brief: 'Write thesis',
+      definitionOfDone: 'Done',
+      estimateMin: 30,
+      category: 'Focus',
+      deps: [],
+      status: 'todo',
+      topoIndex: 0,
+      priority: 1,
     },
     {
-      id: 'a-2', goalId: 'goal-1', title: 'Map season arc beats', brief: 'Map beats', definitionOfDone: 'Done',
-      estimateMin: 30, category: 'Creation', deps: [], status: 'todo', topoIndex: 1, priority: 1
+      id: 'a-2',
+      goalId: 'goal-1',
+      title: 'Map season arc beats',
+      brief: 'Map beats',
+      definitionOfDone: 'Done',
+      estimateMin: 30,
+      category: 'Creation',
+      deps: [],
+      status: 'todo',
+      topoIndex: 1,
+      priority: 1,
     },
     {
-      id: 'a-3', goalId: 'goal-1', title: 'Draft episode list', brief: 'List episodes', definitionOfDone: 'Done',
-      estimateMin: 30, category: 'Creation', deps: [], status: 'todo', topoIndex: 2, priority: 1
-    }
+      id: 'a-3',
+      goalId: 'goal-1',
+      title: 'Draft episode list',
+      brief: 'List episodes',
+      definitionOfDone: 'Done',
+      estimateMin: 30,
+      category: 'Creation',
+      deps: [],
+      status: 'todo',
+      topoIndex: 2,
+      priority: 1,
+    },
   ];
   return {
     vector: {},
@@ -50,24 +77,29 @@ function buildState() {
         id: cycleId,
         status: 'active',
         actions,
-        goalContract: { goalId: 'goal-1', goalLabel: 'write season 1 of tv show', startDate: dayKey, deadline: { dayKey: '2026-01-22' } },
+        goalContract: {
+          goalId: 'goal-1',
+          goalLabel: 'write season 1 of tv show',
+          startDate: dayKey,
+          deadline: { dayKey: '2026-01-22' },
+        },
         coldPlan: {
           forecastByDayKey: {
             '2026-01-20': { totalBlocks: 1, byDeliverable: {} },
             '2026-01-21': { totalBlocks: 1, byDeliverable: {} },
-            '2026-01-22': { totalBlocks: 1, byDeliverable: {} }
+            '2026-01-22': { totalBlocks: 1, byDeliverable: {} },
           },
-          dailyProjection: { forecastByDayKey: {} }
+          dailyProjection: { forecastByDayKey: {} },
         },
-        summary: { completionCount: 0, completionRate: 0 }
-      }
+        summary: { completionCount: 0, completionRate: 0 },
+      },
     },
     goalExecutionContract: { goalId: 'goal-1', startDate: dayKey, deadline: { dayKey: '2026-01-22' } },
     goalDirective: { goalId: 'goal-1', directiveId: 'dir-1' },
     directiveEligibilityByGoal: { 'goal-1': { eligible: true } },
     planDraft: { blocksPerWeek: 4, daysPerWeek: 4, primaryDomain: 'CREATION', minutesPerDay: 90 },
     planCalibration: null,
-    correctionSignals: null
+    correctionSignals: null,
   };
 }
 

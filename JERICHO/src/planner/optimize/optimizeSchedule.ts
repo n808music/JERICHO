@@ -1,5 +1,10 @@
 import { generateCandidates } from './generateCandidates.ts';
-import { scoreSchedule, type ScheduleAssignment, type ScoreInputs, type ScoreBreakdown } from '../scoring/scoreSchedule.ts';
+import {
+  scoreSchedule,
+  type ScheduleAssignment,
+  type ScoreInputs,
+  type ScoreBreakdown,
+} from '../scoring/scoreSchedule.ts';
 import { getQualityPolicy, type QualityPolicy } from '../scoring/policy.ts';
 
 type OptimizeInput = {
@@ -22,7 +27,7 @@ const REJECTION_CODES = [
   'MILESTONE_GUARDRAIL',
   'DEFERRAL_GUARDRAIL',
   'DEPENDENCY_GUARDRAIL',
-  'NO_IMPROVEMENT'
+  'NO_IMPROVEMENT',
 ] as const;
 
 type RejectionCode = (typeof REJECTION_CODES)[number];
@@ -33,23 +38,32 @@ function initSummary(): Record<RejectionCode, number> {
     MILESTONE_GUARDRAIL: 0,
     DEFERRAL_GUARDRAIL: 0,
     DEPENDENCY_GUARDRAIL: 0,
-    NO_IMPROVEMENT: 0
+    NO_IMPROVEMENT: 0,
   };
 }
 
-function scoreCandidate(assignments: ScheduleAssignment[], input: OptimizeInput, policy: QualityPolicy): ScoreBreakdown {
+function scoreCandidate(
+  assignments: ScheduleAssignment[],
+  input: OptimizeInput,
+  policy: QualityPolicy
+): ScoreBreakdown {
   return scoreSchedule({
     assignments,
+    assignmentsAreSorted: false,
     actionGraph: input.actionGraph,
     constraints: input.constraints,
     horizons: input.horizons,
     milestones: input.milestones,
     metricsContext: input.metricsContext,
-    policy
+    policy,
   });
 }
 
-function violatesGuardrails(baseline: ScoreBreakdown, candidate: ScoreBreakdown, policy: QualityPolicy): RejectionCode | null {
+function violatesGuardrails(
+  baseline: ScoreBreakdown,
+  candidate: ScoreBreakdown,
+  policy: QualityPolicy
+): RejectionCode | null {
   if (
     candidate.components.deadlineRisk - baseline.components.deadlineRisk >
     policy.optimizerGuardrails.allowDeadlineRiskIncrease
@@ -78,29 +92,41 @@ function violatesGuardrails(baseline: ScoreBreakdown, candidate: ScoreBreakdown,
 }
 
 export function optimizeSchedule(input: OptimizeInput) {
+  const debugPerf = typeof process !== 'undefined' && process.env?.JERICHO_DEBUG_PERF_ACTIONS === '1';
+  const totalStart = debugPerf ? Date.now() : 0;
   const policy = input.policy || getQualityPolicy(input.policyId);
   const maxIterations = Math.max(1, input.maxIterations || 2);
   const maxCandidatesPerIter = Math.max(1, input.maxCandidatesPerIter || 30);
   const rejectedCandidatesSummary = initSummary();
+  let baselineScoreMs = 0;
+  let candidateGenerationMs = 0;
+  let candidateScoringMs = 0;
 
   let bestAssignments = input.baselineAssignments.map((a) => ({ ...a }));
+  const baselineStart = debugPerf ? Date.now() : 0;
   let bestScore = scoreCandidate(bestAssignments, input, policy);
+  baselineScoreMs = debugPerf ? Date.now() - baselineStart : 0;
   const baselineScore = bestScore;
 
   for (let iter = 0; iter < maxIterations; iter += 1) {
+    const candidateGenerationStart = debugPerf ? Date.now() : 0;
     const candidatesRaw =
       input.candidateSchedules && input.candidateSchedules.length
         ? input.candidateSchedules
         : generateCandidates({
             baselineAssignments: bestAssignments,
-            frozenReservations: input.frozenReservations
+            frozenReservations: input.frozenReservations,
+            maxCandidates: maxCandidatesPerIter,
           });
+    candidateGenerationMs += debugPerf ? Date.now() - candidateGenerationStart : 0;
 
     const candidates = candidatesRaw.slice(0, maxCandidatesPerIter);
     let improved = false;
 
     for (const candidateAssignments of candidates) {
+      const candidateScoreStart = debugPerf ? Date.now() : 0;
       const candidate = scoreCandidate(candidateAssignments, input, policy);
+      candidateScoringMs += debugPerf ? Date.now() - candidateScoreStart : 0;
       if (candidate.total >= bestScore.total) {
         rejectedCandidatesSummary.NO_IMPROVEMENT += 1;
         continue;
@@ -126,8 +152,8 @@ export function optimizeSchedule(input: OptimizeInput) {
       dependencyRisk: bestScore.components.dependencyRisk - baselineScore.components.dependencyRisk,
       contextSwitching: bestScore.components.contextSwitching - baselineScore.components.contextSwitching,
       loadSmoothness: bestScore.components.loadSmoothness - baselineScore.components.loadSmoothness,
-      deferralPenalty: bestScore.components.deferralPenalty - baselineScore.components.deferralPenalty
-    }
+      deferralPenalty: bestScore.components.deferralPenalty - baselineScore.components.deferralPenalty,
+    },
   };
 
   return {
@@ -136,8 +162,16 @@ export function optimizeSchedule(input: OptimizeInput) {
     bestScore,
     improvement,
     chosenMovesSummary: {
-      movedChunks: Math.max(0, input.baselineAssignments.length - bestAssignments.length)
+      movedChunks: Math.max(0, input.baselineAssignments.length - bestAssignments.length),
     },
-    rejectedCandidatesSummary
+    rejectedCandidatesSummary,
+    perf: debugPerf
+      ? {
+          totalMs: Date.now() - totalStart,
+          baselineScoreMs,
+          candidateGenerationMs,
+          candidateScoringMs,
+        }
+      : undefined,
   };
 }

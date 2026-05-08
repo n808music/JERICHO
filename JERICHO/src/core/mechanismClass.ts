@@ -2,11 +2,11 @@
  * mechanismClass.ts
  *
  * Two independent enum systems:
- * 
+ *
  * 1. MechanismClass (Phase 1/2): Derives work classification from goal text for template selection
  *    Used by: autoDeliverables template matching
  *    Purely deterministic: no LLM, no API calls.
- *    
+ *
  * 2. PlanGenerationMechanismClass (Phase 3): Specifies plan generation algorithm
  *    Used by: deterministic plan generator (guarantees reproducible blocks + dates)
  *    v1 = GENERIC_DETERMINISTIC (only algorithm in Phase 3)
@@ -40,7 +40,7 @@ export function deriveMechanismClass(goalContract: any): MechanismClass {
     goalContract?.mechanism,
     goalContract?.terminalOutcome?.text,
     goalContract?.goalText,
-    goalContract?.aim?.text
+    goalContract?.aim?.text,
   ]
     .filter((t) => typeof t === 'string' && t.trim().length > 0)
     .map((t) => (t as string).toLowerCase());
@@ -61,19 +61,31 @@ export function deriveMechanismClass(goalContract: any): MechanismClass {
 
   // MARKET: Marketing, promote, campaign, acquisition, sales, growth, viral, brand, reach
   // (Checked before general patterns to catch "sales", "pitch", etc.)
-  if (/\bmarket\b|promot|campaign|acqui|sales|growth|viral|brand|reach|audience|engagement|conversion|pitch/.test(combined)) {
+  if (
+    /\bmarket\b|promot|campaign|acqui|sales|growth|viral|brand|reach|audience|engagement|conversion|pitch/.test(
+      combined
+    )
+  ) {
     return 'MARKET';
   }
 
   // OPS: Operations, infra, setup, admin, process, workflow, system, configure, deploy infra, ci\/cd
   // (Checked before PUBLISH to catch deploy infrastructure, CI/CD, etc.)
-  if (/ops\b|infra|setup|admin|process|workflow|system|configur|devops|monitoring|scaling|ci\s*\/\s*cd|kubernetes|cluster/.test(combined)) {
+  if (
+    /ops\b|infra|setup|admin|process|workflow|system|configur|devops|monitoring|scaling|ci\s*\/\s*cd|kubernetes|cluster/.test(
+      combined
+    )
+  ) {
     return 'OPS';
   }
 
   // PUBLISH: Release, launch, publish, ship, go live, spotify, app store, distribution
   // (Narrower than before to avoid catching "deploy infra")
-  if (/publish|launch|release|ship|go\s*live|spotify|app\s*store|distribution|make\s*public|announce|unveil|release/.test(combined)) {
+  if (
+    /publish|launch|release|ship|go\s*live|spotify|app\s*store|distribution|make\s*public|announce|unveil|release/.test(
+      combined
+    )
+  ) {
     return 'PUBLISH';
   }
 
@@ -102,7 +114,7 @@ export function describeMechanismClass(mechanism: MechanismClass): string {
     MARKET: 'Marketing/growth work',
     LEARN: 'Learning/skill development',
     OPS: 'Operations/infrastructure',
-    REVIEW: 'Review/refinement/maintenance'
+    REVIEW: 'Review/refinement/maintenance',
   };
   return descriptions[mechanism];
 }
@@ -118,7 +130,7 @@ export function isValidPlanGenerationMechanism(value: any): value is PlanGenerat
     'HABIT_LOOP',
     'PROJECT_MILESTONE',
     'DELIVERABLE_DRIVEN',
-    'CUSTOM'
+    'CUSTOM',
   ];
   return validMechanisms.includes(value);
 }
@@ -141,7 +153,7 @@ export function describePlanGenerationMechanism(mechanism: PlanGenerationMechani
     HABIT_LOOP: 'Daily habit accumulation (future)',
     PROJECT_MILESTONE: 'Milestone-driven decomposition (future)',
     DELIVERABLE_DRIVEN: 'Explicit deliverable scheduling (future)',
-    CUSTOM: 'Custom user-provided algorithm (future)'
+    CUSTOM: 'Custom user-provided algorithm (future)',
   };
   return descriptions[mechanism] || 'Unknown mechanism';
 }

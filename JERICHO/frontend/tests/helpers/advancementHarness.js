@@ -19,22 +19,22 @@ function makeCycle({ id, goalId, goalText, deadlineDayKey }) {
     id,
     status: 'active',
     startedAtDayKey: DAY_KEY,
-      goalContract: {
-        goalId,
-        goalLabel: goalText,
-        goalText,
-        terminalOutcome: { text: goalText },
-        startDate: DAY_KEY,
-        deadline: { dayKey: deadlineDayKey || '2026-05-20' }
-      },
+    goalContract: {
+      goalId,
+      goalLabel: goalText,
+      goalText,
+      terminalOutcome: { text: goalText },
+      startDate: DAY_KEY,
+      deadline: { dayKey: deadlineDayKey || '2026-05-20' },
+    },
     coldPlan: {
       forecastByDayKey: {
-        [DAY_KEY]: { totalBlocks: 3, byDeliverable: {}, summary: '' }
+        [DAY_KEY]: { totalBlocks: 3, byDeliverable: {}, summary: '' },
       },
-      dailyProjection: { forecastByDayKey: {} }
+      dailyProjection: { forecastByDayKey: {} },
     },
     actions: [],
-    summary: { completionCount: 0, completionRate: 0 }
+    summary: { completionCount: 0, completionRate: 0 },
   };
 }
 
@@ -52,7 +52,7 @@ function makeAction(id, cycleId, goalId, title, detail, deps, topoIndex, priorit
     deps,
     status: 'todo',
     topoIndex,
-    priority
+    priority,
   };
 }
 
@@ -61,14 +61,14 @@ export function buildAdvancementBaseState({ includeCycle2 = false } = {}) {
     id: 'cycle-1',
     goalId: 'goal-1',
     goalText: 'ship deterministic planner validation',
-    deadlineDayKey: '2026-05-20'
+    deadlineDayKey: '2026-05-20',
   });
   const cycle2 = includeCycle2
     ? makeCycle({
         id: 'cycle-2',
         goalId: 'goal-2',
         goalText: 'launch jericho marketing page',
-        deadlineDayKey: '2026-03-01'
+        deadlineDayKey: '2026-03-01',
       })
     : null;
 
@@ -95,18 +95,18 @@ export function buildAdvancementBaseState({ includeCycle2 = false } = {}) {
     activeCycleId: 'cycle-1',
     actionsByCycleId: {
       'cycle-1': { cycleId: 'cycle-1', goalId: 'goal-1', actions: [] },
-      ...(includeCycle2 ? { 'cycle-2': { cycleId: 'cycle-2', goalId: 'goal-2', actions: [] } } : {})
+      ...(includeCycle2 ? { 'cycle-2': { cycleId: 'cycle-2', goalId: 'goal-2', actions: [] } } : {}),
     },
     cyclesById: {
       'cycle-1': cycle1,
-      ...(includeCycle2 ? { 'cycle-2': cycle2 } : {})
+      ...(includeCycle2 ? { 'cycle-2': cycle2 } : {}),
     },
     goalExecutionContract: null,
     goalDirective: { goalId: 'goal-1', directiveId: 'dir-1' },
     directiveEligibilityByGoal: { 'goal-1': { eligible: true } },
     planDraft: { blocksPerWeek: 4, daysPerWeek: 4, primaryDomain: 'CREATION', minutesPerDay: 90 },
     planCalibration: null,
-    correctionSignals: null
+    correctionSignals: null,
   };
 }
 
@@ -134,7 +134,7 @@ export function seedActionsAThenB(state, { cycleId, goalId }) {
       [aId],
       1,
       2
-    )
+    ),
   ];
 
   next.actionsByCycleId[cycleId] = { cycleId, goalId, actions };
@@ -149,7 +149,7 @@ function routeSuggestionsFromCycle(cycle) {
       dayKey,
       totalBlocks: Number(forecast[dayKey]?.totalBlocks || 0),
       byDeliverable: forecast[dayKey]?.byDeliverable || {},
-      summary: forecast[dayKey]?.summary || ''
+      summary: forecast[dayKey]?.summary || '',
     }))
     .filter((entry) => entry.totalBlocks > 0);
 }
@@ -170,14 +170,14 @@ export function buildCycleDraftItems(state, { cycleId }) {
     defaults: {
       todayKey: state.appTime?.activeDayKey || DAY_KEY,
       primaryDomain: cycle.goalContract?.primaryDomain || 'FOCUS',
-      routeMinutes: state.planDraft?.routeMinutes || 30
-    }
+      routeMinutes: state.planDraft?.routeMinutes || 30,
+    },
   });
   return selectVisibleDraftItems({
     cycle,
     draftItems: raw,
     timeZone: state.appTime?.timeZone || 'UTC',
-    deadlineDayKey: getContractDeadlineDayKey(cycle.goalContract || null)
+    deadlineDayKey: getContractDeadlineDayKey(cycle.goalContract || null),
   });
 }
 
@@ -196,12 +196,14 @@ export function commitFirstActionItem(state, { cycleId, actionId }) {
   const committedActionId = row.actionId || actionId;
   const next = computeDerivedState(state, {
     type: 'COMMIT_PREVIEW_ITEMS',
-    payload: { cycleId, items: [row] }
+    payload: { cycleId, items: [row] },
   });
-  const materialized = materializeBlocksFromEvents(next.executionEvents || [], { todayISO: next.today?.date || DAY_KEY });
+  const materialized = materializeBlocksFromEvents(next.executionEvents || [], {
+    todayISO: next.today?.date || DAY_KEY,
+  });
   const allBlocks = [
     ...(materialized.todayBlocks || []),
-    ...((materialized.days || []).flatMap((day) => day?.blocks || []))
+    ...(materialized.days || []).flatMap((day) => day?.blocks || []),
   ];
   const committed = allBlocks.find((block) => block?.actionId === committedActionId);
   if (!committed) {
@@ -211,8 +213,12 @@ export function commitFirstActionItem(state, { cycleId, actionId }) {
 }
 
 export function completeBlockByAction(state, { cycleId, actionId }) {
-  const materialized = materializeBlocksFromEvents(state.executionEvents || [], { todayISO: state.today?.date || DAY_KEY });
-  const block = (materialized.todayBlocks || []).find((entry) => entry?.actionId === actionId && entry?.cycleId === cycleId);
+  const materialized = materializeBlocksFromEvents(state.executionEvents || [], {
+    todayISO: state.today?.date || DAY_KEY,
+  });
+  const block = (materialized.todayBlocks || []).find(
+    (entry) => entry?.actionId === actionId && entry?.cycleId === cycleId
+  );
   if (!block?.id) {
     throw new Error(`Expected block for action ${actionId} in cycle ${cycleId}.`);
   }
@@ -273,7 +279,7 @@ export async function runAdvancementSpine({ includeCycle2 = false } = {}) {
     scheduledABlockId: committed.blockId,
     postSeedState,
     postCommitState,
-    postCompletionState
+    postCompletionState,
   };
 }
 
@@ -287,8 +293,13 @@ export function assertAutomationItemsHaveContext(items = []) {
 }
 
 export function hasScheduledOrActiveActionBlock(state, { cycleId, actionId }) {
-  const materialized = materializeBlocksFromEvents(state.executionEvents || [], { todayISO: state.today?.date || DAY_KEY });
-  const blocks = [...(materialized.todayBlocks || []), ...((materialized.days || []).flatMap((day) => day?.blocks || []))];
+  const materialized = materializeBlocksFromEvents(state.executionEvents || [], {
+    todayISO: state.today?.date || DAY_KEY,
+  });
+  const blocks = [
+    ...(materialized.todayBlocks || []),
+    ...(materialized.days || []).flatMap((day) => day?.blocks || []),
+  ];
   return blocks.some((block) => {
     if (!block || block.cycleId !== cycleId || block.actionId !== actionId) return false;
     const status = (block.state || block.status || '').toString().toLowerCase();

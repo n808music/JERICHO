@@ -2,7 +2,6 @@ import React from 'react';
 import '@testing-library/jest-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { StructurePageConsolidated } from '../../src/components/zion/StructurePageConsolidated.jsx';
 
 const noop = vi.fn();
@@ -53,23 +52,17 @@ function buildStore() {
   };
 }
 
-describe('Structure debug toggle de-noises cycle id', () => {
+describe('Structure removes debug panel from active surface', () => {
   beforeEach(() => {
     mockStore = buildStore();
   });
 
-  it('hides full cycle UUID by default and shows shortened token only when debug is opened', async () => {
+  it('does not render debug toggle/details and never exposes full cycle UUID', () => {
     render(<StructurePageConsolidated />);
 
     expect(screen.queryByText('abcd12ef-3456-7890-abcd-ef1234567890')).not.toBeInTheDocument();
     expect(screen.queryByText(/lastGenerate\.lastPlanErrorCode/i)).not.toBeInTheDocument();
-
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /debug/i }));
-
-    expect(screen.getByText(/cycle:/i)).toBeInTheDocument();
-    expect(screen.getAllByText('abcd12').length).toBeGreaterThanOrEqual(1);
-    expect(screen.queryByText('abcd12ef-3456-7890-abcd-ef1234567890')).not.toBeInTheDocument();
-    expect(screen.getByText(/lastGenerate\.lastPlanErrorCode/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /debug/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/cycle:/i)).not.toBeInTheDocument();
   });
 });

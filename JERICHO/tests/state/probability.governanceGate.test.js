@@ -7,9 +7,13 @@ const contract = (overrides = {}) => ({
   goalId: 'goal-1',
   activeFromISO: '2026-01-01',
   activeUntilISO: '2026-12-31',
-  scope: { domainsAllowed: ['Body', 'Focus', 'Creation', 'Resources'], timeHorizon: 'week', timezone: 'America/Chicago' },
+  scope: {
+    domainsAllowed: ['Body', 'Focus', 'Creation', 'Resources'],
+    timeHorizon: 'week',
+    timezone: 'America/Chicago',
+  },
   governance: { suggestionsEnabled: true, probabilityEnabled: true, minEvidenceEvents: 2 },
-  ...overrides
+  ...overrides,
 });
 
 describe('probability governance eligibility', () => {
@@ -19,7 +23,7 @@ describe('probability governance eligibility', () => {
       nowISO: '2025-12-01',
       executionEventCount: 3,
       contracts: [contract()],
-      executionEvents: []
+      executionEvents: [],
     });
     expect(result.status).toBe('disabled');
     expect(result.reasons).toContain('inactive');
@@ -32,7 +36,7 @@ describe('probability governance eligibility', () => {
       nowISO: '2026-02-01',
       executionEventCount: 1,
       contracts: [contract()],
-      executionEvents: [{ dateISO: '2026-02-01', completed: true }]
+      executionEvents: [{ dateISO: '2026-02-01', completed: true }],
     });
     expect(result.status).toBe('insufficient_evidence');
     expect(result.reasons).toContain('insufficient_evidence');
@@ -47,8 +51,8 @@ describe('probability governance eligibility', () => {
       contracts: [contract()],
       executionEvents: [
         { dateISO: '2026-02-01', completed: true },
-        { dateISO: '2026-02-02', completed: false }
-      ]
+        { dateISO: '2026-02-02', completed: false },
+      ],
     };
     const first = deriveProbabilityStatus(input);
     const second = deriveProbabilityStatus(input);
@@ -60,12 +64,14 @@ describe('probability governance eligibility', () => {
       goalId: 'goal-1',
       nowISO: '2026-02-01',
       executionEventCount: 3,
-      contracts: [contract({ governance: { suggestionsEnabled: true, probabilityEnabled: true, minEvidenceEvents: 2 } })],
+      contracts: [
+        contract({ governance: { suggestionsEnabled: true, probabilityEnabled: true, minEvidenceEvents: 2 } }),
+      ],
       executionEvents: [
         { dateISO: '2026-01-31', completed: true },
         { dateISO: '2026-02-01', completed: true },
-        { dateISO: '2026-02-01', completed: false }
-      ]
+        { dateISO: '2026-02-01', completed: false },
+      ],
     });
     expect(result.status).toBe('computed');
     expect(result.reasons).toHaveLength(0);

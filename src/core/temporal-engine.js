@@ -21,10 +21,10 @@ export function buildDaySlots(cycleStartIso, cycleEndIso, slotConfig = {}) {
   }));
 }
 
-export function scheduleTasksIntoSlots(tasks = [], daySlots = [], integritySummary) {
+export function scheduleTasksIntoSlots(tasks = [], daySlots = [], integritySummary, options = {}) {
   const pendingTasks = (tasks || []).filter((t) => t.status === 'pending');
   const sortedTasks = [...pendingTasks].sort(taskComparator);
-  const todayDate = daySlots[0]?.date;
+  const todayDate = options.currentDate || daySlots[0]?.date;
   const integrityFactor =
     integritySummary && integritySummary.maxPossible > 0 ? (integritySummary.score || 0) / 100 : 0;
   // Reserved for future use; Phase 1 keeps algorithm deterministic without changing capacity.

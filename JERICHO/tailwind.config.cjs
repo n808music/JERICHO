@@ -15,27 +15,26 @@ module.exports = {
         'jericho-bg': 'var(--jericho-bg)',
         'jericho-surface': 'var(--jericho-surface)',
         'jericho-text': 'var(--jericho-text)',
-        'jericho-accent': 'var(--jericho-accent)'
+        'jericho-accent': 'var(--jericho-accent)',
       },
       fontFamily: {
         sans: ['"Space Grotesk"', 'system-ui', 'sans-serif'],
-        display: ['"Space Grotesk"', 'system-ui', 'sans-serif']
+        display: ['"Space Grotesk"', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
         glass: '0 20px 80px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)',
-        edge: '0 0 0 1px rgba(255,255,255,0.05)'
+        edge: '0 0 0 1px rgba(255,255,255,0.05)',
       },
       borderRadius: {
-        xl: '18px'
+        xl: '18px',
       },
       spacing: {
-        18: '4.5rem'
+        18: '4.5rem',
       },
       backgroundImage: {
-        mesh:
-          'radial-gradient(120% 120% at 20% 20%, rgba(120,120,255,0.08), rgba(0,0,0,0)), radial-gradient(100% 80% at 80% 0%, rgba(255,255,255,0.05), rgba(0,0,0,0))'
-      }
-    }
+        mesh: 'radial-gradient(120% 120% at 20% 20%, rgba(120,120,255,0.08), rgba(0,0,0,0)), radial-gradient(100% 80% at 80% 0%, rgba(255,255,255,0.05), rgba(0,0,0,0))',
+      },
+    },
   },
-  plugins: []
+  plugins: [],
 };

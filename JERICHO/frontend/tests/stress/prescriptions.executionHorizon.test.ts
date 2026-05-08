@@ -7,7 +7,7 @@ describe('prescriptions execution horizon', () => {
       outsideExecutionHorizonEstimateMinTotal: 900,
       outsideExecutionHorizonCount: 18,
       maxScheduledMinutesPerWeek: 300,
-      executionHorizonDays: 90
+      executionHorizonDays: 90,
     });
 
     expect(bundle.primaryConstraint).toBe('EXECUTION_HORIZON');

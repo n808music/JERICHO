@@ -3,7 +3,7 @@ import { useJericho } from '../core/state.js';
 
 const options = [
   { key: 'discipline', label: 'Discipline (micro)' },
-  { key: 'zion', label: 'Zion (macro)' }
+  { key: 'zion', label: 'Zion (macro)' },
 ];
 
 export default function ModeSwitch() {
@@ -18,9 +18,7 @@ export default function ModeSwitch() {
             key={opt.key}
             onClick={() => switchMode(opt.key)}
             className={`px-4 py-2 text-sm font-semibold transition ${
-              active
-                ? 'bg-jericho-accent text-jericho-bg'
-                : 'text-jericho-text hover:bg-glass'
+              active ? 'bg-jericho-accent text-jericho-bg' : 'text-jericho-text hover:bg-glass'
             }`}
           >
             {opt.label}

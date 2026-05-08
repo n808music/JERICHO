@@ -17,13 +17,10 @@ export function normalizeBlockDomain<T extends AnyBlock>(
 
   return {
     ...block,
-    domain: nextDomain
+    domain: nextDomain,
   } as T & { domain: ReturnType<typeof normalizeDomain> };
 }
 
-export function normalizeBlocksDomain<T extends AnyBlock>(
-  blocks: T[] = [],
-  warn?: (msg: string) => void
-) {
+export function normalizeBlocksDomain<T extends AnyBlock>(blocks: T[] = [], warn?: (msg: string) => void) {
   return blocks.map((b) => normalizeBlockDomain(b, warn));
 }

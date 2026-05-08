@@ -11,7 +11,7 @@ describe('cold plan rebase strict', () => {
       deliverables: [{ id: 'd1', title: 'Primary', requiredBlocks: 20 }],
       deadlineISO: '2026-01-20T23:59:00.000Z',
       constraints: { tz: 'UTC' },
-      assumptionsHash: ''
+      assumptionsHash: '',
     };
     strategy.assumptionsHash = buildAssumptionsHash(strategy);
 
@@ -20,7 +20,7 @@ describe('cold plan rebase strict', () => {
       nowISO: '2026-01-10T12:00:00.000Z',
       strategy,
       completedCountToDate: 7,
-      rebaseMode: 'REMAINING_FROM_TODAY'
+      rebaseMode: 'REMAINING_FROM_TODAY',
     });
 
     const total = Object.values(plan.forecastByDayKey).reduce((sum, d) => sum + d.totalBlocks, 0);

@@ -43,7 +43,9 @@ export default function TerminalOutcomePanel({ outcome, onOutcomeChange, isValid
         </label>
 
         <label className="block">
-          <span className="text-xs uppercase tracking-[0.12em] text-muted mb-1 block">How will this be verified at deadline?</span>
+          <span className="text-xs uppercase tracking-[0.12em] text-muted mb-1 block">
+            How will this be verified at deadline?
+          </span>
           <textarea
             value={current.verificationCriteria}
             onChange={(e) =>

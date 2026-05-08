@@ -13,7 +13,7 @@ describe('autoAsana compiler', () => {
       maxPerWeek: 15,
       slackUnits: 50,
       slackRatio: 0.5,
-      intensityRatio: 0.2
+      intensityRatio: 0.2,
     };
     const constraints = { timezone: 'UTC', maxBlocksPerDay: 3, maxBlocksPerWeek: 15 };
     const planA = compileAutoAsanaPlan({
@@ -22,7 +22,7 @@ describe('autoAsana compiler', () => {
       planProof,
       constraints,
       nowISO: NOW_ISO,
-      horizonDays: 7
+      horizonDays: 7,
     });
     const planB = compileAutoAsanaPlan({
       goalId: 'goal-1',
@@ -30,7 +30,7 @@ describe('autoAsana compiler', () => {
       planProof,
       constraints,
       nowISO: NOW_ISO,
-      horizonDays: 7
+      horizonDays: 7,
     });
     expect(planA.horizonBlocks).toEqual(planB.horizonBlocks);
     expect(planA.horizon.daysCount).toBe(7);

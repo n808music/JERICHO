@@ -12,9 +12,16 @@ function buildBaseState() {
     lenses: {
       aim: { description: '', horizon: '90d', narrative: '' },
       pattern: { routines: { Body: [], Resources: [], Creation: [], Focus: [] }, dailyTargets: [], defaultMinutes: 30 },
-      flow: { streams: [] }
+      flow: { streams: [] },
     },
-    today: { date: FIXED_DAY, blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
+    today: {
+      date: FIXED_DAY,
+      blocks: [],
+      completionRate: 0,
+      driftSignal: 'contained',
+      loadByPractice: {},
+      practices: [],
+    },
     currentWeek: { weekStart: FIXED_DAY, days: [], metrics: {} },
     cycle: [],
     viewDate: FIXED_DAY,
@@ -27,7 +34,7 @@ function buildBaseState() {
       lastActiveDate: FIXED_DAY,
       scenarioLabel: '',
       demoScenarioEnabled: false,
-      showHints: false
+      showHints: false,
     },
     recurringPatterns: [],
     lastSessionChange: null,
@@ -38,8 +45,8 @@ function buildBaseState() {
       timeZone: 'UTC',
       nowISO: `${FIXED_DAY}T12:00:00.000Z`,
       activeDayKey: FIXED_DAY,
-      isFollowingNow: true
-    }
+      isFollowingNow: true,
+    },
   };
 }
 
@@ -55,8 +62,8 @@ describe('manual blocks contribute to evidence by goal link', () => {
         narrative: '',
         focusAreas: ['Creation'],
         successDefinition: 'A shipped',
-        minimumDaysPerWeek: 4
-      }
+        minimumDaysPerWeek: 4,
+      },
     });
     const goalId = onboarded.goalExecutionContract?.goalId;
     const cycleId = onboarded.activeCycleId;
@@ -70,15 +77,15 @@ describe('manual blocks contribute to evidence by goal link', () => {
         domain: 'FOCUS',
         title: 'Manual linked',
         timeZone: 'UTC',
-        linkToGoal: true
-      }
+        linkToGoal: true,
+      },
     });
     const linkedBlock = linked.today.blocks[0];
     const completeLinked = buildExecutionEventFromBlock(linkedBlock, {
       completed: true,
       kind: 'complete',
       dateISO: FIXED_DAY,
-      minutes: 30
+      minutes: 30,
     });
     const linkedState = {
       ...linked,
@@ -87,14 +94,14 @@ describe('manual blocks contribute to evidence by goal link', () => {
         ...linked.cyclesById,
         [cycleId]: {
           ...linked.cyclesById[cycleId],
-          executionEvents: [...(linked.executionEvents || []), completeLinked]
-        }
-      }
+          executionEvents: [...(linked.executionEvents || []), completeLinked],
+        },
+      },
     };
     const linkedThroughput = computeCompletedThroughput({
       events: [completeLinked],
       goalId,
-      dayKeys: [FIXED_DAY]
+      dayKeys: [FIXED_DAY],
     });
     expect(linkedThroughput.completedBlocksTotal).toBe(1);
 
@@ -106,15 +113,15 @@ describe('manual blocks contribute to evidence by goal link', () => {
         domain: 'FOCUS',
         title: 'Manual unlinked',
         timeZone: 'UTC',
-        linkToGoal: false
-      }
+        linkToGoal: false,
+      },
     });
     const unlinkedBlock = unlinked.today.blocks[0];
     const completeUnlinked = buildExecutionEventFromBlock(unlinkedBlock, {
       completed: true,
       kind: 'complete',
       dateISO: FIXED_DAY,
-      minutes: 30
+      minutes: 30,
     });
     const unlinkedState = {
       ...unlinked,
@@ -123,14 +130,14 @@ describe('manual blocks contribute to evidence by goal link', () => {
         ...unlinked.cyclesById,
         [cycleId]: {
           ...unlinked.cyclesById[cycleId],
-          executionEvents: [...(unlinked.executionEvents || []), completeUnlinked]
-        }
-      }
+          executionEvents: [...(unlinked.executionEvents || []), completeUnlinked],
+        },
+      },
     };
     const unlinkedThroughput = computeCompletedThroughput({
       events: [completeUnlinked],
       goalId,
-      dayKeys: [FIXED_DAY]
+      dayKeys: [FIXED_DAY],
     });
     expect(unlinkedThroughput.completedBlocksTotal).toBe(0);
   });

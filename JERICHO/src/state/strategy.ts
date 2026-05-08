@@ -52,7 +52,7 @@ export function buildAssumptionsHash(strategy: StrategyV1): string {
     deliverables: strategy.deliverables,
     deadlineISO: strategy.deadlineISO,
     constraints: strategy.constraints,
-    milestoneProfile: strategy.milestoneProfile || null
+    milestoneProfile: strategy.milestoneProfile || null,
   };
   return hashString(stableStringify(payload));
 }
@@ -62,7 +62,7 @@ export function normalizeDeliverables(input: StrategyDeliverable[] = []): Strate
     .map((d, idx) => ({
       id: d.id || `deliv-${idx + 1}`,
       title: (d.title || '').trim() || `Deliverable ${idx + 1}`,
-      requiredBlocks: Math.max(0, Math.round(Number(d.requiredBlocks) || 0))
+      requiredBlocks: Math.max(0, Math.round(Number(d.requiredBlocks) || 0)),
     }))
     .filter((d) => d.requiredBlocks > 0);
 }

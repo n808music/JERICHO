@@ -50,7 +50,7 @@ export function generateSuggestions({
   goalText,
   primaryDomain,
   reservedIds = new Set(),
-  timeZone
+  timeZone,
 }: GenerateSuggestionsInput): Suggestion[] {
   if (!IS_PRODUCTION) {
     console.group('JERICHO_SUGGESTION_TRACE');
@@ -87,14 +87,13 @@ export function generateSuggestions({
     const dayOffset = Math.floor(sequence / slots.length);
     const dayKey = addDays(startDayKey, dayOffset, timeZone);
     const slot = slots[sequence % slots.length];
-    const template =
-      templates[sequence % templates.length] || {
-        title: `${primaryDomain} block`,
-        domain: primaryDomain,
-        durationMinutes: 45,
-        frequency: 'weekly',
-        reason: 'maintain momentum'
-      };
+    const template = templates[sequence % templates.length] || {
+      title: `${primaryDomain} block`,
+      domain: primaryDomain,
+      durationMinutes: 45,
+      frequency: 'weekly',
+      reason: 'maintain momentum',
+    };
     const startResult = buildLocalStartISO(dayKey, slot, timeZone);
     if (!startResult?.ok) {
       assertValidISO('suggestion_startISO', '', { dayKey, slot, reason: startResult?.reason });
@@ -117,7 +116,7 @@ export function generateSuggestions({
       whyThis: `${template.reason} for “${goalText || 'your goal'}”.`,
       assumption: `Assuming ${daysPerWeek} days/week execution.`,
       status: 'suggested',
-      createdAtISO: nowISO
+      createdAtISO: nowISO,
     });
     sequence += 1;
   }

@@ -39,7 +39,12 @@ function seedState() {
   });
   const cycleId = onboarded.activeCycleId;
   const cycle = onboarded.cyclesById[cycleId];
-  const planDraft = { ...onboarded.planDraft, autoPolicySelection: true, minPolicyHoldDays: 7, qualityPolicyId: 'BALANCED' };
+  const planDraft = {
+    ...onboarded.planDraft,
+    autoPolicySelection: true,
+    minPolicyHoldDays: 7,
+    qualityPolicyId: 'BALANCED',
+  };
   const withAuto = {
     ...onboarded,
     planDraft,

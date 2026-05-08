@@ -1,5 +1,12 @@
 import { addDays, dayKeyFromISO } from './time/time.ts';
-import { buildAssumptionsHash, normalizeDeliverables, normalizeRouteOption, StrategyV1, StrategyDeliverable, RouteOption } from './strategy.ts';
+import {
+  buildAssumptionsHash,
+  normalizeDeliverables,
+  normalizeRouteOption,
+  StrategyV1,
+  StrategyDeliverable,
+  RouteOption,
+} from './strategy.ts';
 
 type ColdPlanForecast = {
   totalBlocks: number;
@@ -48,8 +55,7 @@ type RouteAllocation = {
 
 const DEFAULT_GENERATOR_VERSION = 'coldPlan_v1';
 
-const weekdayFormatter = (timeZone: string) =>
-  new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' });
+const weekdayFormatter = (timeZone: string) => new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' });
 
 const WEEKDAY_INDEX = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 } as const;
 
@@ -95,9 +101,7 @@ function largestRemainderAllocate(total: number, weights: number[]) {
   const raw = weights.map((w) => (w / sum) * total);
   const floors = raw.map((v) => Math.floor(v));
   let remainder = total - floors.reduce((acc, v) => acc + v, 0);
-  const order = raw
-    .map((v, idx) => ({ idx, frac: v - floors[idx] }))
-    .sort((a, b) => b.frac - a.frac || a.idx - b.idx);
+  const order = raw.map((v, idx) => ({ idx, frac: v - floors[idx] })).sort((a, b) => b.frac - a.frac || a.idx - b.idx);
   const result = [...floors];
   let i = 0;
   while (remainder > 0 && i < order.length) {
@@ -120,7 +124,7 @@ function allocateFlat(dayKeys: string[], totalBlocks: number): Record<string, nu
 }
 
 function allocateRamp(dayKeys: string[], totalBlocks: number) {
-  const weights = dayKeys.map((_, idx) => 0.5 + (idx / Math.max(1, dayKeys.length - 1)));
+  const weights = dayKeys.map((_, idx) => 0.5 + idx / Math.max(1, dayKeys.length - 1));
   const allocation = largestRemainderAllocate(totalBlocks, weights);
   const forecast: Record<string, number> = {};
   dayKeys.forEach((dayKey, idx) => {
@@ -152,7 +156,10 @@ function allocateQuarterMilestones(dayKeys: string[], totalBlocks: number, timeZ
     quarterStarts.set(`${year}-Q${q}`, `${year}-${String((q - 1) * 3 + 1).padStart(2, '0')}-01`);
   });
   const quarterKeys = Array.from(quarterStarts.keys()).sort();
-  const perQuarter = largestRemainderAllocate(totalBlocks, quarterKeys.map(() => 1));
+  const perQuarter = largestRemainderAllocate(
+    totalBlocks,
+    quarterKeys.map(() => 1)
+  );
   const forecast: Record<string, number> = {};
   quarterKeys.forEach((qKey, idx) => {
     const monthStart = quarterStarts.get(qKey) as string;
@@ -184,7 +191,7 @@ function applyCaps(dayKeys: string[], forecast: Record<string, number>, constrai
       infeasible = {
         reason: 'maxBlocksPerWeek',
         requiredCapacityPerWeek: Math.max(...violations),
-        availableCapacityPerWeek: maxPerWeek
+        availableCapacityPerWeek: maxPerWeek,
       };
     }
   }
@@ -194,7 +201,7 @@ function applyCaps(dayKeys: string[], forecast: Record<string, number>, constrai
       infeasible = {
         reason: 'maxBlocksPerDay',
         requiredCapacityPerWeek: Math.max(...violations.map((d) => forecast[d] || 0)),
-        availableCapacityPerWeek: maxPerDay
+        availableCapacityPerWeek: maxPerDay,
       };
     }
   }
@@ -205,7 +212,7 @@ export function allocateByRouteOption({
   routeOption,
   dayKeys,
   totalBlocks,
-  constraints
+  constraints,
 }: {
   routeOption: RouteOption;
   dayKeys: string[];
@@ -258,24 +265,26 @@ export function generateColdPlan({
   nowISO,
   strategy,
   completedCountToDate,
-  rebaseMode
+  rebaseMode,
 }: GenerateColdPlanInput): ColdPlanV1 {
   const normalizedRoute = normalizeRouteOption(strategy.routeOption);
   const deliverables = normalizeDeliverables(strategy.deliverables);
   const totalRequired = deliverables.reduce((sum, d) => sum + d.requiredBlocks, 0);
-  const startKey = rebaseMode === 'REMAINING_FROM_TODAY'
-    ? dayKeyFromISO(nowISO, strategy.constraints.tz)
-    : dayKeyFromISO(cycleStartISO, strategy.constraints.tz);
+  const startKey =
+    rebaseMode === 'REMAINING_FROM_TODAY'
+      ? dayKeyFromISO(nowISO, strategy.constraints.tz)
+      : dayKeyFromISO(cycleStartISO, strategy.constraints.tz);
   const endKey = dayKeyFromISO(strategy.deadlineISO, strategy.constraints.tz);
   const dayKeys = filterWorkableDays(daysBetween(startKey, endKey, strategy.constraints.tz), strategy.constraints);
-  const remaining = rebaseMode === 'REMAINING_FROM_TODAY'
-    ? Math.max(0, totalRequired - Math.max(0, completedCountToDate || 0))
-    : totalRequired;
+  const remaining =
+    rebaseMode === 'REMAINING_FROM_TODAY'
+      ? Math.max(0, totalRequired - Math.max(0, completedCountToDate || 0))
+      : totalRequired;
   const { forecastByDayKey, infeasible } = allocateByRouteOption({
     routeOption: normalizedRoute,
     dayKeys,
     totalBlocks: remaining,
-    constraints: strategy.constraints
+    constraints: strategy.constraints,
   });
   const forecastByDayKeyWithDeliverables = allocateDeliverables(forecastByDayKey, deliverables);
   return {
@@ -285,7 +294,7 @@ export function generateColdPlan({
     assumptionsHash: strategy.assumptionsHash,
     createdAtISO: nowISO,
     forecastByDayKey: forecastByDayKeyWithDeliverables,
-    infeasible: infeasible || undefined
+    infeasible: infeasible || undefined,
   };
 }
 
@@ -293,7 +302,7 @@ export function generateDailyProjection({
   nowISO,
   strategy,
   completedCountToDate,
-  coldPlanVersion
+  coldPlanVersion,
 }: {
   nowISO: string;
   strategy: StrategyV1;
@@ -305,7 +314,7 @@ export function generateDailyProjection({
     nowISO,
     strategy,
     completedCountToDate,
-    rebaseMode: 'REMAINING_FROM_TODAY'
+    rebaseMode: 'REMAINING_FROM_TODAY',
   });
   const asOfDayKey = dayKeyFromISO(nowISO, strategy.constraints.tz);
   const totalRequired = strategy.deliverables.reduce((sum, d) => sum + (d.requiredBlocks || 0), 0);
@@ -317,10 +326,10 @@ export function generateDailyProjection({
     derivedFrom: {
       strategyId: strategy.strategyId,
       assumptionsHash: strategy.assumptionsHash,
-      coldPlanVersion
+      coldPlanVersion,
     },
     forecastByDayKey: plan.forecastByDayKey,
-    infeasible: plan.infeasible
+    infeasible: plan.infeasible,
   };
 }
 
@@ -328,7 +337,7 @@ export function buildDefaultStrategy({
   goalId,
   deadlineISO,
   timeZone,
-  deliverables
+  deliverables,
 }: {
   goalId: string;
   deadlineISO: string;
@@ -343,9 +352,9 @@ export function buildDefaultStrategy({
     deliverables: normalizeDeliverables(deliverables),
     deadlineISO,
     constraints: {
-      tz: timeZone
+      tz: timeZone,
     },
-    assumptionsHash: ''
+    assumptionsHash: '',
   };
   strategy.assumptionsHash = buildAssumptionsHash(strategy);
   return strategy;

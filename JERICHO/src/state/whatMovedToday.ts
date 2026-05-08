@@ -16,9 +16,17 @@ type WhatMovedInput = {
 
 export function deriveWhatMovedToday({ deliverableWorkspace, dayKey }: WhatMovedInput) {
   const deliverables = deliverableWorkspace?.deliverables || [];
-  const criteriaClosed: Array<{ deliverableId: string; deliverableTitle: string; criterionId: string; text: string }> = [];
-  const deliverablesAdvanced: Array<{ deliverableId: string; deliverableTitle: string; delta: number; total: number; done: number }> = [];
-  const nextCriteria: Array<{ deliverableId: string; deliverableTitle: string; criterionId: string; text: string }> = [];
+  const criteriaClosed: Array<{ deliverableId: string; deliverableTitle: string; criterionId: string; text: string }> =
+    [];
+  const deliverablesAdvanced: Array<{
+    deliverableId: string;
+    deliverableTitle: string;
+    delta: number;
+    total: number;
+    done: number;
+  }> = [];
+  const nextCriteria: Array<{ deliverableId: string; deliverableTitle: string; criterionId: string; text: string }> =
+    [];
 
   deliverables.forEach((deliverable) => {
     const criteria = deliverable.criteria || [];
@@ -30,7 +38,7 @@ export function deriveWhatMovedToday({ deliverableWorkspace, dayKey }: WhatMoved
           deliverableId: deliverable.id,
           deliverableTitle: deliverable.title || deliverable.id,
           criterionId: c.id,
-          text: c.text || 'Criterion'
+          text: c.text || 'Criterion',
         });
       });
       const doneCount = criteria.filter((c) => c.isDone).length;
@@ -39,7 +47,7 @@ export function deriveWhatMovedToday({ deliverableWorkspace, dayKey }: WhatMoved
         deliverableTitle: deliverable.title || deliverable.id,
         delta: doneToday.length,
         total: criteria.length,
-        done: doneCount
+        done: doneCount,
       });
     }
     if (remaining.length) {
@@ -48,7 +56,7 @@ export function deriveWhatMovedToday({ deliverableWorkspace, dayKey }: WhatMoved
           deliverableId: deliverable.id,
           deliverableTitle: deliverable.title || deliverable.id,
           criterionId: c.id,
-          text: c.text || 'Criterion'
+          text: c.text || 'Criterion',
         });
       });
     }

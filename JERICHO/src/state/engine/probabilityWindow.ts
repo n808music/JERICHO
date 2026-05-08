@@ -34,17 +34,18 @@ export function getProbabilityWindowSpec({
   activeContract,
   nowISO,
   timeZone = 'UTC',
-  scoringWindowDays
+  scoringWindowDays,
 }: WindowSpecInput): ProbabilityWindowSpec {
   const endDayKey = normalizeDayKey(nowISO, timeZone);
   const windowMode = activeContract?.windowMode;
   if (activeContract?.startDayKey && windowMode !== 'rolling') {
-    const startDayKey = normalizeDayKey(activeContract.startDayKey, timeZone);
+    const rawStartDayKey = normalizeDayKey(activeContract.startDayKey, timeZone);
+    const startDayKey = rawStartDayKey && endDayKey && rawStartDayKey > endDayKey ? endDayKey : rawStartDayKey;
     return {
       mode: 'cycle_to_date',
       startDayKey,
       endDayKey,
-      labelParts: { mode: 'cycle_to_date', startDayKey, endDayKey }
+      labelParts: { mode: 'cycle_to_date', startDayKey, endDayKey },
     };
   }
 
@@ -55,7 +56,7 @@ export function getProbabilityWindowSpec({
     startDayKey,
     endDayKey,
     windowDays,
-    labelParts: { mode: 'rolling', startDayKey, endDayKey, windowDays }
+    labelParts: { mode: 'rolling', startDayKey, endDayKey, windowDays },
   };
 }
 

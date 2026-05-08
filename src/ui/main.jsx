@@ -4,12 +4,33 @@ import App from './App.jsx';
 import BlackViewPage from './BlackViewPage.jsx';
 import IntakeDev from './IntakeDev.jsx';
 import './styles.css';
+import '../../JERICHO/src/index.css';
+import { resolveRootComponentKey } from './routeSelector.js';
 
-const isBlack = typeof window !== 'undefined' && window.location.pathname === '/black';
-// TEMPORARY: keep the intake dev harness mounted until Surface 1 is integrated into the real app.
-const isIntakeDev = typeof window !== 'undefined' && window.location.pathname === '/intake-dev';
-const RootComponent = isBlack ? BlackViewPage : isIntakeDev ? IntakeDev : App;
+function resolveRootComponent({ pathname = '/' } = {}) {
+  const key = resolveRootComponentKey({ pathname });
+  if (key === 'BlackViewPage') return BlackViewPage;
+  if (key === 'IntakeDev') return IntakeDev;
+  return App;
+}
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  createElement(StrictMode, null, createElement(RootComponent))
-);
+function setZionModeIfNeeded(rootComponent) {
+  if (rootComponent === IntakeDev && typeof document !== 'undefined') {
+    document.documentElement.setAttribute('data-mode', 'zion');
+  }
+}
+
+if (typeof document !== 'undefined') {
+  const pathname = window.location.pathname;
+  const rootComponent = resolveRootComponent({ pathname });
+  setZionModeIfNeeded(rootComponent);
+
+  const rootElem = document.getElementById('root');
+  if (rootElem) {
+    ReactDOM.createRoot(rootElem).render(
+      createElement(StrictMode, null, createElement(rootComponent))
+    );
+  }
+}
+
+export { App, IntakeDev };

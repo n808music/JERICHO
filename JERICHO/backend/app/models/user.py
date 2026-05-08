@@ -20,6 +20,7 @@ class User(Base):
     goals = relationship("Goal", back_populates="user")
     cycles = relationship("Cycle", back_populates="user")
     blocks = relationship("Block", back_populates="user")
+    master_plans = relationship("MasterPlan", back_populates="user")
 
 
 class Goal(Base):

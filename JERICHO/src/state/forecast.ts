@@ -15,6 +15,6 @@ export function scheduleSuggestions(suggestions: Suggestion[] = []): ForecastPla
       suggestionId: s.id,
       dayKey: s.dayKey,
       startISO: s.startISO,
-      durationMinutes: s.durationMinutes
+      durationMinutes: s.durationMinutes,
     }));
 }

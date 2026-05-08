@@ -10,9 +10,9 @@ describe('prescriptions milestone window', () => {
         byMilestone: {
           'm-early': { slackMinutes: -150, slackRatio: 0.5 },
           'm-late': { slackMinutes: -620, slackRatio: 0.1 },
-          'm-ok': { slackMinutes: 20, slackRatio: 1.1 }
-        }
-      }
+          'm-ok': { slackMinutes: 20, slackRatio: 1.1 },
+        },
+      },
     });
 
     const ext = bundle.prescriptions.filter((entry) => entry.code === 'EXTEND_MILESTONE_WINDOW');

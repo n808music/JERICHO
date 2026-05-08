@@ -50,7 +50,7 @@ type PolicySelectorOpts = {
 function mergeThresholds(overrides?: Partial<PolicySelectorThresholds>): PolicySelectorThresholds {
   return {
     ...POLICY_SELECTOR_THRESHOLDS,
-    ...(overrides || {})
+    ...(overrides || {}),
   };
 }
 
@@ -59,7 +59,10 @@ function round6(value: number): number {
   return Math.round(value * 1_000_000) / 1_000_000;
 }
 
-function chooseByRules(signals: PolicySelectionSignals, t: PolicySelectorThresholds): { policy: QualityPolicyId; reason: string } {
+function chooseByRules(
+  signals: PolicySelectionSignals,
+  t: PolicySelectorThresholds
+): { policy: QualityPolicyId; reason: string } {
   if (signals.hasMilestones && (signals.milestoneAtRiskCount > 0 || signals.milestoneRisk >= t.milestoneRiskHigh)) {
     return { policy: 'DEADLINE_FIRST', reason: 'MILESTONE_AT_RISK' };
   }
@@ -77,7 +80,8 @@ function chooseByRules(signals: PolicySelectionSignals, t: PolicySelectorThresho
     return { policy: 'DEEP_WORK', reason: 'CONTEXT_SWITCHING_HIGH' };
   }
   if (
-    (signals.outsideExecutionHorizonEstimateMinTotal >= t.outsideHorizonMinHigh || signals.deferralPenalty >= t.deferralPenaltyHigh) &&
+    (signals.outsideExecutionHorizonEstimateMinTotal >= t.outsideHorizonMinHigh ||
+      signals.deferralPenalty >= t.deferralPenaltyHigh) &&
     signals.deadlineRisk <= t.deadlineRiskMid &&
     signals.milestoneRisk <= t.milestoneRiskMid
   ) {
@@ -86,7 +90,10 @@ function chooseByRules(signals: PolicySelectionSignals, t: PolicySelectorThresho
   return { policy: 'BALANCED', reason: 'DEFAULT_BALANCED' };
 }
 
-function chooseEmergencyRule(signals: PolicySelectionSignals, t: PolicySelectorThresholds): { policy: QualityPolicyId; reason: string } | null {
+function chooseEmergencyRule(
+  signals: PolicySelectionSignals,
+  t: PolicySelectorThresholds
+): { policy: QualityPolicyId; reason: string } | null {
   if (signals.hasMilestones && (signals.milestoneAtRiskCount > 0 || signals.milestoneRisk >= t.milestoneRiskHigh)) {
     return { policy: 'DEADLINE_FIRST', reason: 'MILESTONE_AT_RISK' };
   }
@@ -175,12 +182,17 @@ function deltaSatisfied(
   );
 }
 
-export function computePolicySelection(signals: PolicySelectionSignals, opts: PolicySelectorOpts = {}): PolicySelectionDecision {
+export function computePolicySelection(
+  signals: PolicySelectionSignals,
+  opts: PolicySelectorOpts = {}
+): PolicySelectionDecision {
   const thresholds = mergeThresholds(opts.switchThresholds);
   const minPolicyHoldDays = Number.isFinite(opts.minPolicyHoldDays) ? Number(opts.minPolicyHoldDays) : 7;
   const historyInfluenceStrength = opts.historyInfluenceStrength || 'standard';
   const priorPolicyId = opts.priorPolicyId;
-  const priorPolicyAgeDays = Number.isFinite(opts.priorPolicyAgeDays) ? Number(opts.priorPolicyAgeDays) : minPolicyHoldDays;
+  const priorPolicyAgeDays = Number.isFinite(opts.priorPolicyAgeDays)
+    ? Number(opts.priorPolicyAgeDays)
+    : minPolicyHoldDays;
 
   const rulePick = chooseByRules(signals, thresholds);
   const emergencyPick = chooseEmergencyRule(signals, thresholds);
@@ -230,7 +242,7 @@ export function computePolicySelection(signals: PolicySelectionSignals, opts: Po
       priorPolicyId,
       stickyPolicyId: finalPolicy,
       changed: Boolean(priorPolicyId && priorPolicyId !== finalPolicy),
-      blockedBy
-    }
+      blockedBy,
+    },
   };
 }

@@ -7,7 +7,7 @@ function makeState(overrides = {}) {
   return {
     goalWorkById: { [GOAL_ID]: [] },
     executionEvents: [],
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -15,8 +15,8 @@ describe('computeFeasibility', () => {
   it('returns INFEASIBLE when deadline passed with remaining work', () => {
     const state = makeState({
       goalWorkById: {
-        [GOAL_ID]: [{ workItemId: 'w1', blocksRemaining: 2 }]
-      }
+        [GOAL_ID]: [{ workItemId: 'w1', blocksRemaining: 2 }],
+      },
     });
     const result = computeFeasibility(
       { goalId: GOAL_ID, deadlineISO: '2026-01-01T00:00:00.000Z' },
@@ -32,8 +32,8 @@ describe('computeFeasibility', () => {
   it('returns INFEASIBLE when remaining capacity is insufficient', () => {
     const state = makeState({
       goalWorkById: {
-        [GOAL_ID]: [{ workItemId: 'w1', blocksRemaining: 5 }]
-      }
+        [GOAL_ID]: [{ workItemId: 'w1', blocksRemaining: 5 }],
+      },
     });
     const result = computeFeasibility(
       { goalId: GOAL_ID, deadlineISO: '2026-01-03T23:59:00.000Z' },
@@ -50,9 +50,9 @@ describe('computeFeasibility', () => {
   it('marks REQUIRED when today is behind required pace', () => {
     const state = makeState({
       goalWorkById: {
-        [GOAL_ID]: [{ workItemId: 'w1', blocksRemaining: 4 }]
+        [GOAL_ID]: [{ workItemId: 'w1', blocksRemaining: 4 }],
       },
-      executionEvents: []
+      executionEvents: [],
     });
     const result = computeFeasibility(
       { goalId: GOAL_ID, deadlineISO: '2026-01-02T23:59:00.000Z' },
@@ -69,12 +69,12 @@ describe('computeFeasibility', () => {
   it('marks FEASIBLE when today requirement is met', () => {
     const state = makeState({
       goalWorkById: {
-        [GOAL_ID]: [{ workItemId: 'w1', blocksRemaining: 4 }]
+        [GOAL_ID]: [{ workItemId: 'w1', blocksRemaining: 4 }],
       },
       executionEvents: [
         { id: 'e1', goalId: GOAL_ID, completed: true, dateISO: '2026-01-01' },
-        { id: 'e2', goalId: GOAL_ID, completed: true, dateISO: '2026-01-01' }
-      ]
+        { id: 'e2', goalId: GOAL_ID, completed: true, dateISO: '2026-01-01' },
+      ],
     });
     const result = computeFeasibility(
       { goalId: GOAL_ID, deadlineISO: '2026-01-02T23:59:00.000Z' },
@@ -91,8 +91,8 @@ describe('computeFeasibility', () => {
   it('respects blackout dates when building capacity schedule', () => {
     const state = makeState({
       goalWorkById: {
-        [GOAL_ID]: [{ workItemId: 'w1', blocksRemaining: 2 }]
-      }
+        [GOAL_ID]: [{ workItemId: 'w1', blocksRemaining: 2 }],
+      },
     });
     const result = computeFeasibility(
       { goalId: GOAL_ID, deadlineISO: '2026-01-02T23:59:00.000Z' },
@@ -108,13 +108,13 @@ describe('computeFeasibility', () => {
   it('is deterministic across identical inputs', () => {
     const state = makeState({
       goalWorkById: {
-        [GOAL_ID]: [{ workItemId: 'w1', blocksRemaining: 3 }]
-      }
+        [GOAL_ID]: [{ workItemId: 'w1', blocksRemaining: 3 }],
+      },
     });
     const input = {
       goal: { goalId: GOAL_ID, deadlineISO: '2026-01-03T23:59:00.000Z' },
       constraints: { timezone: 'UTC', maxBlocksPerDay: 2 },
-      nowISO: '2026-01-01T09:00:00.000Z'
+      nowISO: '2026-01-01T09:00:00.000Z',
     };
     const first = computeFeasibility(input.goal, state, input.constraints, input.nowISO);
     const second = computeFeasibility(input.goal, state, input.constraints, input.nowISO);

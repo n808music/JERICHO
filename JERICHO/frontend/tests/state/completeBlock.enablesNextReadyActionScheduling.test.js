@@ -3,7 +3,7 @@ import {
   assertAutomationItemsHaveContext,
   buildCycleDraftItems,
   hasScheduledOrActiveActionBlock,
-  runAdvancementSpine
+  runAdvancementSpine,
 } from '../helpers/advancementHarness.js';
 
 describe('completeBlock enables next ready action scheduling', () => {

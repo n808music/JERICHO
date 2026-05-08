@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { buildGoalIntakeContract } from '../../src/domain/goal/GoalIntakeContract.ts';
 
 const compileAutoAsanaPlanMock = vi.fn();
 
@@ -43,7 +44,7 @@ describe('schedule generation non-silent deterministic behavior', () => {
     compileAutoAsanaPlanMock.mockReset();
   });
 
-  it('records debug heartbeat and clears error when generation yields proposals', () => {
+  it('records debug heartbeat and leaves generated proposals in preview until apply', () => {
     compileAutoAsanaPlanMock.mockReturnValue({
       horizonBlocks: [
         {
@@ -59,9 +60,11 @@ describe('schedule generation non-silent deterministic behavior', () => {
 
     const next = computeDerivedState(buildState(), { type: 'GENERATE_PLAN', payload: { cycleId: 'cycle-1' } });
 
-    const acceptedCount = (next.proposedBlocks || []).filter((s) => s.status === 'accepted').length;
-    expect(acceptedCount).toBeGreaterThan(0);
+    const suggestedCount = (next.proposedBlocks || []).filter((s) => s.status === 'suggested').length;
+    expect(suggestedCount).toBeGreaterThan(0);
     expect(next.lastPlanError).toBeNull();
+    expect(next.scheduleApplied).toBe(false);
+    expect(next.pendingPlanConfirmation).toBe(true);
     expect(next.debug?.lastGenerateClickCycleId).toBe('cycle-1');
     expect(next.debug?.lastGenerateResult?.proposedBlocksCount).toBeGreaterThan(0);
     expect(next.debug?.lastGenerateResult?.lastPlanErrorCode).toBeNull();
@@ -89,6 +92,35 @@ describe('schedule generation non-silent deterministic behavior', () => {
     expect(next.debug?.lastGenerateResult?.lastPlanErrorCode).toBe('CYCLE_READ_ONLY');
   });
 
+  it('permits recovery generation when an active cycle has no visible canonical blocks', () => {
+    compileAutoAsanaPlanMock.mockReturnValue({
+      horizonBlocks: [
+        {
+          id: 'hb-recovery-1',
+          title: 'Recovery session',
+          dayKey: '2026-01-10',
+          startISO: '2026-01-10T16:00:00.000Z',
+          durationMinutes: 30,
+        },
+      ],
+      conflicts: [],
+    });
+
+    const state = buildState();
+    state.cyclesById['cycle-1'].scheduleLifecycle = 'active_schedule';
+    state.cyclesById['cycle-1'].scheduleReviewBlocks = [];
+    state.scheduleLifecycle = 'active_schedule';
+    state.scheduleReviewBlocks = [];
+    state.blockStore = { blocks: {} };
+
+    const next = computeDerivedState(state, { type: 'GENERATE_PLAN', payload: { cycleId: 'cycle-1' } });
+
+    expect(next.lastPlanError).toBeNull();
+    expect(next.scheduleLifecycle).toBe('draft_schedule_ready');
+    expect((next.proposedBlocks || []).filter((s) => s.status === 'suggested')).toHaveLength(1);
+    expect(next.debug?.lastGenerateResult?.proposedBlocksCount).toBeGreaterThan(0);
+  });
+
   it('emits CYCLE_TARGET_INVALID when target cycle cannot be resolved', () => {
     const next = computeDerivedState(buildState(), { type: 'GENERATE_PLAN', payload: { cycleId: 'cycle-missing' } });
 
@@ -105,6 +137,33 @@ describe('schedule generation non-silent deterministic behavior', () => {
 
     expect(next.lastPlanError?.code).toBe('NO_ACTION_GRAPH');
     expect(next.lastPlanError?.reasonCodes).toContain('NO_ACTION_GRAPH');
+  });
+
+  it('blocks ambiguous podcast intake before compileAutoAsanaPlan runs', () => {
+    const intakeContract = buildGoalIntakeContract({
+      goalId: 'goal-1',
+      rawGoalText: 'Create 6 episodes to publish by deadline',
+      verificationCriteria: '6 episodes produced',
+      executionType: 'CreativeProduction',
+    });
+    const next = computeDerivedState(
+      {
+        ...buildState(),
+        cyclesById: {
+          'cycle-1': {
+            ...buildState().cyclesById['cycle-1'],
+            goalContract: {
+              ...buildState().cyclesById['cycle-1'].goalContract,
+              goalIntakeContract: intakeContract,
+            },
+          },
+        },
+      },
+      { type: 'GENERATE_PLAN', payload: { cycleId: 'cycle-1' } }
+    );
+
+    expect(next.lastPlanError?.code).toBe('INTAKE_BOUNDARY_AMBIGUOUS');
+    expect(compileAutoAsanaPlanMock).not.toHaveBeenCalled();
   });
 
   it('updates debug heartbeat on each generate click', () => {

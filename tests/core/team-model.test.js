@@ -1,4 +1,4 @@
-import { DEFAULT_USER, DEFAULT_TEAM, EMPTY_TEAM_STATE, normalizeTeam, cloneTeam } from '../../src/core/team-model.js';
+import { DEFAULT_USER, EMPTY_TEAM_STATE, normalizeTeam, cloneTeam } from '../../src/core/team-model.js';
 
 describe('team-model', () => {
   it('defaults include user and team', () => {

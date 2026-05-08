@@ -7,7 +7,6 @@ export default function ZionQuarterView({ months = [], summary = null, onSelectM
         <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-3 text-xs text-muted flex items-center justify-between">
           <span>Total completed: {summary.completedCount}</span>
           <span>Completion rate: {Math.round((summary.completionRate || 0) * 100)}%</span>
-          <span>Route total: {summary.routeTotal || 0}</span>
         </div>
       ) : null}
       <div className="grid md:grid-cols-3 gap-3">
@@ -22,7 +21,6 @@ export default function ZionQuarterView({ months = [], summary = null, onSelectM
             <p className="text-[11px] text-muted">
               {month.completedCount}/{month.plannedCount} · {Math.round((month.completionRate || 0) * 100)}%
             </p>
-            <p className="text-[11px] text-muted">Route: {month.routeTotal || 0}</p>
           </button>
         ))}
       </div>

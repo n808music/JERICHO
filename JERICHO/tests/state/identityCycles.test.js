@@ -11,10 +11,10 @@ function baseState() {
           { name: 'Body', minutes: 10 },
           { name: 'Resources', minutes: 20 },
           { name: 'Creation', minutes: 30 },
-          { name: 'Focus', minutes: 40 }
-        ]
+          { name: 'Focus', minutes: 40 },
+        ],
       },
-      flow: { streams: [] }
+      flow: { streams: [] },
     },
     activeCycleId: null,
     cyclesById: {},
@@ -23,7 +23,7 @@ function baseState() {
     currentWeek: { weekStart: '2025-12-09', days: [] },
     cycle: [],
     meta: { version: '1.0.0' },
-    ledger: []
+    ledger: [],
   };
 }
 
@@ -42,9 +42,9 @@ function withActiveCycle(state) {
         status: 'active',
         startedAtDayKey: state.today?.date || '2025-12-09',
         definiteGoal: { outcome: 'Test goal', deadlineDayKey: '2025-12-31' },
-        pattern: { dailyTargets: state.lenses?.pattern?.dailyTargets || [] }
-      }
-    }
+        pattern: { dailyTargets: state.lenses?.pattern?.dailyTargets || [] },
+      },
+    },
   };
 }
 
@@ -54,7 +54,7 @@ describe('identityReducer cycle semantics', () => {
     const state1 = identityReducer(state0, {
       type: 'SET_DEFINITE_GOAL',
       outcome: 'Definite goal',
-      deadlineDayKey: '2025-12-31'
+      deadlineDayKey: '2025-12-31',
     });
 
     expect(state1.activeCycleId).toBe(state0.activeCycleId);
@@ -82,8 +82,8 @@ describe('identityReducer cycle semantics', () => {
         { name: 'Body', minutes: 15 },
         { name: 'Resources', minutes: -5 },
         { name: 'Creation', minutes: 'abc' },
-        { name: 'Focus', minutes: 25 }
-      ]
+        { name: 'Focus', minutes: 25 },
+      ],
     });
 
     const targets = getActiveCycle(state1).pattern.dailyTargets;

@@ -15,7 +15,7 @@ describe('Auto-seed admission flow', () => {
       appTime: {
         timeZone: 'UTC',
         nowISO,
-        activeDayKey: '2026-01-12'
+        activeDayKey: '2026-01-12',
       },
       cyclesById: {},
       cycleOrder: [],
@@ -24,7 +24,7 @@ describe('Auto-seed admission flow', () => {
       aspirations: [],
       aspirationsByCycleId: {},
       lastPlanError: null,
-      meta: { version: '1.0.0' }
+      meta: { version: '1.0.0' },
     };
   });
 
@@ -35,18 +35,18 @@ describe('Auto-seed admission flow', () => {
         text: 'Build the app and launch the marketing campaign simultaneously across all platforms',
         hash: 'h1',
         verificationCriteria: 'Both done',
-        isConcrete: true
+        isConcrete: true,
       },
       deadline: {
         dayKey: '2026-02-12',
-        isHardDeadline: true
+        isHardDeadline: true,
       },
       sacrifice: {
         whatIsGivenUp: 'Time',
         duration: 'weeks',
         quantifiedImpact: 'hours',
         rationale: 'Focus',
-        hash: 'h2'
+        hash: 'h2',
       },
       temporalBinding: {
         daysPerWeek: 6,
@@ -54,22 +54,22 @@ describe('Auto-seed admission flow', () => {
         activationTime: '09:00',
         sessionDurationMinutes: 120,
         weeklyMinutes: 600,
-        startDayKey: '2026-01-12'
+        startDayKey: '2026-01-12',
       },
       causalChain: { steps: [], hash: 'h3' },
       reinforcement: {
         dailyExposureEnabled: true,
         dailyMechanism: 'Notification',
         checkInFrequency: 'DAILY',
-        triggerDescription: 'Alert'
+        triggerDescription: 'Alert',
       },
       inscription: {
         contractHash: 'h4',
         inscribedAtISO: '2026-01-12T00:00:00Z',
         acknowledgment: 'OK',
         acknowledgmentHash: 'h5',
-        isCompromised: false
-      }
+        isCompromised: false,
+      },
     };
 
     const { nextState, result } = attemptGoalAdmissionPure(mockState, compoundContract);
@@ -78,7 +78,9 @@ describe('Auto-seed admission flow', () => {
     if (result.status === 'REJECTED') {
       expect(result.rejectionCodes).toBeDefined();
       // Either compound or other validation codes
-      expect(Array.isArray(result.rejectionCodes) || result.rejectionCodes.includes('MULTIPLE_OUTCOMES_DETECTED')).toBe(true);
+      expect(Array.isArray(result.rejectionCodes) || result.rejectionCodes.includes('MULTIPLE_OUTCOMES_DETECTED')).toBe(
+        true
+      );
     }
   });
 
@@ -91,18 +93,18 @@ describe('Auto-seed admission flow', () => {
         text: 'Complete the project milestone',
         hash: 'h1',
         verificationCriteria: 'Delivered',
-        isConcrete: true
+        isConcrete: true,
       },
       deadline: {
         dayKey: '2026-02-12',
-        isHardDeadline: true
+        isHardDeadline: true,
       },
       sacrifice: {
         whatIsGivenUp: 'Downtime',
         duration: '4 weeks',
         quantifiedImpact: '10 hours/week',
         rationale: 'Focus needed',
-        hash: 'h2'
+        hash: 'h2',
       },
       temporalBinding: {
         daysPerWeek: 5,
@@ -110,22 +112,22 @@ describe('Auto-seed admission flow', () => {
         activationTime: '09:00',
         sessionDurationMinutes: 60,
         weeklyMinutes: 300,
-        startDayKey: '2026-01-12'
+        startDayKey: '2026-01-12',
       },
       causalChain: { steps: [], hash: 'h3' },
       reinforcement: {
         dailyExposureEnabled: true,
         dailyMechanism: 'Dashboard',
         checkInFrequency: 'DAILY',
-        triggerDescription: 'Morning'
+        triggerDescription: 'Morning',
       },
       inscription: {
         contractHash: 'h4',
         inscribedAtISO: '2026-01-12T00:00:00Z',
         acknowledgment: 'I commit',
         acknowledgmentHash: 'h5',
-        isCompromised: false
-      }
+        isCompromised: false,
+      },
     };
 
     const { nextState, result } = attemptGoalAdmissionPure(mockState, simpleContract);
@@ -156,18 +158,18 @@ describe('Auto-seed admission flow', () => {
         text: 'Deliver working system',
         hash: 'h1',
         verificationCriteria: 'System operational',
-        isConcrete: true
+        isConcrete: true,
       },
       deadline: {
         dayKey: '2026-02-12',
-        isHardDeadline: true
+        isHardDeadline: true,
       },
       sacrifice: {
         whatIsGivenUp: 'Personal time',
         duration: '30 days',
         quantifiedImpact: '15 hours per week',
         rationale: 'Development sprint needed',
-        hash: 'h2'
+        hash: 'h2',
       },
       temporalBinding: {
         daysPerWeek: 5,
@@ -175,29 +177,29 @@ describe('Auto-seed admission flow', () => {
         activationTime: '09:00',
         sessionDurationMinutes: 60,
         weeklyMinutes: 300,
-        startDayKey: '2026-01-12'
+        startDayKey: '2026-01-12',
       },
       causalChain: {
         steps: [
           { sequence: 1, description: 'Design', approximateDayOffset: 0 },
           { sequence: 2, description: 'Build', approximateDayOffset: 10 },
-          { sequence: 3, description: 'Test', approximateDayOffset: 20 }
+          { sequence: 3, description: 'Test', approximateDayOffset: 20 },
         ],
-        hash: 'h3'
+        hash: 'h3',
       },
       reinforcement: {
         dailyExposureEnabled: true,
         dailyMechanism: 'Email reminder',
         checkInFrequency: 'DAILY',
-        triggerDescription: 'Morning check-in'
+        triggerDescription: 'Morning check-in',
       },
       inscription: {
         contractHash: 'h4',
         inscribedAtISO: '2026-01-12T00:00:00Z',
         acknowledgment: 'I acknowledge and commit to this contract',
         acknowledgmentHash: 'h5',
-        isCompromised: false
-      }
+        isCompromised: false,
+      },
     };
 
     const { nextState, result } = attemptGoalAdmissionPure(mockState, minimalContract);
@@ -220,4 +222,3 @@ describe('Auto-seed admission flow', () => {
     }
   });
 });
-

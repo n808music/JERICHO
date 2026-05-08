@@ -3,9 +3,33 @@ import { scoreSchedule } from '../../src/planner/scoring/scoreSchedule.ts';
 import { getQualityPolicy } from '../../src/planner/scoring/policy.ts';
 
 const assignments = [
-  { actionId: 'a', chunkIndex: 0, chunkCount: 1, dayKey: '2026-01-01', startMin: 540, durationMin: 30, category: 'focus' },
-  { actionId: 'b', chunkIndex: 0, chunkCount: 1, dayKey: '2026-01-01', startMin: 570, durationMin: 30, category: 'creation' },
-  { actionId: 'c', chunkIndex: 0, chunkCount: 1, dayKey: '2026-01-01', startMin: 600, durationMin: 30, category: 'focus' },
+  {
+    actionId: 'a',
+    chunkIndex: 0,
+    chunkCount: 1,
+    dayKey: '2026-01-01',
+    startMin: 540,
+    durationMin: 30,
+    category: 'focus',
+  },
+  {
+    actionId: 'b',
+    chunkIndex: 0,
+    chunkCount: 1,
+    dayKey: '2026-01-01',
+    startMin: 570,
+    durationMin: 30,
+    category: 'creation',
+  },
+  {
+    actionId: 'c',
+    chunkIndex: 0,
+    chunkCount: 1,
+    dayKey: '2026-01-01',
+    startMin: 600,
+    durationMin: 30,
+    category: 'focus',
+  },
 ];
 
 describe('quality policy tuning', () => {
@@ -15,7 +39,11 @@ describe('quality policy tuning', () => {
 
   it('DEADLINE_FIRST amplifies deadline pressure over BALANCED', () => {
     const balanced = scoreSchedule({ assignments, policyId: 'BALANCED', metricsContext: { unplacedMinutes: 180 } });
-    const deadlineFirst = scoreSchedule({ assignments, policyId: 'DEADLINE_FIRST', metricsContext: { unplacedMinutes: 180 } });
+    const deadlineFirst = scoreSchedule({
+      assignments,
+      policyId: 'DEADLINE_FIRST',
+      metricsContext: { unplacedMinutes: 180 },
+    });
     expect(deadlineFirst.components.deferralPenalty).toBeGreaterThanOrEqual(balanced.components.deferralPenalty);
     expect(deadlineFirst.components.deadlineRisk).toBeGreaterThanOrEqual(balanced.components.deadlineRisk);
   });

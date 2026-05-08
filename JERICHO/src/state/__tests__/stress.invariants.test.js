@@ -24,7 +24,7 @@ function buildBaseState(date = FIXED_DAY) {
     lenses: {
       aim: { description: '', horizon: '90d', narrative: '' },
       pattern: { routines: { Body: [], Resources: [], Creation: [], Focus: [] }, dailyTargets: [], defaultMinutes: 30 },
-      flow: { streams: [] }
+      flow: { streams: [] },
     },
     today: { date, blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
     currentWeek: { weekStart: date, days: [], metrics: {} },
@@ -39,7 +39,7 @@ function buildBaseState(date = FIXED_DAY) {
       lastActiveDate: date,
       scenarioLabel: '',
       demoScenarioEnabled: false,
-      showHints: false
+      showHints: false,
     },
     recurringPatterns: [],
     lastSessionChange: null,
@@ -50,8 +50,8 @@ function buildBaseState(date = FIXED_DAY) {
       timeZone: 'UTC',
       nowISO: `${date}T12:00:00.000Z`,
       activeDayKey: date,
-      isFollowingNow: true
-    }
+      isFollowingNow: true,
+    },
   };
 }
 
@@ -59,7 +59,7 @@ function buildOnboardingState({
   goalText = 'Ship v0',
   horizon = '30d',
   focusAreas = ['Creation', 'Focus'],
-  decideLater = true
+  decideLater = true,
 } = {}) {
   const base = buildBaseState();
   const seeded = computeDerivedState(base, { type: 'SET_VIEW_DATE', date: base.today.date });
@@ -72,8 +72,8 @@ function buildOnboardingState({
       narrative: '',
       focusAreas,
       successDefinition: 'MVP shipped',
-      minimumDaysPerWeek: decideLater ? undefined : 4
-    }
+      minimumDaysPerWeek: decideLater ? undefined : 4,
+    },
   });
 }
 
@@ -108,7 +108,7 @@ function getHistory(state) {
     suggestionsById,
     nowDayKey: FIXED_DAY,
     windowDays: 14,
-    timeZone: 'UTC'
+    timeZone: 'UTC',
   });
 }
 
@@ -117,7 +117,7 @@ function snapshotProjections(state) {
     suggested: state.suggestedBlocks,
     preview: getPlanPreview(state),
     signals: getCorrectionSignals(state),
-    history: getHistory(state)
+    history: getHistory(state),
   };
 }
 
@@ -176,7 +176,7 @@ describe('stress invariants', () => {
     const rejected = computeDerivedState(accepted, {
       type: 'REJECT_SUGGESTED_BLOCK',
       proposalId: rejectedId,
-      reason: 'OVERCOMMITTED'
+      reason: 'OVERCOMMITTED',
     });
     const contractId = rejected.cyclesById?.[rejected.activeCycleId]?.goalGovernanceContract?.contractId;
     const rejectEvent = (rejected.suggestionEvents || []).find((e) => e.type === 'suggestion_rejected');
@@ -216,7 +216,9 @@ describe('stress invariants', () => {
           const reason = pick(rng, REASONS);
           event = { type: 'REJECT_SUGGESTED_BLOCK', proposalId: pickId, reason };
         }
-        const beforeRejectEvents = (state.suggestionEvents || []).filter((e) => e.type === 'suggestion_rejected').length;
+        const beforeRejectEvents = (state.suggestionEvents || []).filter(
+          (e) => e.type === 'suggestion_rejected'
+        ).length;
         const beforeSuggestedIds = getSuggestedIds(state);
         const alreadyRejected = event.type === 'REJECT_SUGGESTED_BLOCK' ? rejectedIds.has(event.proposalId) : false;
         state = computeDerivedState(state, event);
@@ -232,7 +234,9 @@ describe('stress invariants', () => {
         }
 
         if (event.type === 'REJECT_SUGGESTED_BLOCK') {
-          const afterRejectEvents = (state.suggestionEvents || []).filter((e) => e.type === 'suggestion_rejected').length;
+          const afterRejectEvents = (state.suggestionEvents || []).filter(
+            (e) => e.type === 'suggestion_rejected'
+          ).length;
           if (alreadyRejected || beforeSuggestedIds.indexOf(event.proposalId) === -1) {
             expect(afterRejectEvents).toBe(beforeRejectEvents);
           } else {

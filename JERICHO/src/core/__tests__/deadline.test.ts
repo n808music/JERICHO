@@ -29,28 +29,28 @@ describe('deadline utilities', () => {
   describe('getDeadlineDayKey', () => {
     it('extracts from deadline.dayKey (preferred source)', () => {
       const contract = {
-        deadline: { dayKey: '2026-04-08', isHardDeadline: true }
+        deadline: { dayKey: '2026-04-08', isHardDeadline: true },
       };
       expect(getDeadlineDayKey(contract)).toBe('2026-04-08');
     });
 
     it('converts from deadlineISO (legacy)', () => {
       const contract = {
-        deadlineISO: '2026-04-08T00:00:00Z'
+        deadlineISO: '2026-04-08T00:00:00Z',
       };
       expect(getDeadlineDayKey(contract, 'UTC')).toBe('2026-04-08');
     });
 
     it('uses deadlineDayKey fallback', () => {
       const contract = {
-        deadlineDayKey: '2026-04-08'
+        deadlineDayKey: '2026-04-08',
       };
       expect(getDeadlineDayKey(contract)).toBe('2026-04-08');
     });
 
     it('uses definiteGoal.deadlineDayKey as last resort', () => {
       const contract = {
-        definiteGoal: { deadlineDayKey: '2026-04-08' }
+        definiteGoal: { deadlineDayKey: '2026-04-08' },
       };
       expect(getDeadlineDayKey(contract)).toBe('2026-04-08');
     });
@@ -60,7 +60,7 @@ describe('deadline utilities', () => {
         deadline: { dayKey: '2026-04-08', isHardDeadline: true },
         deadlineISO: '2025-01-01T00:00:00Z',
         deadlineDayKey: '2024-01-01',
-        definiteGoal: { deadlineDayKey: '2023-01-01' }
+        definiteGoal: { deadlineDayKey: '2023-01-01' },
       };
       expect(getDeadlineDayKey(contract)).toBe('2026-04-08');
     });
@@ -72,7 +72,7 @@ describe('deadline utilities', () => {
 
     it('returns null for invalid deadline', () => {
       const contract = {
-        deadline: { dayKey: 'invalid-date', isHardDeadline: true }
+        deadline: { dayKey: 'invalid-date', isHardDeadline: true },
       };
       expect(getDeadlineDayKey(contract)).toBeNull();
     });
@@ -84,7 +84,7 @@ describe('deadline utilities', () => {
 
     it('handles malformed ISO gracefully', () => {
       const contract = {
-        deadlineISO: 'not-a-valid-iso'
+        deadlineISO: 'not-a-valid-iso',
       };
       expect(getDeadlineDayKey(contract)).toBeNull();
     });
@@ -117,7 +117,7 @@ describe('deadline utilities', () => {
   describe('debugDeadline', () => {
     it('identifies deadline.dayKey source', () => {
       const contract = {
-        deadline: { dayKey: '2026-04-08', isHardDeadline: true }
+        deadline: { dayKey: '2026-04-08', isHardDeadline: true },
       };
       const debug = debugDeadline(contract);
       expect(debug.source).toBe('deadline.dayKey');
@@ -127,7 +127,7 @@ describe('deadline utilities', () => {
 
     it('identifies deadlineISO source', () => {
       const contract = {
-        deadlineISO: '2026-04-08T12:00:00Z'
+        deadlineISO: '2026-04-08T12:00:00Z',
       };
       const debug = debugDeadline(contract);
       expect(debug.source).toBe('deadlineISO');
@@ -136,7 +136,7 @@ describe('deadline utilities', () => {
 
     it('marks invalid deadline as invalid', () => {
       const contract = {
-        deadline: { dayKey: 'not-a-date', isHardDeadline: true }
+        deadline: { dayKey: 'not-a-date', isHardDeadline: true },
       };
       const debug = debugDeadline(contract);
       expect(debug.isValid).toBe(false);
@@ -159,10 +159,10 @@ describe('deadline utilities', () => {
         goalId: 'goal_123',
         deadline: {
           dayKey: '2026-04-08',
-          isHardDeadline: true
+          isHardDeadline: true,
         },
         admissionStatus: 'ADMITTED',
-        admittedAtISO: '2026-01-12T10:30:00Z'
+        admittedAtISO: '2026-01-12T10:30:00Z',
       };
 
       expect(getDeadlineDayKey(admittedContract)).toBe('2026-04-08');
@@ -172,7 +172,7 @@ describe('deadline utilities', () => {
       const draftContract = {
         goalId: 'goal_456',
         deadlineISO: '2026-04-08T00:00:00Z',
-        admissionStatus: 'PENDING'
+        admissionStatus: 'PENDING',
       };
 
       const normalized = getDeadlineDayKey(draftContract, 'UTC');
@@ -184,7 +184,7 @@ describe('deadline utilities', () => {
         goalId: 'goal_789',
         deadline: { dayKey: '2026-04-08', isHardDeadline: true },
         deadlineISO: '2025-01-01T00:00:00Z', // Different!
-        deadlineDayKey: '2024-01-01' // Different!
+        deadlineDayKey: '2024-01-01', // Different!
       };
 
       // Should use deadline.dayKey (preferred)
@@ -196,8 +196,8 @@ describe('deadline utilities', () => {
         id: 'cycle_1',
         goalContract: {
           goalId: 'goal_123',
-          deadline: { dayKey: '2026-04-15', isHardDeadline: true }
-        }
+          deadline: { dayKey: '2026-04-15', isHardDeadline: true },
+        },
       };
 
       const deadlineKey = getDeadlineDayKey(cycle.goalContract, 'UTC');
@@ -210,7 +210,7 @@ describe('deadline utilities', () => {
   describe('determinism', () => {
     it('same contract produces same result on repeated calls', () => {
       const contract = {
-        deadline: { dayKey: '2026-04-08', isHardDeadline: true }
+        deadline: { dayKey: '2026-04-08', isHardDeadline: true },
       };
 
       const r1 = getDeadlineDayKey(contract);

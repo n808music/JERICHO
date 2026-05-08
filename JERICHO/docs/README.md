@@ -1,14 +1,18 @@
 # JERICHO Documentation
 
-Welcome to the comprehensive documentation for JERICHO, a deterministic goal planning and execution system.
+Welcome to the comprehensive documentation for JERICHO, a deterministic goal
+planning and execution system.
 
 ## 🚀 Quick Navigation
 
 ### 👨‍💻 For Developers
 
-- **[Getting Started](development/SETUP.md)** - Install and setup development environment
-- **[Contributing](development/CONTRIBUTING.md)** - How to contribute to the project
-- **[Testing Guide](development/TESTING.md)** - Testing practices and requirements
+- **[Getting Started](development/SETUP.md)** - Install and setup development
+  environment
+- **[Contributing](development/CONTRIBUTING.md)** - How to contribute to the
+  project
+- **[Testing Guide](development/TESTING.md)** - Testing practices and
+  requirements
 
 ### 🏛️ Technical Architecture
 
@@ -19,7 +23,8 @@ Welcome to the comprehensive documentation for JERICHO, a deterministic goal pla
 ### 📊 Project Progress
 
 - **[Implementation History](phases/README.md)** - Complete development history
-- **[Phase 2 Implementation](phases/PHASE_2_IMPLEMENTATION_SUMMARY.md)** - Auto-generation system
+- **[Phase 2 Implementation](phases/PHASE_2_IMPLEMENTATION_SUMMARY.md)** -
+  Auto-generation system
 
 ### 🔌 API Documentation
 
@@ -74,7 +79,8 @@ JERICHO automatically classifies goals into 6 mechanism types:
 - **MARKET**: Marketing and growth initiatives (user acquisition, sales)
 - **LEARN**: Learning and skill development (languages, technologies)
 - **OPS**: Operations and infrastructure (CI/CD, monitoring)
-- **REVIEW**: Analysis, audit, and optimization (code review, process improvement)
+- **REVIEW**: Analysis, audit, and optimization (code review, process
+  improvement)
 
 ### Deterministic Design
 
@@ -158,7 +164,8 @@ npm test
 
 1. Read the [main README](../README.md) for project overview
 2. Follow the [Setup Guide](development/SETUP.md) for environment setup
-3. Review [Contributing Guidelines](development/CONTRIBUTING.md) for development practices
+3. Review [Contributing Guidelines](development/CONTRIBUTING.md) for development
+   practices
 4. Study [Testing Guide](development/TESTING.md) for testing requirements
 
 ### Understanding Architecture
@@ -166,13 +173,16 @@ npm test
 1. Start with [Architecture Overview](architecture/README.md)
 2. Review [Execution Plan](architecture/EXECUTION_PLAN.md) for roadmap
 3. Study [Authority Maps](architecture/) for system patterns
-4. Check [Probability Specification](architecture/probabilitySpec.md) for mathematical models
+4. Check [Probability Specification](architecture/probabilitySpec.md) for
+   mathematical models
 
 ### Implementation History
 
 1. Read [Phase Overview](phases/README.md) for development context
-2. Study [Phase 2 Implementation](phases/PHASE_2_IMPLEMENTATION_SUMMARY.md) for current system
-3. Review [Bug Fixes](phases/DEADLINE_INVALID_FIX_SUMMARY.md) for problem resolution
+2. Study [Phase 2 Implementation](phases/PHASE_2_IMPLEMENTATION_SUMMARY.md) for
+   current system
+3. Review [Bug Fixes](phases/DEADLINE_INVALID_FIX_SUMMARY.md) for problem
+   resolution
 4. Check [Progress Tracking](phases/QUICK_STATUS.md) for current status
 
 ## 🔍 Finding Information
@@ -181,13 +191,15 @@ npm test
 
 - **Developers**: Start with [Development](development/) section
 - **Architects**: Start with [Architecture](architecture/) section
-- **Contributors**: Start with [Contributing Guidelines](development/CONTRIBUTING.md)
+- **Contributors**: Start with
+  [Contributing Guidelines](development/CONTRIBUTING.md)
 - **Testers**: Start with [Testing Guide](development/TESTING.md)
 
 ### By Topic
 
 - **Setup & Installation**: [Development Setup](development/SETUP.md)
-- **Code Structure**: [Project Structure](development/SETUP.md#project-structure)
+- **Code Structure**:
+  [Project Structure](development/SETUP.md#project-structure)
 - **Testing**: [Testing Guide](development/TESTING.md)
 - **API**: [API Documentation](api/)
 - **Architecture**: [Architecture Documentation](architecture/)
@@ -209,8 +221,11 @@ Documentation is a living part of the project. To contribute:
 3. **Update**: Keep documentation current with code changes
 4. **Review**: Help others improve their documentation contributions
 
-See [Contributing Guidelines](development/CONTRIBUTING.md) for detailed instructions.
+See [Contributing Guidelines](development/CONTRIBUTING.md) for detailed
+instructions.
 
 ---
 
-This documentation provides comprehensive guidance for understanding, developing, and contributing to JERICHO. Navigate using the section links above or use the table of contents in each document. 🎯
+This documentation provides comprehensive guidance for understanding,
+developing, and contributing to JERICHO. Navigate using the section links above
+or use the table of contents in each document. 🎯
