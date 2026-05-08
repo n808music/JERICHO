@@ -516,6 +516,7 @@ function useZionState() {
     planQualityGateByGoal,
     executionCorrectionByGoal,
     systemShotClockByGoal,
+    masterPlansById,
     masterCalendarsById,
     strategicClustersById,
     goalRelations,
@@ -596,6 +597,7 @@ function useZionState() {
     planQualityGateByGoal,
     executionCorrectionByGoal,
     systemShotClockByGoal,
+    masterPlansById,
     masterCalendarsById,
     strategicClustersById,
     goalRelations,
@@ -690,6 +692,7 @@ export default function ZionDashboard({
     planQualityGateByGoal,
     executionCorrectionByGoal,
     systemShotClockByGoal,
+    masterPlansById,
     masterCalendarsById,
     strategicClustersById,
     goalRelations,
@@ -706,6 +709,8 @@ export default function ZionDashboard({
   } = useZionState();
   const activeCycle = activeCycleId && cyclesById ? cyclesById[activeCycleId] : null;
   const activeProfile = activeProfileId ? profilesById?.[activeProfileId] || null : null;
+  const activeMasterPlan =
+    activeProfile?.activeMasterPlanId ? masterPlansById?.[activeProfile.activeMasterPlanId] || null : null;
   const activeMasterCalendar =
     activeProfile?.masterCalendarId ? masterCalendarsById?.[activeProfile.masterCalendarId] || null : null;
   const profileStrategicClusters = useMemo(
@@ -870,8 +875,12 @@ export default function ZionDashboard({
   const normalizedCycleStatus = String(activeCycle?.status || activeCycle?.state || '')
     .trim()
     .toLowerCase();
-  const goalPolicy = activeCycle?.policyState?.goalPolicy || null;
-  const cycleMode = normalizedCycleStatus === 'active' ? 'active' : 'review';
+  const goalPolicy = activeCycle?.policyState?.goalPolicy || activeMasterPlan?.policyState?.goalPolicy || null;
+  const hasExecutableMasterPlan = Boolean(
+    activeMasterPlan?.id && Array.isArray(activeMasterPlan?.laneIds) && activeMasterPlan.laneIds.length > 0
+  );
+  const cycleMode =
+    normalizedCycleStatus === 'active' || (!activeCycle && hasExecutableMasterPlan) ? 'active' : 'review';
   const isCycleReadOnly = cycleMode !== 'active';
   const deliverables = useMemo(
     () => getCanonicalCycleDeliverables(deliverablesByCycleId, activeCycleId, activeCycle),
@@ -1093,8 +1102,7 @@ export default function ZionDashboard({
   const canGenerateSchedule = Boolean(
     !isCycleReadOnly &&
     !suppressDrafts &&
-    hasAdmittedGoal &&
-    isGoalAdmitted &&
+    ((hasAdmittedGoal && isGoalAdmitted) || hasExecutableMasterPlan) &&
     (!hasActiveSchedule || !hasVisibleCanonicalBlocks)
   );
   const hasStaleActiveSchedule = hasActiveSchedule && !hasVisibleCanonicalBlocks;
@@ -1758,7 +1766,7 @@ export default function ZionDashboard({
     if (isCycleReadOnly || suppressDrafts) return;
     const cycleId = activeCycleId || null;
     const generationAnchorDayKey = zionView === 'day' ? activeDayKey : anchorDayKey || activeDayKey || null;
-    if (!hasAdmittedGoal || !isGoalAdmitted) {
+    if (!(hasAdmittedGoal && isGoalAdmitted) && !hasExecutableMasterPlan) {
       traceAction('schedule.generate.blocked.missing-goal', { cycleId, goalId: goalId || null });
       return;
     }
@@ -2475,7 +2483,7 @@ export default function ZionDashboard({
                         <p className="text-[11px] text-amber-600">
                           Cycle ended/read-only. Generate and apply are disabled.
                         </p>
-                      ) : !hasAdmittedGoal || !isGoalAdmitted ? (
+                      ) : !(hasAdmittedGoal && isGoalAdmitted) && !hasExecutableMasterPlan ? (
                         <p className="text-[11px] text-amber-600">
                           Complete goal setup in Structure before generating a schedule.
                         </p>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildBlankIdentityState, DEFAULT_PROFILE_ID } from '../../src/state/identityStore.js';
+import { computeDerivedState } from '../../src/state/identityCompute.js';
 import { applyMasterPlanAction } from '../../src/state/masterPlanStore.js';
 
 function buildIntakeDraftState() {
@@ -106,5 +107,97 @@ describe('masterPlanStore intake completion', () => {
     );
     expect(brandMilestones.every((m) => m.derivedFrom.startsWith('forward from today + '))).toBe(true);
     expect(brandMilestones.every((m) => m.targetDate >= '2026-05-18')).toBe(true);
+  });
+
+  it('produces canonical master-plan policy with initial feasibility while keeping Live P.O.S. withheld', () => {
+    const draft = buildIntakeDraftState();
+
+    const handled = applyMasterPlanAction(draft, {
+      type: 'MASTER_PLAN_INTAKE_COMPLETE',
+      nowISO: '2026-05-04T12:00:00.000Z',
+    });
+
+    expect(handled).toBe(true);
+
+    const next = computeDerivedState(draft, { type: 'NO_OP' });
+    const planId = next.masterPlanIntake.draft.masterPlanId;
+    const plan = next.masterPlansById[planId];
+    const goalPolicy = plan?.policyState?.goalPolicy;
+
+    expect(goalPolicy).toBeDefined();
+    expect(next.masterPlanPolicyByPlanId[planId]).toEqual(goalPolicy);
+    expect(goalPolicy.feasibility).toBeDefined();
+    expect(goalPolicy.feasibility.state).not.toBe('withheld');
+    expect(goalPolicy.feasibility.percent).toEqual(expect.any(Number));
+    expect(goalPolicy.livePos.state).toBe('withheld');
+    expect(goalPolicy.livePos.reasonCodes).toContain('LIVE_POS_WITHHELD_SCHEDULE_NOT_LIVE');
+  });
+
+  it('marks unresolved critical structure answers as assumption debt in the master-plan policy substrate', () => {
+    const draft = buildIntakeDraftState();
+    draft.masterPlanIntake.answers.step_5 = 'not sure yet';
+    draft.masterPlanIntake.answers.step_6 = 'ownership and execution discipline cannot slip';
+    draft.masterPlanIntake.answers.lane_0_clarifying_0 = 'unknown';
+    draft.masterPlanIntake.answers.lane_1_clarifying_0 = 'need first client revenue quickly';
+
+    const handled = applyMasterPlanAction(draft, {
+      type: 'MASTER_PLAN_INTAKE_COMPLETE',
+      nowISO: '2026-05-04T12:00:00.000Z',
+    });
+
+    expect(handled).toBe(true);
+
+    const next = computeDerivedState(draft, { type: 'NO_OP' });
+    const planId = next.masterPlanIntake.draft.masterPlanId;
+    const plan = next.masterPlansById[planId];
+    const goalPolicy = plan?.policyState?.goalPolicy;
+
+    expect(plan.structureCritic.unresolvedReasonCodes).toEqual(
+      expect.arrayContaining(['STRUCTURE_WEEKLY_CAPACITY_UNRESOLVED', 'STRUCTURE_CREATIVE_ASSET_STATE_UNRESOLVED'])
+    );
+    expect(goalPolicy.intakeReadiness.state).toBe('assumption_marked_draft');
+    expect(goalPolicy.scopeClassification.assumedBaselineSupporting).toEqual(
+      expect.arrayContaining(['STRUCTURE_WEEKLY_CAPACITY_UNRESOLVED', 'STRUCTURE_CREATIVE_ASSET_STATE_UNRESOLVED'])
+    );
+  });
+
+  it('bridges a finalized master plan into a first operational cycle with proposed schedule blocks', () => {
+    const draft = buildIntakeDraftState();
+
+    const handled = applyMasterPlanAction(draft, {
+      type: 'MASTER_PLAN_INTAKE_COMPLETE',
+      nowISO: '2026-05-04T12:00:00.000Z',
+    });
+
+    expect(handled).toBe(true);
+
+    const planId = draft.masterPlanIntake.draft.masterPlanId;
+    const generated = computeDerivedState(draft, {
+      type: 'GENERATE_PLAN',
+      payload: { masterPlanId: planId, source: 'MASTER_PLAN_FIRST_CYCLE' },
+    });
+
+    expect(generated.activeCycleId).toBe(`masterplan-cycle:${planId}`);
+    expect(generated.activeGoalId).toBe(`masterplan:${planId}`);
+    expect(generated.scheduleLifecycle).toBe('draft_schedule_ready');
+    expect(generated.pendingPlanConfirmation).toBe(true);
+    expect(generated.scheduleApplied).toBe(false);
+    expect(generated.lastPlanError).toBe(null);
+    expect(generated.proposedBlocks.length).toBeGreaterThan(0);
+    expect(generated.proposedBlocks.length).toBeLessThanOrEqual(8);
+    expect(generated.proposedBlocks.every((block) => block.profileId === DEFAULT_PROFILE_ID)).toBe(true);
+    expect(
+      generated.proposedBlocks.every((block) => block.masterCalendarId === `calendar-${DEFAULT_PROFILE_ID}`)
+    ).toBe(true);
+    expect(generated.proposedBlocks.every((block) => block.masterPlanId === planId)).toBe(true);
+    expect(
+      generated.proposedBlocks.some(
+        (block) => block.masterPlanMilestoneId && block.masterPlanLaneId && block.source === 'master_plan_first_cycle'
+      )
+    ).toBe(true);
+
+    const applied = computeDerivedState(generated, { type: 'APPLY_PLAN' });
+    expect(applied.scheduleLifecycle).toBe('applied_review');
+    expect(applied.scheduleReviewBlocks.length).toBeGreaterThan(0);
   });
 });

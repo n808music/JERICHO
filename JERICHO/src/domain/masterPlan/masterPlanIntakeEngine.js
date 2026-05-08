@@ -41,6 +41,35 @@ const DOMAIN_TITLE_LABELS = {
   [LANE_DOMAIN.MEDIA]: 'Media / content',
 };
 
+const NON_ANSWER_PATTERNS = [
+  /\bnot sure\b/,
+  /\bdon'?t know\b/,
+  /\bdo not know\b/,
+  /\bno idea\b/,
+  /\bunknown\b/,
+  /\bunsure\b/,
+  /\btbd\b/,
+  /\bn\/a\b/,
+  /\bfigure it out later\b/,
+];
+
+function isNonAnswerValue(value) {
+  if (value == null) {
+    return true;
+  }
+  const text =
+    typeof value === 'string'
+      ? value
+      : typeof value === 'object'
+        ? value?.text || value?.answer || value?.notes || ''
+        : String(value || '');
+  const normalized = String(text || '').trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+  return NON_ANSWER_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
 /**
  * Rule-based lane extraction from free-text description.
  * Returns an ordered list of lane candidates — highest signal score first.
@@ -385,43 +414,240 @@ export function assessLaneFromAnswers(domain, description, clarifyingAnswers = [
 
 // ─── Clarifying questions ─────────────────────────────────────────────────────
 
-const CLARIFYING_QUESTIONS = {
-  [LANE_DOMAIN.CREATIVE]: [
-    'Is this a solo project or are you collaborating with others?',
-    'Do you have a distribution or release plan in mind yet?',
-    'Is there a hard release date, festival, or event tied to this?',
-  ],
-  [LANE_DOMAIN.PRODUCT]: [
-    'Are you building for paying customers or is this a portfolio proof-of-concept?',
-    'Do you have users or early adopters already, or is this pre-launch?',
-    "What's the main blocker right now — technical, time, or market?",
-  ],
-  [LANE_DOMAIN.BRAND]: [
-    'Is this brand for a specific venture or your overall personal brand?',
-    'Do you have existing assets — logo, website, social handles?',
-    "Who's the primary audience you're trying to reach?",
-  ],
-  [LANE_DOMAIN.INCOME]: [
-    'Is this replacing existing income, adding to it, or building toward something new?',
-    'Do you have existing clients or a pipeline, or starting from zero?',
-    "What's your current monthly revenue from this stream?",
-  ],
-  [LANE_DOMAIN.MEDIA]: [
-    'Are you growing an existing channel, launching a new one, or pivoting format?',
-    "What's your current audience size and platform?",
-    'Is this supporting another lane — like a product or brand — or standalone?',
-  ],
+const DOMAIN_QUESTION_TEMPLATES = {
+  [LANE_DOMAIN.CREATIVE]: {
+    question: 'What album or release assets already exist?',
+    reason:
+      'Masters, artwork, distribution setup, and promo assets determine whether this lane is launch-ready or still in production.',
+    resolvesField: 'creative.releaseAssets',
+    criticality: 'high',
+    answerType: 'textarea',
+    reasonCode: 'STRUCTURE_CREATIVE_ASSET_STATE_UNRESOLVED',
+  },
+  [LANE_DOMAIN.PRODUCT]: {
+    question: 'What is the current launch-readiness state of the product/app?',
+    reason:
+      'Product readiness determines whether the anchor can support a real launch or only a beta, proof, or readiness gate.',
+    resolvesField: 'product.launchReadiness',
+    criticality: 'high',
+    answerType: 'textarea',
+    reasonCode: 'STRUCTURE_PRODUCT_LAUNCH_READINESS_UNRESOLVED',
+  },
+  [LANE_DOMAIN.BRAND]: {
+    question: 'What proof asset or offer already exists for this brand/service lane?',
+    reason:
+      'Positioning, offer clarity, and proof determine whether this lane should be scheduled for client-facing progress or still treated as setup.',
+    resolvesField: 'brand.offerProofState',
+    criticality: 'medium',
+    answerType: 'textarea',
+    reasonCode: 'STRUCTURE_BRAND_OFFER_PROOF_UNRESOLVED',
+  },
+  [LANE_DOMAIN.INCOME]: {
+    question: 'What runway or first revenue path is realistic in the next 8 weeks?',
+    reason:
+      'Runway pressure changes sequencing, capacity, and whether income work must override lower-consequence campaigns.',
+    resolvesField: 'income.runwayPressure',
+    criticality: 'high',
+    answerType: 'textarea',
+    reasonCode: 'STRUCTURE_RUNWAY_PRESSURE_UNRESOLVED',
+  },
+  [LANE_DOMAIN.MEDIA]: {
+    question: 'Is this media lane supporting the album, the product, both, or standing alone?',
+    reason:
+      'This determines whether media work belongs in the integrated launch cluster or should be scheduled as an independent lane.',
+    resolvesField: 'media.supportRole',
+    criticality: 'high',
+    answerType: 'text',
+    reasonCode: 'STRUCTURE_MEDIA_ROLE_UNRESOLVED',
+  },
 };
+
+function buildLaneQuestion(domain, lane, laneIdx) {
+  const template = DOMAIN_QUESTION_TEMPLATES[domain];
+  if (!template) {
+    return {
+      id: `lane-${laneIdx}-generic-context`,
+      question: `What is the key missing context for ${lane?.title || 'this lane'}?`,
+      reason: 'The system needs one concrete context signal to avoid sequencing this lane by assumption.',
+      domain: domain || 'unknown',
+      laneId: lane?.id || null,
+      laneTitle: lane?.title || '',
+      resolvesField: `${domain || 'unknown'}.context`,
+      criticality: 'medium',
+      answerType: 'textarea',
+      reasonCode: 'STRUCTURE_LANE_CONTEXT_UNRESOLVED',
+    };
+  }
+  return {
+    id: `lane-${laneIdx}-${domain}-primary`,
+    question: template.question,
+    reason: template.reason,
+    domain,
+    laneId: lane?.id || null,
+    laneTitle: lane?.title || '',
+    resolvesField: template.resolvesField,
+    criticality: template.criticality,
+    answerType: template.answerType,
+    reasonCode: template.reasonCode,
+  };
+}
+
+function extractJobSearchSignal(goalText = '') {
+  const normalized = String(goalText || '').toLowerCase();
+  return /\b(job search|job-search|interview|apply(?:ing)? for jobs?|employment|full[- ]time job|part[- ]time job)\b/.test(
+    normalized
+  );
+}
+
+function buildGlobalQuestionPool({ goalText = '', extractedLanes = [], anchors = [] } = {}) {
+  const domains = new Set(
+    (Array.isArray(extractedLanes) ? extractedLanes : [])
+      .map((lane) =>
+        String(lane?.domain || '')
+          .trim()
+          .toLowerCase()
+      )
+      .filter(Boolean)
+  );
+  const goalTextValue = String(goalText || '').trim();
+  const questions = [
+    {
+      id: 'global-weekly-capacity',
+      question: 'How many hours per week can you realistically allocate across all active goals?',
+      reason: 'The master calendar cannot generate a credible first cycle without user-level capacity.',
+      domain: 'master_calendar_capacity',
+      laneId: null,
+      resolvesField: 'masterCalendar.weeklyCapacityHours',
+      criticality: 'high',
+      answerType: 'text',
+      reasonCode: 'STRUCTURE_WEEKLY_CAPACITY_UNRESOLVED',
+      priority: 100,
+    },
+    {
+      id: 'global-runway-pressure',
+      question: 'What budget or runway pressure must this plan respect in the next 8 weeks?',
+      reason: 'Runway pressure changes sequencing, readiness, and how aggressively income work must protect the calendar.',
+      domain: 'income_runway',
+      laneId: null,
+      resolvesField: 'profile.runwayPressure',
+      criticality: 'high',
+      answerType: 'textarea',
+      reasonCode: 'STRUCTURE_RUNWAY_CONSTRAINT_UNRESOLVED',
+      priority: domains.has('income') ? 95 : 65,
+    },
+    {
+      id: 'global-job-search-relation',
+      question: 'Is job search part of the strategy or only personal income security?',
+      reason: 'This determines whether job search is strategically integrated or only time-competing on the master calendar.',
+      domain: 'job_search_calendar_burden',
+      laneId: null,
+      resolvesField: 'profile.jobSearchRelation',
+      criticality: 'high',
+      answerType: 'text',
+      reasonCode: 'STRUCTURE_JOB_SEARCH_RELATION_UNRESOLVED',
+      priority: extractJobSearchSignal(goalTextValue) ? 96 : 10,
+    },
+    {
+      id: 'global-non-negotiables',
+      question: 'What cannot be sacrificed if timing slips?',
+      reason: 'Non-negotiables determine correction behavior under entropy and keep tactical pivots from erasing the mission.',
+      domain: 'core_mission',
+      laneId: null,
+      resolvesField: 'mission.nonNegotiables',
+      criticality: 'medium',
+      answerType: 'textarea',
+      reasonCode: 'STRUCTURE_NON_NEGOTIABLES_UNRESOLVED',
+      priority: 90,
+    },
+  ];
+  if (Array.isArray(anchors) && anchors.length > 0) {
+    questions.push({
+      id: 'global-anchor-confirmation',
+      question: 'What must stay true for the hard anchor dates to remain real?',
+      reason: 'Hard anchors only help if the system knows what cannot slip before them.',
+      domain: 'anchors',
+      laneId: null,
+      resolvesField: 'anchors.nonNegotiablePrerequisites',
+      criticality: 'medium',
+      answerType: 'textarea',
+      reasonCode: 'STRUCTURE_ANCHOR_PREREQUISITES_UNRESOLVED',
+      priority: 88,
+    });
+  }
+  return questions.sort((left, right) => Number(right.priority || 0) - Number(left.priority || 0));
+}
+
+export function buildStructureQuestionPlan({ goalText = '', extractedLanes = [], anchors = [] } = {}) {
+  const globalQuestions = buildGlobalQuestionPool({ goalText, extractedLanes, anchors }).slice(0, 2);
+  const laneQuestionsByLaneIndex = {};
+  (Array.isArray(extractedLanes) ? extractedLanes : []).forEach((lane, laneIdx) => {
+    laneQuestionsByLaneIndex[laneIdx] = [buildLaneQuestion(String(lane?.domain || '').trim().toLowerCase(), lane, laneIdx)];
+  });
+  return {
+    globalQuestions,
+    laneQuestionsByLaneIndex,
+    selectedQuestionCount:
+      globalQuestions.length +
+      Object.values(laneQuestionsByLaneIndex).reduce(
+        (count, questions) => count + (Array.isArray(questions) ? questions.length : 0),
+        0
+      ),
+  };
+}
 
 /**
  * Returns the clarifying questions for a given domain.
  * Always returns an array; unknown domains get generic questions.
  */
-export function getClarifyingQuestionsForDomain(domain) {
-  return CLARIFYING_QUESTIONS[domain] || [
-    "What's the current state of this?",
-    'Is there a deadline or external pressure on this?',
-  ];
+export function getClarifyingQuestionsForDomain(domain, options = {}) {
+  const lane = options?.lane || null;
+  const laneIdx = Number.isFinite(Number(options?.laneIdx)) ? Number(options.laneIdx) : 0;
+  return [buildLaneQuestion(String(domain || '').trim().toLowerCase(), lane, laneIdx)];
+}
+
+export function getPlannedGlobalQuestions(questionPlan) {
+  return Array.isArray(questionPlan?.globalQuestions) ? questionPlan.globalQuestions : [];
+}
+
+export function getPlannedLaneQuestions(questionPlan, laneIdx, domain, lane = null) {
+  const index = Number.isFinite(Number(laneIdx)) ? Number(laneIdx) : 0;
+  const planned = questionPlan?.laneQuestionsByLaneIndex?.[index];
+  if (Array.isArray(planned) && planned.length > 0) {
+    return planned;
+  }
+  return getClarifyingQuestionsForDomain(domain, { lane, laneIdx: index });
+}
+
+export function evaluateStructureCritic(questionPlan, answers = {}, extractedLanes = []) {
+  const unresolvedQuestions = [];
+  const globalQuestions = getPlannedGlobalQuestions(questionPlan);
+  globalQuestions.forEach((question, index) => {
+    if (isNonAnswerValue(answers[`step_${5 + index}`])) {
+      unresolvedQuestions.push(question);
+    }
+  });
+  (Array.isArray(extractedLanes) ? extractedLanes : []).forEach((lane, laneIdx) => {
+    const laneQuestions = getPlannedLaneQuestions(questionPlan, laneIdx, lane?.domain, lane);
+    laneQuestions.forEach((question, questionIdx) => {
+      if (isNonAnswerValue(answers[`lane_${laneIdx}_clarifying_${questionIdx}`])) {
+        unresolvedQuestions.push(question);
+      }
+    });
+  });
+  const unresolvedReasonCodes = unresolvedQuestions.map((question) => question.reasonCode).filter(Boolean);
+  const criticalUnresolved = unresolvedQuestions.filter((question) => question.criticality === 'high');
+  const blockerUnresolved = unresolvedQuestions.filter((question) => question.criticality === 'blocker');
+  return {
+    state: blockerUnresolved.length > 0 ? 'blocked' : unresolvedQuestions.length > 0 ? 'assumption_marked' : 'resolved',
+    selectedQuestionCount:
+      Number(questionPlan?.selectedQuestionCount || 0) ||
+      globalQuestions.length +
+        (Array.isArray(extractedLanes) ? extractedLanes.length : 0),
+    unresolvedQuestions,
+    unresolvedReasonCodes,
+    criticalUnresolvedCount: criticalUnresolved.length,
+    blockerUnresolvedCount: blockerUnresolved.length,
+  };
 }
 
 // ─── Intake question prompts ──────────────────────────────────────────────────
@@ -433,7 +659,13 @@ export function getClarifyingQuestionsForDomain(domain) {
  *     suggestedHorizon, currentLaneAssessment }
  */
 export function getIntakePrompt(phase, step, context = {}) {
-  const { anchors = [], extractedLanes = [], currentLaneIdx = 0, clarifyingQuestionIdx = 0 } = context;
+  const {
+    anchors = [],
+    extractedLanes = [],
+    currentLaneIdx = 0,
+    clarifyingQuestionIdx = 0,
+    questionPlan = null,
+  } = context;
 
   if (phase === 1) {
     if (step === 1) {
@@ -474,17 +706,27 @@ export function getIntakePrompt(phase, step, context = {}) {
       };
     }
     if (step === 5) {
+      const globalQuestion = getPlannedGlobalQuestions(questionPlan)[0] || null;
       return {
-        prompt: 'Are there financial or income constraints to factor into timing?',
-        subtext: 'How urgent is income from this plan, and does it affect how we sequence things?',
-        inputType: 'textarea',
+        prompt: globalQuestion?.question || 'What budget or runway constraints affect this plan?',
+        subtext: globalQuestion?.reason || 'Runway and capacity pressure change how the first cycle should be sequenced.',
+        inputType: globalQuestion?.answerType || 'textarea',
+        reason: globalQuestion?.reason || null,
+        resolvesField: globalQuestion?.resolvesField || null,
+        criticality: globalQuestion?.criticality || 'high',
       };
     }
     if (step === 6) {
+      const globalQuestion = getPlannedGlobalQuestions(questionPlan)[1] || null;
       return {
-        prompt: 'Are there legal, compliance, or capital requirements on any venture?',
-        subtext: 'Anything that must happen before you can move — registrations, approvals, funding rounds.',
-        inputType: 'textarea',
+        prompt: globalQuestion?.question || 'What cannot be sacrificed if timing slips?',
+        subtext:
+          globalQuestion?.reason ||
+          'This helps the system preserve mission continuity when entropy forces route changes.',
+        inputType: globalQuestion?.answerType || 'textarea',
+        reason: globalQuestion?.reason || null,
+        resolvesField: globalQuestion?.resolvesField || null,
+        criticality: globalQuestion?.criticality || 'medium',
       };
     }
   }
@@ -501,13 +743,18 @@ export function getIntakePrompt(phase, step, context = {}) {
       };
     }
     if (step === 8) {
-      const questions = getClarifyingQuestionsForDomain(lane?.domain);
+      const questions = getPlannedLaneQuestions(questionPlan, currentLaneIdx, lane?.domain, lane);
+      const activeQuestion = questions[clarifyingQuestionIdx] || null;
       return {
-        prompt: questions[clarifyingQuestionIdx] || 'Tell me more.',
-        inputType: 'text',
+        prompt: activeQuestion?.question || 'Tell me more.',
+        subtext: activeQuestion?.reason || null,
+        inputType: activeQuestion?.answerType || 'text',
         isSubQuestion: true,
         questionIdx: clarifyingQuestionIdx,
         totalQuestions: questions.length,
+        reason: activeQuestion?.reason || null,
+        resolvesField: activeQuestion?.resolvesField || null,
+        criticality: activeQuestion?.criticality || 'medium',
       };
     }
     if (step === 9) {

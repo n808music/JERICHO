@@ -3,8 +3,11 @@ import { buildMasterPlan, buildLane, buildMilestone, buildAnchor, buildRequireme
 import {
   extractLanesFromDescription,
   assessLaneFromAnswers,
-  getClarifyingQuestionsForDomain,
+  getPlannedGlobalQuestions,
+  getPlannedLaneQuestions,
   suggestHorizonFromAnchors,
+  buildStructureQuestionPlan,
+  evaluateStructureCritic,
 } from '../domain/masterPlan/masterPlanIntakeEngine.js';
 import { generateMilestonesForLane } from '../domain/masterPlan/masterPlanMilestoneGenerator.js';
 
@@ -52,8 +55,53 @@ function buildBlankIntakeState() {
     anchors: [],         // accumulated from step 4 loop
     currentLaneIdx: 0,   // which lane is being calibrated in phase 3
     clarifyingQuestionIdx: 0, // which sub-question in step 8
+    questionPlan: null,
     draft: null,         // { masterPlanId } after COMPLETE
     errorMessage: null,
+  };
+}
+
+function refreshQuestionPlan(intake) {
+  intake.questionPlan = buildStructureQuestionPlan({
+    goalText: intake?.answers?.step_1 || '',
+    extractedLanes: intake?.extractedLanes || [],
+    anchors: intake?.anchors || [],
+  });
+}
+
+function deriveFinancialConstraintFromAnswers(questionPlan, answers = {}, extractedLanes = []) {
+  const legacyStructured = answers?.step_5;
+  if (legacyStructured && typeof legacyStructured === 'object' && 'exists' in legacyStructured) {
+    return legacyStructured;
+  }
+  const globalQuestions = getPlannedGlobalQuestions(questionPlan);
+  const incomeLaneIdx = (Array.isArray(extractedLanes) ? extractedLanes : []).findIndex(
+    (lane) => String(lane?.domain || '').trim().toLowerCase() === 'income'
+  );
+  const candidateTexts = [];
+  globalQuestions.forEach((question, index) => {
+    if (
+      question?.resolvesField === 'profile.runwayPressure' ||
+      question?.resolvesField === 'profile.jobSearchRelation'
+    ) {
+      candidateTexts.push(answers?.[`step_${5 + index}`]);
+    }
+  });
+  if (incomeLaneIdx >= 0) {
+    candidateTexts.push(answers?.[`lane_${incomeLaneIdx}_clarifying_0`]);
+  }
+  const firstText = candidateTexts.find(
+    (value) => typeof value === 'string' && value.trim().length > 0
+  );
+  if (!firstText) {
+    return null;
+  }
+  const normalized = String(firstText).trim();
+  const lower = normalized.toLowerCase();
+  return {
+    exists: /\b(urgent|runway|income|revenue|money|cash|client|contract|pressure|need)\b/.test(lower),
+    urgency: /\b(immediate|urgent|asap|now|soon)\b/.test(lower) ? 'immediate' : /\b(high|tight|short)\b/.test(lower) ? 'high' : null,
+    notes: normalized,
   };
 }
 
@@ -206,10 +254,17 @@ function nextIntakeStep(intake, answer = {}) {
   }
 
   if (phase === 3) {
-    if (step === 7) return { phase: 3, step: 8, clarifyingQuestionIdx: 0 };
+    if (step === 7) {
+      const lane = extractedLanes[currentLaneIdx];
+      const laneQuestions = getPlannedLaneQuestions(intake.questionPlan, currentLaneIdx, lane?.domain, lane);
+      if (!Array.isArray(laneQuestions) || laneQuestions.length === 0) {
+        return { phase: 3, step: 9, clarifyingQuestionIdx: 0 };
+      }
+      return { phase: 3, step: 8, clarifyingQuestionIdx: 0 };
+    }
     if (step === 8) {
-      const domain = extractedLanes[currentLaneIdx]?.domain;
-      const totalQuestions = getClarifyingQuestionsForDomain(domain).length;
+      const lane = extractedLanes[currentLaneIdx];
+      const totalQuestions = getPlannedLaneQuestions(intake.questionPlan, currentLaneIdx, lane?.domain, lane).length;
       const nextIdx = clarifyingQuestionIdx + 1;
       if (nextIdx < totalQuestions) {
         return { phase: 3, step: 8, clarifyingQuestionIdx: nextIdx };
@@ -271,20 +326,28 @@ function applyIntakeAnswer(draft, action) {
   if (phase === 1 && step === 1) {
     const text = typeof value === 'string' ? value : value?.text || '';
     intake.extractedLanes = extractLanesFromDescription(text);
+    refreshQuestionPlan(intake);
   }
 
   if (phase === 2 && step === 4 && value?.anchor) {
     intake.anchors.push(value.anchor);
+    refreshQuestionPlan(intake);
+  }
+
+  if (!intake.questionPlan && intake.extractedLanes.length > 0) {
+    refreshQuestionPlan(intake);
   }
 
   // Run assessment after all clarifying questions are answered (entering step 9)
   if (phase === 3 && step === 8) {
-    const domain = intake.extractedLanes[currentLaneIdx]?.domain;
-    const totalQuestions = getClarifyingQuestionsForDomain(domain).length;
+    const lane = intake.extractedLanes[currentLaneIdx];
+    const domain = lane?.domain;
+    const plannedQuestions = getPlannedLaneQuestions(intake.questionPlan, currentLaneIdx, domain, lane);
+    const totalQuestions = plannedQuestions.length;
     const isLastClarifying = clarifyingQuestionIdx + 1 >= totalQuestions;
     if (isLastClarifying) {
       const description = intake.answers[`lane_${currentLaneIdx}_description`] || '';
-      const clarifyingAnswers = getClarifyingQuestionsForDomain(domain).map(
+      const clarifyingAnswers = plannedQuestions.map(
         (_, i) => intake.answers[`lane_${currentLaneIdx}_clarifying_${i}`] || ''
       );
       intake.answers[`lane_${currentLaneIdx}_system_assessment`] = assessLaneFromAnswers(
@@ -342,10 +405,19 @@ function applyIntakeComplete(draft, action) {
   try {
     const { answers, extractedLanes, anchors, profileId } = intake;
     const nowISO = action.nowISO || new Date().toISOString();
+    const questionPlan =
+      intake.questionPlan ||
+      buildStructureQuestionPlan({
+        goalText: answers['step_1'] || '',
+        extractedLanes,
+        anchors,
+      });
+    const structureCritic = evaluateStructureCritic(questionPlan, answers, extractedLanes);
 
     const northStarText = answers['step_2'];
     const horizonAnswer = answers['step_3'];
 
+    const financialConstraint = deriveFinancialConstraintFromAnswers(questionPlan, answers, extractedLanes);
     const plan = buildMasterPlan({
       profileId,
       title: northStarText
@@ -355,9 +427,10 @@ function applyIntakeComplete(draft, action) {
       horizonStart: nowISO.slice(0, 10),
       horizonEnd: horizonAnswer?.horizonEnd || suggestHorizonFromAnchors(anchors, nowISO)?.horizonEnd || null,
       anchors,
-      financialConstraint: answers['step_5'] || null,
+      financialConstraint,
       nowISO,
     });
+    plan.structureCritic = structureCritic;
 
     draft.masterPlansById[plan.id] = plan;
 
@@ -433,9 +506,10 @@ function applyIntakeReset(draft) {
   intake.answers = {};
   intake.extractedLanes = [];
   intake.anchors = [];
-  intake.currentLaneIdx = 0;
-  intake.clarifyingQuestionIdx = 0;
-  intake.phase = null;
+    intake.currentLaneIdx = 0;
+    intake.clarifyingQuestionIdx = 0;
+    intake.questionPlan = null;
+    intake.phase = null;
   intake.step = null;
   intake.errorMessage = null;
   // profileId intentionally left — harmless, avoids losing the profile association

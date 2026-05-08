@@ -60,7 +60,7 @@ const DOMAIN_BORDER = {
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
-export default function MasterPlanLaneCard({ laneId, onClose }) {
+export default function MasterPlanLaneCard({ laneId, proposedBlocks = [], criticQuestions = [], onClose }) {
   const store = useIdentityStore();
   const lane = selectLaneById(store, laneId);
   const milestones = selectMilestonesForLane(store, laneId);
@@ -91,6 +91,8 @@ export default function MasterPlanLaneCard({ laneId, onClose }) {
         <DependenciesSection titles={depLaneTitles} />
         <RequirementsSection label="Legal requirements" items={legalReqs} />
         <RequirementsSection label="Requirements" items={standardReqs} />
+        <CriticSection questions={criticQuestions} />
+        <FirstCycleSection blocks={proposedBlocks} />
         <MilestonesSection milestones={sortedMilestones} />
       </div>
     </div>
@@ -212,6 +214,48 @@ function RequirementsSection({ label, items }) {
               {REQ_STATUS_ICON[req.status] || '○'}
             </span>
             <span className="text-xs text-jericho-text leading-snug">{req.description}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function CriticSection({ questions }) {
+  if (!questions.length) return null;
+  return (
+    <div>
+      <SectionLabel>Structure critic debt</SectionLabel>
+      <ul className="space-y-1.5">
+        {questions.map((question) => (
+          <li key={question.id} className="rounded-md border border-red-400/20 bg-red-400/5 px-2.5 py-2">
+            <p className="text-[11px] text-jericho-text leading-snug font-medium">{question.question}</p>
+            {question.reason ? <p className="text-[10px] text-muted mt-0.5">{question.reason}</p> : null}
+            <p className="text-[10px] text-red-400 mt-0.5">
+              {question.criticality || 'unknown'} · {question.reasonCode || 'STRUCTURE_CONTEXT_UNRESOLVED'}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function FirstCycleSection({ blocks }) {
+  if (!blocks.length) return null;
+  return (
+    <div>
+      <SectionLabel>First executable cycle preview</SectionLabel>
+      <ul className="space-y-1.5">
+        {blocks.map((block) => (
+          <li key={block.id} className="rounded-md border border-green-500/20 bg-green-500/5 px-2.5 py-2">
+            <p className="text-[11px] text-jericho-text leading-snug font-medium">{block.title}</p>
+            <p className="text-[10px] text-muted mt-0.5">
+              {block.dayKey || block.startISO?.slice(0, 10) || 'undated'}
+              {block.durationMinutes ? ` · ${block.durationMinutes} min` : ''}
+            </p>
+            {block.missConsequence ? <p className="text-[10px] text-amber-500 mt-0.5">{block.missConsequence}</p> : null}
+            {block.derivedFrom ? <p className="text-[10px] text-muted/70 mt-0.5 italic">{block.derivedFrom}</p> : null}
           </li>
         ))}
       </ul>

@@ -3,6 +3,8 @@ import {
   extractLanesFromDescription,
   parseAnchorFromInput,
   assessLaneFromAnswers,
+  buildStructureQuestionPlan,
+  evaluateStructureCritic,
   getClarifyingQuestionsForDomain,
   suggestHorizonFromAnchors,
 } from './masterPlanIntakeEngine.js';
@@ -246,17 +248,86 @@ describe('assessLaneFromAnswers', () => {
 // ─── getClarifyingQuestionsForDomain ──────────────────────────────────────────
 
 describe('getClarifyingQuestionsForDomain', () => {
-  it('returns 2-4 questions for every known domain', () => {
+  it('returns one structured high-signal question for every known domain', () => {
     const domains = ['creative', 'product', 'brand', 'income', 'media'];
     for (const domain of domains) {
       const qs = getClarifyingQuestionsForDomain(domain);
-      expect(qs.length).toBeGreaterThanOrEqual(2);
-      expect(qs.length).toBeLessThanOrEqual(4);
+      expect(qs.length).toBe(1);
+      expect(qs[0]).toMatchObject({
+        id: expect.any(String),
+        question: expect.any(String),
+        reason: expect.any(String),
+        resolvesField: expect.any(String),
+        criticality: expect.any(String),
+        reasonCode: expect.any(String),
+      });
     }
   });
 
   it('returns fallback questions for an unknown domain', () => {
     const qs = getClarifyingQuestionsForDomain('unknown_domain_xyz');
     expect(qs.length).toBeGreaterThan(0);
+    expect(qs[0].reasonCode).toBe('STRUCTURE_LANE_CONTEXT_UNRESOLVED');
+  });
+});
+
+describe('buildStructureQuestionPlan', () => {
+  it('builds a compact high-signal question set for a multi-lane master plan', () => {
+    const plan = buildStructureQuestionPlan({
+      goalText:
+        'Build and coordinate a multi-lane master plan with album, app, podcast, PM brand, income runway, and job search burden through October 17.',
+      anchors: [{ id: 'anchor-oct17', date: '2026-10-17', label: 'Oct 17', isFixed: true }],
+      extractedLanes: [
+        { title: 'Album rollout', domain: 'creative' },
+        { title: 'Jericho app', domain: 'product' },
+        { title: 'Podcast', domain: 'media' },
+        { title: 'PM brand', domain: 'brand' },
+        { title: 'Income / runway', domain: 'income' },
+      ],
+    });
+
+    expect(plan.globalQuestions.length).toBeLessThanOrEqual(2);
+    expect(plan.selectedQuestionCount).toBeLessThanOrEqual(10);
+    expect(plan.globalQuestions.map((question) => question.id)).toEqual(
+      expect.arrayContaining(['global-weekly-capacity'])
+    );
+    expect(plan.globalQuestions.map((question) => question.id)).toEqual(
+      expect.arrayContaining(['global-job-search-relation'])
+    );
+    expect(plan.laneQuestionsByLaneIndex[1][0].question).toMatch(/launch-readiness state of the product\/app/i);
+    expect(plan.laneQuestionsByLaneIndex[0][0].question).toMatch(/album or release assets already exist/i);
+    expect(plan.laneQuestionsByLaneIndex[2][0].question).toMatch(/supporting the album, the product, both/i);
+  });
+});
+
+describe('evaluateStructureCritic', () => {
+  it('marks non-answers as unresolved reason-code debt', () => {
+    const questionPlan = buildStructureQuestionPlan({
+      goalText: 'album + app + podcast + runway + job search',
+      anchors: [{ id: 'anchor-oct17', date: '2026-10-17', label: 'Oct 17', isFixed: true }],
+      extractedLanes: [
+        { title: 'Album rollout', domain: 'creative' },
+        { title: 'Jericho app', domain: 'product' },
+      ],
+    });
+
+    const critic = evaluateStructureCritic(
+      questionPlan,
+      {
+        step_5: 'not sure yet',
+        step_6: 'ownership and execution discipline cannot slip',
+        lane_0_clarifying_0: 'unknown',
+        lane_1_clarifying_0: 'beta-ready with authentication and core architecture working',
+      },
+      [
+        { title: 'Album rollout', domain: 'creative' },
+        { title: 'Jericho app', domain: 'product' },
+      ]
+    );
+
+    expect(critic.state).toBe('assumption_marked');
+    expect(critic.unresolvedReasonCodes).toEqual(
+      expect.arrayContaining(['STRUCTURE_WEEKLY_CAPACITY_UNRESOLVED', 'STRUCTURE_CREATIVE_ASSET_STATE_UNRESOLVED'])
+    );
   });
 });

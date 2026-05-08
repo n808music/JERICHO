@@ -20,6 +20,7 @@ function buildStore({
   cycleFeasibilityScore = undefined,
   shotClock = null,
   containment = null,
+  masterPlanPolicy = null,
 } = {}) {
   const dayKey = '2026-03-10';
   const cycleId = 'cycle-1';
@@ -153,6 +154,21 @@ function buildStore({
     activeProfileId: defaultContainment.activeProfileId,
     profilesById: defaultContainment.profilesById,
     goalsById: defaultContainment.goalsById,
+    masterPlansById: masterPlanPolicy
+      ? {
+          'masterplan-1': {
+            id: 'masterplan-1',
+            profileId: 'profile-local-default',
+            title: 'Operation Endgame',
+            northStarOutcome: 'Launch the coordinated ecosystem by Oct 17',
+            horizonStart: '2026-05-01',
+            horizonEnd: '2026-10-17',
+            laneIds: [],
+            anchors: [{ id: 'anchor-oct17', label: 'Oct 17', date: '2026-10-17', isFixed: true }],
+            policyState: { goalPolicy: masterPlanPolicy },
+          },
+        }
+      : {},
     today: { date: dayKey, blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
     currentWeek: { weekStart: dayKey, days: [], metrics: {} },
     cycle: [],
@@ -206,7 +222,7 @@ function buildStore({
         },
       },
     },
-    activeCycleId: cycleId,
+    activeCycleId: masterPlanPolicy ? null : cycleId,
     goalExecutionContract: { goalId, startDayKey: '2026-03-01', endDayKey: '2026-04-01' },
     probabilityByGoal: {},
     feasibilityByGoal: {},
@@ -474,6 +490,58 @@ describe('ZionDashboard POS after admit', () => {
     expect(within(posCard).getByText(/^Initial Feasibility$/i)).toBeInTheDocument();
     expect(within(posCard).getByText(/temporal quality weak/i)).toBeInTheDocument();
     expect(within(posCard).getByText(/structural quality weak/i)).toBeInTheDocument();
+  });
+
+  it('falls back to active master-plan policy when no active execution cycle exists', () => {
+    mockStore = buildStore({
+      masterPlanPolicy: {
+        intakeReadiness: { state: 'fully_admitted' },
+        planQuality: { state: 'policy_clean' },
+        posTrust: { state: 'provisional' },
+        feasibility: {
+          state: 'constrained',
+          percent: 61,
+          score: 0.61,
+          range: [0.5, 0.72],
+          confidence: 'moderate',
+          substrateLevel: 'rough_feasibility',
+          summary: 'Possible but dependent on a capital bridge, market conversion.',
+          reasonCodes: ['FEASIBILITY_ASSUMPTION_BURDEN_HIGH'],
+          assumptions: ['a capital bridge', 'market conversion'],
+        },
+        livePos: {
+          state: 'withheld',
+          liveState: 'withheld',
+          liveStateReasonCodes: ['LIVE_POS_WITHHELD_SCHEDULE_NOT_LIVE'],
+          reasonCodes: ['LIVE_POS_WITHHELD_SCHEDULE_NOT_LIVE'],
+          score: {
+            state: 'withheld',
+            value: null,
+            lowerBound: null,
+            upperBound: null,
+            capped: false,
+            evidenceDensity: 'unavailable',
+            reasonCodes: ['LIVE_POS_SCORE_WITHHELD'],
+          },
+        },
+      },
+    });
+    mockStore.profilesById['profile-local-default'].activeMasterPlanId = 'masterplan-1';
+
+    const { container } = render(<ZionDashboard initialView="stability" />);
+    fireEvent.click(screen.getByRole('button', { name: /Stability/i }));
+    const posCard = within(container)
+      .getByText(/Probability of Success/i)
+      .closest('.rounded-xl');
+
+    expect(posCard).toBeTruthy();
+    expect(within(posCard).getByText(/^Initial Feasibility$/i)).toBeInTheDocument();
+    expect(within(posCard).getByText('61%')).toBeInTheDocument();
+    expect(within(posCard).getByText(/^Constrained$/i)).toBeInTheDocument();
+    expect(posCard).toHaveTextContent(/Substrate:\s*rough feasibility/i);
+    expect(posCard).toHaveTextContent(/Range:\s*50-72%\s*·\s*Confidence:\s*Moderate/i);
+    expect(posCard).toHaveTextContent(/capital bridge/i);
+    expect(within(posCard).getByText(/^Withheld$/i)).toBeInTheDocument();
   });
 
   it('prefers canonical initial-feasibility percent over the legacy cycle metric fallback', () => {

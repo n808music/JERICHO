@@ -110,6 +110,7 @@ function IntakeActiveScreen({ intake, store }) {
     suggestedHorizon,
     currentLane,
     currentLaneAssessment,
+    questionPlan: intake.questionPlan || null,
   };
 
   const question = getIntakePrompt(phase, step, context);
@@ -179,6 +180,13 @@ function IntakeQuestion({ question, phase, step, intake, nowISO, onSubmit, onCom
     <div className="intake-question">
       <p className="intake-prompt">{question.prompt}</p>
       {question.subtext && <p className="intake-subtext">{question.subtext}</p>}
+      {question.reason && question.reason !== question.subtext ? (
+        <p className="intake-subtext">
+          Reason: {question.reason}
+          {question.resolvesField ? ` · Resolves ${question.resolvesField}` : ''}
+          {question.criticality ? ` · ${question.criticality}` : ''}
+        </p>
+      ) : null}
       <IntakeInput
         inputType={question.inputType}
         question={question}

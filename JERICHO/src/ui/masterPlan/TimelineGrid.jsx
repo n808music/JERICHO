@@ -9,6 +9,9 @@
  *   milestones — Array<{ id, laneId, title, targetDate, milestoneType, status,
  *                        missConsequence, derivedFrom }>
  *   anchors  — Array<{ id, date, label, isFixed }>
+ *   proposedBlocks — Array<{ id, masterPlanLaneId, title, dayKey, startISO, missConsequence, derivedFrom }>
+ *   laneDiagnostics — laneId keyed diagnostic object
+ *   cyclePreviewWindow — { start, end, count, lifecycle }
  *   emptyMessage — string shown when lanes is empty
  */
 import React, { useMemo } from 'react';
@@ -69,15 +72,39 @@ function getMonthsInRange(startISO, endISO) {
   return months;
 }
 
+function normalizeMonthKey(value) {
+  if (!value) {
+    return null;
+  }
+  return String(value).trim().slice(0, 7) || null;
+}
+
+function titleCaseWords(value) {
+  return String(value || '')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 
-export default function TimelineGrid({ plan, lanes = [], milestones = [], anchors = [], emptyMessage, onLaneClick }) {
+export default function TimelineGrid({
+  plan,
+  lanes = [],
+  milestones = [],
+  anchors = [],
+  proposedBlocks = [],
+  laneDiagnostics = {},
+  cyclePreviewWindow = null,
+  emptyMessage,
+  onLaneClick,
+}) {
   const horizonBounds = useMemo(() => {
     const dates = [
       plan?.horizonStart,
       plan?.horizonEnd,
       ...anchors.map((a) => a.date),
       ...milestones.map((m) => m.targetDate),
+      ...proposedBlocks.map((block) => block?.dayKey || block?.startISO),
     ].filter(Boolean).sort();
     if (dates.length === 0) {
       const today = new Date().toISOString().slice(0, 10);
@@ -95,6 +122,24 @@ export default function TimelineGrid({ plan, lanes = [], milestones = [], anchor
     () => new Set(anchors.map((a) => a.date?.slice(0, 7)).filter(Boolean)),
     [anchors]
   );
+  const cyclePreviewMonths = useMemo(() => {
+    if (!cyclePreviewWindow?.start || !cyclePreviewWindow?.end) {
+      return new Set();
+    }
+    const startMonth = normalizeMonthKey(cyclePreviewWindow.start);
+    const endMonth = normalizeMonthKey(cyclePreviewWindow.end);
+    const previewMonths = new Set();
+    if (!startMonth || !endMonth) {
+      return previewMonths;
+    }
+    let cursor = new Date(`${startMonth}-01T00:00:00.000Z`);
+    const end = new Date(`${endMonth}-01T00:00:00.000Z`);
+    while (cursor <= end) {
+      previewMonths.add(cursor.toISOString().slice(0, 7));
+      cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+    }
+    return previewMonths;
+  }, [cyclePreviewWindow]);
 
   // Build laneId → milestones map — more reliable than laneTitle matching.
   const milestonesByLane = useMemo(() => {
@@ -105,6 +150,15 @@ export default function TimelineGrid({ plan, lanes = [], milestones = [], anchor
     }
     return map;
   }, [milestones]);
+  const blocksByLane = useMemo(() => {
+    const map = {};
+    for (const block of proposedBlocks) {
+      const laneId = block?.masterPlanLaneId || '__unassigned__';
+      if (!map[laneId]) map[laneId] = [];
+      map[laneId].push(block);
+    }
+    return map;
+  }, [proposedBlocks]);
 
   if (months.length === 0) {
     return <p className="text-muted text-sm p-4">Timeline has no date range set.</p>;
@@ -139,18 +193,30 @@ export default function TimelineGrid({ plan, lanes = [], milestones = [], anchor
                 {anchorMonths.has(month.key) && (
                   <span className="block text-amber-400 leading-none">▾</span>
                 )}
+                {cyclePreviewMonths.has(month.key) && (
+                  <span className="block text-[9px] leading-none text-jericho-accent">cycle</span>
+                )}
               </div>
             ))}
 
             {/* Lane rows */}
             {lanes.map((lane, laneIdx) => {
               const laneMilestones = milestonesByLane[lane.id] || [];
+              const laneBlocks = blocksByLane[lane.id] || [];
+              const diagnostics = laneDiagnostics[lane.id] || {};
               const byMonth = {};
               for (const ms of laneMilestones) {
                 const mk = ms.targetDate?.slice(0, 7);
                 if (!mk) continue;
                 if (!byMonth[mk]) byMonth[mk] = [];
                 byMonth[mk].push(ms);
+              }
+              const blocksByMonth = {};
+              for (const block of laneBlocks) {
+                const mk = normalizeMonthKey(block?.dayKey || block?.startISO);
+                if (!mk) continue;
+                if (!blocksByMonth[mk]) blocksByMonth[mk] = [];
+                blocksByMonth[mk].push(block);
               }
               const stripe = laneIdx % 2 !== 0;
 
@@ -179,6 +245,37 @@ export default function TimelineGrid({ plan, lanes = [], milestones = [], anchor
                         </span>
                       )}
                       <span className="text-[10px] text-muted">{lane.domain}</span>
+                      {lane.anchorIds?.length ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-400/10 text-amber-600 border border-amber-400/20">
+                          anchored
+                        </span>
+                      ) : null}
+                      {diagnostics.hasGate ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-jericho-accent/10 text-jericho-accent border border-jericho-accent/20">
+                          gate lane
+                        </span>
+                      ) : null}
+                      {diagnostics.criticQuestionCount ? (
+                        <span
+                          className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-400/10 text-red-400 border border-red-400/20"
+                          data-testid={`critic-debt-badge-${lane.id}`}
+                        >
+                          critic debt {diagnostics.criticQuestionCount}
+                        </span>
+                      ) : null}
+                      {diagnostics.firstCycleBlockCount ? (
+                        <span
+                          className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 border border-green-500/20"
+                          data-testid={`first-cycle-badge-${lane.id}`}
+                        >
+                          first cycle {diagnostics.firstCycleBlockCount}
+                        </span>
+                      ) : null}
+                      {diagnostics.thinDensity ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-400/10 text-amber-600 border border-amber-400/20">
+                          thin density
+                        </span>
+                      ) : null}
                     </div>
                   </div>
 
@@ -187,10 +284,23 @@ export default function TimelineGrid({ plan, lanes = [], milestones = [], anchor
                       key={month.key}
                       className={`px-1 py-2 border-b border-line/20 flex flex-col gap-1 items-center ${
                         anchorMonths.has(month.key) ? 'bg-amber-400/5' : ''
-                      } ${stripe ? 'bg-jericho-surface/20' : ''}`}
+                      } ${cyclePreviewMonths.has(month.key) ? 'outline outline-1 outline-jericho-accent/20 -outline-offset-1' : ''} ${
+                        stripe ? 'bg-jericho-surface/20' : ''
+                      }`}
+                      data-testid={`timeline-month-cell-${lane.id}-${month.key}`}
                     >
                       {(byMonth[month.key] || []).map((ms) => (
                         <MilestoneDot key={ms.id} milestone={ms} />
+                      ))}
+                      {(blocksByMonth[month.key] || []).map((block) => (
+                        <div
+                          key={block.id}
+                          className="max-w-full rounded-md border border-green-500/30 bg-green-500/10 px-1.5 py-0.5 text-[9px] leading-tight text-green-700 text-center"
+                          title={`${block.title} · ${block.dayKey || block.startISO}`}
+                          data-testid={`planned-block-${block.id}`}
+                        >
+                          {block.title}
+                        </div>
                       ))}
                     </div>
                   ))}
@@ -202,6 +312,39 @@ export default function TimelineGrid({ plan, lanes = [], milestones = [], anchor
       )}
 
       {anchors.length > 0 && <AnchorList anchors={anchors} />}
+      {(cyclePreviewWindow || Object.values(laneDiagnostics).some((diagnostic) => diagnostic.criticQuestionCount || diagnostic.thinDensity)) && (
+        <div className="grid gap-3 md:grid-cols-2">
+          {cyclePreviewWindow ? (
+            <div className="rounded-xl border border-line/40 bg-jericho-surface/80 px-3 py-2 text-[11px] text-muted space-y-1">
+              <p className="uppercase tracking-[0.12em] text-[10px] text-muted">First executable cycle preview</p>
+              <p>
+                {cyclePreviewWindow.start} to {cyclePreviewWindow.end} · {cyclePreviewWindow.count} proposed blocks ·{' '}
+                {titleCaseWords(cyclePreviewWindow.lifecycle || 'draft_schedule_ready')}
+              </p>
+            </div>
+          ) : null}
+          {Object.values(laneDiagnostics).some((diagnostic) => diagnostic.criticQuestionCount || diagnostic.thinDensity) ? (
+            <div className="rounded-xl border border-line/40 bg-jericho-surface/80 px-3 py-2 text-[11px] text-muted space-y-1">
+              <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Chart inspection signals</p>
+              {lanes
+                .filter((lane) => {
+                  const diagnostic = laneDiagnostics[lane.id] || {};
+                  return diagnostic.criticQuestionCount || diagnostic.thinDensity;
+                })
+                .map((lane) => {
+                  const diagnostic = laneDiagnostics[lane.id] || {};
+                  return (
+                    <p key={`audit-${lane.id}`}>
+                      {lane.title}
+                      {diagnostic.criticQuestionCount ? ` · critic debt ${diagnostic.criticQuestionCount}` : ''}
+                      {diagnostic.thinDensity ? ' · thin schedule density' : ''}
+                    </p>
+                  );
+                })}
+            </div>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }

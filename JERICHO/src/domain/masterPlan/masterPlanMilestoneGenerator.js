@@ -94,6 +94,12 @@ const TEMPLATES = {
       { title: 'Launch episode live',        offsetWeeks: 6, flex: F.LOW,  type: T.CHECKPOINT, miss: 'Must precede anchor date to build audience.' },
       { title: 'Album promo episodes',       offsetWeeks: 4, flex: F.HIGH, type: T.CHECKPOINT, miss: '' },
     ],
+    'pre-launch': [
+      { title: 'Episodes 1–3 recorded',      offsetWeeks: 8, flex: F.HIGH, type: T.CHECKPOINT, miss: 'Cannot list on directories without initial batch.' },
+      { title: 'Distribution set up',        offsetWeeks: 7, flex: F.LOW,  type: T.CHECKPOINT, miss: 'Approval windows vary by platform.' },
+      { title: 'Launch episode live',        offsetWeeks: 6, flex: F.LOW,  type: T.CHECKPOINT, miss: 'Must precede anchor date to build audience.' },
+      { title: 'Album promo episodes',       offsetWeeks: 4, flex: F.HIGH, type: T.CHECKPOINT, miss: '' },
+    ],
     'in-development': [
       { title: 'Episodes batch complete',    offsetWeeks: 6, flex: F.HIGH, type: T.CHECKPOINT, miss: '' },
       { title: 'Distribution live',          offsetWeeks: 5, flex: F.LOW,  type: T.CHECKPOINT, miss: '' },

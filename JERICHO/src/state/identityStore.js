@@ -339,6 +339,7 @@ export function buildBlankIdentityState(options = {}) {
     cycle: [],
     blockStore: { blocks: {} },
     goalPolicyByGoalId: {},
+    masterPlanPolicyByPlanId: {},
     planQualityGateByGoal: {},
     systemShotClockByGoal: {},
     executionCorrectionByGoal: {},
@@ -1198,20 +1199,52 @@ export function IdentityProvider({ children, initialState }) {
   );
   const generatePlanWithLLMAsync = createGeneratePlanWithLLM(llmStore);
   const generatePlanWithLLM = useCallback(
-    (payload = {}) =>
-      generatePlanWithLLMAsync({
-        cycleId: payload?.cycleId || state.activeCycleId || null,
+    (payload = {}) => {
+      const resolvedCycleId = payload?.cycleId || state.activeCycleId || null;
+      const activeMasterPlanId =
+        state?.profilesById?.[state?.activeProfileId || '']?.activeMasterPlanId || null;
+      if (!resolvedCycleId && activeMasterPlanId) {
+        dispatch({
+          type: 'GENERATE_PLAN',
+          payload: {
+            ...(payload || {}),
+            cycleId: null,
+            masterPlanId: activeMasterPlanId,
+            source: 'MASTER_PLAN_FIRST_CYCLE',
+          },
+        });
+        return Promise.resolve();
+      }
+      return generatePlanWithLLMAsync({
+        cycleId: resolvedCycleId,
         anchorDayKey: payload?.anchorDayKey || null,
-      }),
-    [generatePlanWithLLMAsync, state.activeCycleId]
+      });
+    },
+    [dispatch, generatePlanWithLLMAsync, state.activeCycleId, state.activeProfileId, state.profilesById]
   );
   const generateScheduleForActiveCycle = useCallback(
-    (payload = {}) =>
-      generatePlanWithLLMAsync({
-        cycleId: payload?.cycleId || state.activeCycleId || null,
+    (payload = {}) => {
+      const resolvedCycleId = payload?.cycleId || state.activeCycleId || null;
+      const activeMasterPlanId =
+        state?.profilesById?.[state?.activeProfileId || '']?.activeMasterPlanId || null;
+      if (!resolvedCycleId && activeMasterPlanId) {
+        dispatch({
+          type: 'GENERATE_PLAN',
+          payload: {
+            ...(payload || {}),
+            cycleId: null,
+            masterPlanId: activeMasterPlanId,
+            source: 'MASTER_PLAN_FIRST_CYCLE',
+          },
+        });
+        return Promise.resolve();
+      }
+      return generatePlanWithLLMAsync({
+        cycleId: resolvedCycleId,
         anchorDayKey: payload?.anchorDayKey || null,
-      }),
-    [generatePlanWithLLMAsync, state.activeCycleId]
+      });
+    },
+    [dispatch, generatePlanWithLLMAsync, state.activeCycleId, state.activeProfileId, state.profilesById]
   );
   const commitPreviewItems = useCallback((payload) => dispatch({ type: 'COMMIT_PREVIEW_ITEMS', payload }), []);
   const applyPlan = useCallback((payload = {}) => dispatch({ type: 'APPLY_PLAN', payload }), []);

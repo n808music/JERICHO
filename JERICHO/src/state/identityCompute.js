@@ -3182,6 +3182,996 @@ function buildFallbackPolicyIntakeContract(state, cycle, executionContract, goal
   };
 }
 
+function formatMinutesAsHHMM(totalMinutes) {
+  const safeMinutes = Math.max(0, Math.round(Number(totalMinutes) || 0));
+  const hours = Math.floor(safeMinutes / 60)
+    .toString()
+    .padStart(2, '0');
+  const minutes = (safeMinutes % 60).toString().padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
+function computeInclusiveDaySpan(startDayKey, endDayKey) {
+  const startMs = Date.parse(`${String(startDayKey || '').trim()}T00:00:00.000Z`);
+  const endMs = Date.parse(`${String(endDayKey || '').trim()}T00:00:00.000Z`);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) {
+    return null;
+  }
+  return Math.floor((endMs - startMs) / 86400000) + 1;
+}
+
+function buildMasterPlanWorkWindows(masterCalendar = null) {
+  const availableCapacityHours = Number(masterCalendar?.availableCapacityHours);
+  const baseCapacityHours = Number(masterCalendar?.baseWeeklyCapacityHours);
+  const weeklyHours =
+    Number.isFinite(availableCapacityHours) && availableCapacityHours > 0
+      ? availableCapacityHours
+      : Number.isFinite(baseCapacityHours) && baseCapacityHours > 0
+        ? baseCapacityHours
+        : 40;
+  const dailyMinutes = Math.max(60, Math.round((weeklyHours * 60) / 5));
+  const startMinutes = 9 * 60;
+  const endMinutes = Math.min(23 * 60 + 59, startMinutes + dailyMinutes);
+  const weekdayWindow = [{ start: formatMinutesAsHHMM(startMinutes), end: formatMinutesAsHHMM(endMinutes) }];
+  return {
+    mon: weekdayWindow,
+    tue: weekdayWindow,
+    wed: weekdayWindow,
+    thu: weekdayWindow,
+    fri: weekdayWindow,
+    sat: [],
+    sun: [],
+  };
+}
+
+function inferMasterPlanOutcomeAuthority(lanes = []) {
+  const domains = new Set(
+    lanes
+      .map((lane) =>
+        String(lane?.domain || '')
+          .trim()
+          .toLowerCase()
+      )
+      .filter(Boolean)
+  );
+  if (domains.has('income') || domains.has('brand')) {
+    return 'market_dependent';
+  }
+  if (domains.has('product') || domains.has('software') || domains.has('creative') || domains.has('media')) {
+    return 'mixed';
+  }
+  return 'unknown';
+}
+
+function resolveMasterPlanEndDayKey(plan, milestones = [], anchors = [], fallbackDayKey) {
+  const explicitEnd = String(plan?.horizonEnd || '').trim();
+  if (explicitEnd) {
+    return explicitEnd;
+  }
+  const datedAnchors = anchors
+    .map((anchor) => String(anchor?.date || '').trim())
+    .filter(Boolean)
+    .sort();
+  if (datedAnchors.length > 0) {
+    return datedAnchors[datedAnchors.length - 1];
+  }
+  const targetDates = milestones
+    .map((milestone) => String(milestone?.targetDate || '').trim())
+    .filter(Boolean)
+    .sort();
+  return targetDates[targetDates.length - 1] || fallbackDayKey || null;
+}
+
+function buildMasterPlanPolicySnapshot(state, plan) {
+  if (!plan?.id || !plan?.profileId) {
+    return null;
+  }
+  const profile = state?.profilesById?.[plan.profileId] || null;
+  const masterCalendarId = profile?.masterCalendarId || null;
+  const masterCalendar = masterCalendarId ? state?.masterCalendarsById?.[masterCalendarId] || null : null;
+  const fallbackToday = state?.today?.date || nowDayKey(state?.appTime?.timeZone || APP_TIME_ZONE);
+  const lanes = (plan?.laneIds || [])
+    .map((laneId) => state?.masterPlanLanesById?.[laneId] || null)
+    .filter(Boolean);
+  const milestones = lanes
+    .flatMap((lane) =>
+      (lane?.milestoneIds || []).map((milestoneId) => state?.masterPlanMilestonesById?.[milestoneId] || null)
+    )
+    .filter(Boolean)
+    .sort((left, right) => String(left?.targetDate || '').localeCompare(String(right?.targetDate || '')));
+  const goalId = `masterplan:${plan.id}`;
+  const cycleId = `masterplan-cycle:${plan.id}`;
+  const startDayKey = String(plan?.horizonStart || fallbackToday).trim() || fallbackToday;
+  const endDayKey = resolveMasterPlanEndDayKey(plan, milestones, plan?.anchors || [], startDayKey);
+  const laneStageSummary = lanes
+    .map((lane) => {
+      const laneTitle = String(lane?.title || '').trim();
+      const stage = String(lane?.assessedStage || '').trim();
+      return laneTitle && stage ? `${laneTitle}: ${stage}` : laneTitle || stage;
+    })
+    .filter(Boolean)
+    .join('; ');
+  const structureCritic = plan?.structureCritic || null;
+  const criticUnresolvedQuestions = Array.isArray(structureCritic?.unresolvedQuestions)
+    ? structureCritic.unresolvedQuestions
+    : [];
+  const criticReasonCodes = Array.isArray(structureCritic?.unresolvedReasonCodes)
+    ? structureCritic.unresolvedReasonCodes
+    : [];
+  const verificationCriteria = [
+    milestones.length > 0
+      ? `${milestones.length} named milestones sequenced across ${Math.max(1, lanes.length)} active lanes`
+      : null,
+    lanes.length > 0 ? `lane coverage: ${lanes.map((lane) => lane.title).join(', ')}` : null,
+    Array.isArray(plan?.anchors) && plan.anchors.length > 0
+      ? `anchor coverage: ${plan.anchors.map((anchor) => `${anchor.label} on ${anchor.date}`).join(', ')}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const answeredContext = {
+    planningTier: 'master_plan',
+    goalClassification: 'multi_lane_master_plan',
+    startingState: laneStageSummary || 'multi-lane campaign baseline captured',
+    masterCalendarId: masterCalendarId || '',
+    coreMissionContractId: plan?.coreMissionContractId || '',
+    weeklyCapacityHours:
+      Number.isFinite(Number(masterCalendar?.availableCapacityHours)) && Number(masterCalendar?.availableCapacityHours) > 0
+        ? Number(masterCalendar.availableCapacityHours)
+        : Number.isFinite(Number(masterCalendar?.baseWeeklyCapacityHours)) && Number(masterCalendar?.baseWeeklyCapacityHours) > 0
+          ? Number(masterCalendar.baseWeeklyCapacityHours)
+          : 40,
+    capitalAcquisitionRequired: Boolean(plan?.financialConstraint?.exists),
+  };
+  const baseIntakeContract = buildGoalIntakeContract({
+    goalId,
+    rawGoalText: String(plan?.northStarOutcome || plan?.title || '').trim(),
+    goalText: String(plan?.northStarOutcome || plan?.title || '').trim(),
+    verificationCriteria,
+    executionType: 'StrategicExecution',
+    deadline: endDayKey,
+    answeredContext,
+  });
+  const intakeContract = {
+    ...baseIntakeContract,
+    goalId,
+    rawGoalText: String(plan?.northStarOutcome || plan?.title || '').trim(),
+    completionBoundary:
+      /launch|release|publish|drop|ship|client|revenue|sale/i.test(String(plan?.northStarOutcome || ''))
+        ? 'launched'
+        : 'delivered',
+    completionBoundaryStatus: milestones.length > 0 ? 'resolved' : 'missing',
+    answeredContext: {
+      ...(baseIntakeContract?.answeredContext || {}),
+      ...answeredContext,
+    },
+    startingState: answeredContext.startingState,
+    requiredContextQuestions: criticUnresolvedQuestions
+      .filter((question) => String(question?.criticality || '').trim().toLowerCase() === 'blocker')
+      .map((question) => ({
+        prompt: question?.question || 'Additional structure context is required.',
+        reasonCode: question?.reasonCode || 'STRUCTURE_CONTEXT_UNRESOLVED',
+      })),
+    readiness: {
+      state:
+        milestones.length > 0 && lanes.length > 0
+          ? criticReasonCodes.length > 0
+            ? 'assumption_marked_draft'
+            : 'fully_admitted'
+          : 'assumption_marked_draft',
+      isReadyForPlanning: milestones.length > 0 && lanes.length > 0,
+      blockingReasons: [],
+      assumptionReasons:
+        milestones.length > 0 && lanes.length > 0
+          ? criticReasonCodes
+          : ['lane calibration incomplete', ...criticReasonCodes],
+    },
+  };
+
+  const deliverables = lanes.map((lane) => ({
+    id: `masterplan-deliverable:${lane.id}`,
+    title: lane.title,
+    actionIds: (lane?.milestoneIds || []).map((milestoneId) => `masterplan-action:${milestoneId}`),
+    dependencyIds: (lane?.dependsOnLaneIds || []).map((laneId) => `masterplan-deliverable:${laneId}`),
+  }));
+  const laneMilestonesByLaneId = new Map(
+    lanes.map((lane) => [
+      lane.id,
+      (lane?.milestoneIds || [])
+        .map((milestoneId) => state?.masterPlanMilestonesById?.[milestoneId] || null)
+        .filter(Boolean)
+        .sort((left, right) => String(left?.targetDate || '').localeCompare(String(right?.targetDate || ''))),
+    ])
+  );
+  const actions = lanes.flatMap((lane) => {
+    const laneMilestones = laneMilestonesByLaneId.get(lane.id) || [];
+    return laneMilestones.map((milestone, index) => {
+      const previousMilestone = index > 0 ? laneMilestones[index - 1] : null;
+      return {
+        id: `masterplan-action:${milestone.id}`,
+        title: milestone.title,
+        deliverableId: `masterplan-deliverable:${lane.id}`,
+        actionType: milestone?.milestoneType === 'gate' ? 'preparation' : 'execution',
+        dependencies: previousMilestone ? [`masterplan-action:${previousMilestone.id}`] : [],
+        readinessCondition: milestone?.milestoneType === 'gate' ? 'gate checkpoint satisfied' : null,
+      };
+    });
+  });
+  const preExecutionSchedule = {
+    blockCount: milestones.length,
+    totalMinutes: milestones.reduce((sum, milestone) => {
+      const type = String(milestone?.milestoneType || '').trim().toLowerCase();
+      const estimatedMinutes = type === 'anchor' ? 150 : type === 'gate' ? 120 : 90;
+      return sum + estimatedMinutes;
+    }, 0),
+  };
+  const workWindows = buildMasterPlanWorkWindows(masterCalendar);
+  const executionContract = {
+    goalId,
+    cycleId,
+    goalLabel: plan?.title || null,
+    goalText: plan?.northStarOutcome || plan?.title || null,
+    goalIntakeContract: intakeContract,
+    startDayKey,
+    endDayKey,
+    deadline: { dayKey: endDayKey },
+    workWindows,
+    terminalOutcome: {
+      text: String(plan?.northStarOutcome || plan?.title || '').trim(),
+      verificationCriteria,
+      isConcrete: milestones.length > 0,
+    },
+    target: {
+      count: lanes.length || null,
+      unit: lanes.length === 1 ? 'campaign' : 'campaigns',
+    },
+  };
+  const horizonDays = startDayKey && endDayKey ? computeInclusiveDaySpan(startDayKey, endDayKey) : null;
+  return buildGoalPolicySnapshot({
+    goalId,
+    intakeContract,
+    executionContract,
+    planProof: {
+      feasibilityStatus: milestones.length > 0 && lanes.length > 0 ? 'FEASIBLE' : 'INFEASIBLE',
+      totalRequiredUnits: milestones.length,
+      workableDaysRemaining: horizonDays || 0,
+    },
+    probabilityStatus: 'insufficient_evidence',
+    feasibilityStatus: milestones.length > 0 && lanes.length > 0 ? 'FEASIBLE' : 'REQUIRED',
+    hasCommittedBlocks: false,
+    hasProposedBlocks: milestones.length > 0,
+    hasExecutionGraph: lanes.length > 0 && actions.length > 0 && deliverables.length > 0,
+    canonicalActions: actions,
+    canonicalDeliverables: deliverables,
+    longTermPlan: {
+      isLongHorizon: Boolean((horizonDays || 0) > 120),
+      quality: { state: milestones.length > 0 ? 'trusted' : 'withheld', reasonCodes: [] },
+      saturation: { saturationShape: milestones.length >= Math.max(3, lanes.length * 2) ? 'balanced' : 'understructured' },
+      uncertainty: { bands: [] },
+      checkpoints: milestones.map((milestone) => ({
+        id: milestone.id,
+        title: milestone.title,
+        targetDate: milestone.targetDate,
+      })),
+    },
+    preExecutionSchedule,
+    canonicalExecutionEvents: [],
+    canonicalExternalEvidenceEvents: [],
+    liveScheduleApplied: false,
+    outcomeAuthorityClass: inferMasterPlanOutcomeAuthority(lanes),
+    planQualityFailureCodes: [],
+    executionCorrectionState: null,
+    executionCorrectionLevel: null,
+    blockedDownstreamCount: 0,
+    timedDeadlineRiskCount: 0,
+    paceState: 'insufficient_evidence',
+  });
+}
+
+function getActiveMasterPlanRecord(state, requestedPlanId = null) {
+  const explicitPlanId = String(requestedPlanId || '').trim() || null;
+  if (explicitPlanId) {
+    return state?.masterPlansById?.[explicitPlanId] || null;
+  }
+  const profile = state?.profilesById?.[state?.activeProfileId || ''] || null;
+  const activeMasterPlanId = String(profile?.activeMasterPlanId || '').trim() || null;
+  if (!activeMasterPlanId) {
+    return null;
+  }
+  return state?.masterPlansById?.[activeMasterPlanId] || null;
+}
+
+function mapMasterPlanLaneToPractice(domain) {
+  const normalized = String(domain || '')
+    .trim()
+    .toLowerCase();
+  if (normalized === 'creative' || normalized === 'media') {
+    return 'CREATION';
+  }
+  if (normalized === 'brand' || normalized === 'income' || normalized === 'resources') {
+    return 'RESOURCES';
+  }
+  return 'FOCUS';
+}
+
+function buildMasterPlanOperationalDescriptors(state, plan) {
+  if (!plan?.id || !plan?.profileId) {
+    return null;
+  }
+  const profile = state?.profilesById?.[plan.profileId] || null;
+  const masterCalendarId = profile?.masterCalendarId || null;
+  const masterCalendar = masterCalendarId ? state?.masterCalendarsById?.[masterCalendarId] || null : null;
+  const timeZone = state?.appTime?.timeZone || APP_TIME_ZONE;
+  const fallbackToday = state?.today?.date || nowDayKey(timeZone);
+  const lanes = (plan?.laneIds || [])
+    .map((laneId) => state?.masterPlanLanesById?.[laneId] || null)
+    .filter(Boolean);
+  const milestones = lanes
+    .flatMap((lane) =>
+      (lane?.milestoneIds || []).map((milestoneId) => {
+        const milestone = state?.masterPlanMilestonesById?.[milestoneId] || null;
+        return milestone ? { ...milestone, lane } : null;
+      })
+    )
+    .filter(Boolean)
+    .sort((left, right) => String(left?.targetDate || '').localeCompare(String(right?.targetDate || '')));
+  const goalId = `masterplan:${plan.id}`;
+  const cycleId = `masterplan-cycle:${plan.id}`;
+  const startDayKey = String(plan?.horizonStart || fallbackToday).trim() || fallbackToday;
+  const endDayKey = resolveMasterPlanEndDayKey(plan, milestones, plan?.anchors || [], startDayKey);
+  const weeklyCapacityHours =
+    Number.isFinite(Number(masterCalendar?.availableCapacityHours)) && Number(masterCalendar?.availableCapacityHours) > 0
+      ? Number(masterCalendar.availableCapacityHours)
+      : Number.isFinite(Number(masterCalendar?.baseWeeklyCapacityHours)) && Number(masterCalendar?.baseWeeklyCapacityHours) > 0
+        ? Number(masterCalendar.baseWeeklyCapacityHours)
+        : 40;
+  return {
+    profile,
+    masterCalendarId,
+    masterCalendar,
+    lanes,
+    milestones,
+    goalId,
+    cycleId,
+    startDayKey,
+    endDayKey,
+    timeZone,
+    todayDayKey: fallbackToday,
+    weeklyCapacityHours,
+  };
+}
+
+function ensureMasterPlanOperationalCycle(state, plan) {
+  const descriptors = buildMasterPlanOperationalDescriptors(state, plan);
+  if (!descriptors) {
+    return null;
+  }
+  const {
+    profile,
+    masterCalendarId,
+    lanes,
+    milestones,
+    goalId,
+    cycleId,
+    startDayKey,
+    endDayKey,
+    timeZone,
+    weeklyCapacityHours,
+  } = descriptors;
+  if (!profile) {
+    return null;
+  }
+  state.goalsById = state.goalsById || {};
+  state.cyclesById = state.cyclesById || {};
+  state.goalAdmissionByGoal = state.goalAdmissionByGoal || {};
+  ensureDeliverablesStore(state);
+
+  const verificationCriteria = [
+    milestones.length > 0
+      ? `${milestones.length} named milestones sequenced across ${Math.max(1, lanes.length)} active lanes`
+      : null,
+    lanes.length > 0 ? `lane coverage: ${lanes.map((lane) => lane.title).join(', ')}` : null,
+    Array.isArray(plan?.anchors) && plan.anchors.length > 0
+      ? `anchor coverage: ${plan.anchors.map((anchor) => `${anchor.label} on ${anchor.date}`).join(', ')}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const answeredContext = {
+    planningTier: 'master_plan',
+    goalClassification: 'multi_lane_master_plan',
+    startingState: lanes
+      .map((lane) => {
+        const laneTitle = String(lane?.title || '').trim();
+        const stage = String(lane?.assessedStage || '').trim();
+        return laneTitle && stage ? `${laneTitle}: ${stage}` : laneTitle || stage;
+      })
+      .filter(Boolean)
+      .join('; '),
+    masterCalendarId: masterCalendarId || '',
+    coreMissionContractId: plan?.coreMissionContractId || '',
+    weeklyCapacityHours,
+    capitalAcquisitionRequired: Boolean(plan?.financialConstraint?.exists),
+  };
+  const intakeContract = buildGoalIntakeContract({
+    goalId,
+    rawGoalText: String(plan?.northStarOutcome || plan?.title || '').trim(),
+    goalText: String(plan?.northStarOutcome || plan?.title || '').trim(),
+    verificationCriteria,
+    executionType: 'StrategicExecution',
+    deadline: endDayKey,
+    answeredContext,
+  });
+  const goalContract = {
+    goalId,
+    profileId: profile.id,
+    masterCalendarId,
+    masterPlanId: plan.id,
+    coreMissionContractId: plan?.coreMissionContractId || null,
+    executionType: 'StrategicExecution',
+    planningTier: 'master_plan',
+    admissionStatus: 'ADMITTED',
+    goalLabel: plan?.title || null,
+    goalText: plan?.northStarOutcome || plan?.title || null,
+    startDayKey,
+    endDayKey,
+    deadlineISO: `${endDayKey}T23:59:59.000Z`,
+    endDateISO: `${endDayKey}T23:59:59.000Z`,
+    deadline: { dayKey: endDayKey },
+    workWindows: buildMasterPlanWorkWindows(descriptors.masterCalendar),
+    goalIntakeContract: intakeContract,
+    planningIntake: {
+      weeklyHoursAvailable: weeklyCapacityHours,
+      executionContext: weeklyCapacityHours >= 30 ? 'full_time' : 'part_time',
+    },
+    terminalOutcome: {
+      text: String(plan?.northStarOutcome || plan?.title || '').trim(),
+      verificationCriteria,
+      isConcrete: milestones.length > 0,
+    },
+    target: {
+      count: lanes.length || null,
+      unit: lanes.length === 1 ? 'campaign' : 'campaigns',
+    },
+  };
+  const goalGovernanceContract = {
+    contractId: `gov-${goalId}`,
+    version: 1,
+    goalId,
+    profileId: profile.id,
+    activeFromISO: startDayKey,
+    activeUntilISO: endDayKey,
+    scope: {
+      domainsAllowed: [],
+      timeHorizon: 'week',
+      timezone: timeZone || 'UTC',
+    },
+    governance: {
+      suggestionsEnabled: true,
+      probabilityEnabled: true,
+      minEvidenceEvents: 1,
+      cooldowns: { resuggestMinutes: 30, maxSuggestionsPerDay: 6 },
+    },
+    constraints: {
+      forbiddenDirectives: ['repair'],
+      maxActiveBlocks: 8,
+    },
+  };
+  const deliverables = lanes.map((lane) => ({
+    id: `masterplan-deliverable:${lane.id}`,
+    title: lane.title,
+    domain: lane.domain,
+    masterPlanLaneId: lane.id,
+  }));
+  const actions = milestones.map((milestone) => ({
+    id: `masterplan-action:${milestone.id}`,
+    title: milestone.title,
+    deliverableId: `masterplan-deliverable:${milestone.lane?.id || milestone.laneId}`,
+    masterPlanMilestoneId: milestone.id,
+    masterPlanLaneId: milestone.lane?.id || milestone.laneId || null,
+    dependencies: [],
+  }));
+
+  if (!state.goalsById[goalId]) {
+    state.goalsById[goalId] = {
+      id: goalId,
+      title: plan?.title || plan?.northStarOutcome || 'Master plan execution goal',
+      profileId: profile.id,
+      masterCalendarId,
+      masterPlanId: plan.id,
+      coreMissionContractId: plan?.coreMissionContractId || null,
+      status: 'active',
+      source: 'master_plan',
+      planningTier: 'master_plan',
+      activeCycleId: cycleId,
+    };
+  } else {
+    state.goalsById[goalId] = {
+      ...state.goalsById[goalId],
+      profileId: state.goalsById[goalId].profileId || profile.id,
+      masterCalendarId: state.goalsById[goalId].masterCalendarId || masterCalendarId,
+      masterPlanId: state.goalsById[goalId].masterPlanId || plan.id,
+      coreMissionContractId: state.goalsById[goalId].coreMissionContractId || plan?.coreMissionContractId || null,
+      activeCycleId: cycleId,
+    };
+  }
+  profile.goalIds = Array.isArray(profile.goalIds) ? profile.goalIds : [];
+  if (!profile.goalIds.includes(goalId)) {
+    profile.goalIds.push(goalId);
+  }
+  profile.activeGoalId = goalId;
+
+  if (!state.cyclesById[cycleId]) {
+    state.cyclesById[cycleId] = {
+      id: cycleId,
+      status: 'active',
+      source: 'master_plan',
+      profileId: profile.id,
+      masterCalendarId,
+      masterPlanId: plan.id,
+      coreMissionContractId: plan?.coreMissionContractId || null,
+      startedAtDayKey: startDayKey,
+      definiteGoal: {
+        outcome: plan?.northStarOutcome || plan?.title || 'Master plan execution',
+        deadlineDayKey: endDayKey,
+      },
+      goalContract,
+      goalGovernanceContract,
+      goalAdmission: {
+        status: 'ADMITTED',
+        reasonCodes: [],
+        admittedAtISO: state.appTime?.nowISO || new Date().toISOString(),
+      },
+      contract: goalContract,
+      aim: { text: plan?.northStarOutcome || plan?.title || '' },
+      actions,
+      strategy: {
+        constraints: {
+          maxBlocksPerDay: 2,
+          maxBlocksPerWeek: Math.max(4, Math.min(10, Math.ceil(weeklyCapacityHours / 4))),
+          workableDayPolicy: { weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'] },
+        },
+      },
+      coldPlan: null,
+      coldPlanHistory: [],
+      executionEvents: [],
+      externalEvidenceEvents: [],
+      planMutationEvents: [],
+      suggestionEvents: [],
+      proposedBlocks: [],
+      scheduleReviewBlocks: [],
+      truthEntries: [],
+      planStatus: 'ready',
+      suggestionHistory: {
+        dayKey: state.today?.date || startDayKey,
+        count: 0,
+        lastSuggestedAtISO: null,
+        lastSuggestedAtISOByGoal: {},
+        dailyCountByGoal: {},
+        denials: [],
+      },
+    };
+  } else {
+    state.cyclesById[cycleId] = {
+      ...state.cyclesById[cycleId],
+      source: 'master_plan',
+      profileId: state.cyclesById[cycleId].profileId || profile.id,
+      masterCalendarId: state.cyclesById[cycleId].masterCalendarId || masterCalendarId,
+      masterPlanId: state.cyclesById[cycleId].masterPlanId || plan.id,
+      coreMissionContractId:
+        state.cyclesById[cycleId].coreMissionContractId || plan?.coreMissionContractId || null,
+      goalContract,
+      goalGovernanceContract,
+      goalAdmission: state.cyclesById[cycleId].goalAdmission || {
+        status: 'ADMITTED',
+        reasonCodes: [],
+        admittedAtISO: state.appTime?.nowISO || new Date().toISOString(),
+      },
+      contract: goalContract,
+      actions,
+      planStatus: state.cyclesById[cycleId].planStatus || 'ready',
+    };
+  }
+  state.goalAdmissionByGoal[goalId] = {
+    status: 'ADMITTED',
+    reasonCodes: [],
+    admittedAtISO:
+      state.goalAdmissionByGoal?.[goalId]?.admittedAtISO || state.appTime?.nowISO || new Date().toISOString(),
+  };
+  state.deliverablesByCycleId[cycleId] = state.deliverablesByCycleId[cycleId] || {
+    deliverables: [],
+    suggestionLinks: {},
+  };
+  state.deliverablesByCycleId[cycleId].deliverables = deliverables;
+  state.deliverablesByCycleId[cycleId].suggestionLinks =
+    state.deliverablesByCycleId[cycleId].suggestionLinks || {};
+
+  state.activeProfileId = profile.id;
+  state.activeGoalId = goalId;
+  state.activeCycleId = cycleId;
+  state.goalExecutionContract = goalContract;
+  state.planDraft = state.planDraft || {
+    id: `plan-${goalId}`,
+    goalId,
+    status: 'draft',
+    createdAtISO: state.appTime?.nowISO || new Date().toISOString(),
+    primaryDomain: 'FOCUS',
+    horizonDays: Math.max(14, Math.min(28, computeInclusiveDaySpan(state.today?.date || startDayKey, endDayKey))),
+    daysPerWeek: 5,
+  };
+
+  return { ...descriptors, cycle: state.cyclesById[cycleId], goalContract };
+}
+
+function getMasterPlanMilestonePriority(milestone) {
+  const type = String(milestone?.milestoneType || '')
+    .trim()
+    .toLowerCase();
+  if (type === 'gate') {
+    return 100;
+  }
+  if (type === 'target') {
+    return 90;
+  }
+  if (type === 'anchor') {
+    return 80;
+  }
+  const missConsequence = String(milestone?.missConsequence || '').trim().toLowerCase();
+  if (/launch|release|revenue|client|distribution|store|deadline|anchor/.test(missConsequence)) {
+    return 85;
+  }
+  return 70;
+}
+
+function buildMasterPlanReadinessCandidates(plan, lanes = [], weeklyCapacityHours = 0) {
+  const hasFixedAnchors = Array.isArray(plan?.anchors) && plan.anchors.some((anchor) => anchor?.isFixed);
+  const productLane = lanes.find((lane) => String(lane?.domain || '').trim().toLowerCase() === 'product') || null;
+  const creativeLane =
+    lanes.find((lane) => String(lane?.domain || '').trim().toLowerCase() === 'creative') || null;
+  const mediaLane = lanes.find((lane) => String(lane?.domain || '').trim().toLowerCase() === 'media') || null;
+  const incomeLane = lanes.find((lane) => String(lane?.domain || '').trim().toLowerCase() === 'income') || null;
+  const candidates = [];
+  if (hasFixedAnchors) {
+    candidates.push({
+      key: 'confirm-hard-anchors',
+      title: 'Confirm Operation Endgame hard anchors',
+      minutes: 45,
+      practice: 'FOCUS',
+      priority: 125,
+      missConsequence: 'Anchor drift weakens every downstream lane sequence.',
+      derivedFrom: 'master_plan_fixed_anchors',
+      laneId: null,
+      milestoneId: null,
+    });
+  }
+  if (creativeLane || productLane || mediaLane) {
+    candidates.push({
+      key: 'inventory-existing-assets',
+      title: 'Inventory existing album/app/podcast assets',
+      minutes: 60,
+      practice: creativeLane ? mapMasterPlanLaneToPractice(creativeLane.domain) : 'FOCUS',
+      priority: 120,
+      missConsequence: 'Without asset inventory, first-cycle sequencing and readiness gates stay fuzzy.',
+      derivedFrom: 'cross_lane_readiness_inventory',
+      laneId: creativeLane?.id || productLane?.id || mediaLane?.id || null,
+      milestoneId: null,
+    });
+  }
+  if (productLane) {
+    candidates.push({
+      key: 'define-app-readiness-gate',
+      title: 'Define first app launch readiness gate',
+      minutes: 60,
+      practice: mapMasterPlanLaneToPractice(productLane.domain),
+      priority: 118,
+      missConsequence: 'App lane can drift into pseudo-progress without a concrete first readiness gate.',
+      derivedFrom: 'product_lane_readiness_gate',
+      laneId: productLane.id,
+      milestoneId: null,
+    });
+  }
+  candidates.push({
+    key: 'review-first-cycle-sequence',
+    title: 'Review first-cycle milestone sequence',
+    minutes: 45,
+    practice: 'FOCUS',
+    priority: 116,
+    missConsequence: 'Sequence ambiguity increases schedule churn before execution begins.',
+    derivedFrom: 'first_cycle_sequence_review',
+    laneId: null,
+    milestoneId: null,
+  });
+  if (incomeLane || plan?.financialConstraint?.exists) {
+    candidates.push({
+      key: 'identify-income-calendar-burden',
+      title: 'Identify job-search/income calendar burden',
+      minutes: 45,
+      practice: incomeLane ? mapMasterPlanLaneToPractice(incomeLane.domain) : 'RESOURCES',
+      priority: 114,
+      missConsequence: 'Runway pressure can silently consume the master calendar if it is not made explicit.',
+      derivedFrom: 'income_runway_calendar_pressure',
+      laneId: incomeLane?.id || null,
+      milestoneId: null,
+    });
+  }
+  if (!(Number.isFinite(Number(weeklyCapacityHours)) && Number(weeklyCapacityHours) > 0)) {
+    candidates.push({
+      key: 'clarify-capacity',
+      title: 'Clarify weekly execution capacity',
+      minutes: 30,
+      practice: 'FOCUS',
+      priority: 112,
+      missConsequence: 'Capacity ambiguity weakens first-cycle schedule realism.',
+      derivedFrom: 'missing_weekly_capacity',
+      laneId: null,
+      milestoneId: null,
+    });
+  }
+  const unresolvedQuestions = Array.isArray(plan?.structureCritic?.unresolvedQuestions)
+    ? plan.structureCritic.unresolvedQuestions
+    : [];
+  unresolvedQuestions.slice(0, 2).forEach((question, index) => {
+    candidates.push({
+      key: `critic-clarification-${index + 1}`,
+      title: String(question?.question || 'Clarify unresolved plan substrate').trim(),
+      minutes: 30,
+      practice: question?.domain === 'income_runway' ? 'RESOURCES' : 'FOCUS',
+      priority: String(question?.criticality || '').trim().toLowerCase() === 'high' ? 117 - index : 109 - index,
+      missConsequence:
+        String(question?.reason || '').trim() || 'Unresolved structure context weakens schedule and feasibility trust.',
+      derivedFrom: String(question?.resolvesField || 'structureCritic').trim(),
+      laneId: question?.laneId || null,
+      milestoneId: null,
+    });
+  });
+  return candidates;
+}
+
+function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
+  const { lanes, milestones, goalId, cycleId, profile, masterCalendarId, todayDayKey, timeZone, weeklyCapacityHours } =
+    descriptors;
+  const windowEndDayKey = addDays(todayDayKey, 27, timeZone);
+  const milestoneCandidates = milestones
+    .filter((milestone) => {
+      const targetDate = String(milestone?.targetDate || '').trim();
+      if (!targetDate) {
+        return false;
+      }
+      return targetDate >= todayDayKey && targetDate <= windowEndDayKey;
+    })
+    .map((milestone) => ({
+      key: `milestone:${milestone.id}`,
+      title: milestone.title,
+      minutes:
+        String(milestone?.milestoneType || '').trim().toLowerCase() === 'gate'
+          ? 90
+          : String(milestone?.milestoneType || '').trim().toLowerCase() === 'anchor'
+            ? 75
+            : 60,
+      practice: mapMasterPlanLaneToPractice(milestone?.lane?.domain || ''),
+      priority: getMasterPlanMilestonePriority(milestone),
+      missConsequence:
+        milestone?.missConsequence || 'Missing this checkpoint weakens downstream launch sequencing.',
+      derivedFrom: milestone?.derivedFrom || `masterPlanMilestone:${milestone.id}`,
+      laneId: milestone?.lane?.id || milestone?.laneId || null,
+      milestoneId: milestone.id,
+      targetDate: milestone.targetDate,
+      milestoneType: milestone?.milestoneType || 'checkpoint',
+    }));
+  const fallbackMilestonesByLane = lanes
+    .map((lane) => {
+      const firstMilestone = milestones.find(
+        (milestone) => (milestone?.lane?.id || milestone?.laneId || null) === lane.id
+      );
+      return firstMilestone
+        ? {
+            key: `milestone:${firstMilestone.id}`,
+            title: firstMilestone.title,
+            minutes:
+              String(firstMilestone?.milestoneType || '').trim().toLowerCase() === 'gate' ? 90 : 60,
+            practice: mapMasterPlanLaneToPractice(lane.domain),
+            priority: getMasterPlanMilestonePriority(firstMilestone) - 5,
+            missConsequence:
+              firstMilestone?.missConsequence || 'This lane needs an early concrete checkpoint to become executable.',
+            derivedFrom: firstMilestone?.derivedFrom || `masterPlanMilestone:${firstMilestone.id}`,
+            laneId: lane.id,
+            milestoneId: firstMilestone.id,
+            targetDate: firstMilestone.targetDate,
+            milestoneType: firstMilestone?.milestoneType || 'checkpoint',
+          }
+        : null;
+    })
+    .filter(Boolean);
+  const readinessCandidates = buildMasterPlanReadinessCandidates(plan, lanes, weeklyCapacityHours);
+  const combined = [...readinessCandidates, ...milestoneCandidates];
+  if (milestoneCandidates.length === 0) {
+    combined.push(...fallbackMilestonesByLane);
+  }
+  const deduped = [];
+  const seen = new Set();
+  combined
+    .sort((left, right) => {
+      if (Number(right.priority || 0) !== Number(left.priority || 0)) {
+        return Number(right.priority || 0) - Number(left.priority || 0);
+      }
+      return String(left?.targetDate || '').localeCompare(String(right?.targetDate || ''));
+    })
+    .forEach((candidate) => {
+      const identity = String(candidate?.key || '').trim();
+      if (!identity || seen.has(identity)) {
+        return;
+      }
+      seen.add(identity);
+      deduped.push(candidate);
+    });
+  const maxBlocks = Math.max(4, Math.min(8, Math.ceil(Math.max(weeklyCapacityHours || 12, 12) / 6)));
+  const selected = deduped.slice(0, maxBlocks);
+  const workdaySet = new Set(['mon', 'tue', 'wed', 'thu', 'fri']);
+  const usedDayCounts = new Map();
+  let cursorDayKey = todayDayKey;
+  const nextScheduleDayKey = () => {
+    for (let i = 0; i < 42; i += 1) {
+      const weekday = getWeekdayKeyFromDayKey(cursorDayKey);
+      const count = Number(usedDayCounts.get(cursorDayKey) || 0);
+      const maxPerDay = weeklyCapacityHours >= 30 ? 2 : 1;
+      if (workdaySet.has(weekday) && count < maxPerDay) {
+        usedDayCounts.set(cursorDayKey, count + 1);
+        return cursorDayKey;
+      }
+      cursorDayKey = addDays(cursorDayKey, 1, timeZone);
+    }
+    return todayDayKey;
+  };
+  return selected.map((candidate, index) => {
+    const scheduledDayKey = nextScheduleDayKey();
+    const slotHour = Number(usedDayCounts.get(scheduledDayKey) || 1) > 1 ? '13:00' : '10:00';
+    const start = buildLocalStartISO(scheduledDayKey, slotHour, timeZone);
+    const startISO = start?.startISO || `${scheduledDayKey}T10:00:00.000Z`;
+    const durationMinutes = Number(candidate?.minutes || 60);
+    return {
+      id: `suggested:masterplan:${plan.id}:${candidate.key}`,
+      identityKey: `masterplan:${plan.id}:${candidate.key}`,
+      goalId,
+      cycleId,
+      profileId: profile?.id || null,
+      masterCalendarId: masterCalendarId || null,
+      masterPlanId: plan.id,
+      coreMissionContractId: plan?.coreMissionContractId || null,
+      masterPlanLaneId: candidate?.laneId || null,
+      masterPlanMilestoneId: candidate?.milestoneId || null,
+      title: candidate.title,
+      label: candidate.title,
+      domain: candidate.practice || 'FOCUS',
+      durationMinutes,
+      createdAtISO: state.appTime?.nowISO || new Date().toISOString(),
+      startISO,
+      endISO: new Date(new Date(startISO).getTime() + durationMinutes * 60000).toISOString(),
+      dayKey: scheduledDayKey,
+      actionId: candidate?.milestoneId ? `masterplan-action:${candidate.milestoneId}` : `masterplan-readiness:${index + 1}`,
+      deliverableId: candidate?.laneId ? `masterplan-deliverable:${candidate.laneId}` : null,
+      status: 'suggested',
+      source: 'master_plan_first_cycle',
+      blockType: candidate?.milestoneId ? 'master_plan_milestone' : 'master_plan_readiness',
+      milestoneType: candidate?.milestoneType || null,
+      flex: candidate?.flex || null,
+      missConsequence: candidate?.missConsequence || '',
+      derivedFrom: candidate?.derivedFrom || '',
+      placementBasis: candidate?.milestoneId ? 'milestone_priority' : 'first_cycle_readiness',
+      requiredSystemBlock: true,
+      sessionIndex: index,
+    };
+  });
+}
+
+function generateMasterPlanFirstCycle(state, payload = {}) {
+  const plan = getActiveMasterPlanRecord(state, payload?.masterPlanId || null);
+  if (!plan) {
+    state.lastPlanError = {
+      code: 'MASTER_PLAN_TARGET_INVALID',
+      reason: 'No active master plan is available for first-cycle generation.',
+      masterPlanId: payload?.masterPlanId || null,
+    };
+    return;
+  }
+  const descriptors = ensureMasterPlanOperationalCycle(state, plan);
+  if (!descriptors?.cycle || !descriptors?.goalContract) {
+    state.lastPlanError = {
+      code: 'MASTER_PLAN_CYCLE_INIT_FAILED',
+      reason: 'Master plan execution cycle could not be initialized.',
+      masterPlanId: plan.id,
+    };
+    return;
+  }
+  const cycle = descriptors.cycle;
+  if (isCycleReadOnly(cycle)) {
+    state.lastPlanError = {
+      code: 'CYCLE_READ_ONLY',
+      reason: 'Cannot generate schedule for an ended or archived cycle.',
+      cycleId: cycle.id,
+    };
+    return;
+  }
+  const currentScheduleLifecycle = getCycleScheduleLifecycle(cycle, state);
+  if (currentScheduleLifecycle === 'active_schedule') {
+    const canonicalCycleBlocks = getAllBlocks(state).filter((block) => block?.cycleId === cycle.id);
+    if (canonicalCycleBlocks.length === 0) {
+      cycle.scheduleLifecycle = 'stale_draft_invalidated';
+      state.scheduleLifecycle = 'stale_draft_invalidated';
+    } else {
+      state.lastPlanError = {
+        code: 'REGENERATE_BLOCKED_ACTIVE_SCHEDULE',
+        reason: 'Active schedules must be rescheduled or rebuilt explicitly.',
+        cycleId: cycle.id,
+        goalId: descriptors.goalContract.goalId,
+      };
+      return;
+    }
+  }
+  state.draftScheduleAppliedAtISO = null;
+  state.scheduleApplied = false;
+  state.pendingPlanConfirmation = false;
+  if (
+    currentScheduleLifecycle === 'applied_review' &&
+    Array.isArray(cycle.scheduleReviewBlocks) &&
+    cycle.scheduleReviewBlocks.length
+  ) {
+    cycle.scheduleReviewBlocks = [];
+    cycle.scheduleAppliedAtISO = null;
+    cycle.scheduleLifecycle = 'stale_draft_invalidated';
+    state.scheduleLifecycle = 'stale_draft_invalidated';
+  }
+  const suggestions = buildMasterPlanFirstCycleProposals(state, plan, descriptors);
+  cycle.autoAsanaPlan = {
+    horizonBlocks: suggestions.map((suggestion) => ({
+      id: suggestion.id,
+      identityKey: suggestion.identityKey,
+      title: suggestion.title,
+      startISO: suggestion.startISO,
+      endISO: suggestion.endISO,
+      dayKey: suggestion.dayKey,
+      durationMinutes: suggestion.durationMinutes,
+      deliverableId: suggestion.deliverableId,
+      actionId: suggestion.actionId,
+      blockType: suggestion.blockType,
+      placementBasis: suggestion.placementBasis,
+    })),
+    conflicts: [],
+    summary: {
+      planStatus: suggestions.length > 0 ? 'VALID_AND_FULLY_SCHEDULED' : 'NO_PROPOSED_BLOCKS',
+      requiredBlockCount: suggestions.length,
+      scheduledBlockCount: suggestions.length,
+      unscheduledBlockCount: 0,
+      candidateResolutionKinds: [],
+      recommendations: [],
+    },
+  };
+  cycle.planStatus = suggestions.length > 0 ? 'ready' : 'error';
+  cycle.planGenerationSource = 'MASTER_PLAN_FIRST_CYCLE';
+  setCycleProposedBlocks(state, cycle.id, suggestions);
+  state.pendingPlanConfirmation = suggestions.length > 0;
+  state.scheduleApplied = false;
+  state.scheduleLifecycle = suggestions.length > 0 ? 'draft_schedule_ready' : 'no_schedule';
+  cycle.scheduleLifecycle = suggestions.length > 0 ? 'draft_schedule_ready' : 'no_schedule';
+  state.lastPlanError =
+    suggestions.length > 0
+      ? null
+      : {
+          code: 'NO_PROPOSED_BLOCKS',
+          reason: 'No first-cycle preview items were available from the master plan.',
+          cycleId: cycle.id,
+          masterPlanId: plan.id,
+        };
+  state.planPreview = computePlanPreview({
+    suggestedBlocks: state.proposedBlocks || [],
+    planDraft: state.planDraft,
+    contract: descriptors.goalContract,
+    policyState: getCurrentPolicyState(state),
+    historyProfile: buildHistoryProfileForDraft(state, state.planDraft),
+    timeZone: descriptors.timeZone || APP_TIME_ZONE,
+  });
+  state.cyclesById[cycle.id] = cycle;
+}
+
 function applyPlanQualityGates(state) {
   const contracts = collectGovernanceContracts(state);
   const goalIds = Array.from(new Set(contracts.map((c) => c.goalId).filter(Boolean)));
@@ -3355,6 +4345,7 @@ function applyFeasibility(state) {
 
 function applyGoalPolicy(state) {
   const goalPolicyByGoalId = {};
+  const masterPlanPolicyByPlanId = {};
   const contracts = collectGovernanceContracts(state);
   const goalIds = Array.from(new Set(contracts.map((c) => c.goalId)));
   goalIds.forEach((goalId) => {
@@ -3448,6 +4439,22 @@ function applyGoalPolicy(state) {
     }
   });
   state.goalPolicyByGoalId = goalPolicyByGoalId;
+  Object.values(state?.masterPlansById || {}).forEach((plan) => {
+    if (!plan?.id) {
+      return;
+    }
+    const snapshot = buildMasterPlanPolicySnapshot(state, plan);
+    if (!snapshot) {
+      return;
+    }
+    masterPlanPolicyByPlanId[plan.id] = snapshot;
+    plan.policyState = {
+      ...(plan.policyState || {}),
+      goalPolicy: snapshot,
+      goalPolicyUpdatedAtISO: snapshot.evaluatedAtISO,
+    };
+  });
+  state.masterPlanPolicyByPlanId = masterPlanPolicyByPlanId;
 }
 
 function applyExecutionCorrection(state) {
@@ -7579,6 +8586,18 @@ function generatePlan(state, payload = {}) {
   const explicitCycleId = payload?.cycleId || null;
   const targetCycleId = explicitCycleId || state.activeCycleId || null;
   const cycle = explicitCycleId ? state?.cyclesById?.[explicitCycleId] || null : getTargetCycle(state, targetCycleId);
+  const activeMasterPlan = getActiveMasterPlanRecord(state, payload?.masterPlanId || null);
+  const shouldUseMasterPlanBridge = Boolean(
+    activeMasterPlan &&
+      ((!cycle && !targetCycleId) ||
+        cycle?.source === 'master_plan' ||
+        cycle?.masterPlanId === activeMasterPlan.id ||
+        payload?.source === 'MASTER_PLAN_FIRST_CYCLE')
+  );
+  if (shouldUseMasterPlanBridge) {
+    generateMasterPlanFirstCycle(state, payload);
+    return;
+  }
   const cycleIdForLog = cycle?.id || targetCycleId || null;
   const deliverableCount = Number(state?.deliverablesByCycleId?.[cycleIdForLog]?.deliverables?.length || 0);
   const llmActionCount = Number(cycle?.llmActionGraph?.actions?.length || 0);
