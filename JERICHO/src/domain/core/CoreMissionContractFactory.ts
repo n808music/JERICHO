@@ -17,7 +17,7 @@ import {
 export function createCoreMissionContract(
   inputs: Omit<
     CoreMissionContract,
-    'missionId' | 'createdAt' | 'updatedAt' | 'entropyEvents' | 'revisionHistory' | 'campaignRegistry'
+    'missionId' | 'createdAt' | 'updatedAt' | 'entropyEvents' | 'revisionHistory' | 'campaignRegistry' | 'continuityStatus'
   >
 ): CoreMissionContract {
   const now = new Date().toISOString();
@@ -40,6 +40,9 @@ export function createCoreMissionContract(
     })),
     continuityStatus: 'aligned',
   };
+
+  // Assess continuity status based on actual signals provided at creation time
+  contract.continuityStatus = assessContinuityStatus(contract);
 
   // Validate before returning
   const validation = validateCoreMissionContract(contract);

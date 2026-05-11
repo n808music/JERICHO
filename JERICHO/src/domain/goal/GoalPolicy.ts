@@ -130,7 +130,7 @@ export type FeasibilityEvaluation = {
 };
 
 export type LivePosInputEvaluation = {
-  state: 'withheld' | 'provisional' | 'available';
+  state: 'withheld' | 'provisional' | 'available' | 'eligible';
   percent: number | null;
   scoreValue: number | null;
   range: [number, number] | null;
@@ -948,7 +948,7 @@ function evaluateLivePosInputs(
   if (state === 'withheld') {
     scoreReasonCodes.push('LIVE_POS_SCORE_WITHHELD');
   } else {
-    state = linkedEvidence.length >= 2 ? 'available' : 'provisional';
+    state = 'eligible';
     scoreState = 'available';
     let dynamicScore = Number.isFinite(baselineInitialFeasibilityPercent)
       ? clampUnitScore(Number(baselineInitialFeasibilityPercent) / 100)
@@ -994,11 +994,6 @@ function evaluateLivePosInputs(
     if (blockedExternalEvidenceCount > 0 || noResponseExternalEvidenceCount >= 2) {
       scoreCapped = true;
       dynamicScore = Math.min(dynamicScore, 0.45);
-    }
-
-    if (state === 'provisional') {
-      scoreCapped = true;
-      dynamicScore = Math.min(dynamicScore, 0.79);
     }
 
     if (liveState === 'activating') {
@@ -1093,8 +1088,8 @@ function evaluateLivePosInputs(
     upperBound = clampUnitScore(scoreValue + halfWidth);
     range = [lowerBound, upperBound];
     summary =
-      state === 'provisional'
-        ? `Live P.O.S. is provisional at ${percent}% while execution evidence is still early.`
+      liveState === 'activating'
+        ? `Live P.O.S. is activating at ${percent}% while execution evidence is still early.`
         : `Live P.O.S. is ${percent}% based on execution continuity against the initial feasibility baseline.`;
     if (positiveExternalEvidenceCount > 0 && negativeExternalEvidenceCount === 0 && noResponseExternalEvidenceCount === 0) {
       summary = `${summary} Positive external evidence is now reinforcing the signal.`;

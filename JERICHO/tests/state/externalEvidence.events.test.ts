@@ -298,7 +298,7 @@ describe('external evidence events', () => {
     );
 
     expect(after.goalPolicyByGoalId[GOAL_ID].feasibility.percent).toBe(before.goalPolicyByGoalId[GOAL_ID].feasibility.percent);
-    expect(after.goalPolicyByGoalId[GOAL_ID].livePos.state).toMatch(/^(provisional|available)$/);
+    expect(after.goalPolicyByGoalId[GOAL_ID].livePos.state).toMatch(/^(provisional|available|eligible)$/);
     expect(after.goalPolicyByGoalId[GOAL_ID].livePos.percent).toBeGreaterThanOrEqual(
       before.goalPolicyByGoalId[GOAL_ID].livePos.percent || 0
     );

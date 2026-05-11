@@ -1145,7 +1145,7 @@ describe('GoalPolicy snapshot', () => {
       preExecutionSchedule: { blockCount: 1, totalMinutes: 60 },
     });
 
-    expect(policy.livePos.state).toBe('provisional');
+    expect(policy.livePos.state).toBe('eligible');
     expect(policy.livePos.reasonCodes).toEqual([]);
     expect(policy.livePos.linkedEvidenceCount).toBe(1);
     expect(policy.livePos.liveState).toBe('activating');
@@ -1204,7 +1204,7 @@ describe('GoalPolicy snapshot', () => {
       preExecutionSchedule: { blockCount: 4, totalMinutes: 240 },
     });
 
-    expect(policy.livePos.state).toBe('available');
+    expect(policy.livePos.state).toBe('eligible');
     expect(policy.livePos.liveState).toBe('stable');
     expect(policy.livePos.liveStateReasonCodes).toContain('LIVE_POS_STABLE_LINKED_EXECUTION_CONTINUITY');
     expect(policy.livePos.score.state).toBe('available');
@@ -1260,7 +1260,7 @@ describe('GoalPolicy snapshot', () => {
       preExecutionSchedule: { blockCount: 4, totalMinutes: 240 },
     });
 
-    expect(policy.livePos.state).toBe('available');
+    expect(policy.livePos.state).toBe('eligible');
     expect(policy.livePos.liveState).toBe('at_risk');
     expect(policy.livePos.liveStateReasonCodes).toContain('LIVE_POS_AT_RISK_MISSED_EXECUTION_BURDEN');
     expect(policy.livePos.score.state).toBe('available');
@@ -1338,7 +1338,7 @@ describe('GoalPolicy snapshot', () => {
       preExecutionSchedule: { blockCount: 4, totalMinutes: 240 },
     });
 
-    expect(policy.livePos.state).toBe('available');
+    expect(policy.livePos.state).toBe('eligible');
     expect(policy.livePos.liveState).toBe('recovering');
     expect(policy.livePos.liveStateReasonCodes).toContain('LIVE_POS_RECOVERING_AFTER_RISK');
     expect(policy.livePos.liveStateReasonCodes).toContain('LIVE_POS_RECOVERING_LINKED_RECOVERY_EVIDENCE');

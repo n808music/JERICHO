@@ -286,7 +286,7 @@ describe('jericho creative production ep loop e2e regression', () => {
     expect(postPolicy?.feasibility?.percent).toBe(prePolicy?.feasibility?.percent);
     expect(postPolicy?.feasibility?.score).toBe(prePolicy?.feasibility?.score);
 
-    expect(['provisional', 'available']).toContain(postPolicy?.livePos?.state);
+    expect(['provisional', 'available', 'eligible']).toContain(postPolicy?.livePos?.state);
     expect(postPolicy?.livePos?.percent).not.toBeNull();
     expect(postPolicy?.livePos?.scoreValue).not.toBeNull();
     expect(postPolicy?.livePos?.percent).toBeGreaterThanOrEqual(prePolicy?.feasibility?.percent || 0);

@@ -315,7 +315,7 @@ describe('ZionDashboard POS postcondition', () => {
       .closest('.rounded-xl');
     expect(posCard).toBeTruthy();
     expect(posCard).toHaveTextContent(/^Probability of Success[\s\S]*Live P\.O\.S\.[\s\S]*Withheld/i);
-    expect(within(posCard).getByText(/Live P\.O\.S\. is intentionally withheld/i)).toBeInTheDocument();
+    expect(within(posCard).getByText(/No linked execution evidence exists yet\./i)).toBeInTheDocument();
   });
 
   it('renders canonical live-state and score explanations from reason codes', () => {

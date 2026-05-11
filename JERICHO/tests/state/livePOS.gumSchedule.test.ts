@@ -189,7 +189,7 @@ describe('Box 2: Completed gum blocks with on_track correction → livePos eligi
       executionCorrectionState: 'on_track',
     });
 
-    expect(policy.livePos.state).toBe('provisional');
+    expect(policy.livePos.state).toBe('eligible');
     expect(policy.livePos.liveState).toBe('activating');
     expect(policy.livePos.score.state).toBe('available');
     expect(policy.livePos.percent).not.toBeNull();
@@ -261,7 +261,7 @@ describe('Box 3: Missed/skipped required work → livePos reflects degraded stat
       executionCorrectionState: 'adjustment_recommended',
     });
 
-    expect(policy.livePos.state).toBe('provisional');
+    expect(policy.livePos.state).toBe('eligible');
     expect(policy.livePos.liveState).toBe('at_risk');
     expect(policy.livePos.liveStateReasonCodes).toContain('LIVE_POS_AT_RISK_MISSED_EXECUTION_BURDEN');
     expect(policy.livePos.liveStateReasonCodes).toContain('LIVE_POS_CORRECTION_ADJUSTMENT_RECOMMENDED');
@@ -302,7 +302,7 @@ describe('Box 4: recovery_required correction → livePos annotated', () => {
       executionCorrectionState: 'recovery_required',
     });
 
-    expect(policy.livePos.state).toBe('provisional');
+    expect(policy.livePos.state).toBe('eligible');
     expect(policy.livePos.liveStateReasonCodes).toContain('LIVE_POS_CORRECTION_RECOVERY_REQUIRED');
     expect(policy.livePos.liveStateReasonCodes).not.toContain('LIVE_POS_CORRECTION_ADJUSTMENT_RECOMMENDED');
     expect(policy.livePos.percent).not.toBeNull();
@@ -597,8 +597,8 @@ describe('Box 8: Panel separation — feasibility, correction, and livePos are i
       executionCorrectionState: 'on_track',
     });
 
-    // livePos can be provisional while feasibility remains withheld/provisional
-    expect(policy.livePos.state).toBe('provisional');
+    // livePos is eligible (execution evidence linked) while feasibility remains independently withheld/provisional
+    expect(policy.livePos.state).toBe('eligible');
     // feasibility has its own state, not derived from livePos
     expect(typeof policy.feasibility.state).toBe('string');
     // correction state does not appear in feasibility

@@ -250,9 +250,6 @@ function CycleManagementSection({
         ) : (
           <div className="space-y-1 text-xs text-muted">
             <p>
-              Active execution cycle: <span className="font-medium text-jericho-text">{activeCycleId}</span>
-            </p>
-            <p>
               Schedule:{' '}
               <span className="font-medium text-jericho-text">{formatPolicyState(scheduleLifecycle || 'no_schedule')}</span>
             </p>

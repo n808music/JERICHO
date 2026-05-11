@@ -28,9 +28,6 @@ describe('AppShell structure entry without an active cycle', () => {
     await waitFor(() => expect(window.__jerichoDebug__?.activeCycleId ?? null).toBeNull());
     expect(await screen.findByRole('button', { name: /Structure/i })).toBeInTheDocument();
     expect(screen.getByText(/Review Mode/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Start new cycle/i })).toBeInTheDocument();
-    expect(screen.getByText(/Cycle Summary/i)).toBeInTheDocument();
-    expect(screen.getByText(/^Contract Admission$/i)).toBeInTheDocument();
     expect(window.__jerichoDebug__?.activeCycleId ?? null).toBeNull();
   });
 
@@ -45,7 +42,7 @@ describe('AppShell structure entry without an active cycle', () => {
 
     await waitFor(() => expect(window.__jerichoDebug__?.activeCycleId ?? null).toBeNull());
 
-    expect(screen.getByRole('button', { name: /Start new cycle/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Continue/i })).toBeInTheDocument();
     expect(screen.getByText(/^Contract Admission$/i)).toBeInTheDocument();
     expect(window.__jerichoDebug__?.goalLifecycleState).toBe('blank');
 

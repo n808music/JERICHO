@@ -501,9 +501,26 @@ describe('ZionDashboard apply draft schedule', () => {
       executionType: 'SkillAcquisition',
       startDayKey: DAY_KEY,
       endDayKey: '2026-02-19',
+      workWindows: {
+        mon: [{ startHHMM: '09:00', endHHMM: '17:00' }],
+        tue: [{ startHHMM: '09:00', endHHMM: '17:00' }],
+        wed: [{ startHHMM: '09:00', endHHMM: '17:00' }],
+        thu: [{ startHHMM: '09:00', endHHMM: '17:00' }],
+        fri: [{ startHHMM: '09:00', endHHMM: '17:00' }],
+      },
     };
     state.cyclesById[state.activeCycleId].scheduleLifecycle = 'active_schedule';
     state.cyclesById[state.activeCycleId].scheduleReviewBlocks = [];
+    state.cyclesById[state.activeCycleId].planProof = {
+      workableDaysRemaining: 14,
+      totalRequiredUnits: 1,
+      requiredPacePerDay: 1,
+      maxPerDay: 1,
+      maxPerWeek: 7,
+      slackUnits: 13,
+      slackRatio: 13,
+      intensityRatio: 1,
+    };
     state.blockStore = { blocks: {} };
 
     render(

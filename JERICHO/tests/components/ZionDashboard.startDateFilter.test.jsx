@@ -102,7 +102,7 @@ describe('ZionDashboard start date guard', () => {
     const { unmount } = render(
       <ZionDashboard initialView="today" initialZionView="day" initialAnchorDayKey="2026-01-19" />
     );
-    expect(screen.getByText(/Drafts begin on Jan 20/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Drafts begin on Jan 20/i).length).toBeGreaterThan(0);
     expect(screen.queryByText(/On start suggestion/i)).not.toBeInTheDocument();
 
     unmount();

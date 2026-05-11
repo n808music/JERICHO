@@ -4,7 +4,7 @@
  * Tests for CoreMissionContract creation, validation, and entropy handling
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   createCoreMissionContract,
   recordEntropyEvent,
@@ -111,6 +111,9 @@ describe('CoreMissionContractFactory', () => {
 
   describe('recordEntropyEvent', () => {
     it('adds entropy event and updates timestamp', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-01-01T12:00:00.000Z'));
+
       const contract = createCoreMissionContract({
         profileId: 'user-123',
         durableObjective: 'Build company',
@@ -126,6 +129,8 @@ describe('CoreMissionContractFactory', () => {
         masterPlanIds: ['plan-1'],
       });
 
+      vi.setSystemTime(new Date('2026-01-01T12:00:01.000Z'));
+
       const updated = recordEntropyEvent(contract, {
         category: 'money-pressure',
         description: 'Runway depleted',
@@ -138,6 +143,9 @@ describe('CoreMissionContractFactory', () => {
       expect(updated.entropyEvents[0].category).toBe('money-pressure');
       expect(updated.entropyEvents[0].continuityPreserved).toBe(true);
       expect(updated.updatedAt).not.toBe(contract.updatedAt);
+      expect(updated.updatedAt > contract.updatedAt).toBe(true);
+
+      vi.useRealTimers();
     });
 
     it('changes continuity status when entropy is uncontrolled', () => {

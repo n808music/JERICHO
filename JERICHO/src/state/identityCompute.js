@@ -982,7 +982,7 @@ function ensureProfileOwnership(state) {
       label: existing.label || fallbackLabel,
       goalIds: Array.isArray(existing.goalIds) ? [...new Set(existing.goalIds.filter(Boolean).map(String))] : [],
       activeGoalId: existing.activeGoalId || null,
-      createdAtISO: existing.createdAtISO || state?.meta?.createdAtISO || new Date().toISOString(),
+      createdAtISO: existing.createdAtISO || state?.meta?.createdAtISO || state?.appTime?.nowISO || new Date().toISOString(),
       status: existing.status || 'active',
     };
     return state.profilesById[normalizedProfileId];
@@ -9181,9 +9181,23 @@ function deleteCycle(state, cycleId) {
   }
   unlinkGoalCycleReference(state, goalId, cycleId);
   if (deletingActiveCycle) {
+    // Preserve blocks from other cycles that survived the per-cycle filter above.
+    // clearActiveCycleSessionState resets blockStore entirely; we restore survivors after.
+    const survivingBlocks = {};
+    if (state.blockStore?.blocks) {
+      Object.entries(state.blockStore.blocks).forEach(([id, block]) => {
+        if (block) survivingBlocks[id] = block;
+      });
+    }
     clearActiveCycleSessionState(state);
-  }
-  if (deletingActiveCycle) {
+    state.blockStore = { blocks: survivingBlocks };
+    // In a master-plan context the master plan manages cycle creation; leave activeCycleId null.
+    // In standalone context, create a blank goal-entry-ready cycle so the app is never stranded.
+    const hasMasterPlan = Boolean(getActiveMasterPlanRecord(state, null));
+    if (!hasMasterPlan) {
+      startNewCycle(state, { goalText: ' ', narrative: '', successDefinition: '', minimumDaysPerWeek: 4 });
+      resetCycleToGoalEntryReady(state, state.activeCycleId);
+    }
     state.meta = {
       ...(state.meta || {}),
       goalEntryRequestedAtISO: state.appTime?.nowISO || null,

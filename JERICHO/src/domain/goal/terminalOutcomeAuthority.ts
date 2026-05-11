@@ -94,10 +94,15 @@ const COMPLETED_TERMINAL_PATTERN =
  *  Uses fixed-width lookbehind to avoid V8 variable-length lookbehind limitation. */
 const SUBMITTED_ARTIFACT_PATTERN = /\b(?<!applications?\s)(?<!documents?\s)(?<!forms?\s)(?<!files?\s)submitted\b/i;
 
-/** "live" as deployed artifact ("page is live", "site live", "app live") — not "live conversations".
- *  Allows optional "is" between the artifact noun and "live". */
+/** "live" as deployed artifact ("page is live", "site live", "app live", "episodes are live") — not "live conversations".
+ *  Allows optional "is"/"are" between the artifact noun and "live". */
 const LIVE_ARTIFACT_PATTERN =
-  /\b(page|site|app|product|service|store|listing|profile)\s+(?:is\s+)?live\b/i;
+  /\b(page|site|app|product|service|store|listing|profile|episodes?|content|posts?)\s+(?:is\s+|are\s+)?live\b/i;
+
+/** Outcome requires an external decision-maker granting an interview — strong externally_mediated signal.
+ *  "Land 3 final-round interviews", "secure 2 interviews", etc. */
+const INTERVIEW_LANDING_PATTERN =
+  /\b(land|secure|book|get)\s+(?:\d+\s+)?(?:[\w-]+\s+){0,4}interviews?\b/i;
 
 // ---------------------------------------------------------------------------
 // Internal scoring
@@ -117,7 +122,8 @@ function scoreText(text: string): Signals {
       (RECEIVED_PATTERN.test(text) ? 1 : 0) +
       (EXTERNAL_ACTOR_PATTERN.test(text) ? 1 : 0) +
       (OFFER_COMMITMENT_PATTERN.test(text) ? 1 : 0) +
-      (WIRE_TRANSFER_PATTERN.test(text) ? 1 : 0),
+      (WIRE_TRANSFER_PATTERN.test(text) ? 1 : 0) +
+      (INTERVIEW_LANDING_PATTERN.test(text) ? 1 : 0),
     externallyMediatedMedium: EXTERNALLY_MEDIATED_FRAMING_PATTERN.test(text) ? 1 : 0,
     marketDependentStrong:
       (THRESHOLD_METRIC_PATTERN.test(text) ? 1 : 0) + (REVENUE_THRESHOLD_PATTERN.test(text) ? 1 : 0),
@@ -191,7 +197,7 @@ export function deriveTerminalOutcomeAuthority(
   if (anyExternallyMediated) {
     if (wholeScores.externallyMediatedStrong >= 1) {
       if (RECEIVED_PATTERN.test(combined)) reasons.push('RECEIVED_LANGUAGE');
-      if (EXTERNAL_ACTOR_PATTERN.test(combined) || OFFER_COMMITMENT_PATTERN.test(combined) || WIRE_TRANSFER_PATTERN.test(combined)) {
+      if (EXTERNAL_ACTOR_PATTERN.test(combined) || OFFER_COMMITMENT_PATTERN.test(combined) || WIRE_TRANSFER_PATTERN.test(combined) || INTERVIEW_LANDING_PATTERN.test(combined)) {
         reasons.push('EXTERNAL_ACTOR_NAMED');
       }
       strongSignals += wholeScores.externallyMediatedStrong;

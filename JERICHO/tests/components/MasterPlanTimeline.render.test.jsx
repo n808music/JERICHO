@@ -293,7 +293,7 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getAllByText('Internal test complete').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Closed beta').length).toBeGreaterThan(0);
     expect(screen.getAllByText('App store submitted').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('LAUNCH').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Launch App launch').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/First executable cycle preview/i).length).toBeGreaterThan(0);
 
     await act(async () => {
@@ -306,17 +306,17 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getAllByText('Pre-release single 1').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Pre-release single 2').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Final promo push begins').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('DROP').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Release Album rollout').length).toBeGreaterThan(0);
 
     await act(async () => {
       await user.click(screen.getByLabelText(/close lane detail/i));
       await user.click(screen.getByTestId(`timeline-lane-${laneIdByTitle['Podcast rollout']}`));
     });
 
-    expect(screen.getAllByText(/Episodes 1.?3 recorded/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Distribution set up/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Launch episode live/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Album promo episodes/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Record pilot episode batch/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Set up podcast distribution/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Publish launch episode/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Record and publish promo episodes supporting/i).length).toBeGreaterThan(0);
 
     await act(async () => {
       await user.click(screen.getByLabelText(/close lane detail/i));
