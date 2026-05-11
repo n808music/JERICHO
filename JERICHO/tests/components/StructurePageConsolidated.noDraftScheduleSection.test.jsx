@@ -50,6 +50,8 @@ function buildStore() {
     attemptGoalAdmission: noop,
     updatePendingOnboardingInputs: noop,
     setPlanResolutionKind: noop,
+    resetActiveCycle: noop,
+    completeCycleReassessment: noop,
     startNewCycleWithDecision: noop,
     deleteCycle: noop,
     endCycle: noop,
@@ -57,22 +59,19 @@ function buildStore() {
   };
 }
 
-describe('StructurePageConsolidated strips draft schedule controls', () => {
+describe('StructurePageConsolidated keeps schedule generation on Today only', () => {
   beforeEach(() => {
     mockStore = buildStore();
   });
 
-  it('does not render generate/apply/commit schedule controls in Structure', () => {
+  it('does not render generate/apply/activate schedule controls in Structure', () => {
     render(<StructurePageConsolidated />);
 
+    expect(screen.getByText(/schedule status/i)).toBeInTheDocument();
+    expect(screen.getByText(/no schedule proposal yet/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /generate schedule/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /apply schedule/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /regenerate route/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /rebase from today/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /open today/i })).not.toBeInTheDocument();
-
-    expect(screen.getByText(/schedule status/i)).toBeInTheDocument();
-    expect(screen.getByText(/no schedule proposal yet\. go to today tab to generate\./i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /activate schedule/i })).not.toBeInTheDocument();
   });
 
   it('navigates to Today via callback when schedule status offers View in Today', () => {
@@ -164,17 +163,16 @@ describe('StructurePageConsolidated strips draft schedule controls', () => {
     expect(screen.getByText(/commit 26 of 45 blocks now/i)).toBeInTheDocument();
   });
 
-  it('dispatches canonical reset from cycle management', () => {
-    const resetIdentity = vi.fn();
+  it('dispatches cycle-only reset from cycle management', () => {
+    const resetActiveCycle = vi.fn();
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    mockStore.resetIdentity = resetIdentity;
+    mockStore.resetActiveCycle = resetActiveCycle;
 
     render(<StructurePageConsolidated />);
 
-    fireEvent.click(screen.getByText(/Cycle Management/i));
-    fireEvent.click(screen.getByRole('button', { name: /Reset to Blank/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Reset Cycle/i }));
 
-    expect(resetIdentity).toHaveBeenCalledTimes(1);
+    expect(resetActiveCycle).toHaveBeenCalledWith('cycle-1');
     confirmSpy.mockRestore();
   });
 });

@@ -17,7 +17,7 @@ import ZionMonthView from './zion/views/ZionMonthView.jsx';
 import ZionQuarterView from './zion/views/ZionQuarterView.jsx';
 import ZionYearView from './zion/views/ZionYearView.jsx';
 import { useIdentityStore } from '../state/identityStore.js';
-import { computeStability, getAllBlocks, projectMonthDays } from '../state/identityCompute.js';
+import { computeStability, getAllBlocks, isCanonicalBlankState, projectMonthDays } from '../state/identityCompute.js';
 import { computeDayMetricsMap, normalizeBlocks } from '../state/metrics.js';
 import { materializeBlocksFromEvents } from '../state/engine/todayAuthority.ts';
 import { localStartFromDayAndTime } from './zion/timeUtils.js';
@@ -44,6 +44,7 @@ import {
 import { getDayStats, getMonthStats, getQuarterStats } from '../state/time/viewAggregates.ts';
 import { buildStabilityEndToEndSummary } from '../state/contracts/stabilityEndToEndVerification';
 import { deriveDailyCheckIn } from '../domain/live/dailyCheckIn.ts';
+import { deriveMasterPlanPhaseModel } from '../domain/masterPlan/masterPlanPhaseModel.js';
 
 const DOMAIN_ENUM = ['BODY', 'RESOURCES', 'CREATION', 'FOCUS'];
 
@@ -176,6 +177,36 @@ function formatCanonicalReasonLabel(code) {
     .replace(/^POS_/i, '')
     .replace(/_/g, ' ')
     .toLowerCase();
+}
+
+function mapMasterPlanCriticQuestionsByLane(plan, lanes) {
+  const unresolvedQuestions = Array.isArray(plan?.structureCritic?.unresolvedQuestions)
+    ? plan.structureCritic.unresolvedQuestions
+    : [];
+  const laneById = new Map((lanes || []).map((lane) => [lane.id, lane]));
+  const result = {};
+  unresolvedQuestions.forEach((question) => {
+    const directLaneId = String(question?.laneId || '').trim();
+    if (directLaneId && laneById.has(directLaneId)) {
+      if (!result[directLaneId]) {
+        result[directLaneId] = [];
+      }
+      result[directLaneId].push(question);
+      return;
+    }
+    const domain = String(question?.domain || '').trim().toLowerCase();
+    if (!domain) {
+      return;
+    }
+    const matchingLane = (lanes || []).find((lane) => String(lane?.domain || '').trim().toLowerCase() === domain);
+    if (matchingLane) {
+      if (!result[matchingLane.id]) {
+        result[matchingLane.id] = [];
+      }
+      result[matchingLane.id].push(question);
+    }
+  });
+  return result;
 }
 
 function formatPlanQualityTemporalDiagnostic(planQualityGate) {
@@ -419,7 +450,13 @@ function findClosureTraceBlocks(items = [], timeZone = 'UTC') {
 
 function hasExplicitWorkWindows(workWindows = {}) {
   return Object.values(workWindows || {}).some(
-    (rows) => Array.isArray(rows) && rows.some((row) => row?.startHHMM && row?.endHHMM && row.startHHMM < row.endHHMM)
+    (rows) =>
+      Array.isArray(rows) &&
+      rows.some((row) => {
+        const start = String(row?.startHHMM || row?.start || '').trim();
+        const end = String(row?.endHHMM || row?.end || '').trim();
+        return Boolean(start && end && start < end);
+      })
   );
 }
 
@@ -435,7 +472,67 @@ function hasWindowForDayKey(dayKey, workWindows = {}, timeZone = 'UTC') {
     .slice(0, 3)
     .toLowerCase();
   const rows = Array.isArray(workWindows?.[key]) ? workWindows[key] : [];
-  return rows.some((row) => row?.startHHMM && row?.endHHMM && row.startHHMM < row.endHHMM);
+  return rows.some((row) => {
+    const start = String(row?.startHHMM || row?.start || '').trim();
+    const end = String(row?.endHHMM || row?.end || '').trim();
+    return Boolean(start && end && start < end);
+  });
+}
+
+function normalizeCanonicalWorkWindowsForUi(workWindows = {}) {
+  const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+  return days.reduce((acc, day) => {
+    const rows = Array.isArray(workWindows?.[day]) ? workWindows[day] : [];
+    acc[day] = rows
+      .map((row) => ({
+        start: String(row?.start || row?.startHHMM || '').trim(),
+        end: String(row?.end || row?.endHHMM || '').trim(),
+      }))
+      .filter((row) => row.start && row.end && row.start < row.end);
+    return acc;
+  }, {});
+}
+
+function countCanonicalWorkWindows(workWindows = {}) {
+  return Object.values(normalizeCanonicalWorkWindowsForUi(workWindows)).reduce(
+    (sum, rows) => sum + (Array.isArray(rows) ? rows.length : 0),
+    0
+  );
+}
+
+function parseHHMMToMinutesUi(hhmm) {
+  if (!hhmm || !/^\d{2}:\d{2}$/.test(String(hhmm))) {
+    return 0;
+  }
+  const [hh, mm] = String(hhmm)
+    .split(':')
+    .map((value) => Number(value));
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) {
+    return 0;
+  }
+  return hh * 60 + mm;
+}
+
+function computeWeeklyCapacityMinutesUi(workWindows = {}) {
+  return Object.values(normalizeCanonicalWorkWindowsForUi(workWindows)).reduce((total, rows) => {
+    if (!Array.isArray(rows)) {
+      return total;
+    }
+    return (
+      total +
+      rows.reduce((dayTotal, row) => {
+        return dayTotal + Math.max(0, parseHHMMToMinutesUi(row.end) - parseHHMMToMinutesUi(row.start));
+      }, 0)
+    );
+  }, 0);
+}
+
+function formatHoursFromMinutes(minutes) {
+  if (!Number.isFinite(minutes) || minutes <= 0) {
+    return '0 hrs/week';
+  }
+  const hours = minutes / 60;
+  return `${hours.toFixed(hours % 1 === 0 ? 0 : 1)} hrs/week`;
 }
 
 function deriveGapReasonLabel({
@@ -505,6 +602,7 @@ function useZionState() {
     appTime,
     goalWorkById,
     constraints,
+    availabilityPolicy,
     debug,
     cyclesById,
     cycleDynamicsByCycleId,
@@ -517,6 +615,8 @@ function useZionState() {
     executionCorrectionByGoal,
     systemShotClockByGoal,
     masterPlansById,
+    masterPlanLanesById,
+    masterPlanMilestonesById,
     masterCalendarsById,
     strategicClustersById,
     goalRelations,
@@ -568,6 +668,7 @@ function useZionState() {
     applyRenegotiationOption,
     resetIdentity,
     addFrictionEvent,
+    completeCycleReassessment,
   } = useIdentityStore();
   return {
     activeProfileId,
@@ -586,6 +687,7 @@ function useZionState() {
     appTime,
     goalWorkById,
     constraints,
+    availabilityPolicy,
     debug,
     cyclesById,
     cycleDynamicsByCycleId,
@@ -598,6 +700,8 @@ function useZionState() {
     executionCorrectionByGoal,
     systemShotClockByGoal,
     masterPlansById,
+    masterPlanLanesById,
+    masterPlanMilestonesById,
     masterCalendarsById,
     strategicClustersById,
     goalRelations,
@@ -650,6 +754,7 @@ function useZionState() {
       applyRenegotiationOption,
       resetIdentity,
       addFrictionEvent,
+      completeCycleReassessment,
     },
   };
 }
@@ -680,6 +785,7 @@ export default function ZionDashboard({
     appTime,
     goalWorkById,
     constraints,
+    availabilityPolicy,
     debug,
     lastPlanError,
     cyclesById,
@@ -693,6 +799,8 @@ export default function ZionDashboard({
     executionCorrectionByGoal,
     systemShotClockByGoal,
     masterPlansById,
+    masterPlanLanesById,
+    masterPlanMilestonesById,
     masterCalendarsById,
     strategicClustersById,
     goalRelations,
@@ -820,7 +928,7 @@ export default function ZionDashboard({
   );
   const handleCreateFrictionEvent = (event) => {
     event.preventDefault();
-    if (!frictionGoalId || !frictionEventType) {
+    if (!canRecordCycleFriction || !frictionGoalId || !frictionEventType) {
       return;
     }
     actions.addFrictionEvent({
@@ -974,12 +1082,6 @@ export default function ZionDashboard({
       setView('structure');
     }
   }, [lastPlanError?.code, planRecovery?.required]);
-  // If there is no active cycle, route the UI to Structure for goal intake
-  useEffect(() => {
-    if (!activeCycleId) {
-      setView('structure');
-    }
-  }, [activeCycleId]);
   // Sync hash changes to view state (e.g., when user navigates via URL)
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1096,15 +1198,33 @@ export default function ZionDashboard({
   }, [allRenderedBlocks, fallbackExecutionBlocks, activeCycleId, isGoalAdmitted]);
   const hasVisibleCanonicalBlocks = normalizedBlocks.length > 0;
   const hasPendingActivation = hasAppliedReviewSchedule && !hasActiveSchedule;
+  const reassessmentRequired =
+    String(activeCycle?.reassessmentStatus || '')
+      .trim()
+      .toLowerCase() === 'required';
+  const formatRangeLabel = React.useCallback(
+    (startDayKey, endDayKey) => {
+      if (!startDayKey && !endDayKey) return '—';
+      if (startDayKey && endDayKey) {
+        return `${formatDayKeyLabel(startDayKey)} → ${formatDayKeyLabel(endDayKey)}`;
+      }
+      if (startDayKey) return `Starts ${formatDayKeyLabel(startDayKey)}`;
+      return `Through ${formatDayKeyLabel(endDayKey)}`;
+    },
+    [timeZone]
+  );
   const executionLockReason = hasPendingActivation
     ? 'Schedule applied — not active yet. Activate the cycle before logging completion, misses, or skips.'
     : '';
-  const canGenerateSchedule = Boolean(
-    !isCycleReadOnly &&
-    !suppressDrafts &&
-    ((hasAdmittedGoal && isGoalAdmitted) || hasExecutableMasterPlan) &&
-    (!hasActiveSchedule || !hasVisibleCanonicalBlocks)
-  );
+  const masterPlanHorizonLabel = activeMasterPlan
+    ? formatRangeLabel(activeMasterPlan.horizonStart || null, activeMasterPlan.horizonEnd || null)
+    : '—';
+  const executionCycleHorizonLabel = activeCycle
+    ? formatRangeLabel(
+        activeCycle?.goalContract?.startDayKey || activeCycle?.startedAtDayKey || null,
+        activeCycle?.goalContract?.endDayKey || null
+      )
+    : 'No active execution cycle';
   const hasStaleActiveSchedule = hasActiveSchedule && !hasVisibleCanonicalBlocks;
   const anchorISO = anchorDayKey ? `${anchorDayKey}T12:00:00.000Z` : appTime?.nowISO || '';
   const windowSpec = buildWindowSpec(zionView, anchorISO, timeZone);
@@ -1150,7 +1270,53 @@ export default function ZionDashboard({
   }, [deliverables]);
   const criterionLabelById = useMemo(() => Object.fromEntries(criterionTextById), [criterionTextById]);
   const contract = canonicalContract;
-  const contractWorkWindows = contract?.workWindows || activeCycle?.goalContract?.workWindows || {};
+  const contractWindowsCandidate = contract?.workWindows || activeCycle?.goalContract?.workWindows || {};
+  const contractWorkWindows =
+    countCanonicalWorkWindows(contractWindowsCandidate) > 0
+      ? contractWindowsCandidate
+      : availabilityPolicy?.workWindows || {};
+  const normalizedContractWorkWindows = normalizeCanonicalWorkWindowsForUi(contractWorkWindows);
+  const workWindowCount = countCanonicalWorkWindows(normalizedContractWorkWindows);
+  const workWindowsSource =
+    contract?.workWindowsSource ||
+    activeCycle?.goalContract?.workWindowsSource ||
+    availabilityPolicy?.workWindowsSource ||
+    (workWindowCount > 0 ? 'user_defined' : 'unset');
+  const capacityValidation =
+    contract?.capacityValidation ||
+    activeCycle?.goalContract?.capacityValidation ||
+    availabilityPolicy?.capacityValidation ||
+    null;
+  const constraintsStatus =
+    contract?.constraintsStatus ||
+    activeCycle?.goalContract?.constraintsStatus ||
+    availabilityPolicy?.constraintsStatus ||
+    (workWindowCount === 0 ? 'unsaved' : workWindowsSource === 'system_inferred' ? 'unsaved' : 'approved');
+  const hasConfirmedWorkWindows =
+    workWindowCount > 0 && workWindowsSource !== 'system_inferred' && constraintsStatus !== 'unsaved';
+  const hasApprovedCapacity = hasConfirmedWorkWindows && constraintsStatus !== 'stale' && constraintsStatus !== 'insufficient';
+  const availableWeeklyMinutes =
+    Number(capacityValidation?.availableWeeklyMinutes) || computeWeeklyCapacityMinutesUi(normalizedContractWorkWindows);
+  const requiredWeeklyMinutes = Number.isFinite(Number(capacityValidation?.requiredWeeklyMinutes))
+    ? Number(capacityValidation?.requiredWeeklyMinutes)
+    : null;
+  const gapWeeklyMinutes = Number.isFinite(Number(capacityValidation?.gapWeeklyMinutes))
+    ? Number(capacityValidation?.gapWeeklyMinutes)
+    : requiredWeeklyMinutes !== null
+      ? Math.max(0, requiredWeeklyMinutes - availableWeeklyMinutes)
+      : null;
+  const capacityMitigationSuggestions = Array.isArray(capacityValidation?.mitigationSuggestions)
+    ? capacityValidation.mitigationSuggestions
+    : [];
+  const canGenerateSchedule = Boolean(
+    !isCycleReadOnly &&
+    !suppressDrafts &&
+    Boolean(activeCycleId) &&
+    ((hasAdmittedGoal && isGoalAdmitted) || hasExecutableMasterPlan) &&
+    !reassessmentRequired &&
+    hasApprovedCapacity &&
+    (!hasActiveSchedule || !hasVisibleCanonicalBlocks)
+  );
   const blackoutDayKeys = Array.isArray(activeCycle?.strategy?.constraints?.blackoutDayKeys)
     ? activeCycle.strategy.constraints.blackoutDayKeys
     : [];
@@ -1316,6 +1482,161 @@ export default function ZionDashboard({
       return dayKey === viewDayKey;
     });
   }, [proposedScheduleItemsAll, viewDayKey, timeZone]);
+  const scheduleWindowItems = hasAppliedReviewSchedule
+    ? reviewScheduleItemsAll
+    : hasActiveSchedule
+      ? scheduleDisplayItemsAllResolved
+      : proposedScheduleItemsAll;
+  const scheduleWindowDayKeys = scheduleWindowItems
+    .map((item) => getScheduleItemDayKey(item))
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+  const schedulePreviewWindowLabel =
+    scheduleWindowDayKeys.length > 0
+      ? formatRangeLabel(scheduleWindowDayKeys[0], scheduleWindowDayKeys[scheduleWindowDayKeys.length - 1])
+      : reassessmentRequired && activeCycle
+        ? 'Pending reassessment'
+        : activeCycle
+          ? 'Will be set when the first execution cycle schedule is generated'
+          : 'No active execution cycle';
+  const todayCalendarWindowLabel = windowLabel || '—';
+  const scheduledPreviewBlockCount = Number(activePlanSummary?.scheduledBlockCount || proposedScheduleItemsAll.length || 0);
+  const unscheduledPreviewBlockCount = Number(activePlanSummary?.unscheduledBlockCount || 0);
+  const scheduledPreviewMinutes = Number(
+    activePlanSummary?.scheduledMinutes ||
+      proposedScheduleItemsAll.reduce((sum, item) => sum + Number(item?.durationMinutes || 0), 0)
+  );
+  const unscheduledPreviewMinutes = Number(activePlanSummary?.unscheduledMinutes || 0);
+  const partialScheduleReason = String(activePlanSummary?.partialScheduleReason || '').trim() || null;
+  const activePhaseDeadlineDayKey = activePlanSummary?.activePhaseDeadlineDayKey || deadlineDayKey || null;
+  const scheduleCoverageThroughDayKey =
+    activePlanSummary?.calendarCoverageThroughDayKey ||
+    scheduleWindowDayKeys[scheduleWindowDayKeys.length - 1] ||
+    null;
+  const scheduleCoverageStatus = String(activePlanSummary?.coverageStatus || '')
+    .trim()
+    .toLowerCase();
+  const scheduleCoverageStatusLabel =
+    scheduleCoverageStatus === 'complete_to_anchor'
+      ? 'Complete to anchor'
+      : scheduleCoverageStatus === 'partial_before_anchor'
+        ? 'Partial before anchor'
+        : scheduleCoverageStatus === 'failed_before_anchor'
+          ? 'Failed before anchor'
+          : 'Pending';
+  const coverageFailureReason = String(activePlanSummary?.coverageFailureReason || '').trim() || null;
+  const unscheduledReasonLabels = (Array.isArray(activePlanSummary?.unscheduledReasons) ? activePlanSummary.unscheduledReasons : [])
+    .map((reason) => {
+      if (!reason) {
+        return null;
+      }
+      if (reason?.reasonCode === 'INSUFFICIENT_SCHEDULE_SLOTS') {
+        return `Unscheduled remaining workload: ${reason.count || 0} block${Number(reason.count || 0) === 1 ? '' : 's'} / ${Math.round(
+          Number(reason.minutes || 0) / 60
+        )}h due to current preview-window capacity.`;
+      }
+      if (reason?.reasonCode === 'UNACTIONABLE_BLOCK_TITLE') {
+        return `Skipped non-actionable draft item${reason.originalTitle ? `: ${reason.originalTitle}` : ''}.`;
+      }
+      if (reason?.reasonCode === 'PARTIAL_BEFORE_ANCHOR' || reason?.reasonCode === 'FAILED_BEFORE_ANCHOR') {
+        return `Coverage shortfall: ${formatRangeLabel(
+          reason.latestScheduledDayKey || null,
+          reason.activePhaseDeadlineDayKey || null
+        )}.`;
+      }
+      return formatCanonicalReasonLabel(reason.reasonCode || reason.code || 'UNSCHEDULED_WORK');
+    })
+    .filter(Boolean);
+  const activeMasterPlanLanes = useMemo(
+    () =>
+      Array.isArray(activeMasterPlan?.laneIds)
+        ? activeMasterPlan.laneIds.map((laneId) => masterPlanLanesById?.[laneId] || null).filter(Boolean)
+        : [],
+    [activeMasterPlan, masterPlanLanesById]
+  );
+  const activeMasterPlanMilestones = useMemo(
+    () =>
+      activeMasterPlanLanes.flatMap((lane) =>
+        Array.isArray(lane?.milestoneIds)
+          ? lane.milestoneIds.map((milestoneId) => masterPlanMilestonesById?.[milestoneId] || null).filter(Boolean)
+          : []
+      ),
+    [activeMasterPlanLanes, masterPlanMilestonesById]
+  );
+  const activeMasterPlanAnchors = useMemo(
+    () => (Array.isArray(activeMasterPlan?.anchors) ? activeMasterPlan.anchors : []),
+    [activeMasterPlan]
+  );
+  const activeMasterPlanCriticQuestionsByLane = useMemo(
+    () => mapMasterPlanCriticQuestionsByLane(activeMasterPlan, activeMasterPlanLanes),
+    [activeMasterPlan, activeMasterPlanLanes]
+  );
+  const phaseModel = useMemo(
+    () =>
+      deriveMasterPlanPhaseModel({
+        plan: activeMasterPlan,
+        lanes: activeMasterPlanLanes,
+        milestones: activeMasterPlanMilestones,
+        anchors: activeMasterPlanAnchors,
+        planCycle: activeCycle,
+        committedBlocks: proposedScheduleItemsAll.length > 0 ? proposedScheduleItemsAll : normalizedBlocks,
+        criticQuestionsByLane: activeMasterPlanCriticQuestionsByLane,
+      }),
+    [
+      activeMasterPlan,
+      activeMasterPlanLanes,
+      activeMasterPlanMilestones,
+      activeMasterPlanAnchors,
+      activeCycle,
+      proposedScheduleItemsAll,
+      normalizedBlocks,
+      activeMasterPlanCriticQuestionsByLane,
+    ]
+  );
+  const activePhase = phaseModel?.activePhase || null;
+  const nextPhase = phaseModel?.nextPhase || null;
+  const activePhaseStatusReport = activePhase?.statusReport || null;
+  const generateDisabledReason = isCycleReadOnly
+    ? 'Cycle is read-only.'
+    : suppressDrafts
+      ? `Drafts begin on ${formatDayKeyLabel(contractStartDayKey)}.`
+      : !activeCycleId
+        ? 'Start an execution cycle first.'
+        : !((hasAdmittedGoal && isGoalAdmitted) || hasExecutableMasterPlan)
+          ? 'Complete goal setup in Structure first.'
+          : reassessmentRequired
+            ? 'Current-state reassessment is required before schedule generation.'
+            : !hasConfirmedWorkWindows
+              ? 'Define and save work windows before generating a schedule.'
+              : constraintsStatus === 'stale'
+                ? 'Re-save work windows to revalidate availability.'
+                : constraintsStatus === 'insufficient'
+                  ? 'Availability is insufficient for the first-cycle workload.'
+                  : lastPlanError?.code === 'NO_PROPOSED_BLOCKS'
+                    ? 'No schedulable blocks were generated.'
+              : hasActiveSchedule && hasVisibleCanonicalBlocks
+                    ? 'An active schedule already exists.'
+                    : '';
+  const applyDisabledReason = isCycleReadOnly
+    ? 'Cycle is read-only.'
+    : suppressDrafts
+      ? `Drafts begin on ${formatDayKeyLabel(contractStartDayKey)}.`
+      : requiresHorizonResolution && !selectedPlanResolutionKind
+        ? 'Resolve the horizon conflict first.'
+        : proposedScheduleItemsAll.length === 0
+          ? 'Generate the first execution cycle schedule first.'
+          : hasActiveSchedule
+            ? 'Schedule is already active.'
+            : '';
+  const activateDisabledReason = isCycleReadOnly
+    ? 'Cycle is read-only.'
+    : suppressDrafts
+      ? `Drafts begin on ${formatDayKeyLabel(contractStartDayKey)}.`
+      : hasActiveSchedule
+        ? 'Schedule is already active.'
+        : !hasAppliedReviewSchedule || reviewScheduleBlocks.length === 0
+          ? 'Apply schedule first.'
+          : '';
   const scheduleDisplayItems = useMemo(() => {
     if (!viewDayKey) return scheduleDisplayItemsAllResolved;
     return scheduleDisplayItemsAllResolved.filter((item) => {
@@ -1877,6 +2198,14 @@ export default function ZionDashboard({
     });
   };
 
+  const handleCompleteCycleReassessment = () => {
+    if (!activeCycleId || typeof actions.completeCycleReassessment !== 'function') {
+      return;
+    }
+    traceAction('cycle.reassessment.accept', { cycleId: activeCycleId });
+    actions.completeCycleReassessment(activeCycleId);
+  };
+
   const jumpToFirstCommittedDay = () => {
     if (!firstCommittedDayKey) return;
     traceAction('today.nav.firstCommittedDay', { dayKey: firstCommittedDayKey, cycleId: activeCycleId });
@@ -1952,6 +2281,35 @@ export default function ZionDashboard({
   const integrityScoreCycle = Number.isFinite(cycleMetrics.integrityScore) ? Number(cycleMetrics.integrityScore) : null;
   const safeStability = stabilityView || {};
   const stabilityE2E = useMemo(() => buildStabilityEndToEndSummary(), []);
+  const isStabilityBlankState = useMemo(
+    () =>
+      isCanonicalBlankState({
+        activeProfileId,
+        profilesById,
+        goalsById,
+        masterPlansById,
+        goalExecutionContract,
+        activeCycleId,
+        cyclesById,
+        scheduleApplied,
+        scheduleLifecycle: activeCycle?.scheduleLifecycle || null,
+        executionEvents,
+        externalEvidenceEvents: activeCycle?.externalEvidenceEvents || [],
+      }),
+    [
+      activeProfileId,
+      profilesById,
+      goalsById,
+      masterPlansById,
+      goalExecutionContract,
+      activeCycleId,
+      cyclesById,
+      scheduleApplied,
+      activeCycle?.scheduleLifecycle,
+      activeCycle?.externalEvidenceEvents,
+      executionEvents,
+    ]
+  );
   const stabilityRecoverySummary = useMemo(() => {
     const lanes = stabilityE2E?.laneVerifications || [];
     return {
@@ -1960,6 +2318,21 @@ export default function ZionDashboard({
       confirmationRequired: lanes.filter((lane) => lane.recovery.recommendation.confirmationRequired).length,
     };
   }, [stabilityE2E]);
+  const hasAdmittedGoalContext = Boolean(goalId || activeMasterPlan?.id || goalExecutionContract);
+  const hasMasterPlanContext = Boolean(activeMasterPlan?.id || Object.keys(masterPlansById || {}).length > 0);
+  const hasGoalContractContext = Boolean(goalExecutionContract);
+  const hasActiveExecutionCycle = Boolean(activeCycleId && activeCycle);
+  const hasExecutionEvidence =
+    (Array.isArray(executionEvents) && executionEvents.length > 0) ||
+    (Array.isArray(activeCycle?.externalEvidenceEvents) && activeCycle.externalEvidenceEvents.length > 0) ||
+    goalPolicy?.livePos?.score?.state === 'available';
+  const canPopulateInitialFeasibility = hasAdmittedGoalContext || hasMasterPlanContext || hasGoalContractContext;
+  const canPopulateLivePOS = hasAdmittedGoalContext && hasExecutionEvidence;
+  const canPopulateExecutionMetrics = hasActiveExecutionCycle && hasExecutionEvidence;
+  const shouldShowUnavailableExecutionMetrics = !canPopulateExecutionMetrics;
+  const canShowCycleFrictionInputs = hasActiveExecutionCycle;
+  const canRecordCycleFriction =
+    canShowCycleFrictionInputs && !isStabilityBlankState && frictionGoalOptions.length > 0 && activeProfileCycleIds.length > 0;
   const stabilityScoreRaw = Math.min(
     Number.isFinite(safeStability.completionRate) ? safeStability.completionRate : 0,
     Number.isFinite(safeStability.driftScore) ? safeStability.driftScore : 0,
@@ -2087,6 +2460,58 @@ export default function ZionDashboard({
     planQualityGate?.status === 'PLAN_QUALITY_PASSED' &&
     goalPolicy?.planQuality?.state &&
     goalPolicy.planQuality.state !== 'policy_clean';
+  const livePosPanelValue = canPopulateLivePOS ? livePosPrimaryValue : hasAdmittedGoalContext ? 'Withheld' : '—';
+  const livePosPanelAvailabilityLabel = canPopulateLivePOS
+    ? livePosAvailabilityLabel
+    : hasAdmittedGoalContext
+      ? 'Withheld'
+      : 'Pending';
+  const livePosPanelStateLabel = canPopulateLivePOS
+    ? livePosStateLabel
+    : hasAdmittedGoalContext
+      ? 'Withheld'
+      : 'Unavailable';
+  const livePosPanelPrimaryExplanation = canPopulateLivePOS
+    ? livePosPrimaryExplanation
+    : hasAdmittedGoalContext
+      ? livePosSummaryReasonLabels[0] || 'Requires admitted goal and execution evidence.'
+      : 'Requires admitted goal and execution evidence.';
+  const livePosPanelDetailExplanation = canPopulateLivePOS
+    ? livePosDetailExplanation
+    : hasAdmittedGoalContext
+      ? livePosSummaryReasonLabels.slice(1, 4)
+      : [];
+  const initialFeasibilityPanelPrimaryLabel = canPopulateInitialFeasibility
+    ? initialFeasibilityHasScore
+      ? initialFeasibilityScoreLabel
+      : initialFeasibilityStateLabel
+    : '—';
+  const initialFeasibilityPanelSecondaryLabel = canPopulateInitialFeasibility
+    ? initialFeasibilityHasScore
+      ? initialFeasibilityStateLabel
+      : initialFeasibilityScoreLabel
+    : 'Pending goal admission.';
+  const initialFeasibilityPanelSubstrateLabel = canPopulateInitialFeasibility
+    ? initialFeasibilitySubstrateLabel
+    : 'pending admission';
+  const initialFeasibilityPanelConfidenceLabel = canPopulateInitialFeasibility
+    ? initialFeasibilityConfidenceLabel
+    : 'Unavailable';
+  const initialFeasibilityPanelReason = canPopulateInitialFeasibility
+    ? initialFeasibilityPrimaryReason
+    : 'Initial feasibility appears after a goal is admitted.';
+  const initialFeasibilityPanelDetailReasons = canPopulateInitialFeasibility ? initialFeasibilityDetailReasons : [];
+  const stabilityScoreDisplay = canPopulateExecutionMetrics ? String(stabilityScore) : '—';
+  const stabilityBandDisplay = canPopulateExecutionMetrics ? stabilityBand : 'No active execution cycle';
+  const integrityRateDisplay = canPopulateExecutionMetrics
+    ? `${Math.round(((integrityScoreCycle ?? safeStability.completionRate ?? 0) || 0) * 100)}%`
+    : '—';
+  const mixDriftDisplay = canPopulateExecutionMetrics ? `${Math.round((safeStability.driftScore || 0) * 100)}%` : '—';
+  const consistencyDisplay = canPopulateExecutionMetrics ? `${Math.round((safeStability.streakScore || 0) * 100)}%` : '—';
+  const momentumDisplay = canPopulateExecutionMetrics ? `${Math.round((safeStability.momentumScore || 0) * 100)}%` : '—';
+  const containmentSummaryCopy = isStabilityBlankState
+    ? 'One profile, one master calendar, no active work yet.'
+    : 'One profile, one master calendar, many active goals.';
   const liveCanonicalTrace = useMemo(() => {
     const proposedAll = Array.isArray(scheduleSource) ? scheduleSource : [];
     const proposedForCycle = proposedAll.filter(
@@ -2284,7 +2709,7 @@ export default function ZionDashboard({
                   setCycleTransitionModalOpen(true);
                 }}
               >
-                Start new cycle
+                Start Execution Cycle
               </button>
               {canReturnToActive ? (
                 <button
@@ -2396,21 +2821,88 @@ export default function ZionDashboard({
                       onBlockClick={(id) => setSelectedBlockId(id)}
                     />
                     <div className="rounded-md border border-line/60 bg-jericho-surface/90 px-3 py-3 text-xs space-y-3">
+                      {activePhase ? (
+                        <div className="rounded-md border border-line/40 bg-jericho-bg px-3 py-2 text-[11px] text-muted space-y-1">
+                          <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Active Phase</p>
+                          <p className="text-sm font-semibold text-jericho-text">
+                            {activePhase.label} · {activePhase.name}
+                          </p>
+                          <p>{activePhase.phaseObjective}</p>
+                          <p>
+                            <span className="font-semibold text-jericho-text">Next unlock:</span>{' '}
+                            {phaseModel.nextUnlockSummary}
+                          </p>
+                          <p>
+                            <span className="font-semibold text-jericho-text">Schedule status:</span>{' '}
+                            {titleCaseWords(activePhase.executionScheduleStatus)}
+                          </p>
+                        </div>
+                      ) : null}
                       <div className="flex flex-col gap-1">
                         <p className="text-[11px] uppercase tracking-[0.18em] text-muted">
                           {hasActiveSchedule
                             ? 'Active schedule'
                             : hasAppliedReviewSchedule
                               ? 'Review schedule'
-                              : 'Draft schedule'}
+                              : 'First execution cycle schedule'}
                         </p>
                         <p className="text-[11px] text-muted">
                           {hasActiveSchedule
                             ? 'This schedule is authoritative. Reschedule specific blocks instead of regenerating.'
                             : hasAppliedReviewSchedule
                               ? 'Blocks are on the calendar for review. Activate when ready to start accountability.'
-                              : 'Preview only. Nothing is on the calendar until you apply the draft for review.'}
+                              : 'Preview only. The master plan keeps its long horizon; Today schedules the active phase through its hard deadline before applying it to the calendar.'}
                         </p>
+                        <p className="text-[11px] text-muted">
+                          Today shows committed execution work. Future roadmap and forecast work remain visible in Plan.
+                        </p>
+                      </div>
+                      <div className="grid gap-2 text-[11px] text-muted sm:grid-cols-2">
+                        <div className="rounded-md border border-line/40 bg-jericho-bg px-3 py-2">
+                          <span className="font-semibold text-jericho-text">Master-plan horizon:</span>{' '}
+                          {masterPlanHorizonLabel}
+                        </div>
+                        <div className="rounded-md border border-line/40 bg-jericho-bg px-3 py-2">
+                          <span className="font-semibold text-jericho-text">Execution cycle horizon:</span>{' '}
+                          {executionCycleHorizonLabel}
+                        </div>
+                        <div className="rounded-md border border-line/40 bg-jericho-bg px-3 py-2">
+                          <span className="font-semibold text-jericho-text">Schedule preview window:</span>{' '}
+                          {schedulePreviewWindowLabel}
+                        </div>
+                        <div className="rounded-md border border-line/40 bg-jericho-bg px-3 py-2">
+                          <span className="font-semibold text-jericho-text">Today calendar window:</span>{' '}
+                          {todayCalendarWindowLabel}
+                        </div>
+                        <div className="rounded-md border border-line/40 bg-jericho-bg px-3 py-2">
+                          <span className="font-semibold text-jericho-text">Active phase deadline:</span>{' '}
+                          {activePhaseDeadlineDayKey ? formatDayKeyLabel(activePhaseDeadlineDayKey) : '—'}
+                        </div>
+                        <div className="rounded-md border border-line/40 bg-jericho-bg px-3 py-2">
+                          <span className="font-semibold text-jericho-text">Calendar coverage through:</span>{' '}
+                          {scheduleCoverageThroughDayKey ? formatDayKeyLabel(scheduleCoverageThroughDayKey) : '—'}
+                        </div>
+                        <div className="rounded-md border border-line/40 bg-jericho-bg px-3 py-2">
+                          <span className="font-semibold text-jericho-text">Coverage status:</span>{' '}
+                          {scheduleCoverageStatusLabel}
+                        </div>
+                      </div>
+                      <div className="rounded-md border border-line/40 bg-jericho-bg px-3 py-2 text-[11px] text-muted space-y-1">
+                        <p>
+                          <span className="font-semibold text-jericho-text">First-cycle coverage:</span>{' '}
+                          {scheduledPreviewBlockCount} scheduled block{scheduledPreviewBlockCount === 1 ? '' : 's'} /{' '}
+                          {Math.round(scheduledPreviewMinutes / 60)}h
+                          {unscheduledPreviewBlockCount > 0
+                            ? ` · ${unscheduledPreviewBlockCount} unscheduled block${unscheduledPreviewBlockCount === 1 ? '' : 's'} / ${Math.round(
+                                unscheduledPreviewMinutes / 60
+                              )}h`
+                            : ''}
+                        </p>
+                        {coverageFailureReason ? <p>{coverageFailureReason}</p> : null}
+                        {partialScheduleReason ? <p>{partialScheduleReason}</p> : null}
+                        {unscheduledReasonLabels.slice(0, 2).map((label) => (
+                          <p key={label}>{label}</p>
+                        ))}
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <button
@@ -2449,10 +2941,72 @@ export default function ZionDashboard({
                           Activate schedule
                         </button>
                       </div>
+                      <div className="space-y-1 text-[11px] text-muted">
+                        <p>
+                          <span className="font-semibold text-jericho-text">Generate schedule:</span>{' '}
+                          {generateDisabledReason || 'Ready'}
+                        </p>
+                        <p>
+                          <span className="font-semibold text-jericho-text">Apply schedule:</span>{' '}
+                          {applyDisabledReason || 'Ready'}
+                        </p>
+                        <p>
+                          <span className="font-semibold text-jericho-text">Activate schedule:</span>{' '}
+                          {activateDisabledReason || 'Ready'}
+                        </p>
+                      </div>
+                      <div className="rounded-md border border-line/40 bg-jericho-bg px-3 py-3 text-[11px] space-y-2">
+                        <p className="font-semibold text-jericho-text">Confirmed availability</p>
+                        {!hasConfirmedWorkWindows ? (
+                          <>
+                            <p className="text-muted">
+                              No work windows defined. Add the real times you can work and save constraints. Jericho
+                              will schedule only inside confirmed windows.
+                            </p>
+                            <p className="text-muted">Status: {constraintsStatus === 'stale' ? 'Stale' : 'Unsaved'}</p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-muted">Available: {formatHoursFromMinutes(availableWeeklyMinutes)}</p>
+                            <p className="text-muted">
+                              Required first-cycle workload:{' '}
+                              {requiredWeeklyMinutes !== null ? formatHoursFromMinutes(requiredWeeklyMinutes) : 'Pending'}
+                            </p>
+                            {gapWeeklyMinutes && gapWeeklyMinutes > 0 ? (
+                              <p className="text-red-600">
+                                Gap: {formatHoursFromMinutes(gapWeeklyMinutes)}. Jericho will not cram the plan into
+                                unrealistic time.
+                              </p>
+                            ) : (
+                              <p className="text-emerald-700">Availability is approved for first-cycle scheduling.</p>
+                            )}
+                            {capacityMitigationSuggestions.length > 0 ? (
+                              <p className="text-muted">
+                                Mitigation: {capacityMitigationSuggestions.join(' · ')}
+                              </p>
+                            ) : null}
+                          </>
+                        )}
+                      </div>
                       {pendingPlanConfirmation ? (
                         <p className="text-[11px] text-amber-600">
                           Proposed schedule is awaiting confirmation. Apply to place it on the calendar for review.
                         </p>
+                      ) : null}
+                      {reassessmentRequired ? (
+                        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-3 text-[11px] text-amber-700 space-y-2">
+                          <p>
+                            Current-state reassessment is required before schedule generation. Confirm the current state
+                            of this execution cycle so Jericho does not schedule from stale assumptions.
+                          </p>
+                          <button
+                            className="rounded-full border border-amber-600 px-3 py-1 text-amber-700 hover:bg-amber-500/10"
+                            onClick={handleCompleteCycleReassessment}
+                            disabled={!activeCycleId || typeof actions.completeCycleReassessment !== 'function'}
+                          >
+                            Accept current-state reassessment
+                          </button>
+                        </div>
                       ) : null}
                       {requiresHorizonResolution ? (
                         <HorizonResolutionPanel
@@ -2616,6 +3170,16 @@ export default function ZionDashboard({
                               <span className="text-muted">{item.durationMinutes || 30}m</span>
                             </div>
                             <p className="text-[11px] text-muted">{formatTime(item.startISO)}</p>
+                            {item.expectedOutput ? (
+                              <p className="text-[11px] text-muted">
+                                Expected output: {item.expectedOutput}
+                              </p>
+                            ) : null}
+                            {item.sourceQuestion ? (
+                              <p className="text-[11px] text-muted">
+                                Resolved from: {item.sourceQuestion}
+                              </p>
+                            ) : null}
                             {item.commerceReadinessLevel ? (
                               <p className="text-[11px] text-muted">
                                 Commerce readiness: {item.commerceReadinessLevel}
@@ -2798,7 +3362,13 @@ export default function ZionDashboard({
 
           {view === 'structure' && (
             <StructurePageConsolidated
-              onStartNewCycleRequest={() => setCycleTransitionModalOpen(true)}
+              onStartNewCycleRequest={({ hasActiveExecutionCycle } = {}) => {
+                if (hasActiveExecutionCycle) {
+                  setCycleTransitionModalOpen(true);
+                  return;
+                }
+                actions.startNewCycleWithDecision?.({ mode: 'archive' });
+              }}
               onOpenToday={() => {
                 setView('today');
                 setZionView('day');
@@ -2821,15 +3391,15 @@ export default function ZionDashboard({
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="space-y-1">
                         <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Live P.O.S.</p>
-                        <p className="text-3xl font-semibold text-jericho-text">{livePosPrimaryValue}</p>
+                        <p className="text-3xl font-semibold text-jericho-text">{livePosPanelValue}</p>
                       </div>
                       <div className="space-y-1 text-right">
-                        <p className="text-xs text-muted">Status: {livePosAvailabilityLabel}</p>
-                        <p className="text-xs text-muted">Live state: {livePosStateLabel}</p>
+                        <p className="text-xs text-muted">Status: {livePosPanelAvailabilityLabel}</p>
+                        <p className="text-xs text-muted">Live state: {livePosPanelStateLabel}</p>
                       </div>
                     </div>
-                    <p className="text-xs text-muted">{livePosPrimaryExplanation}</p>
-                    {livePosAvailable ? (
+                    <p className="text-xs text-muted">{livePosPanelPrimaryExplanation}</p>
+                    {canPopulateLivePOS ? (
                       <div className="grid gap-3 md:grid-cols-4 text-xs text-muted">
                         <div>
                           <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Score range</p>
@@ -2841,7 +3411,7 @@ export default function ZionDashboard({
                         </div>
                         <div>
                           <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Bounded score</p>
-                          <p className="text-sm text-jericho-text">{livePosPrimaryValue}</p>
+                          <p className="text-sm text-jericho-text">{livePosPanelValue}</p>
                         </div>
                         <div>
                           <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Cap</p>
@@ -2852,13 +3422,13 @@ export default function ZionDashboard({
                       </div>
                     ) : (
                       <p className="text-[11px] text-muted">
-                        Live P.O.S. is intentionally withheld until the canonical execution-evidence gate is satisfied.
+                        Requires admitted goal and execution evidence.
                       </p>
                     )}
-                    {livePosDetailExplanation.length > 0 ? (
+                    {livePosPanelDetailExplanation.length > 0 ? (
                       <div className="rounded-md border border-line/50 bg-jericho-surface/60 px-3 py-2 text-[11px] text-muted space-y-1">
                         <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Canonical reasons</p>
-                        {livePosDetailExplanation.map((label, index) => (
+                        {livePosPanelDetailExplanation.map((label, index) => (
                           <p key={`live-pos-reason-${index}`}>{label}</p>
                         ))}
                       </div>
@@ -2868,12 +3438,8 @@ export default function ZionDashboard({
                     <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-3 space-y-2">
                       <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Initial Feasibility</p>
                       <div className="space-y-1">
-                        <p className="text-3xl font-semibold text-jericho-text">
-                          {initialFeasibilityHasScore ? initialFeasibilityScoreLabel : initialFeasibilityStateLabel}
-                        </p>
-                        <p className="text-sm text-jericho-text">
-                          {initialFeasibilityHasScore ? initialFeasibilityStateLabel : initialFeasibilityScoreLabel}
-                        </p>
+                        <p className="text-3xl font-semibold text-jericho-text">{initialFeasibilityPanelPrimaryLabel}</p>
+                        <p className="text-sm text-jericho-text">{initialFeasibilityPanelSecondaryLabel}</p>
                         <p className="text-[11px] text-muted">
                           Pre-execution forecast only. Live P.O.S. remains separate and stays withheld until execution
                           evidence exists.
@@ -2882,33 +3448,33 @@ export default function ZionDashboard({
                       <div className="grid gap-2 text-[11px] text-muted">
                         <p>
                           <span className="font-semibold text-jericho-text">Substrate:</span>{' '}
-                          {initialFeasibilitySubstrateLabel}
+                          {initialFeasibilityPanelSubstrateLabel}
                         </p>
-                        {initialFeasibilityHasScore ? (
+                        {canPopulateInitialFeasibility && initialFeasibilityHasScore ? (
                           <p>
                             <span className="font-semibold text-jericho-text">Range:</span>{' '}
                             {initialFeasibilityRangeLabel}
                             {' · '}
                             <span className="font-semibold text-jericho-text">Confidence:</span>{' '}
-                            {initialFeasibilityConfidenceLabel}
+                            {initialFeasibilityPanelConfidenceLabel}
                           </p>
                         ) : (
                           <>
                             <p>
                               <span className="font-semibold text-jericho-text">Score:</span>{' '}
-                              {initialFeasibilityScoreLabel}
+                              {canPopulateInitialFeasibility ? initialFeasibilityScoreLabel : '—'}
                             </p>
                             <p>
                               <span className="font-semibold text-jericho-text">Confidence:</span>{' '}
-                              {initialFeasibilityConfidenceLabel}
+                              {initialFeasibilityPanelConfidenceLabel}
                             </p>
                           </>
                         )}
                       </div>
                       <div className="rounded-md border border-line/50 bg-jericho-surface/60 px-3 py-2 text-[11px] text-muted space-y-1">
                         <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Reason</p>
-                        <p>{initialFeasibilityPrimaryReason}</p>
-                        {initialFeasibilityDetailReasons.map((label, index) => (
+                        <p>{initialFeasibilityPanelReason}</p>
+                        {initialFeasibilityPanelDetailReasons.map((label, index) => (
                           <p key={`initial-feasibility-reason-${index}`}>{label}</p>
                         ))}
                       </div>
@@ -3019,6 +3585,60 @@ export default function ZionDashboard({
                     </details>
                   </div>
                 ) : null}
+                {activePhase ? (
+                  <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-3 text-[11px] text-muted space-y-2">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Status Report</p>
+                        <p className="text-sm font-semibold text-jericho-text">
+                          {activePhase.label} · {activePhase.name}
+                        </p>
+                      </div>
+                      <p className="text-[11px] text-muted">
+                        Next unlock readiness: {titleCaseWords(activePhaseStatusReport?.nextPhaseReadiness || 'unknown')}
+                      </p>
+                    </div>
+                    <p>{activePhaseStatusReport?.summary || 'Execution evidence is still being gathered.'}</p>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="rounded-md border border-line/50 bg-jericho-surface/60 px-3 py-2 space-y-1">
+                        <p>
+                          <span className="font-semibold text-jericho-text">Phase progress:</span>{' '}
+                          {activePhaseStatusReport?.phaseProgress || '—'}
+                        </p>
+                        <p>
+                          <span className="font-semibold text-jericho-text">Evidence:</span>{' '}
+                          {activePhaseStatusReport?.evidenceStatus || 'Insufficient evidence.'}
+                        </p>
+                        <p>
+                          <span className="font-semibold text-jericho-text">Recommended correction:</span>{' '}
+                          {activePhaseStatusReport?.recommendedCorrection || 'Continue gathering evidence.'}
+                        </p>
+                      </div>
+                      <div className="rounded-md border border-line/50 bg-jericho-surface/60 px-3 py-2 space-y-1">
+                        <p>
+                          <span className="font-semibold text-jericho-text">Next unlock:</span>{' '}
+                          {phaseModel.nextUnlockSummary}
+                        </p>
+                        <p>
+                          <span className="font-semibold text-jericho-text">Unresolved assumptions:</span>{' '}
+                          {activePhaseStatusReport?.unresolvedAssumptions ?? 0}
+                        </p>
+                        <p>
+                          <span className="font-semibold text-jericho-text">Next-phase implications:</span>{' '}
+                          {activePhase.nextPhaseImplications}
+                        </p>
+                      </div>
+                    </div>
+                    {Array.isArray(activePhaseStatusReport?.blockers) && activePhaseStatusReport.blockers.length > 0 ? (
+                      <div className="rounded-md border border-line/50 bg-jericho-surface/60 px-3 py-2 space-y-1">
+                        <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Blockers</p>
+                        {activePhaseStatusReport.blockers.slice(0, 3).map((blocker, index) => (
+                          <p key={`phase-blocker-${index}`}>{blocker}</p>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {executionCorrection ? (
                   <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2 text-xs space-y-1">
                     <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Execution correction</p>
@@ -3041,7 +3661,7 @@ export default function ZionDashboard({
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Profile Containment</p>
-                        <p className="text-sm text-jericho-text">One profile, one master calendar, many active goals.</p>
+                        <p className="text-sm text-jericho-text">{containmentSummaryCopy}</p>
                       </div>
                       <div className="text-right text-[11px] text-muted">
                         <p>{activeProfileId}</p>
@@ -3126,128 +3746,135 @@ export default function ZionDashboard({
                         })}
                       </div>
                     ) : null}
-                    <form
-                      className="rounded-md border border-line/50 bg-jericho-surface/60 px-3 py-3 text-[11px] text-muted space-y-2"
-                      onSubmit={handleCreateFrictionEvent}
-                    >
-                      <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Record friction event</p>
-                      <div className="grid md:grid-cols-2 gap-2">
-                        <label className="space-y-1">
-                          <span className="block text-[10px] uppercase tracking-[0.12em] text-muted">Source goal</span>
-                          <select
-                            aria-label="Friction source goal"
-                            className="w-full rounded-md border border-line/60 bg-black/20 px-2 py-1 text-jericho-text"
-                            value={frictionGoalId}
-                            onChange={(event) => setFrictionGoalId(event.target.value)}
-                          >
-                            {frictionGoalOptions.map((option) => (
-                              <option key={option.goalId} value={option.goalId}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="space-y-1">
-                          <span className="block text-[10px] uppercase tracking-[0.12em] text-muted">Event type</span>
-                          <select
-                            aria-label="Friction event type"
-                            className="w-full rounded-md border border-line/60 bg-black/20 px-2 py-1 text-jericho-text"
-                            value={frictionEventType}
-                            onChange={(event) => setFrictionEventType(event.target.value)}
-                          >
-                            {FRICTION_EVENT_TYPE_OPTIONS.map((option) => (
-                              <option key={option} value={option}>
-                                {titleCaseWords(option)}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="space-y-1">
-                          <span className="block text-[10px] uppercase tracking-[0.12em] text-muted">Source cycle</span>
-                          <input
-                            aria-label="Friction source cycle"
-                            className="w-full rounded-md border border-line/60 bg-black/20 px-2 py-1 text-jericho-text"
-                            value={frictionCycleId}
-                            onChange={(event) => setFrictionCycleId(event.target.value)}
-                          />
-                        </label>
-                        <label className="space-y-1">
-                          <span className="block text-[10px] uppercase tracking-[0.12em] text-muted">Source block</span>
-                          <input
-                            aria-label="Friction source block"
-                            className="w-full rounded-md border border-line/60 bg-black/20 px-2 py-1 text-jericho-text"
-                            value={frictionBlockId}
-                            onChange={(event) => setFrictionBlockId(event.target.value)}
-                            placeholder="Optional block id"
-                          />
-                        </label>
-                        <label className="space-y-1">
-                          <span className="block text-[10px] uppercase tracking-[0.12em] text-muted">Severity</span>
-                          <select
-                            aria-label="Friction severity"
-                            className="w-full rounded-md border border-line/60 bg-black/20 px-2 py-1 text-jericho-text"
-                            value={frictionSeverity}
-                            onChange={(event) => setFrictionSeverity(event.target.value)}
-                          >
-                            {FRICTION_SEVERITY_OPTIONS.map((option) => (
-                              <option key={option} value={option}>
-                                {titleCaseWords(option)}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="space-y-1">
-                          <span className="block text-[10px] uppercase tracking-[0.12em] text-muted">
-                            Calendar impact hours
-                          </span>
-                          <input
-                            aria-label="Friction calendar impact hours"
-                            type="number"
-                            min="0"
-                            className="w-full rounded-md border border-line/60 bg-black/20 px-2 py-1 text-jericho-text"
-                            value={frictionHours}
-                            onChange={(event) => setFrictionHours(event.target.value)}
-                          />
-                        </label>
-                        <label className="space-y-1">
-                          <span className="block text-[10px] uppercase tracking-[0.12em] text-muted">Start date</span>
-                          <input
-                            aria-label="Friction start date"
-                            type="date"
-                            className="w-full rounded-md border border-line/60 bg-black/20 px-2 py-1 text-jericho-text"
-                            value={frictionStartDate}
-                            onChange={(event) => setFrictionStartDate(event.target.value)}
-                          />
-                        </label>
-                        <label className="space-y-1">
-                          <span className="block text-[10px] uppercase tracking-[0.12em] text-muted">End date</span>
-                          <input
-                            aria-label="Friction end date"
-                            type="date"
-                            className="w-full rounded-md border border-line/60 bg-black/20 px-2 py-1 text-jericho-text"
-                            value={frictionEndDate}
-                            onChange={(event) => setFrictionEndDate(event.target.value)}
-                          />
-                        </label>
-                      </div>
-                      <label className="space-y-1 block">
-                        <span className="block text-[10px] uppercase tracking-[0.12em] text-muted">Note</span>
-                        <textarea
-                          aria-label="Friction note"
-                          className="w-full rounded-md border border-line/60 bg-black/20 px-2 py-1 text-jericho-text"
-                          rows={2}
-                          value={frictionNote}
-                          onChange={(event) => setFrictionNote(event.target.value)}
-                          placeholder="Optional detail about the real-world friction."
-                        />
-                      </label>
-                      <button
-                        type="submit"
-                        className="rounded-md border border-line/60 bg-black/20 px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-jericho-text"
+                    {canShowCycleFrictionInputs ? (
+                      <form
+                        className="rounded-md border border-line/50 bg-jericho-surface/60 px-3 py-3 text-[11px] text-muted space-y-2"
+                        onSubmit={handleCreateFrictionEvent}
                       >
-                        Record friction
-                      </button>
-                    </form>
+                        <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Record friction event</p>
+                        <div className="grid md:grid-cols-2 gap-2">
+                          <label className="space-y-1">
+                            <span className="block text-[10px] uppercase tracking-[0.12em] text-muted">Source goal</span>
+                            <select
+                              aria-label="Friction source goal"
+                              className="w-full rounded-md border border-line/60 bg-black/20 px-2 py-1 text-jericho-text"
+                              value={frictionGoalId}
+                              onChange={(event) => setFrictionGoalId(event.target.value)}
+                            >
+                              {frictionGoalOptions.map((option) => (
+                                <option key={option.goalId} value={option.goalId}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="space-y-1">
+                            <span className="block text-[10px] uppercase tracking-[0.12em] text-muted">Event type</span>
+                            <select
+                              aria-label="Friction event type"
+                              className="w-full rounded-md border border-line/60 bg-black/20 px-2 py-1 text-jericho-text"
+                              value={frictionEventType}
+                              onChange={(event) => setFrictionEventType(event.target.value)}
+                            >
+                              {FRICTION_EVENT_TYPE_OPTIONS.map((option) => (
+                                <option key={option} value={option}>
+                                  {titleCaseWords(option)}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="space-y-1">
+                            <span className="block text-[10px] uppercase tracking-[0.12em] text-muted">Source cycle</span>
+                            <input
+                              aria-label="Friction source cycle"
+                              className="w-full rounded-md border border-line/60 bg-black/20 px-2 py-1 text-jericho-text"
+                              value={frictionCycleId}
+                              onChange={(event) => setFrictionCycleId(event.target.value)}
+                            />
+                          </label>
+                          <label className="space-y-1">
+                            <span className="block text-[10px] uppercase tracking-[0.12em] text-muted">Source block</span>
+                            <input
+                              aria-label="Friction source block"
+                              className="w-full rounded-md border border-line/60 bg-black/20 px-2 py-1 text-jericho-text"
+                              value={frictionBlockId}
+                              onChange={(event) => setFrictionBlockId(event.target.value)}
+                              placeholder="Optional block id"
+                            />
+                          </label>
+                          <label className="space-y-1">
+                            <span className="block text-[10px] uppercase tracking-[0.12em] text-muted">Severity</span>
+                            <select
+                              aria-label="Friction severity"
+                              className="w-full rounded-md border border-line/60 bg-black/20 px-2 py-1 text-jericho-text"
+                              value={frictionSeverity}
+                              onChange={(event) => setFrictionSeverity(event.target.value)}
+                            >
+                              {FRICTION_SEVERITY_OPTIONS.map((option) => (
+                                <option key={option} value={option}>
+                                  {titleCaseWords(option)}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="space-y-1">
+                            <span className="block text-[10px] uppercase tracking-[0.12em] text-muted">
+                              Calendar impact hours
+                            </span>
+                            <input
+                              aria-label="Friction calendar impact hours"
+                              type="number"
+                              min="0"
+                              className="w-full rounded-md border border-line/60 bg-black/20 px-2 py-1 text-jericho-text"
+                              value={frictionHours}
+                              onChange={(event) => setFrictionHours(event.target.value)}
+                            />
+                          </label>
+                          <label className="space-y-1">
+                            <span className="block text-[10px] uppercase tracking-[0.12em] text-muted">Start date</span>
+                            <input
+                              aria-label="Friction start date"
+                              type="date"
+                              className="w-full rounded-md border border-line/60 bg-black/20 px-2 py-1 text-jericho-text"
+                              value={frictionStartDate}
+                              onChange={(event) => setFrictionStartDate(event.target.value)}
+                            />
+                          </label>
+                          <label className="space-y-1">
+                            <span className="block text-[10px] uppercase tracking-[0.12em] text-muted">End date</span>
+                            <input
+                              aria-label="Friction end date"
+                              type="date"
+                              className="w-full rounded-md border border-line/60 bg-black/20 px-2 py-1 text-jericho-text"
+                              value={frictionEndDate}
+                              onChange={(event) => setFrictionEndDate(event.target.value)}
+                            />
+                          </label>
+                        </div>
+                        <label className="space-y-1 block">
+                          <span className="block text-[10px] uppercase tracking-[0.12em] text-muted">Note</span>
+                          <textarea
+                            aria-label="Friction note"
+                            className="w-full rounded-md border border-line/60 bg-black/20 px-2 py-1 text-jericho-text"
+                            rows={2}
+                            value={frictionNote}
+                            onChange={(event) => setFrictionNote(event.target.value)}
+                            placeholder="Optional detail about the real-world friction."
+                          />
+                        </label>
+                        <button
+                          type="submit"
+                          className="rounded-md border border-line/60 bg-black/20 px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-jericho-text"
+                        >
+                          Record friction
+                        </button>
+                      </form>
+                    ) : (
+                      <div className="rounded-md border border-line/50 bg-jericho-surface/60 px-3 py-3 text-[11px] text-muted space-y-1">
+                        <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Record friction event</p>
+                        <p>Start an execution cycle before recording cycle friction.</p>
+                      </div>
+                    )}
                   </div>
                 ) : null}
                 {!committedHorizonCoversDeadlineWindow && committedHorizonMonths.length > 0 ? (
@@ -3367,51 +3994,76 @@ export default function ZionDashboard({
                     <p className="text-sm text-muted">Integrity and consistency across the active cycle.</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl font-semibold text-jericho-text">{stabilityScore}</p>
-                    <p className="text-xs text-muted">{stabilityBand}</p>
+                    <p className="text-2xl font-semibold text-jericho-text">{stabilityScoreDisplay}</p>
+                    <p className="text-xs text-muted">{stabilityBandDisplay}</p>
                   </div>
                 </div>
                 <div className="h-2 rounded-full bg-line/40 overflow-hidden">
-                  <div className="h-full bg-jericho-accent" style={{ width: `${stabilityScore}%` }} />
+                  <div
+                    className="h-full bg-jericho-accent"
+                    style={{ width: `${canPopulateExecutionMetrics ? stabilityScore : 0}%` }}
+                  />
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-muted">
                   <span>Low 0–49</span>
                   <span>Moderate 50–79</span>
                   <span>High 80–100</span>
                 </div>
+                {shouldShowUnavailableExecutionMetrics ? (
+                  <p className="text-[11px] text-muted">
+                    {hasActiveExecutionCycle
+                      ? 'Execution metrics remain unavailable until execution evidence exists.'
+                      : 'No active execution cycle.'}
+                  </p>
+                ) : null}
                 <div className="grid md:grid-cols-2 gap-3 text-xs text-muted">
                   <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
                     <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Integrity rate</p>
-                    <p className="text-sm text-jericho-text">
-                      {Math.round(((integrityScoreCycle ?? safeStability.completionRate ?? 0) || 0) * 100)}%
-                    </p>
+                    <p className="text-sm text-jericho-text">{integrityRateDisplay}</p>
                   </div>
                   <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
                     <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Mix drift</p>
-                    <p className="text-sm text-jericho-text">{Math.round((safeStability.driftScore || 0) * 100)}%</p>
+                    <p className="text-sm text-jericho-text">{mixDriftDisplay}</p>
                   </div>
                   <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
                     <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Consistency</p>
-                    <p className="text-sm text-jericho-text">{Math.round((safeStability.streakScore || 0) * 100)}%</p>
+                    <p className="text-sm text-jericho-text">{consistencyDisplay}</p>
                   </div>
                   <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2">
                     <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Momentum</p>
-                    <p className="text-sm text-jericho-text">{Math.round((safeStability.momentumScore || 0) * 100)}%</p>
+                    <p className="text-sm text-jericho-text">{momentumDisplay}</p>
                   </div>
                 </div>
               </div>
 
-              <DiagnosticsPanel
-                drift={Math.round((safeStability.driftScore || 0) * 100)}
-                risks={recoveryReasons || []}
-                metrics={{
-                  completionRate: Math.round((safeStability.completionRate || 0) * 100),
-                  streak: Math.round((safeStability.streakScore || 0) * 100),
-                  driftIndex: Math.round((safeStability.driftScore || 0) * 100),
-                }}
-                missedSignal={missedSignal}
-                traceLog={debug?.traceLog || []}
-              />
+              {canPopulateExecutionMetrics ? (
+                <DiagnosticsPanel
+                  drift={Math.round((safeStability.driftScore || 0) * 100)}
+                  risks={recoveryReasons || []}
+                  metrics={{
+                    completionRate: Math.round((safeStability.completionRate || 0) * 100),
+                    streak: Math.round((safeStability.streakScore || 0) * 100),
+                    driftIndex: Math.round((safeStability.driftScore || 0) * 100),
+                  }}
+                  missedSignal={missedSignal}
+                  traceLog={debug?.traceLog || []}
+                />
+              ) : (
+                <div className="rounded-xl border border-line/60 bg-jericho-surface/90 shadow-glass p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.18em] text-muted">Diagnostics</p>
+                      <h3 className="text-lg font-semibold">Integrity + risk</h3>
+                    </div>
+                    <span className="text-xs text-muted">Drift: —</span>
+                  </div>
+                  <p className="text-sm text-muted">
+                    {hasActiveExecutionCycle
+                      ? 'Diagnostics appear after execution evidence is recorded.'
+                      : 'Diagnostics become available after an execution cycle begins.'}
+                  </p>
+                </div>
+              )}
 
               <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4 space-y-3">
                 <div className="flex items-center justify-between">

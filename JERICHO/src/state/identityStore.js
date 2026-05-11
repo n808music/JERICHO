@@ -803,12 +803,24 @@ function applySetPatternTargets(state, action) {
 function identityReducer(state, action) {
   if (action.type === 'RESET_IDENTITY') {
     const activeProfileId = String(state?.activeProfileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
-    const profileLabel = state?.profilesById?.[activeProfileId]?.label || DEFAULT_PROFILE_LABEL;
+    const currentProfile = state?.profilesById?.[activeProfileId] || {};
+    const profileLabel = currentProfile?.label || DEFAULT_PROFILE_LABEL;
+    const sanitizedProfiles = {
+      [activeProfileId]: {
+        id: activeProfileId,
+        label: profileLabel,
+        masterCalendarId: currentProfile?.masterCalendarId || `calendar-${activeProfileId}`,
+        strategicClusterIds: [],
+        goalIds: [],
+        activeGoalId: null,
+        status: currentProfile?.status || 'active',
+      },
+    };
     return computeDerivedState(
       buildBlankIdentityState({
         activeProfileId,
         profileLabel,
-        profilesById: state?.profilesById || {},
+        profilesById: sanitizedProfiles,
         timeZone: state?.appTime?.timeZone || 'UTC',
       }),
       { type: 'NO_OP' }
@@ -1142,6 +1154,11 @@ export function IdentityProvider({ children, initialState }) {
     (payload) => dispatch({ type: 'START_NEW_CYCLE_WITH_DECISION', payload }),
     []
   );
+  const resetActiveCycle = useCallback((cycleId) => dispatch({ type: 'RESET_ACTIVE_CYCLE', cycleId }), []);
+  const completeCycleReassessment = useCallback(
+    (cycleId) => dispatch({ type: 'COMPLETE_CYCLE_REASSESSMENT', cycleId }),
+    []
+  );
   const endCycle = useCallback((cycleId) => dispatch({ type: 'END_CYCLE', cycleId }), []);
   const archiveAndCloneCycle = useCallback(
     (cycleId, overrides = {}) => dispatch({ type: 'ARCHIVE_AND_CLONE_CYCLE', cycleId, overrides }),
@@ -1225,26 +1242,19 @@ export function IdentityProvider({ children, initialState }) {
   const generateScheduleForActiveCycle = useCallback(
     (payload = {}) => {
       const resolvedCycleId = payload?.cycleId || state.activeCycleId || null;
-      const activeMasterPlanId =
-        state?.profilesById?.[state?.activeProfileId || '']?.activeMasterPlanId || null;
-      if (!resolvedCycleId && activeMasterPlanId) {
-        dispatch({
-          type: 'GENERATE_PLAN',
-          payload: {
-            ...(payload || {}),
-            cycleId: null,
-            masterPlanId: activeMasterPlanId,
-            source: 'MASTER_PLAN_FIRST_CYCLE',
-          },
-        });
+      if (!resolvedCycleId) {
         return Promise.resolve();
       }
-      return generatePlanWithLLMAsync({
-        cycleId: resolvedCycleId,
-        anchorDayKey: payload?.anchorDayKey || null,
+      dispatch({
+        type: 'GENERATE_PLAN',
+        payload: {
+          cycleId: resolvedCycleId,
+          anchorDayKey: payload?.anchorDayKey || null,
+        },
       });
+      return Promise.resolve();
     },
-    [dispatch, generatePlanWithLLMAsync, state.activeCycleId, state.activeProfileId, state.profilesById]
+    [dispatch, state.activeCycleId]
   );
   const commitPreviewItems = useCallback((payload) => dispatch({ type: 'COMMIT_PREVIEW_ITEMS', payload }), []);
   const applyPlan = useCallback((payload = {}) => dispatch({ type: 'APPLY_PLAN', payload }), []);
@@ -1347,6 +1357,8 @@ export function IdentityProvider({ children, initialState }) {
     clearPlanRecovery,
     startNewCycle,
     startNewCycleWithDecision,
+    resetActiveCycle,
+    completeCycleReassessment,
     endCycle,
     setActiveCycle,
     deleteCycle,
@@ -1811,9 +1823,30 @@ export function ensureTemplates(state) {
   });
 
   if (state.goalExecutionContract && !state.goalExecutionContract.workWindows) {
-    const wrapper = { goalContract: state.goalExecutionContract };
-    migrateTemporalBindingToWorkWindows(wrapper);
-    state.goalExecutionContract.workWindows = state.goalExecutionContract.workWindows || emptyWorkWindows();
+    const hasOwnTemporalBinding = Boolean(state.goalExecutionContract.temporalBinding);
+    if (hasOwnTemporalBinding) {
+      const wrapper = { goalContract: state.goalExecutionContract };
+      migrateTemporalBindingToWorkWindows(wrapper);
+      state.goalExecutionContract.workWindows = state.goalExecutionContract.workWindows || emptyWorkWindows();
+    } else {
+      const activeCycle = state.activeCycleId ? state.cyclesById?.[state.activeCycleId] : null;
+      const activeCycleWindows = activeCycle?.goalContract?.workWindows || null;
+      if (activeCycleWindows) {
+        state.goalExecutionContract.workWindows = structuredClone
+          ? structuredClone(activeCycleWindows)
+          : JSON.parse(JSON.stringify(activeCycleWindows));
+        state.goalExecutionContract.workWindowsSource =
+          activeCycle?.goalContract?.workWindowsSource || state.goalExecutionContract.workWindowsSource || 'user_defined';
+        state.goalExecutionContract.constraintsStatus =
+          activeCycle?.goalContract?.constraintsStatus || state.goalExecutionContract.constraintsStatus || 'approved';
+        state.goalExecutionContract.capacityValidation =
+          activeCycle?.goalContract?.capacityValidation || state.goalExecutionContract.capacityValidation || null;
+      } else {
+        const wrapper = { goalContract: state.goalExecutionContract };
+        migrateTemporalBindingToWorkWindows(wrapper);
+        state.goalExecutionContract.workWindows = state.goalExecutionContract.workWindows || emptyWorkWindows();
+      }
+    }
   }
 
   return state;

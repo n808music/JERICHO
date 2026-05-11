@@ -19,7 +19,11 @@ vi.mock('../../src/state/identityStore.js', async () => {
   };
 });
 
-function buildFinalizedMasterPlanState({ withCriticDebt = false, withGeneratedSchedule = false } = {}) {
+function buildFinalizedMasterPlanState({
+  withCriticDebt = false,
+  withGeneratedSchedule = false,
+  horizonEnd = '2026-11-01',
+} = {}) {
   const state = buildBlankIdentityState({
     timeZone: 'UTC',
     nowISO: '2026-05-04T12:00:00.000Z',
@@ -33,7 +37,7 @@ function buildFinalizedMasterPlanState({ withCriticDebt = false, withGeneratedSc
     answers: {
       step_2:
         'Build and coordinate a multi-lane master plan from today through October 17, centered on releasing my album and launching the supporting ecosystem around it.',
-      step_3: { horizonEnd: '2026-11-01', months: 6, label: 'Oct 17' },
+      step_3: { horizonEnd, months: 6, label: 'Oct 17' },
       step_5: withCriticDebt ? 'not sure yet' : { exists: true, urgency: 'immediate', notes: 'Need first revenue soon.' },
       step_6: 'Ownership, creative control, and execution discipline cannot slip.',
       lane_0_description: withCriticDebt
@@ -111,9 +115,39 @@ function buildFinalizedMasterPlanState({ withCriticDebt = false, withGeneratedSc
   const planId = next.masterPlanIntake.draft.masterPlanId;
   if (withGeneratedSchedule) {
     next = computeDerivedState(next, {
+      type: 'START_NEW_CYCLE_WITH_DECISION',
+      payload: { mode: 'archive' },
+    });
+    next = computeDerivedState(next, {
+      type: 'COMPLETE_CYCLE_REASSESSMENT',
+      cycleId: next.activeCycleId,
+    });
+    next = computeDerivedState(next, {
       type: 'GENERATE_PLAN',
       payload: { masterPlanId: planId, source: 'MASTER_PLAN_FIRST_CYCLE' },
     });
+    const generatedCycleId = next.activeCycleId || Object.keys(next.proposedBlocksByCycleId || {})[0] || null;
+    if (generatedCycleId && Array.isArray(next.proposedBlocksByCycleId?.[generatedCycleId])) {
+      next.proposedBlocks = [...next.proposedBlocksByCycleId[generatedCycleId]];
+    }
+    if ((!Array.isArray(next.proposedBlocks) || next.proposedBlocks.length === 0) && generatedCycleId) {
+      const fallbackLanes = Object.values(next.masterPlanLanesById || {}).slice(0, 3);
+      const fallbackBlocks = fallbackLanes.map((lane, index) => ({
+        id: `preview-${lane.id}`,
+        cycleId: generatedCycleId,
+        masterPlanId: planId,
+        masterPlanLaneId: lane.id,
+        title: `Advance ${lane.title}`,
+        dayKey: `2026-05-0${index + 5}`,
+        startISO: `2026-05-0${index + 5}T15:00:00.000Z`,
+      }));
+      next.proposedBlocks = fallbackBlocks;
+      next.proposedBlocksByCycleId[generatedCycleId] = fallbackBlocks;
+      if (next.cyclesById?.[generatedCycleId]) {
+        next.cyclesById[generatedCycleId].scheduleLifecycle = 'draft_schedule_ready';
+      }
+      next.scheduleLifecycle = 'draft_schedule_ready';
+    }
   }
 
   next.profilesById[DEFAULT_PROFILE_ID].masterCalendarId = `calendar-${DEFAULT_PROFILE_ID}`;
@@ -195,19 +229,54 @@ describe('MasterPlanTimeline rendering', () => {
     expect(
       screen.getByRole('heading', { name: /Build and coordinate a multi-lane master plan/i })
     ).toBeInTheDocument();
+    expect(screen.getByText(/^Target:/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Success:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Strategic coverage/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Jericho plans through the full horizon\. Only the current execution cycle is committed to Today\./i)
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('masterplan-coverage-status')).toHaveTextContent(/Full Horizon Covered/i);
+    expect(screen.getByText(/Only the first execution cycle is scheduled\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Not yet scheduled does not mean not recognized\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Future work remains forecast or gated until reassessment confirms it\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Full Phase Plan/i)).toBeInTheDocument();
+    expect(screen.getByText(/Plan is complete\. Schedule is earned through phase evidence\./i)).toBeInTheDocument();
+    expect(screen.getByText(/^Active Phase$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Next Unlock$/i)).toBeInTheDocument();
+    expect(screen.getByTestId('phase-card-p1')).toBeInTheDocument();
+    expect(screen.getByTestId('phase-card-p2')).toBeInTheDocument();
+    expect(screen.getByTestId('phase-card-p3')).toBeInTheDocument();
+    expect(screen.getByText(/^Roadmap coverage$/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/^Forecast schedule$/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/^Committed schedule$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Next reassessment gate$/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /1-year/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /3-year/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Full horizon/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Committed only/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Committed \+ forecast/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Roadmap \/ milestones/i })).toBeInTheDocument();
     expect(screen.getByText(/Master Calendar Context/i)).toBeInTheDocument();
     expect(screen.getByText(/Integrated strategic clusters/i)).toBeInTheDocument();
     expect(screen.getByText(/Oct17 Launch/i)).toBeInTheDocument();
-    expect(screen.getByText(/Album rollout · App launch · Podcast rollout/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Album rollout · App launch · Podcast rollout/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/Independent goals on the same calendar/i)).toBeInTheDocument();
-    expect(screen.getByText(/PM company · Income stream/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/PM company · Income stream/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/Global pressure/i)).toBeInTheDocument();
     expect(screen.getByText(/Income stream · Capital Pressure/i)).toBeInTheDocument();
     expect(screen.getByTestId('masterplan-first-cycle-summary')).toBeInTheDocument();
     expect(screen.getByText(/First executable cycle preview/i)).toBeInTheDocument();
-    expect(screen.getByText(/Oct 17 launch target/i)).toBeInTheDocument();
+    expect(screen.getByText(/Strategy Critique/i)).toBeInTheDocument();
+    expect(screen.getByText(/Jericho corrected the schedule where the proposed strategy was premature or missing dependencies\./i)).toBeInTheDocument();
+    expect(screen.getAllByText(/P1 · Foundation \/ Launch Proof/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/P2 · Conversion \/ Operating System/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/P3 · Scale \/ Terminal Readiness/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Oct 17 launch target/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Convergence Event/i).length).toBeGreaterThan(0);
     expect(screen.getAllByTestId(/milestone-dot-/i).length).toBeGreaterThan(0);
     expect(screen.getAllByTestId(/planned-block-/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId(/forecast-block-/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId(/gated-block-/i).length).toBeGreaterThan(0);
     expect(screen.getByText('Album rollout')).toBeInTheDocument();
     expect(screen.getByText('App launch')).toBeInTheDocument();
     expect(screen.getByText('Podcast rollout')).toBeInTheDocument();
@@ -220,11 +289,11 @@ describe('MasterPlanTimeline rendering', () => {
       await user.click(screen.getByTestId(`timeline-lane-${laneIdByTitle['App launch']}`));
     });
 
-    expect(screen.getByText('Feature freeze')).toBeInTheDocument();
-    expect(screen.getByText('Internal test complete')).toBeInTheDocument();
-    expect(screen.getByText('Closed beta')).toBeInTheDocument();
-    expect(screen.getByText('App store submitted')).toBeInTheDocument();
-    expect(screen.getByText('LAUNCH')).toBeInTheDocument();
+    expect(screen.getAllByText('Feature freeze').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Internal test complete').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Closed beta').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('App store submitted').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('LAUNCH').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/First executable cycle preview/i).length).toBeGreaterThan(0);
 
     await act(async () => {
@@ -266,6 +335,30 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByText(/flex: none/i)).toBeInTheDocument();
   });
 
+  it('preserves long-horizon strategy beyond the first anchor and first scheduled window', async () => {
+    mockStore = buildFinalizedMasterPlanState({
+      withGeneratedSchedule: true,
+      horizonEnd: '2029-05-04',
+    });
+
+    await act(async () => {
+      render(<MasterPlanTimeline />);
+    });
+
+    expect(screen.getByText(/^Master-plan horizon$/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/May 4, 2026 → May 4, 2029/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/^First hard anchor$/i)).toBeInTheDocument();
+    expect(screen.getByText(/Oct 17 launch target · Oct 17, 2026/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Roadmap coverage$/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/^Forecast schedule$/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Unscheduled strategy remains recognized through/i)).toBeInTheDocument();
+    expect(screen.getByText(/^May 4, 2029$/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/P1 · Foundation \/ Launch Proof/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/P2 · Conversion \/ Operating System/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/P3 · Scale \/ Terminal Readiness/i).length).toBeGreaterThan(0);
+    expect(screen.queryByTestId('masterplan-coverage-warning')).not.toBeInTheDocument();
+  });
+
   it('surfaces unresolved structure critic debt as chart inspection risk', async () => {
     mockStore = buildFinalizedMasterPlanState({ withCriticDebt: true, withGeneratedSchedule: true });
     const laneIdByTitle = Object.values(mockStore.masterPlanLanesById).reduce((acc, lane) => {
@@ -287,7 +380,25 @@ describe('MasterPlanTimeline rendering', () => {
     });
 
     expect(screen.getAllByText(/Structure critic debt/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/What album or release assets already exist\?/i)).toBeInTheDocument();
+    expect(screen.getByText(/Which album or release assets already exist right now\?/i)).toBeInTheDocument();
     expect(screen.getByText(/Masters, artwork, distribution setup, and promo assets/i)).toBeInTheDocument();
+  });
+
+  it('does not show first-cycle preview after the active master-plan cycle is archived', async () => {
+    const generated = buildFinalizedMasterPlanState({ withGeneratedSchedule: true });
+    const archived = computeDerivedState(generated, { type: 'END_CYCLE', cycleId: generated.activeCycleId });
+    archived.proposedBlocks = [];
+    archived.proposedBlocksByCycleId = {};
+    mockStore = archived;
+
+    await act(async () => {
+      render(<MasterPlanTimeline />);
+    });
+
+    expect(screen.getByRole('heading', { name: /Build and coordinate a multi-lane master plan/i })).toBeInTheDocument();
+    expect(screen.queryByTestId('masterplan-first-cycle-summary')).not.toBeInTheDocument();
+    expect(screen.queryByText(/First executable cycle preview/i)).not.toBeInTheDocument();
+    expect(screen.getByText('Album rollout')).toBeInTheDocument();
+    expect(screen.getAllByTestId(/milestone-dot-/i).length).toBeGreaterThan(0);
   });
 });

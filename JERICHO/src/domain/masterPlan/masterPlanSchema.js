@@ -12,6 +12,10 @@ export const LANE_DOMAIN = /** @type {const} */ ({
   BRAND: 'brand',
   INCOME: 'income',
   MEDIA: 'media',
+  CAPITAL: 'capital',
+  INSTITUTION: 'institution',
+  CIVIC: 'civic',
+  COMPANY: 'company',
 });
 
 export const LANE_ROLE = /** @type {const} */ ({

@@ -6,6 +6,7 @@ import {
   selectMasterTimeline,
   selectMasterPlanAnchors,
 } from '../../domain/masterPlan/masterPlanSelectors.js';
+import { deriveMasterPlanPhaseModel } from '../../domain/masterPlan/masterPlanPhaseModel.js';
 import TimelineGrid from './TimelineGrid.jsx';
 import MasterPlanLaneCard from './MasterPlanLaneCard.jsx';
 
@@ -38,12 +39,359 @@ function normalizeDayKey(value) {
   return text.slice(0, 10);
 }
 
+function parseDayKey(value) {
+  const dayKey = normalizeDayKey(value);
+  return dayKey ? new Date(`${dayKey}T12:00:00.000Z`) : null;
+}
+
+function addDaysToDayKey(value, days) {
+  const date = parseDayKey(value);
+  if (!date) {
+    return null;
+  }
+  date.setUTCDate(date.getUTCDate() + Number(days || 0));
+  return date.toISOString().slice(0, 10);
+}
+
+function dayDistanceInclusive(startValue, endValue) {
+  const start = parseDayKey(startValue);
+  const end = parseDayKey(endValue);
+  if (!start || !end) {
+    return 0;
+  }
+  return Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1);
+}
+
+function formatDateLabel(value) {
+  const date = parseDayKey(value);
+  if (!date) {
+    return '—';
+  }
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+function formatRangeLabel(startValue, endValue) {
+  const start = formatDateLabel(startValue);
+  const end = formatDateLabel(endValue);
+  if (start === '—' && end === '—') {
+    return '—';
+  }
+  if (start === end) {
+    return start;
+  }
+  return `${start} → ${end}`;
+}
+
+function minDayKey(left, right) {
+  const a = normalizeDayKey(left);
+  const b = normalizeDayKey(right);
+  if (!a) {
+    return b;
+  }
+  if (!b) {
+    return a;
+  }
+  return a < b ? a : b;
+}
+
+function getTemporalDayKey(item) {
+  return normalizeDayKey(item?.dayKey || item?.targetDate || item?.date || item?.startISO || item?.start);
+}
+
+function sortByTemporalValue(items) {
+  return [...(Array.isArray(items) ? items : [])].sort((left, right) =>
+    String(getTemporalDayKey(left) || '').localeCompare(String(getTemporalDayKey(right) || ''))
+  );
+}
+
+function getFirstFixedAnchor(anchors) {
+  return (
+    [...(Array.isArray(anchors) ? anchors : [])]
+      .filter((anchor) => normalizeDayKey(anchor?.date))
+      .sort((left, right) => String(left?.date || '').localeCompare(String(right?.date || '')))
+      .find((anchor) => anchor?.isFixed) ||
+    [...(Array.isArray(anchors) ? anchors : [])]
+      .filter((anchor) => normalizeDayKey(anchor?.date))
+      .sort((left, right) => String(left?.date || '').localeCompare(String(right?.date || '')))[0] ||
+    null
+  );
+}
+
+function splitRangeIntoSegments(startValue, endValue, segmentCount) {
+  const start = parseDayKey(startValue);
+  const end = parseDayKey(endValue);
+  if (!start || !end || start > end || segmentCount <= 0) {
+    return [];
+  }
+  const totalDays = dayDistanceInclusive(startValue, endValue);
+  let cursor = normalizeDayKey(startValue);
+  let remainingDays = totalDays;
+  let remainingSegments = segmentCount;
+  const segments = [];
+  while (remainingSegments > 0 && cursor) {
+    const size = Math.max(1, Math.ceil(remainingDays / remainingSegments));
+    const segmentEnd = remainingSegments === 1 ? normalizeDayKey(endValue) : addDaysToDayKey(cursor, size - 1);
+    segments.push({ start: cursor, end: segmentEnd });
+    const usedDays = dayDistanceInclusive(cursor, segmentEnd);
+    remainingDays = Math.max(0, remainingDays - usedDays);
+    remainingSegments -= 1;
+    cursor = remainingSegments > 0 ? addDaysToDayKey(segmentEnd, 1) : null;
+  }
+  return segments;
+}
+
+function getPhaseBlueprints() {
+  return [
+    {
+      key: 'foundation',
+      title: 'Phase 1 · Foundation / Convergence Build',
+      summary: 'Build the converging launch foundation before the first hard anchor.',
+    },
+    {
+      key: 'proof',
+      title: 'Phase 2 · Launch Conversion / Proof Capture',
+      summary: 'Convert the anchor event into proof, traction, and measurable continuation signal.',
+    },
+    {
+      key: 'operating_system',
+      title: 'Phase 3 · Operating System / Revenue Architecture',
+      summary: 'Stabilize the product-media-feedback loop and build repeatable operating cadence.',
+    },
+    {
+      key: 'scaling',
+      title: 'Phase 4 · Scaling / Capital Path',
+      summary: 'Expand proven lanes, partnerships, and capital options only where evidence supports scaling.',
+    },
+    {
+      key: 'continuation',
+      title: 'Phase 5 · Empire Continuation / Terminal Readiness',
+      summary: 'Evaluate mission continuity against the success standard and define the next horizon if needed.',
+    },
+  ];
+}
+
+function deriveLanePhaseStatus(lane, phaseIndex, totalPhases) {
+  const activation = String(lane?.activationState || '').trim().toLowerCase();
+  const domain = String(lane?.domain || '').trim().toLowerCase();
+  if (activation === 'parked') {
+    return 'deferred';
+  }
+  if (phaseIndex === 0) {
+    return activation || 'active';
+  }
+  if (['capital', 'real_estate', 'institution', 'education', 'civic', 'district'].includes(domain) && phaseIndex < totalPhases - 1) {
+    return 'gated';
+  }
+  if (activation === 'incubating') {
+    return phaseIndex >= Math.max(1, totalPhases - 2) ? 'dependent' : 'gated';
+  }
+  return 'active';
+}
+
+function buildStrategicPhases(plan, lanes, anchors) {
+  const horizonStart = normalizeDayKey(plan?.horizonStart);
+  const horizonEnd = normalizeDayKey(plan?.horizonEnd);
+  if (!horizonStart || !horizonEnd) {
+    return [];
+  }
+  const firstAnchor = getFirstFixedAnchor(anchors);
+  const firstAnchorDayKey = normalizeDayKey(firstAnchor?.date);
+  const blueprints = getPhaseBlueprints();
+  const segments = [];
+  if (firstAnchorDayKey && firstAnchorDayKey > horizonStart && firstAnchorDayKey < horizonEnd) {
+    segments.push({ start: horizonStart, end: firstAnchorDayKey, anchorPhase: true });
+    const postAnchorStart = addDaysToDayKey(firstAnchorDayKey, 1);
+    const remainingDays = dayDistanceInclusive(postAnchorStart, horizonEnd);
+    const trailingCount = remainingDays >= 540 ? 4 : remainingDays >= 240 ? 3 : remainingDays >= 90 ? 2 : 1;
+    segments.push(...splitRangeIntoSegments(postAnchorStart, horizonEnd, trailingCount));
+  } else {
+    const totalDays = dayDistanceInclusive(horizonStart, horizonEnd);
+    const count = totalDays >= 720 ? 5 : totalDays >= 365 ? 4 : totalDays >= 180 ? 3 : 2;
+    segments.push(...splitRangeIntoSegments(horizonStart, horizonEnd, count));
+  }
+  return segments.map((segment, index) => {
+    const blueprint = blueprints[Math.min(index, blueprints.length - 1)];
+    return {
+      id: `phase-${index + 1}`,
+      title: blueprint.title,
+      summary: blueprint.summary,
+      start: segment.start,
+      end: segment.end,
+      anchorPhase: Boolean(segment.anchorPhase),
+      laneStatuses: lanes.map((lane) => ({
+        laneId: lane.id,
+        laneTitle: lane.title,
+        domain: lane.domain,
+        status: deriveLanePhaseStatus(lane, index, segments.length),
+      })),
+    };
+  });
+}
+
+function buildStrategicCoverage(plan, anchors, planCycle, firstCycleWindow) {
+  const horizonStart = normalizeDayKey(plan?.horizonStart);
+  const horizonEnd = normalizeDayKey(plan?.horizonEnd);
+  const firstAnchor = getFirstFixedAnchor(anchors);
+  const firstAnchorDayKey = normalizeDayKey(firstAnchor?.date);
+  const executionCycleWindowDays = Number(planCycle?.autoAsanaPlan?.summary?.executionCycleWindowDays || 28);
+  const schedulePreviewWindowDays = Number(planCycle?.autoAsanaPlan?.summary?.schedulePreviewWindowDays || 28);
+  const cycleStart = normalizeDayKey(planCycle?.startedAtDayKey || firstCycleWindow?.start || horizonStart);
+  const cycleEnd = cycleStart ? addDaysToDayKey(cycleStart, executionCycleWindowDays - 1) : null;
+  const scheduledWindow = firstCycleWindow
+    ? {
+        start: firstCycleWindow.start,
+        end: firstCycleWindow.end,
+        days: dayDistanceInclusive(firstCycleWindow.start, firstCycleWindow.end),
+      }
+    : null;
+  const postAnchorDays =
+    firstAnchorDayKey && horizonEnd && firstAnchorDayKey < horizonEnd
+      ? dayDistanceInclusive(addDaysToDayKey(firstAnchorDayKey, 1), horizonEnd)
+      : 0;
+  let coverageStatus = 'insufficient_strategy_beyond_anchor';
+  if (horizonStart && horizonEnd) {
+    coverageStatus = firstAnchorDayKey
+      ? postAnchorDays > 0
+        ? 'full_horizon_covered'
+        : 'anchor_only'
+      : 'partial_horizon_covered';
+  }
+  return {
+    horizonStart,
+    horizonEnd,
+    firstAnchor,
+    firstAnchorDayKey,
+    executionCycleWindow: cycleStart && cycleEnd ? { start: cycleStart, end: cycleEnd, days: executionCycleWindowDays } : null,
+    scheduledWindow,
+    schedulePreviewWindowDays,
+    coverageStatus,
+    postAnchorDays,
+  };
+}
+
+function buildCommitmentLayers({ plan, lanes, milestones, anchors, planCycle, committedBlocks, strategicPhases, criticQuestionsByLane }) {
+  const horizonEnd = normalizeDayKey(plan?.horizonEnd);
+  const firstAnchor = getFirstFixedAnchor(anchors);
+  const firstAnchorDayKey = normalizeDayKey(firstAnchor?.date);
+  const committedWindowEnd = normalizeDayKey(committedBlocks?.[committedBlocks.length - 1]?.dayKey || committedBlocks?.[committedBlocks.length - 1]?.startISO);
+  const liveCycleEnd = normalizeDayKey(planCycle?.goalContract?.endDayKey || null);
+  const laneById = new Map((lanes || []).map((lane) => [lane.id, lane]));
+  const roadmapItems = [];
+  const forecastItems = [];
+  const gatedItems = [];
+
+  sortByTemporalValue(milestones).forEach((milestone) => {
+    const lane = laneById.get(milestone?.laneId) || null;
+    const dayKey = getTemporalDayKey(milestone);
+    if (!lane || !dayKey) {
+      return;
+    }
+    const laneStatus = String(lane?.activationState || '').trim().toLowerCase();
+    const milestoneType = String(milestone?.milestoneType || '').trim().toLowerCase();
+    const isGated =
+      milestoneType === 'gate' ||
+      laneStatus === 'incubating' ||
+      laneStatus === 'parked' ||
+      ['capital', 'real_estate', 'institution', 'education', 'civic', 'district'].includes(String(lane?.domain || '').trim().toLowerCase());
+    const item = {
+      id: `${isGated ? 'gated' : 'forecast'}-${milestone.id}`,
+      sourceId: milestone.id,
+      laneId: lane.id,
+      laneTitle: lane.title,
+      title: milestone.title,
+      dayKey,
+      commitmentState: isGated ? 'gated' : 'forecast',
+      expectedOutput: milestone.title,
+      dependencyStatus: isGated ? 'dependency_or_evidence_gate' : 'sequenced_projection',
+      milestoneType,
+      missConsequence: milestone?.missConsequence || null,
+    };
+    roadmapItems.push(item);
+    if (committedWindowEnd && dayKey <= committedWindowEnd) {
+      return;
+    }
+    if (isGated) {
+      gatedItems.push(item);
+      return;
+    }
+    forecastItems.push(item);
+  });
+
+  const roadmapCoverageEnd =
+    strategicPhases?.length > 0
+      ? strategicPhases[strategicPhases.length - 1]?.end || horizonEnd
+      : roadmapItems[roadmapItems.length - 1]?.dayKey || firstAnchorDayKey || horizonEnd;
+  const forecastCoverageEnd = forecastItems[forecastItems.length - 1]?.dayKey || null;
+  const nextReassessmentGate = planCycle
+    ? String(planCycle?.reassessmentStatus || '').trim().toLowerCase() === 'required'
+      ? 'Required before committing additional work'
+      : liveCycleEnd
+        ? `End of current execution cycle · ${formatDateLabel(liveCycleEnd)}`
+        : 'After the current execution cycle evidence review'
+    : 'Start an execution cycle to create the first reassessment gate';
+  const forecastShortOfAnchor = Boolean(
+    firstAnchorDayKey &&
+      committedWindowEnd &&
+      committedWindowEnd < firstAnchorDayKey &&
+      (!forecastCoverageEnd || forecastCoverageEnd < firstAnchorDayKey)
+  );
+  const unresolvedCriticDebt = Object.values(criticQuestionsByLane || {}).some((questions) => Array.isArray(questions) && questions.length > 0);
+  const forecastShortReason = forecastShortOfAnchor
+    ? unresolvedCriticDebt
+      ? 'Forecast currently stops short of the next hard anchor because unresolved structure debt still limits confidence.'
+      : 'Forecast currently stops short of the next hard anchor until reassessment confirms more evidence-supported work.'
+    : null;
+
+  return {
+    roadmapItems,
+    forecastItems,
+    gatedItems,
+    roadmapCoverageEnd,
+    forecastCoverageEnd,
+    nextReassessmentGate,
+    forecastShortReason,
+  };
+}
+
 function getPlanCycle(store, plan) {
+  const isLiveCycle = (cycle) => {
+    const status = String(cycle?.status || cycle?.state || '')
+      .trim()
+      .toLowerCase();
+    return Boolean(cycle?.id) && !['ended', 'archived', 'deleted'].includes(status);
+  };
   const activeCycle = store?.activeCycleId ? store?.cyclesById?.[store.activeCycleId] || null : null;
-  if (activeCycle?.masterPlanId === plan?.id) {
+  if (activeCycle?.masterPlanId === plan?.id && isLiveCycle(activeCycle)) {
     return activeCycle;
   }
-  return Object.values(store?.cyclesById || {}).find((cycle) => cycle?.masterPlanId === plan?.id) || null;
+  const canonicalGoalId = plan?.id ? `masterplan:${plan.id}` : null;
+  if (
+    isLiveCycle(activeCycle) &&
+    canonicalGoalId &&
+    [activeCycle?.goalContract?.goalId, activeCycle?.contract?.goalId, activeCycle?.definiteGoal?.goalId].includes(canonicalGoalId)
+  ) {
+    return activeCycle;
+  }
+  if (isLiveCycle(activeCycle)) {
+    return activeCycle;
+  }
+  return (
+    Object.values(store?.cyclesById || {}).find((cycle) => {
+      if (!isLiveCycle(cycle)) {
+        return false;
+      }
+      if (cycle?.masterPlanId === plan?.id) {
+        return true;
+      }
+      return Boolean(canonicalGoalId) &&
+        [cycle?.goalContract?.goalId, cycle?.contract?.goalId, cycle?.definiteGoal?.goalId].includes(canonicalGoalId);
+    }) || null
+  );
 }
 
 function mapCriticQuestionsByLane(plan, lanes) {
@@ -107,22 +455,36 @@ function NoMasterPlanState() {
 
 function MasterPlanTimelineView({ plan, store }) {
   const [selectedLaneId, setSelectedLaneId] = useState(null);
+  const [commitmentView, setCommitmentView] = useState('committed_forecast');
+  const [horizonView, setHorizonView] = useState('full');
 
   const lanes = selectMasterPlanLanes(store, plan.id);
   const allMilestones = selectMasterTimeline(store, plan.id);
   const anchors = selectMasterPlanAnchors(store, plan.id);
   const planCycle = getPlanCycle(store, plan);
-  const cycleDraftBlocks = Array.isArray(store?.proposedBlocksByCycleId?.[planCycle?.id || ''])
-    ? store.proposedBlocksByCycleId[planCycle.id]
-    : [];
+  const cycleDraftBlocks =
+    planCycle && Array.isArray(store?.proposedBlocksByCycleId?.[planCycle.id])
+      ? store.proposedBlocksByCycleId[planCycle.id]
+      : planCycle && Array.isArray(store?.proposedBlocks)
+        ? store.proposedBlocks.filter(
+            (block) => block?.cycleId === planCycle.id && block?.masterPlanId === plan.id
+          )
+        : [];
   const reviewBlocks = Array.isArray(planCycle?.scheduleReviewBlocks) ? planCycle.scheduleReviewBlocks : [];
   const firstCycleBlocks = (reviewBlocks.length > 0 ? reviewBlocks : cycleDraftBlocks)
+    .filter((block) => block?.masterPlanId === plan.id)
+    .sort((left, right) => String(left?.dayKey || left?.startISO || '').localeCompare(String(right?.dayKey || right?.startISO || '')));
+  const canonicalPreviewBlocks = (firstCycleBlocks.length > 0
+    ? firstCycleBlocks
+    : Array.isArray(store?.proposedBlocks)
+      ? store.proposedBlocks.filter((block) => block?.masterPlanId === plan.id)
+      : [])
     .filter((block) => block?.masterPlanId === plan.id)
     .sort((left, right) => String(left?.dayKey || left?.startISO || '').localeCompare(String(right?.dayKey || right?.startISO || '')));
   const planPolicy = store?.masterPlanPolicyByPlanId?.[plan.id] || plan?.policyState?.goalPolicy || null;
   const criticQuestionsByLane = useMemo(() => mapCriticQuestionsByLane(plan, lanes), [plan, lanes]);
   const firstCycleWindow = useMemo(() => {
-    const datedBlocks = firstCycleBlocks
+    const datedBlocks = canonicalPreviewBlocks
       .map((block) => normalizeDayKey(block?.dayKey || block?.startISO))
       .filter(Boolean)
       .sort();
@@ -132,15 +494,20 @@ function MasterPlanTimelineView({ plan, store }) {
     return {
       start: datedBlocks[0],
       end: datedBlocks[datedBlocks.length - 1],
-      count: firstCycleBlocks.length,
+      count: canonicalPreviewBlocks.length,
       lifecycle: planCycle?.scheduleLifecycle || null,
     };
-  }, [firstCycleBlocks, planCycle]);
+  }, [canonicalPreviewBlocks, planCycle]);
+  const strategicCoverage = useMemo(
+    () => buildStrategicCoverage(plan, anchors, planCycle, firstCycleWindow),
+    [plan, anchors, planCycle, firstCycleWindow]
+  );
+  const strategicPhases = useMemo(() => buildStrategicPhases(plan, lanes, anchors), [plan, lanes, anchors]);
   const laneDiagnostics = useMemo(() => {
     const laneMap = {};
     lanes.forEach((lane) => {
       const laneMilestones = allMilestones.filter((milestone) => milestone?.laneId === lane.id);
-      const laneBlocks = firstCycleBlocks.filter((block) => block?.masterPlanLaneId === lane.id);
+      const laneBlocks = canonicalPreviewBlocks.filter((block) => block?.masterPlanLaneId === lane.id);
       const laneCriticQuestions = criticQuestionsByLane[lane.id] || [];
       const datedPoints = [
         ...laneMilestones.map((milestone) => normalizeDayKey(milestone?.targetDate)),
@@ -164,7 +531,87 @@ function MasterPlanTimelineView({ plan, store }) {
       };
     });
     return laneMap;
-  }, [lanes, allMilestones, firstCycleBlocks, criticQuestionsByLane, plan]);
+  }, [lanes, allMilestones, canonicalPreviewBlocks, criticQuestionsByLane, plan]);
+  const commitmentLayers = useMemo(
+    () =>
+      buildCommitmentLayers({
+        plan,
+        lanes,
+        milestones: allMilestones,
+        anchors,
+        planCycle,
+        committedBlocks: canonicalPreviewBlocks,
+        strategicPhases,
+        criticQuestionsByLane,
+      }),
+    [plan, lanes, allMilestones, anchors, planCycle, canonicalPreviewBlocks, strategicPhases, criticQuestionsByLane]
+  );
+  const phaseModel = useMemo(
+    () =>
+      deriveMasterPlanPhaseModel({
+        plan,
+        lanes,
+        milestones: allMilestones,
+        anchors,
+        planCycle,
+        committedBlocks: canonicalPreviewBlocks,
+        criticQuestionsByLane,
+      }),
+    [plan, lanes, allMilestones, anchors, planCycle, canonicalPreviewBlocks, criticQuestionsByLane]
+  );
+  const visibleHorizonEnd = useMemo(() => {
+    const visibility = phaseModel?.horizonVisibility;
+    if (!visibility) {
+      return normalizeDayKey(plan?.horizonEnd);
+    }
+    if (horizonView === 'one_year') {
+      return minDayKey(visibility.oneYearEnd, visibility.fullEnd);
+    }
+    if (horizonView === 'three_year') {
+      return minDayKey(visibility.threeYearEnd, visibility.fullEnd);
+    }
+    return visibility.fullEnd;
+  }, [phaseModel, horizonView, plan]);
+  const visibleMilestones = useMemo(
+    () =>
+      allMilestones.filter((milestone) => {
+        const dayKey = getTemporalDayKey(milestone);
+        return !visibleHorizonEnd || !dayKey || dayKey <= visibleHorizonEnd;
+      }),
+    [allMilestones, visibleHorizonEnd]
+  );
+  const visibleAnchors = useMemo(
+    () =>
+      anchors.filter((anchor) => {
+        const dayKey = normalizeDayKey(anchor?.date);
+        return !visibleHorizonEnd || !dayKey || dayKey <= visibleHorizonEnd;
+      }),
+    [anchors, visibleHorizonEnd]
+  );
+  const visibleCommittedBlocks = useMemo(
+    () =>
+      canonicalPreviewBlocks.filter((block) => {
+        const dayKey = normalizeDayKey(block?.dayKey || block?.startISO);
+        return !visibleHorizonEnd || !dayKey || dayKey <= visibleHorizonEnd;
+      }),
+    [canonicalPreviewBlocks, visibleHorizonEnd]
+  );
+  const visibleForecastBlocks = useMemo(
+    () =>
+      commitmentLayers.forecastItems.filter((block) => {
+        const dayKey = normalizeDayKey(block?.dayKey || block?.startISO);
+        return !visibleHorizonEnd || !dayKey || dayKey <= visibleHorizonEnd;
+      }),
+    [commitmentLayers.forecastItems, visibleHorizonEnd]
+  );
+  const visibleGatedBlocks = useMemo(
+    () =>
+      commitmentLayers.gatedItems.filter((block) => {
+        const dayKey = normalizeDayKey(block?.dayKey || block?.startISO);
+        return !visibleHorizonEnd || !dayKey || dayKey <= visibleHorizonEnd;
+      }),
+    [commitmentLayers.gatedItems, visibleHorizonEnd]
+  );
   const activeProfile = store?.activeProfileId ? store?.profilesById?.[store.activeProfileId] || null : null;
   const activeMasterCalendar =
     activeProfile?.masterCalendarId ? store?.masterCalendarsById?.[activeProfile.masterCalendarId] || null : null;
@@ -183,6 +630,9 @@ function MasterPlanTimelineView({ plan, store }) {
     () => ({
       id: plan.id,
       title: plan.title,
+      coreMission: plan.coreMission,
+      outcomeTarget: plan.outcomeTarget,
+      successStandard: plan.successStandard,
       northStarOutcome: plan.northStarOutcome,
       horizonStart: plan.horizonStart,
       horizonEnd: plan.horizonEnd,
@@ -276,14 +726,29 @@ function MasterPlanTimelineView({ plan, store }) {
           </div>
         </div>
       ) : null}
+      <StrategicCoveragePanel
+        plan={plan}
+        strategicCoverage={strategicCoverage}
+        strategicPhases={phaseModel.phases}
+        phaseModel={phaseModel}
+        commitmentLayers={commitmentLayers}
+        commitmentView={commitmentView}
+        onCommitmentViewChange={setCommitmentView}
+        horizonView={horizonView}
+        onHorizonViewChange={setHorizonView}
+        visibleHorizonEnd={visibleHorizonEnd}
+      />
       <TimelineGrid
         plan={gridPlan}
         lanes={gridLanes}
-        milestones={allMilestones}
-        anchors={anchors}
-        proposedBlocks={firstCycleBlocks}
+        milestones={visibleMilestones}
+        anchors={visibleAnchors}
+        proposedBlocks={visibleCommittedBlocks}
+        forecastBlocks={visibleForecastBlocks}
+        gatedBlocks={visibleGatedBlocks}
         laneDiagnostics={laneDiagnostics}
         cyclePreviewWindow={firstCycleWindow}
+        displayMode={commitmentView}
         emptyMessage="No lanes — complete intake to generate lanes."
         onLaneClick={(laneId) =>
           setSelectedLaneId((prev) => (prev === laneId ? null : laneId))
@@ -292,11 +757,362 @@ function MasterPlanTimelineView({ plan, store }) {
       {selectedLaneId && (
         <MasterPlanLaneCard
           laneId={selectedLaneId}
-          proposedBlocks={firstCycleBlocks.filter((block) => block?.masterPlanLaneId === selectedLaneId)}
+          proposedBlocks={canonicalPreviewBlocks.filter((block) => block?.masterPlanLaneId === selectedLaneId)}
           criticQuestions={criticQuestionsByLane[selectedLaneId] || []}
           onClose={() => setSelectedLaneId(null)}
         />
       )}
+    </div>
+  );
+}
+
+function StrategicCoveragePanel({
+  plan,
+  strategicCoverage,
+  strategicPhases,
+  phaseModel,
+  commitmentLayers,
+  commitmentView,
+  onCommitmentViewChange,
+  horizonView,
+  onHorizonViewChange,
+  visibleHorizonEnd,
+}) {
+  const coverageStatusLabel = titleCaseWords(strategicCoverage.coverageStatus);
+  const hasInsufficientCoverage =
+    strategicCoverage.coverageStatus === 'anchor_only' ||
+    strategicCoverage.coverageStatus === 'insufficient_strategy_beyond_anchor';
+
+  return (
+    <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.14em] text-muted">Strategic coverage</p>
+          <p className="text-sm text-muted">
+            Jericho plans through the full horizon. Only the current execution cycle is committed to Today.
+          </p>
+        </div>
+        <span
+          data-testid="masterplan-coverage-status"
+          className={`rounded-full border px-2 py-0.5 text-[11px] ${
+            hasInsufficientCoverage
+              ? 'border-amber-400/40 text-amber-600'
+              : 'border-green-500/40 text-green-600'
+          }`}
+        >
+          {coverageStatusLabel}
+        </span>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 text-[11px] text-muted">
+        <CoverageItem label="Viewing horizon" value={formatRangeLabel(strategicCoverage.horizonStart, visibleHorizonEnd)} />
+        <CoverageItem
+          label="Master-plan horizon"
+          value={formatRangeLabel(strategicCoverage.horizonStart, strategicCoverage.horizonEnd)}
+        />
+        <CoverageItem
+          label="First hard anchor"
+          value={
+            strategicCoverage.firstAnchor
+              ? `${strategicCoverage.firstAnchor.label} · ${formatDateLabel(strategicCoverage.firstAnchorDayKey)}`
+              : 'No fixed anchor declared'
+          }
+        />
+        <CoverageItem
+          label="Current execution cycle"
+          value={
+            strategicCoverage.executionCycleWindow
+              ? `${formatRangeLabel(
+                  strategicCoverage.executionCycleWindow.start,
+                  strategicCoverage.executionCycleWindow.end
+                )} · ${strategicCoverage.executionCycleWindow.days} days`
+              : 'No execution cycle started'
+          }
+        />
+        <CoverageItem
+          label="Scheduled window"
+          value={
+            strategicCoverage.scheduledWindow
+              ? `${formatRangeLabel(strategicCoverage.scheduledWindow.start, strategicCoverage.scheduledWindow.end)} · ${
+                  strategicCoverage.scheduledWindow.days
+                } scheduled days`
+              : `No scheduled blocks yet · preview window defaults to ${strategicCoverage.schedulePreviewWindowDays} days`
+          }
+        />
+        <CoverageItem
+          label="Unscheduled strategy remains recognized through"
+          value={formatDateLabel(strategicCoverage.horizonEnd)}
+        />
+        <CoverageItem
+          label="Roadmap coverage"
+          value={formatRangeLabel(strategicCoverage.horizonStart, commitmentLayers.roadmapCoverageEnd || strategicCoverage.horizonEnd)}
+        />
+        <CoverageItem
+          label="Forecast schedule"
+          value={
+            commitmentLayers.forecastCoverageEnd
+              ? formatRangeLabel(
+                  strategicCoverage.scheduledWindow?.end || strategicCoverage.executionCycleWindow?.start || strategicCoverage.horizonStart,
+                  commitmentLayers.forecastCoverageEnd
+                )
+              : 'No forecast beyond the committed window yet'
+          }
+        />
+        <CoverageItem
+          label="Committed schedule"
+          value={
+            strategicCoverage.scheduledWindow
+              ? formatRangeLabel(strategicCoverage.scheduledWindow.start, strategicCoverage.scheduledWindow.end)
+              : 'No committed schedule yet'
+          }
+        />
+        <CoverageItem label="Next reassessment gate" value={commitmentLayers.nextReassessmentGate} />
+        <CoverageItem
+          label="Strategic promise"
+          value="Not yet scheduled does not mean not recognized."
+        />
+      </div>
+
+      <div className="rounded-md border border-line/50 bg-jericho-surface/70 px-3 py-2 text-[11px] text-muted space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Horizon View</p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              ['one_year', '1-year'],
+              ['three_year', '3-year'],
+              ['full', 'Full horizon'],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => onHorizonViewChange(value)}
+                className={`rounded-full border px-2.5 py-1 text-[10px] ${
+                  horizonView === value
+                    ? 'border-jericho-accent text-jericho-accent bg-jericho-accent/10'
+                    : 'border-line/50 text-muted hover:text-jericho-text'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <p>Only the first execution cycle is scheduled.</p>
+        <p>Future work remains forecast or gated until reassessment confirms it.</p>
+        <p>Future phases are strategic, not calendar-committed.</p>
+        <p>Calendar commitment expands through reassessment and execution evidence.</p>
+        {commitmentLayers.forecastShortReason ? <p>{commitmentLayers.forecastShortReason}</p> : null}
+        {hasInsufficientCoverage ? (
+          <p className="text-amber-600" data-testid="masterplan-coverage-warning">
+            Master-plan strategy does not yet cover the declared horizon beyond the first anchor.
+          </p>
+        ) : null}
+      </div>
+
+      <div className="rounded-xl border border-line/50 bg-jericho-surface/70 p-3 space-y-3">
+        <div className="space-y-1">
+          <p className="text-xs uppercase tracking-[0.14em] text-muted">Full Phase Plan</p>
+          <p className="text-[11px] text-muted">Plan is complete. Schedule is earned through phase evidence.</p>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-3">
+          {(phaseModel?.phases || []).map((phase) => (
+            <div
+              key={phase.id}
+              data-testid={`phase-card-${String(phase.label || '').toLowerCase()}`}
+              className={`rounded-xl border p-3 space-y-2 ${
+                phase.activeState === 'active'
+                  ? 'border-jericho-accent/50 bg-jericho-accent/5'
+                  : phase.activeState === 'completed'
+                    ? 'border-green-500/40 bg-green-500/5'
+                    : 'border-line/50 bg-jericho-surface/70'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-jericho-text">
+                    {phase.label} · {phase.name}
+                  </p>
+                  <p className="text-[11px] text-muted">{formatRangeLabel(phase.startBoundary, phase.endBoundary)}</p>
+                </div>
+                <span className="rounded-full border border-line/50 px-2 py-0.5 text-[10px] text-muted">
+                  {titleCaseWords(phase.activeState)}
+                </span>
+              </div>
+              <p className="text-[11px] text-muted">{phase.phaseObjective}</p>
+              <div className="space-y-1 text-[11px] text-muted">
+                <p>
+                  <span className="font-semibold text-jericho-text">Milestones:</span> {phase.milestones.length}
+                </p>
+                <p>
+                  <span className="font-semibold text-jericho-text">Unlock criteria:</span>{' '}
+                  {phase.unlockCriteria.slice(0, 2).join(' · ')}
+                </p>
+                <p>
+                  <span className="font-semibold text-jericho-text">Anchor role:</span>{' '}
+                  {titleCaseWords(phase.anchorRole)}
+                </p>
+                <p>
+                  <span className="font-semibold text-jericho-text">Lane participation:</span>{' '}
+                  {phase.laneParticipation.map((lane) => lane.laneTitle).join(' · ') || '—'}
+                </p>
+                <p>
+                  <span className="font-semibold text-jericho-text">Schedule status:</span>{' '}
+                  {titleCaseWords(phase.executionScheduleStatus)}
+                </p>
+                {phase.anchorsInPhase?.length ? (
+                  <p>
+                    <span className="font-semibold text-jericho-text">Major anchors:</span>{' '}
+                    {phase.anchorsInPhase.map((anchor) => `${anchor.label} (${titleCaseWords(anchor.role)})`).join(' · ')}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {phaseModel?.activePhase ? (
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="rounded-xl border border-line/50 bg-jericho-surface/70 p-3 space-y-2">
+            <p className="text-xs uppercase tracking-[0.14em] text-muted">Active Phase</p>
+            <p className="text-sm font-semibold text-jericho-text">
+              {phaseModel.activePhase.label} · {phaseModel.activePhase.name}
+            </p>
+            <p className="text-[11px] text-muted">{phaseModel.activePhase.phaseObjective}</p>
+            <p className="text-[11px] text-muted">
+              <span className="font-semibold text-jericho-text">Execution schedule:</span>{' '}
+              {titleCaseWords(phaseModel.activePhase.executionScheduleStatus)}
+            </p>
+          </div>
+          <div className="rounded-xl border border-line/50 bg-jericho-surface/70 p-3 space-y-2">
+            <p className="text-xs uppercase tracking-[0.14em] text-muted">Next Unlock</p>
+            <p className="text-[11px] text-muted">{phaseModel.nextUnlockSummary}</p>
+            {phaseModel.nextPhase ? (
+              <p className="text-[11px] text-muted">
+                <span className="font-semibold text-jericho-text">{phaseModel.nextPhase.label} target:</span>{' '}
+                {phaseModel.nextPhase.unlockCriteria.slice(0, 2).join(' · ')}
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted">Next phase is terminal review.</p>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="rounded-xl border border-line/50 bg-jericho-surface/70 p-3 space-y-3">
+        <div className="space-y-1">
+          <p className="text-xs uppercase tracking-[0.14em] text-muted">Strategy Critique</p>
+          <p className="text-[11px] text-muted">
+            Jericho corrected the schedule where the proposed strategy was premature or missing dependencies.
+          </p>
+        </div>
+        {(phaseModel?.critiques || []).length > 0 ? (
+          <div className="space-y-2">
+            {phaseModel.critiques.map((issue) => (
+              <div
+                key={`${issue.issueCode}:${issue.affectedLane || 'global'}`}
+                className="rounded-md border border-line/50 bg-jericho-surface/60 px-3 py-2 text-[11px] text-muted space-y-1"
+              >
+                <p className="font-semibold text-jericho-text">
+                  {issue.issueCode} · {titleCaseWords(issue.severity)}
+                </p>
+                <p>
+                  <span className="font-semibold text-jericho-text">Critique:</span> {issue.critique}
+                </p>
+                <p>
+                  <span className="font-semibold text-jericho-text">Correction:</span> {issue.correction}
+                </p>
+                <p>
+                  <span className="font-semibold text-jericho-text">Scheduling effect:</span> {issue.schedulingEffect}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[11px] text-muted">No major sequencing critique surfaced yet.</p>
+        )}
+      </div>
+
+      <div className="rounded-md border border-line/50 bg-jericho-surface/70 px-3 py-2 text-[11px] text-muted space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Commitment layers</p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              ['committed_only', 'Committed only'],
+              ['committed_forecast', 'Committed + forecast'],
+              ['roadmap_milestones', 'Roadmap / milestones'],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => onCommitmentViewChange(value)}
+                className={`rounded-full border px-2.5 py-1 text-[10px] ${
+                  commitmentView === value
+                    ? 'border-jericho-accent text-jericho-accent bg-jericho-accent/10'
+                    : 'border-line/50 text-muted hover:text-jericho-text'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <p>
+          Forecast work is visible ahead of the committed cycle. Gated work remains known but non-committable until
+          dependencies, evidence, or reassessment clear it.
+        </p>
+      </div>
+
+      {strategicPhases.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-[0.14em] text-muted">Post-anchor strategy</p>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {strategicPhases.map((phase) => (
+              <div
+                key={phase.id}
+                className="rounded-xl border border-line/50 bg-jericho-surface/70 p-3 space-y-2"
+                data-testid={`strategic-phase-${phase.id}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-jericho-text">
+                      {phase.label} · {phase.name || phase.title}
+                    </p>
+                    <p className="text-[11px] text-muted">
+                      {formatRangeLabel(phase.startBoundary || phase.start, phase.endBoundary || phase.end)}
+                    </p>
+                  </div>
+                  {phase.anchorPhase || phase.anchorRole === 'convergence_event' ? (
+                    <span className="rounded-full border border-amber-400/40 px-2 py-0.5 text-[10px] text-amber-600">
+                      anchor convergence
+                    </span>
+                  ) : null}
+                </div>
+                <p className="text-[11px] text-muted">{phase.phaseObjective || phase.summary}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(phase.laneStatuses || phase.laneParticipation || []).map((lane) => (
+                    <span
+                      key={`${phase.id}-${lane.laneId || lane.laneTitle}`}
+                      className="rounded-full border border-line/50 px-2 py-0.5 text-[10px] text-muted"
+                    >
+                      {lane.laneTitle} · {titleCaseWords(lane.status)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CoverageItem({ label, value }) {
+  return (
+    <div className="rounded-md border border-line/50 bg-jericho-surface/70 px-3 py-2 space-y-1">
+      <p className="uppercase tracking-[0.12em] text-[10px] text-muted">{label}</p>
+      <p className="text-jericho-text">{value}</p>
     </div>
   );
 }

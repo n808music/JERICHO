@@ -14,11 +14,19 @@ import { buildMasterPlan } from './masterPlanFactory.js';
 // ─── extractLanesFromDescription ─────────────────────────────────────────────
 
 describe('extractLanesFromDescription', () => {
-  it('extracts 4 lanes from a realistic multi-venture description', () => {
+  it('extracts the expected lane composition from a realistic multi-venture description', () => {
     const text =
       "I'm building an app, dropping an album, launching a podcast, and relaunching my project management company.";
     const lanes = extractLanesFromDescription(text);
-    expect(lanes.length).toBe(4);
+    expect(lanes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ domain: 'product' }),
+        expect.objectContaining({ domain: 'creative' }),
+        expect.objectContaining({ domain: 'media' }),
+        expect.objectContaining({ domain: 'income' }),
+        expect.objectContaining({ domain: 'company' }),
+      ])
+    );
   });
 
   it('assigns product domain to app language', () => {
@@ -257,9 +265,14 @@ describe('getClarifyingQuestionsForDomain', () => {
         id: expect.any(String),
         question: expect.any(String),
         reason: expect.any(String),
+        whyNeeded: expect.any(String),
         resolvesField: expect.any(String),
+        affects: expect.any(Array),
         criticality: expect.any(String),
+        canDefer: expect.any(Boolean),
         reasonCode: expect.any(String),
+        diagnosticMode: true,
+        derives: expect.any(Array),
       });
     }
   });
@@ -279,7 +292,7 @@ describe('buildStructureQuestionPlan', () => {
       anchors: [{ id: 'anchor-oct17', date: '2026-10-17', label: 'Oct 17', isFixed: true }],
       extractedLanes: [
         { title: 'Album rollout', domain: 'creative' },
-        { title: 'Jericho app', domain: 'product' },
+        { title: 'App launch', rawName: 'Jericho app', entityType: 'app', domainRole: 'software_product', domain: 'product' },
         { title: 'Podcast', domain: 'media' },
         { title: 'PM brand', domain: 'brand' },
         { title: 'Income / runway', domain: 'income' },
@@ -292,11 +305,33 @@ describe('buildStructureQuestionPlan', () => {
       expect.arrayContaining(['global-weekly-capacity'])
     );
     expect(plan.globalQuestions.map((question) => question.id)).toEqual(
-      expect.arrayContaining(['global-job-search-relation'])
+      expect.arrayContaining(['global-constraint-diagnostics'])
     );
-    expect(plan.laneQuestionsByLaneIndex[1][0].question).toMatch(/launch-readiness state of the product\/app/i);
-    expect(plan.laneQuestionsByLaneIndex[0][0].question).toMatch(/album or release assets already exist/i);
+    expect(plan.laneQuestionsByLaneIndex[1][0].question).not.toMatch(/current launch-readiness state/i);
+    expect(plan.laneQuestionsByLaneIndex[1][0].question).toMatch(/Jericho app/i);
+    expect(plan.laneQuestionsByLaneIndex[1][0].question).toMatch(/working local version/i);
+    expect(plan.laneQuestionsByLaneIndex[1][0].question).toMatch(/deployed URL/i);
+    expect(plan.laneQuestionsByLaneIndex[0][0].question).toMatch(/Which album or release assets already exist right now/i);
     expect(plan.laneQuestionsByLaneIndex[2][0].question).toMatch(/supporting the album, the product, both/i);
+    expect(plan.laneQuestionsByLaneIndex[1][0].diagnosticMode).toBe(true);
+    expect(plan.laneQuestionsByLaneIndex[1][0].whyNeeded).toEqual(expect.any(String));
+    expect(plan.laneQuestionsByLaneIndex[1][0].affects).toEqual(
+      expect.arrayContaining(['feasibility', 'sequence', 'schedule', 'risk'])
+    );
+    expect(plan.globalQuestions.some((question) => /Jericho can trust the route/i.test(question.question))).toBe(false);
+    expect(plan.deferredGlobalQuestions.every((question) => question.canDefer)).toBe(true);
+    expect(plan.deferredLaneQuestionsByLaneIndex[3][0].canDefer).toBe(true);
+    expect(plan.laneQuestionsByLaneIndex[3]).toEqual([]);
+  });
+
+  it('falls back to generic domain wording when no extracted raw name exists', () => {
+    const plan = buildStructureQuestionPlan({
+      goalText: 'Launch the software product this fall.',
+      extractedLanes: [{ title: 'Product / software', domain: 'product' }],
+    });
+
+    expect(plan.laneQuestionsByLaneIndex[0][0].question).toMatch(/the app or software product/i);
+    expect(plan.laneQuestionsByLaneIndex[0][0].question).not.toMatch(/Jericho/i);
   });
 });
 
@@ -307,7 +342,7 @@ describe('evaluateStructureCritic', () => {
       anchors: [{ id: 'anchor-oct17', date: '2026-10-17', label: 'Oct 17', isFixed: true }],
       extractedLanes: [
         { title: 'Album rollout', domain: 'creative' },
-        { title: 'Jericho app', domain: 'product' },
+        { title: 'App launch', rawName: 'Jericho app', entityType: 'app', domainRole: 'software_product', domain: 'product' },
       ],
     });
 
@@ -321,13 +356,45 @@ describe('evaluateStructureCritic', () => {
       },
       [
         { title: 'Album rollout', domain: 'creative' },
-        { title: 'Jericho app', domain: 'product' },
+        { title: 'App launch', rawName: 'Jericho app', entityType: 'app', domainRole: 'software_product', domain: 'product' },
       ]
     );
 
     expect(critic.state).toBe('assumption_marked');
     expect(critic.unresolvedReasonCodes).toEqual(
       expect.arrayContaining(['STRUCTURE_WEEKLY_CAPACITY_UNRESOLVED', 'STRUCTURE_CREATIVE_ASSET_STATE_UNRESOLVED'])
+    );
+  });
+
+  it('derives app and legal risk reason codes from diagnostic answers', () => {
+    const questionPlan = buildStructureQuestionPlan({
+      goalText: 'launch an app that takes payments and uses user accounts',
+      anchors: [{ id: 'anchor-oct17', date: '2026-10-17', label: 'Oct 17', isFixed: true }],
+      extractedLanes: [{ title: 'Product / software', domain: 'product' }],
+    });
+
+    const critic = evaluateStructureCritic(
+      questionPlan,
+      {
+        step_5: 'About 20 hours per week, but interviews and admin take some of that.',
+        step_6:
+          'We will collect payments and user data, use contractors, and the current app is local-only with no deployed URL. Only I have tested it and refresh loses progress.',
+        lane_0_clarifying_0:
+          'There is a working local version, but there is no deployed URL, the main flow still needs help, refresh loses progress, and no one besides me has tested it.',
+      },
+      [{ title: 'Product / software', domain: 'product' }]
+    );
+
+    expect(critic.derivedReasonCodes).toEqual(
+      expect.arrayContaining([
+        'APP_DEPLOYMENT_MISSING',
+        'APP_MAIN_FLOW_UNPROVEN',
+        'APP_PERSISTENCE_UNPROVEN',
+        'USER_TESTING_MISSING',
+        'LEGAL_REVIEW_REQUIRED',
+        'PRIVACY_POLICY_REQUIRED',
+        'CONTRACT_STRUCTURE_REQUIRED',
+      ])
     );
   });
 });

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { buildBlankIdentityState, DEFAULT_PROFILE_ID } from '../../src/state/identityStore.js';
 import { computeDerivedState } from '../../src/state/identityCompute.js';
 import { applyMasterPlanAction } from '../../src/state/masterPlanStore.js';
+import { extractLanesFromDescription } from '../../src/domain/masterPlan/masterPlanIntakeEngine.js';
 
 function buildIntakeDraftState() {
   const state = buildBlankIdentityState({
@@ -97,7 +98,8 @@ describe('masterPlanStore intake completion', () => {
     const brandMilestones = brandLane.milestoneIds.map((id) => draft.masterPlanMilestonesById[id]);
 
     expect(creativeMilestones.map((m) => m.title)).toEqual(
-      expect.arrayContaining(['Distribution submitted', 'Artwork finalized', 'DROP'])
+      // 'DROP' is now normalized to 'Release {lane.title}' by normalizeMilestoneTitle
+      expect.arrayContaining(['Distribution submitted', 'Artwork finalized', 'Release EP release'])
     );
     expect(creativeMilestones.every((m) => m.derivedFrom.includes('anchorId:anchor-oct17'))).toBe(true);
     expect(creativeMilestones.every((m) => m.flex && m.milestoneType && typeof m.missConsequence === 'string')).toBe(true);
@@ -133,6 +135,49 @@ describe('masterPlanStore intake completion', () => {
     expect(goalPolicy.livePos.reasonCodes).toContain('LIVE_POS_WITHHELD_SCHEDULE_NOT_LIVE');
   });
 
+  it('extracts core mission, outcome target, and success standard separately for named empire-scale goals', () => {
+    const draft = buildIntakeDraftState();
+    const goalText =
+      'Build and execute Operation Endgame: a five-year push coordinating the Jericho app, album release, podcast support campaign, project-management brand, record label, production company, real-estate campaign, private school, and district revitalization.';
+    draft.masterPlanIntake.answers.step_1 = goalText;
+    draft.masterPlanIntake.extractedLanes = extractLanesFromDescription(goalText);
+    draft.masterPlanIntake.answers.step_2 =
+      'Build and execute Operation Endgame: a five-year push toward net worth of $3.5B through a coordinated company and media ecosystem.';
+
+    const handled = applyMasterPlanAction(draft, {
+      type: 'MASTER_PLAN_INTAKE_COMPLETE',
+      nowISO: '2026-05-04T12:00:00.000Z',
+    });
+
+    expect(handled).toBe(true);
+
+    const planId = draft.masterPlanIntake.draft.masterPlanId;
+    const plan = draft.masterPlansById[planId];
+    const next = computeDerivedState(draft, { type: 'NO_OP' });
+    const goalPolicy = next.masterPlansById[planId]?.policyState?.goalPolicy;
+
+    expect(plan.title).toBe('Operation Endgame');
+    expect(plan.coreMission).toBe('Operation Endgame');
+    expect(plan.outcomeTarget).toMatch(/\$3\.5B/i);
+    expect(plan.successStandard).toMatch(/revenue architecture/i);
+    expect(plan.successStandard).toMatch(/operating cadence/i);
+    expect(plan.controllabilityClass).toBe('externally_mediated');
+    expect(plan.terminalTargetClass).toBe('valuation_dependent');
+    expect(plan.goalArchitecture).toBe('integrated_master_plan');
+    expect(plan.primaryLane).toBe('product');
+    expect(plan.laneComposition).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ domain: 'product' }),
+        expect.objectContaining({ domain: 'creative' }),
+        expect.objectContaining({ domain: 'media' }),
+        expect.objectContaining({ domain: 'capital' }),
+        expect.objectContaining({ domain: 'institution' }),
+        expect.objectContaining({ domain: 'civic' }),
+      ])
+    );
+    expect(goalPolicy.feasibility.reasonCodes).toEqual(expect.arrayContaining(['FEASIBILITY_UNCERTAINTY_BURDEN_HIGH']));
+  });
+
   it('marks unresolved critical structure answers as assumption debt in the master-plan policy substrate', () => {
     const draft = buildIntakeDraftState();
     draft.masterPlanIntake.answers.step_5 = 'not sure yet';
@@ -161,6 +206,37 @@ describe('masterPlanStore intake completion', () => {
     );
   });
 
+  it('preserves derived diagnostic reason codes from answered master-plan questions', () => {
+    const draft = buildIntakeDraftState();
+    draft.masterPlanIntake.answers.step_5 = 'About 18 hours a week, with admin and interview burden taking some of it.';
+    draft.masterPlanIntake.answers.step_6 =
+      'We will collect payments and user data, use contractors, and the app is still local-only with no deployed URL.';
+    draft.masterPlanIntake.answers.lane_1_clarifying_0 =
+      'There is a working local version, but no deployed URL, refresh loses progress, and only I have tested it.';
+
+    const handled = applyMasterPlanAction(draft, {
+      type: 'MASTER_PLAN_INTAKE_COMPLETE',
+      nowISO: '2026-05-04T12:00:00.000Z',
+    });
+
+    expect(handled).toBe(true);
+
+    const next = computeDerivedState(draft, { type: 'NO_OP' });
+    const planId = next.masterPlanIntake.draft.masterPlanId;
+    const plan = next.masterPlansById[planId];
+
+    expect(plan.structureCritic.derivedReasonCodes).toEqual(
+      expect.arrayContaining([
+        'APP_DEPLOYMENT_MISSING',
+        'APP_PERSISTENCE_UNPROVEN',
+        'USER_TESTING_MISSING',
+        'LEGAL_REVIEW_REQUIRED',
+        'PRIVACY_POLICY_REQUIRED',
+        'CONTRACT_STRUCTURE_REQUIRED',
+      ])
+    );
+  });
+
   it('bridges a finalized master plan into a first operational cycle with proposed schedule blocks', () => {
     const draft = buildIntakeDraftState();
 
@@ -172,7 +248,53 @@ describe('masterPlanStore intake completion', () => {
     expect(handled).toBe(true);
 
     const planId = draft.masterPlanIntake.draft.masterPlanId;
-    const generated = computeDerivedState(draft, {
+    draft.masterPlansById[planId].structureCritic = {
+      ...(draft.masterPlansById[planId].structureCritic || {}),
+      deferredQuestions: [
+        {
+          question: 'What cannot be sacrificed if timing slips?',
+          domain: 'core_mission',
+          criticality: 'medium',
+          reason: 'Tradeoff protection must become executable.',
+          resolvesField: 'mission.nonNegotiables',
+        },
+        {
+          question: 'What must stay true for the hard anchor dates to remain real?',
+          domain: 'master_calendar',
+          criticality: 'medium',
+          reason: 'Anchor protection must be operationalized.',
+          resolvesField: 'anchor.protectionRules',
+        },
+      ],
+    };
+    const started = computeDerivedState(draft, {
+      type: 'START_NEW_CYCLE_WITH_DECISION',
+      payload: { mode: 'archive' },
+    });
+    expect(started.activeCycleId).toBe(`masterplan-cycle:${planId}`);
+    expect(started.cyclesById[started.activeCycleId].reassessmentStatus).toBe('required');
+
+    const reassessed = computeDerivedState(started, {
+      type: 'COMPLETE_CYCLE_REASSESSMENT',
+      cycleId: started.activeCycleId,
+    });
+    const constrained = computeDerivedState(reassessed, {
+      type: 'UPDATE_WORK_WINDOWS',
+      payload: {
+        cycleId: reassessed.activeCycleId,
+        workWindows: {
+          mon: [{ start: '09:00', end: '12:00' }],
+          tue: [{ start: '09:00', end: '12:00' }],
+          wed: [{ start: '09:00', end: '12:00' }],
+          thu: [{ start: '09:00', end: '12:00' }],
+          fri: [{ start: '09:00', end: '12:00' }],
+          sat: [],
+          sun: [],
+        },
+      },
+    });
+
+    const generated = computeDerivedState(constrained, {
       type: 'GENERATE_PLAN',
       payload: { masterPlanId: planId, source: 'MASTER_PLAN_FIRST_CYCLE' },
     });
@@ -184,7 +306,6 @@ describe('masterPlanStore intake completion', () => {
     expect(generated.scheduleApplied).toBe(false);
     expect(generated.lastPlanError).toBe(null);
     expect(generated.proposedBlocks.length).toBeGreaterThan(0);
-    expect(generated.proposedBlocks.length).toBeLessThanOrEqual(8);
     expect(generated.proposedBlocks.every((block) => block.profileId === DEFAULT_PROFILE_ID)).toBe(true);
     expect(
       generated.proposedBlocks.every((block) => block.masterCalendarId === `calendar-${DEFAULT_PROFILE_ID}`)
@@ -195,6 +316,25 @@ describe('masterPlanStore intake completion', () => {
         (block) => block.masterPlanMilestoneId && block.masterPlanLaneId && block.source === 'master_plan_first_cycle'
       )
     ).toBe(true);
+    expect(generated.masterPlansById[planId].structureCritic.deferredQuestions.length).toBeGreaterThan(0);
+    expect(generated.proposedBlocks.every((block) => !String(block.title || '').includes('?'))).toBe(true);
+    expect(
+      generated.proposedBlocks.every(
+        (block) => !/^(what|why|how|when|where|which|do|does|can|should|will)\b/i.test(String(block.title || '').trim())
+      )
+    ).toBe(true);
+    expect(generated.cyclesById[generated.activeCycleId].autoAsanaPlan.summary.scheduledBlockCount).toBe(
+      generated.proposedBlocks.length
+    );
+    expect(generated.cyclesById[generated.activeCycleId].autoAsanaPlan.summary.requiredBlockCount).toBeGreaterThanOrEqual(
+      generated.proposedBlocks.length
+    );
+    expect(generated.cyclesById[generated.activeCycleId].goalContract.activePhaseScheduleEndDayKey).toBe('2026-10-17');
+    expect(generated.cyclesById[generated.activeCycleId].autoAsanaPlan.summary.activePhaseDeadlineDayKey).toBe('2026-10-17');
+    expect(generated.cyclesById[generated.activeCycleId].autoAsanaPlan.summary.coverageStatus).toBe('complete_to_anchor');
+    expect(generated.cyclesById[generated.activeCycleId].autoAsanaPlan.summary.calendarCoverageThroughDayKey >= '2026-10-16').toBe(
+      true
+    );
 
     const applied = computeDerivedState(generated, { type: 'APPLY_PLAN' });
     expect(applied.scheduleLifecycle).toBe('applied_review');

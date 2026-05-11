@@ -4,14 +4,17 @@
  * No store access. Both MasterPlanTimeline and GoalTimeline feed it normalized props.
  *
  * Props:
- *   plan     — { id, title, northStarOutcome, horizonStart, horizonEnd, status }
+ *   plan     — { id, title, coreMission, outcomeTarget, successStandard, northStarOutcome, horizonStart, horizonEnd, status }
  *   lanes    — Array<{ id, title, domain, activationState }>
  *   milestones — Array<{ id, laneId, title, targetDate, milestoneType, status,
  *                        missConsequence, derivedFrom }>
  *   anchors  — Array<{ id, date, label, isFixed }>
  *   proposedBlocks — Array<{ id, masterPlanLaneId, title, dayKey, startISO, missConsequence, derivedFrom }>
+ *   forecastBlocks — Array<{ id, laneId, title, dayKey, commitmentState, dependencyStatus }>
+ *   gatedBlocks — Array<{ id, laneId, title, dayKey, commitmentState, dependencyStatus }>
  *   laneDiagnostics — laneId keyed diagnostic object
  *   cyclePreviewWindow — { start, end, count, lifecycle }
+ *   displayMode — committed_only | committed_forecast | roadmap_milestones
  *   emptyMessage — string shown when lanes is empty
  */
 import React, { useMemo } from 'react';
@@ -93,8 +96,11 @@ export default function TimelineGrid({
   milestones = [],
   anchors = [],
   proposedBlocks = [],
+  forecastBlocks = [],
+  gatedBlocks = [],
   laneDiagnostics = {},
   cyclePreviewWindow = null,
+  displayMode = 'committed_forecast',
   emptyMessage,
   onLaneClick,
 }) {
@@ -105,13 +111,15 @@ export default function TimelineGrid({
       ...anchors.map((a) => a.date),
       ...milestones.map((m) => m.targetDate),
       ...proposedBlocks.map((block) => block?.dayKey || block?.startISO),
+      ...forecastBlocks.map((block) => block?.dayKey || block?.startISO),
+      ...gatedBlocks.map((block) => block?.dayKey || block?.startISO),
     ].filter(Boolean).sort();
     if (dates.length === 0) {
       const today = new Date().toISOString().slice(0, 10);
       return { start: today, end: today };
     }
     return { start: dates[0], end: dates[dates.length - 1] };
-  }, [plan, anchors, milestones]);
+  }, [plan, anchors, milestones, proposedBlocks, forecastBlocks, gatedBlocks]);
 
   const months = useMemo(
     () => getMonthsInRange(horizonBounds.start, horizonBounds.end),
@@ -159,6 +167,24 @@ export default function TimelineGrid({
     }
     return map;
   }, [proposedBlocks]);
+  const forecastByLane = useMemo(() => {
+    const map = {};
+    for (const block of forecastBlocks) {
+      const laneId = block?.laneId || '__unassigned__';
+      if (!map[laneId]) map[laneId] = [];
+      map[laneId].push(block);
+    }
+    return map;
+  }, [forecastBlocks]);
+  const gatedByLane = useMemo(() => {
+    const map = {};
+    for (const block of gatedBlocks) {
+      const laneId = block?.laneId || '__unassigned__';
+      if (!map[laneId]) map[laneId] = [];
+      map[laneId].push(block);
+    }
+    return map;
+  }, [gatedBlocks]);
 
   if (months.length === 0) {
     return <p className="text-muted text-sm p-4">Timeline has no date range set.</p>;
@@ -167,6 +193,12 @@ export default function TimelineGrid({
   return (
     <div className="space-y-3">
       {plan && <PlanHeader plan={plan} anchors={anchors} />}
+      <div className="flex flex-wrap gap-2 text-[10px] text-muted">
+        <span className="rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-green-700">committed</span>
+        <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-sky-700">forecast</span>
+        <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-amber-700">gated</span>
+        <span className="rounded-full border border-line/50 px-2 py-0.5">milestones / anchors</span>
+      </div>
 
       {lanes.length === 0 ? (
         <p className="text-muted text-sm p-4">
@@ -217,6 +249,20 @@ export default function TimelineGrid({
                 if (!mk) continue;
                 if (!blocksByMonth[mk]) blocksByMonth[mk] = [];
                 blocksByMonth[mk].push(block);
+              }
+              const forecastByMonth = {};
+              for (const block of forecastByLane[lane.id] || []) {
+                const mk = normalizeMonthKey(block?.dayKey || block?.startISO);
+                if (!mk) continue;
+                if (!forecastByMonth[mk]) forecastByMonth[mk] = [];
+                forecastByMonth[mk].push(block);
+              }
+              const gatedByMonthMap = {};
+              for (const block of gatedByLane[lane.id] || []) {
+                const mk = normalizeMonthKey(block?.dayKey || block?.startISO);
+                if (!mk) continue;
+                if (!gatedByMonthMap[mk]) gatedByMonthMap[mk] = [];
+                gatedByMonthMap[mk].push(block);
               }
               const stripe = laneIdx % 2 !== 0;
 
@@ -292,16 +338,39 @@ export default function TimelineGrid({
                       {(byMonth[month.key] || []).map((ms) => (
                         <MilestoneDot key={ms.id} milestone={ms} />
                       ))}
-                      {(blocksByMonth[month.key] || []).map((block) => (
-                        <div
-                          key={block.id}
-                          className="max-w-full rounded-md border border-green-500/30 bg-green-500/10 px-1.5 py-0.5 text-[9px] leading-tight text-green-700 text-center"
-                          title={`${block.title} · ${block.dayKey || block.startISO}`}
-                          data-testid={`planned-block-${block.id}`}
-                        >
-                          {block.title}
-                        </div>
-                      ))}
+                      {displayMode !== 'roadmap_milestones' &&
+                        (blocksByMonth[month.key] || []).map((block) => (
+                          <div
+                            key={block.id}
+                            className="max-w-full rounded-md border border-green-500/30 bg-green-500/10 px-1.5 py-0.5 text-[9px] leading-tight text-green-700 text-center"
+                            title={`${block.title} · ${block.dayKey || block.startISO}`}
+                            data-testid={`planned-block-${block.id}`}
+                          >
+                            {block.title}
+                          </div>
+                        ))}
+                      {displayMode !== 'committed_only' &&
+                        (forecastByMonth[month.key] || []).map((block) => (
+                          <div
+                            key={block.id}
+                            className="max-w-full rounded-md border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[9px] leading-tight text-sky-700 text-center"
+                            title={`${block.title} · ${block.dayKey}${block.dependencyStatus ? ` · ${block.dependencyStatus}` : ''}`}
+                            data-testid={`forecast-block-${block.id}`}
+                          >
+                            {block.title}
+                          </div>
+                        ))}
+                      {displayMode !== 'committed_only' &&
+                        (gatedByMonthMap[month.key] || []).map((block) => (
+                          <div
+                            key={block.id}
+                            className="max-w-full rounded-md border border-amber-400/40 bg-amber-400/10 px-1.5 py-0.5 text-[9px] leading-tight text-amber-700 text-center"
+                            title={`${block.title} · ${block.dayKey}${block.dependencyStatus ? ` · ${block.dependencyStatus}` : ''}`}
+                            data-testid={`gated-block-${block.id}`}
+                          >
+                            {block.title}
+                          </div>
+                        ))}
                     </div>
                   ))}
                 </React.Fragment>
@@ -345,6 +414,18 @@ export default function TimelineGrid({
           ) : null}
         </div>
       )}
+      {(forecastBlocks.length > 0 || gatedBlocks.length > 0) && (
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-xl border border-line/40 bg-jericho-surface/80 px-3 py-2 text-[11px] text-muted space-y-1">
+            <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Forecast schedule</p>
+            <p>{forecastBlocks.length} forecast item{forecastBlocks.length === 1 ? '' : 's'} remain visible ahead of the committed cycle.</p>
+          </div>
+          <div className="rounded-xl border border-line/40 bg-jericho-surface/80 px-3 py-2 text-[11px] text-muted space-y-1">
+            <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Gated work</p>
+            <p>{gatedBlocks.length} gated item{gatedBlocks.length === 1 ? '' : 's'} remain dependency-bound until reassessment clears them.</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -355,10 +436,13 @@ function PlanHeader({ plan, anchors }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
-        <h2 className="text-base font-semibold text-jericho-text">{plan.title}</h2>
-        {plan.northStarOutcome && (
+        <h2 className="text-base font-semibold text-jericho-text">{plan.coreMission || plan.title}</h2>
+        {plan.outcomeTarget ? <p className="text-sm text-muted mt-0.5">Target: {plan.outcomeTarget}</p> : null}
+        {plan.successStandard ? (
+          <p className="text-xs text-muted mt-0.5">Success: {plan.successStandard}</p>
+        ) : plan.northStarOutcome ? (
           <p className="text-sm text-muted mt-0.5">{plan.northStarOutcome}</p>
-        )}
+        ) : null}
       </div>
       <div className="flex items-center gap-3 text-xs text-muted shrink-0">
         {plan.horizonEnd && (

@@ -107,15 +107,60 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
         'Build and coordinate a multi-lane master plan from today through October 17, centered on releasing my album and launching the supporting ecosystem around it, including the app, podcast, PM brand, and income runway.'
       );
 
-      await user.click(screen.getByLabelText('Other'));
+      expect(screen.queryByText(/What kind of goal is this\?/i)).not.toBeInTheDocument();
+      expect(screen.getByText(/Detected master-plan lanes/i)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: /Accept lane map/i }));
       await user.click(screen.getByRole('button', { name: /^continue$/i }));
 
       expect(mockOnPlanningTierRouted).toHaveBeenCalledWith(
         expect.objectContaining({
           planningTier: 'master_plan',
+          goalArchitecture: expect.objectContaining({
+            goalArchitecture: 'integrated_master_plan',
+            laneComposition: expect.arrayContaining([
+              expect.objectContaining({ domain: 'creative' }),
+              expect.objectContaining({ domain: 'product' }),
+              expect.objectContaining({ domain: 'media' }),
+              expect.objectContaining({ domain: 'brand' }),
+              expect.objectContaining({ domain: 'income' }),
+            ]),
+          }),
         })
       );
       expect(screen.getByText('What are you trying to do?')).toBeInTheDocument();
+    });
+
+    it('lets the user adjust inferred master-plan lanes instead of choosing one primitive goal type', async () => {
+      const user = userEvent.setup();
+      render(<GoalAdmissionFlow {...defaultProps} />);
+
+      const goalDescription = screen.getByLabelText(/describe your goal/i);
+      await user.type(
+        goalDescription,
+        'Build and execute Operation Endgame: a five-year plan coordinating the Jericho app, album, podcast, record label, production company, real estate campaign, private school, and district revitalization.'
+      );
+
+      await user.click(screen.getByRole('button', { name: /Adjust lanes/i }));
+      await user.click(screen.getByLabelText('Company / operations'));
+      await user.click(screen.getByRole('button', { name: /^continue$/i }));
+
+      expect(mockOnPlanningTierRouted).toHaveBeenCalledWith(
+        expect.objectContaining({
+          planningTier: 'master_plan',
+          goalArchitecture: expect.objectContaining({
+            laneComposition: expect.arrayContaining([
+              expect.objectContaining({ domain: 'product' }),
+              expect.objectContaining({ domain: 'creative' }),
+              expect.objectContaining({ domain: 'media' }),
+              expect.objectContaining({ domain: 'capital' }),
+              expect.objectContaining({ domain: 'institution' }),
+              expect.objectContaining({ domain: 'civic' }),
+            ]),
+          }),
+        })
+      );
+      const routedPayload = mockOnPlanningTierRouted.mock.calls.at(-1)?.[0];
+      expect(routedPayload.goalArchitecture.laneComposition.some((lane: any) => lane.domain === 'company')).toBe(false);
     });
 
     it('Screen 1 advances to Screen 2 on valid input', async () => {
@@ -133,6 +178,8 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
 
       const whiteLabelRadio = screen.getByLabelText(/use a manufacturer's existing formula/i);
       await user.click(whiteLabelRadio);
+      await user.click(screen.getByLabelText('Functional food'));
+      await user.click(screen.getByLabelText('Direct to consumer'));
 
       const continueButton = screen.getByRole('button', { name: /continue/i });
       await user.click(continueButton);
@@ -157,6 +204,9 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
       const user = userEvent.setup();
       render(<GoalAdmissionFlow {...defaultProps} />);
 
+      const goalDescription = screen.getByLabelText(/describe your goal/i);
+      await user.type(goalDescription, 'Launch a caffeinated gum brand and make my first real sale.');
+
       const physicalProductRadio = screen.getByLabelText('Physical product');
       await user.click(physicalProductRadio);
 
@@ -169,6 +219,9 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
     it('Screen 1 does not show formula pathway for non-physical goals', async () => {
       const user = userEvent.setup();
       render(<GoalAdmissionFlow {...defaultProps} />);
+
+      const goalDescription = screen.getByLabelText(/describe your goal/i);
+      await user.type(goalDescription, 'Build and ship a focused software product for my first customers.');
 
       const digitalProductRadio = screen.getByLabelText('Digital product');
       await user.click(digitalProductRadio);
@@ -299,6 +352,8 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
       await user.click(screen.getByLabelText('Physical product'));
       await user.click(screen.getByLabelText(/it is ingested/i));
       await user.click(screen.getByLabelText(/use a manufacturer's existing formula/i));
+      await user.click(screen.getByLabelText('Functional food'));
+      await user.click(screen.getByLabelText('Direct to consumer'));
 
       await advanceToScreen2(user);
       await fillScreen2ForPhysical(user);
@@ -328,6 +383,8 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
       await user.click(screen.getByLabelText('Physical product'));
       await user.click(screen.getByLabelText(/it is ingested/i));
       await user.click(screen.getByLabelText(/help me decide/i));
+      await user.click(screen.getByLabelText('Functional food'));
+      await user.click(screen.getByLabelText('Direct to consumer'));
 
       await advanceToScreen2(user);
       await fillScreen2ForPhysical(user);
@@ -868,6 +925,8 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
     await user.click(screen.getByLabelText('Physical product'));
     await user.click(screen.getByLabelText(/it is ingested/i));
     await user.click(screen.getByLabelText(/use a manufacturer's existing formula/i));
+    await user.click(screen.getByLabelText('Functional food'));
+    await user.click(screen.getByLabelText('Direct to consumer'));
 
     await advanceToScreen2(user);
 

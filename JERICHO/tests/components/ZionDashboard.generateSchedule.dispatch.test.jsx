@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event';
 import ZionDashboard from '../../src/components/ZionDashboard.jsx';
 
 const generateScheduleForActiveCycle = vi.fn();
+const completeCycleReassessment = vi.fn();
 const noop = vi.fn();
 let mockStore = {};
 
@@ -34,16 +35,62 @@ function buildStore() {
       [cycleId]: {
         id: cycleId,
         status: 'active',
-        goalContract: { goalId: 'goal-1', startDayKey: '2026-02-01', endDayKey: '2026-03-01' },
+        reassessmentStatus: 'complete',
+        goalContract: {
+          goalId: 'goal-1',
+          startDayKey: '2026-02-01',
+          endDayKey: '2026-03-01',
+          workWindows: {
+            mon: [{ start: '09:00', end: '12:00' }],
+            tue: [{ start: '09:00', end: '12:00' }],
+            wed: [{ start: '09:00', end: '12:00' }],
+            thu: [{ start: '09:00', end: '12:00' }],
+            fri: [{ start: '09:00', end: '12:00' }],
+            sat: [],
+            sun: [],
+          },
+          workWindowsSource: 'user_defined',
+          constraintsStatus: 'approved',
+          capacityValidation: {
+            status: 'approved',
+            availableWeeklyMinutes: 900,
+            requiredWeeklyMinutes: 180,
+            gapWeeklyMinutes: 0,
+            mitigationSuggestions: [],
+          },
+        },
       },
     },
     activeCycleId: cycleId,
-    goalExecutionContract: { goalId: 'goal-1', startDayKey: '2026-02-01', endDayKey: '2026-03-01' },
+    goalExecutionContract: {
+      goalId: 'goal-1',
+      startDayKey: '2026-02-01',
+      endDayKey: '2026-03-01',
+      workWindows: {
+        mon: [{ start: '09:00', end: '12:00' }],
+        tue: [{ start: '09:00', end: '12:00' }],
+        wed: [{ start: '09:00', end: '12:00' }],
+        thu: [{ start: '09:00', end: '12:00' }],
+        fri: [{ start: '09:00', end: '12:00' }],
+        sat: [],
+        sun: [],
+      },
+      workWindowsSource: 'user_defined',
+      constraintsStatus: 'approved',
+      capacityValidation: {
+        status: 'approved',
+        availableWeeklyMinutes: 900,
+        requiredWeeklyMinutes: 180,
+        gapWeeklyMinutes: 0,
+        mitigationSuggestions: [],
+      },
+    },
     probabilityByGoal: {},
     feasibilityByGoal: {},
     profileLearning: {},
     actions: {},
     generateScheduleForActiveCycle,
+    completeCycleReassessment,
     generatePlan: noop,
     commitPreviewItems: noop,
     applyPlan: noop,
@@ -174,6 +221,7 @@ function buildMasterPlanOnlyStore() {
 describe('ZionDashboard schedule generation dispatch wiring', () => {
   beforeEach(() => {
     generateScheduleForActiveCycle.mockClear();
+    completeCycleReassessment.mockClear();
     mockStore = buildStore();
   });
 
@@ -197,15 +245,117 @@ describe('ZionDashboard schedule generation dispatch wiring', () => {
     expect(generateScheduleForActiveCycle).toHaveBeenCalledTimes(1);
   });
 
-  it('allows schedule generation from a finalized master plan before any active cycle exists', async () => {
+  it('does not allow schedule generation from a finalized master plan before an execution cycle exists', async () => {
     mockStore = buildMasterPlanOnlyStore();
 
     render(<ZionDashboard initialView="today" initialZionView="day" />);
 
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /today execution/i }));
-    await user.click(screen.getByRole('button', { name: /generate schedule/i }));
+    expect(screen.getByRole('button', { name: /generate schedule/i })).toBeDisabled();
 
-    expect(generateScheduleForActiveCycle).toHaveBeenCalledTimes(1);
+    expect(generateScheduleForActiveCycle).not.toHaveBeenCalled();
+  });
+
+  it('blocks schedule generation when work windows have not been defined and saved', () => {
+    mockStore = buildStore();
+    mockStore.cyclesById['cycle-active'].goalContract.workWindows = {
+      mon: [],
+      tue: [],
+      wed: [],
+      thu: [],
+      fri: [],
+      sat: [],
+      sun: [],
+    };
+    mockStore.cyclesById['cycle-active'].goalContract.workWindowsSource = 'unset';
+    mockStore.cyclesById['cycle-active'].goalContract.constraintsStatus = 'unsaved';
+    mockStore.goalExecutionContract = {
+      ...mockStore.goalExecutionContract,
+      workWindows: mockStore.cyclesById['cycle-active'].goalContract.workWindows,
+      workWindowsSource: 'unset',
+      constraintsStatus: 'unsaved',
+    };
+
+    render(<ZionDashboard initialView="today" initialZionView="day" />);
+
+    expect(screen.getByRole('button', { name: /generate schedule/i })).toBeDisabled();
+    expect(screen.getByText(/Define and save work windows before generating a schedule\./i)).toBeInTheDocument();
+  });
+
+  it('blocks schedule generation when saved availability is insufficient', () => {
+    mockStore = buildStore();
+    mockStore.cyclesById['cycle-active'].goalContract.capacityValidation = {
+      status: 'insufficient',
+      availableWeeklyMinutes: 60,
+      requiredWeeklyMinutes: 240,
+      gapWeeklyMinutes: 180,
+      mitigationSuggestions: ['Expand availability', 'Reduce first-cycle scope'],
+    };
+    mockStore.cyclesById['cycle-active'].goalContract.constraintsStatus = 'insufficient';
+    mockStore.goalExecutionContract = {
+      ...mockStore.goalExecutionContract,
+      constraintsStatus: 'insufficient',
+      capacityValidation: mockStore.cyclesById['cycle-active'].goalContract.capacityValidation,
+    };
+
+    render(<ZionDashboard initialView="today" initialZionView="day" />);
+
+    expect(screen.getByRole('button', { name: /generate schedule/i })).toBeDisabled();
+    expect(screen.getByText(/Availability is insufficient for the first-cycle workload\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Jericho will not cram the plan into unrealistic time\./i)).toBeInTheDocument();
+  });
+
+  it('explains the reassessment blocker and lets Today accept reassessment directly', async () => {
+    mockStore = buildStore();
+    mockStore.cyclesById['cycle-active'].reassessmentStatus = 'required';
+
+    render(<ZionDashboard initialView="today" initialZionView="day" />);
+
+    expect(screen.getByRole('button', { name: /generate schedule/i })).toBeDisabled();
+    expect(screen.getAllByText(/Current-state reassessment is required before schedule generation/i).length).toBeGreaterThan(0);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Accept current-state reassessment/i }));
+
+    expect(completeCycleReassessment).toHaveBeenCalledWith('cycle-active');
+  });
+
+  it('renders expected output and partial first-cycle coverage for proposed draft blocks', () => {
+    mockStore = buildStore();
+    mockStore.proposedBlocks = [
+      {
+        id: 'block-1',
+        cycleId: 'cycle-active',
+        goalId: 'goal-1',
+        title: 'Define timing-slip non-negotiables',
+        expectedOutput: 'Written list of what cannot be sacrificed if anchor dates slip.',
+        startISO: '2026-02-03T09:00:00.000Z',
+        endISO: '2026-02-03T09:30:00.000Z',
+        durationMinutes: 30,
+        status: 'suggested',
+      },
+    ];
+    mockStore.suggestedBlocks = mockStore.proposedBlocks;
+    mockStore.cyclesById['cycle-active'].proposedBlocks = mockStore.proposedBlocks;
+    mockStore.cyclesById['cycle-active'].autoAsanaPlan = {
+      summary: {
+        scheduledBlockCount: 1,
+        scheduledMinutes: 30,
+        unscheduledBlockCount: 2,
+        unscheduledMinutes: 120,
+        partialScheduleReason:
+          'Only part of the first execution cycle could be scheduled inside the current preview window and confirmed work windows.',
+        unscheduledReasons: [{ reasonCode: 'INSUFFICIENT_SCHEDULE_SLOTS', count: 2, minutes: 120 }],
+      },
+    };
+
+    render(<ZionDashboard initialView="today" initialZionView="day" />);
+
+    expect(screen.getByText(/First-cycle coverage:/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 scheduled block/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 unscheduled blocks/i)).toBeInTheDocument();
+    expect(screen.getByText(/Expected output: Written list of what cannot be sacrificed if anchor dates slip\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Unscheduled remaining workload: 2 blocks \/ 2h due to current preview-window capacity\./i)).toBeInTheDocument();
   });
 });

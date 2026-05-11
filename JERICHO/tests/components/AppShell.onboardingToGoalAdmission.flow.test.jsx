@@ -40,8 +40,8 @@ describe('AppShell structure entry without an active cycle', () => {
     render(<AppShell />);
 
     fireEvent.click(await screen.findByRole('button', { name: /Structure/i }));
-    fireEvent.click(await screen.findByText(/Cycle Management/i));
-    fireEvent.click(screen.getByRole('button', { name: /Reset to Blank/i }));
+    fireEvent.click(await screen.findByText(/^Execution Cycle$/i));
+    fireEvent.click(screen.getByRole('button', { name: /Clear Goal/i }));
 
     await waitFor(() => expect(window.__jerichoDebug__?.activeCycleId ?? null).toBeNull());
 

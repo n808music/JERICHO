@@ -31,6 +31,7 @@ import {
   getStructureSchedulingLabels,
 } from '../../state/structureSchedulingSemantics.js';
 import { materializeBlocksFromEvents } from '../../state/engine/todayAuthority.ts';
+import { isCanonicalBlankState } from '../../state/identityCompute.js';
 import { describeBlockMeaning } from '../zion/blockMeaning.js';
 import CycleTransitionModal from './CycleTransitionModal.jsx';
 import HorizonResolutionPanel from './HorizonResolutionPanel.jsx';
@@ -151,25 +152,157 @@ function MissionContextBanner({ contract }) {
   );
 }
 
-function MasterPlanStructureSection({ hasActiveMasterPlan, masterPlanIntakeStatus }) {
+function MasterPlanStructureSection({
+  hasActiveMasterPlan,
+  masterPlanIntakeStatus,
+  activeMasterPlan = null,
+  activeCycle = null,
+  scheduleLifecycle = 'no_schedule',
+  onClearGoal = null,
+}) {
+  const laneCount = Array.isArray(activeMasterPlan?.laneIds) ? activeMasterPlan.laneIds.length : 0;
   return (
     <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4 space-y-3">
       <div>
-        <div className="text-xs uppercase tracking-[0.14em] text-muted mb-2">Master Plan</div>
-        <div className="text-sm font-semibold text-jericho-text">Structure establishes the master plan</div>
+        <div className="text-xs uppercase tracking-[0.14em] text-muted mb-2">Goal</div>
+        <div className="text-sm font-semibold text-jericho-text">Structure establishes the goal and master plan</div>
         <div className="text-xs text-muted mt-1">
           Define lanes, anchors, milestones, and convergence logic here. The Plan tab visualizes the result read-only.
         </div>
       </div>
 
       {hasActiveMasterPlan && masterPlanIntakeStatus !== 'in-progress' ? (
-        <div className="rounded-lg border border-line/40 bg-jericho-surface/80 p-3 text-xs text-muted">
-          Master plan established. Review lanes, anchors, and milestones in Plan.
-        </div>
+        <>
+          <div className="rounded-lg border border-line/40 bg-jericho-surface/80 p-3 text-xs text-muted">
+            Goal established. Review lanes, anchors, and milestones in Plan.
+          </div>
+          <div className="rounded-lg border border-line/40 bg-jericho-surface/80 p-3 space-y-3">
+            <div className="space-y-2">
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.12em] text-muted">Core Mission</div>
+                <div className="text-sm font-semibold text-jericho-text">
+                  {activeMasterPlan?.coreMission || activeMasterPlan?.title || 'Active goal'}
+                </div>
+              </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.12em] text-muted">Outcome Target</div>
+                <div className="text-xs text-jericho-text">
+                  {activeMasterPlan?.outcomeTarget || activeMasterPlan?.northStarOutcome || 'Outcome target pending'}
+                </div>
+              </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.12em] text-muted">Success Standard</div>
+                <div className="text-xs text-jericho-text">
+                  {activeMasterPlan?.successStandard || activeMasterPlan?.masterPlanSummary || 'Success standard pending'}
+                </div>
+              </div>
+              <div className="text-xs text-muted">
+                {laneCount} lane{laneCount === 1 ? '' : 's'} · schedule lifecycle:{' '}
+                <span className="font-medium text-jericho-text">{formatPolicyState(scheduleLifecycle || 'no_schedule')}</span>
+              </div>
+              <div className="text-xs text-muted">
+                {activeCycle?.id
+                  ? `Active execution cycle: ${activeCycle.id}`
+                  : 'No active execution cycle yet. Start Execution Cycle to create one.'}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={onClearGoal}
+                className="rounded-full border border-red-600 px-3 py-1 text-xs text-red-600 hover:bg-red-600/10"
+              >
+                Clear Goal
+              </button>
+            </div>
+          </div>
+        </>
       ) : (
         <MasterPlanIntake />
       )}
     </div>
+  );
+}
+
+function CycleManagementSection({
+  activeCycleId = null,
+  hasActiveMasterPlan = false,
+  activeCycle = null,
+  scheduleLifecycle = 'no_schedule',
+  onCompleteReassessment = null,
+  onStartNewCycleRequest = null,
+  onArchiveCycle = null,
+  onResetCycle = null,
+  onDeleteCycle = null,
+}) {
+  const hasActiveCycle = Boolean(activeCycleId && activeCycle);
+  const reassessmentStatus = String(activeCycle?.reassessmentStatus || '').trim().toLowerCase();
+  return (
+    <details className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4" open={hasActiveMasterPlan && !hasActiveCycle}>
+      <summary className="cursor-pointer flex items-center gap-2">
+        <p className="text-xs uppercase tracking-[0.14em] text-muted">Execution Cycle</p>
+      </summary>
+      <div className="mt-3 space-y-3">
+        {!hasActiveCycle ? (
+          <p className="text-xs text-muted">
+            No active execution cycle yet. Start one here, then generate the schedule from Today.
+          </p>
+        ) : (
+          <div className="space-y-1 text-xs text-muted">
+            <p>
+              Active execution cycle: <span className="font-medium text-jericho-text">{activeCycleId}</span>
+            </p>
+            <p>
+              Schedule:{' '}
+              <span className="font-medium text-jericho-text">{formatPolicyState(scheduleLifecycle || 'no_schedule')}</span>
+            </p>
+            {reassessmentStatus === 'required' ? (
+              <p className="text-amber-700">
+                Current-state reassessment required before schedule generation.
+              </p>
+            ) : (
+              <p>Current-state reassessment complete.</p>
+            )}
+          </div>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={onStartNewCycleRequest}
+            className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent"
+          >
+            {hasActiveCycle ? 'Replace Active Cycle' : 'Start Execution Cycle'}
+          </button>
+          <button
+            onClick={onCompleteReassessment}
+            disabled={!hasActiveCycle || reassessmentStatus === 'complete'}
+            className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent disabled:opacity-50"
+          >
+            Reassess Current State
+          </button>
+          <button
+            onClick={onArchiveCycle}
+            disabled={!hasActiveCycle}
+            className="rounded-full border border-amber-600 px-3 py-1 text-xs text-amber-600 hover:bg-amber-600/10 disabled:opacity-50"
+          >
+            Archive Cycle
+          </button>
+          <button
+            onClick={onResetCycle}
+            disabled={!hasActiveCycle}
+            className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent disabled:opacity-50"
+          >
+            Reset Cycle
+          </button>
+          <button
+            onClick={onDeleteCycle}
+            disabled={!hasActiveCycle}
+            className="rounded-full border border-red-600 px-3 py-1 text-xs text-red-600 hover:bg-red-600/10 disabled:opacity-50"
+          >
+            Delete Cycle
+          </button>
+        </div>
+      </div>
+    </details>
   );
 }
 
@@ -447,9 +580,12 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
     updateWorkWindows,
     setPlanResolutionKind,
     resetIdentity,
+    resetActiveCycle,
   } = store;
   const activeProfileId = store?.activeProfileId || null;
   const activeProfile = activeProfileId ? store?.profilesById?.[activeProfileId] || null : null;
+  const activeMasterPlanId = activeProfile?.activeMasterPlanId || null;
+  const activeMasterPlan = activeMasterPlanId ? store?.masterPlansById?.[activeMasterPlanId] || null : null;
   const masterPlanIntake = store?.masterPlanIntake || null;
   const hasActiveMasterPlan = Boolean(activeProfile?.activeMasterPlanId);
   const activeMissionId = activeProfile?.activeCoreMissionContractId || null;
@@ -457,6 +593,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
     ? store?.coreMissionContractsById?.[activeMissionId] || null
     : null;
   const activePlanningTier = String(pendingOnboardingInputs?.goalPlanningTier || '').trim().toLowerCase();
+  const isBlankStructureState = isCanonicalBlankState(store);
   const showMasterPlanFlow =
     masterPlanIntake?.status === 'in-progress' ||
     masterPlanIntake?.status === 'complete' ||
@@ -480,6 +617,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   const cycleStatus = String(activeCycle?.status || activeCycle?.state || '')
     .trim()
     .toLowerCase();
+  const hasValidActiveExecutionCycle = Boolean(activeCycle?.id && cycleStatus !== 'ended' && cycleStatus !== 'archived');
   const isCycleReadOnly = cycleStatus === 'ended' || cycleStatus === 'archived';
   const hasAdmittedGoal = Boolean(activeCycle?.goalContract);
   const hasGoalDraftRecovery =
@@ -489,6 +627,14 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   const workspace = activeCycleId ? store?.deliverablesByCycleId?.[activeCycleId] || null : null;
   const deliverables = Array.isArray(workspace?.deliverables) ? workspace.deliverables : [];
   const reviewBlocks = Array.isArray(activeCycle?.scheduleReviewBlocks) ? activeCycle.scheduleReviewBlocks : [];
+  const normalizedScheduleLifecycle = String(activeCycle?.scheduleLifecycle || '')
+    .trim()
+    .toLowerCase();
+  const hasAppliedReviewSchedule = normalizedScheduleLifecycle === 'applied_review' && reviewBlocks.length > 0;
+  const hasActiveSchedule = normalizedScheduleLifecycle === 'active_schedule';
+  const hasExecutableMasterPlan = Boolean(
+    activeMasterPlan?.id && Array.isArray(activeMasterPlan?.laneIds) && activeMasterPlan.laneIds.length > 0
+  );
   const canonicalProposedChartBlocks = useMemo(() => {
     const canonicalProposed = getCanonicalProposedBlocks(proposedBlocks, suggestedBlocks);
     return (Array.isArray(canonicalProposed) ? canonicalProposed : [])
@@ -532,6 +678,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
     }
     return canonicalProposedChartBlocks;
   }, [reviewBlocks, canonicalExecutionBlocks, canonicalProposedChartBlocks]);
+  const hasVisibleScheduleBlocks = chartScheduleBlocks.length > 0;
   const planChartRows = useMemo(() => {
     const actions = Array.isArray(activeCycle?.actions) ? activeCycle.actions : [];
     const deliverableByActionId = new Map();
@@ -757,6 +904,67 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
     store?.masterPlanIntakeStart?.(activeProfileId);
   }, [showMasterPlanFlow, hasActiveMasterPlan, activeProfileId, masterPlanIntake?.status, store]);
 
+  const handleClearGoal = () => {
+    if (
+      window.confirm(
+        'Clear the current goal? This deletes the goal, master plan, execution cycle, schedule, and evidence and returns Jericho to blank state.'
+      )
+    ) {
+      resetIdentity?.();
+      try {
+        window.location.hash = '#/structure';
+      } catch {
+        // ignore hash routing failures
+      }
+    }
+  };
+
+  const handleResetActiveCycle = () => {
+    if (!activeCycleId) {
+      return;
+    }
+    if (
+      window.confirm(
+        'Reset the active cycle? This clears generated schedule, applied schedule, and execution evidence for this cycle but keeps the master plan.'
+      )
+    ) {
+      resetActiveCycle?.(activeCycleId);
+    }
+  };
+
+  const handleCompleteCycleReassessment = () => {
+    if (!hasValidActiveExecutionCycle || !activeCycleId) {
+      return;
+    }
+    store.completeCycleReassessment?.(activeCycleId);
+  };
+
+  const handleDeleteActiveCycle = () => {
+    if (!hasValidActiveExecutionCycle || !activeCycleId) {
+      return;
+    }
+    if (window.confirm('Delete the active cycle and clear the calendar? This cannot be undone.')) {
+      store.deleteCycle?.(activeCycleId);
+      try {
+        window.location.hash = '#/structure';
+      } catch {
+        // ignore hash routing failures
+      }
+    }
+  };
+
+  const handleStartNewCycle = () => {
+    if (onStartNewCycleRequest) {
+      onStartNewCycleRequest({ hasActiveExecutionCycle: hasValidActiveExecutionCycle, activeCycleId });
+      return;
+    }
+    if (hasValidActiveExecutionCycle) {
+      setCycleTransitionModalOpen(true);
+      return;
+    }
+    store.startNewCycleWithDecision?.({ mode: 'archive' });
+  };
+
   // ============================================================================
   // MODULE 1: Pre-admission (no admitted goal contract)
   // ============================================================================
@@ -772,13 +980,38 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
           <MasterPlanStructureSection
             hasActiveMasterPlan={hasActiveMasterPlan}
             masterPlanIntakeStatus={masterPlanIntake?.status || 'idle'}
+            activeMasterPlan={activeMasterPlan}
+            activeCycle={activeCycle}
+            scheduleLifecycle={normalizedScheduleLifecycle || 'no_schedule'}
+            onClearGoal={handleClearGoal}
           />
+
+          {hasActiveMasterPlan ? (
+            <CycleManagementSection
+              activeCycleId={hasValidActiveExecutionCycle ? activeCycleId : null}
+              hasActiveMasterPlan={hasActiveMasterPlan}
+              activeCycle={hasValidActiveExecutionCycle ? activeCycle : null}
+              scheduleLifecycle={normalizedScheduleLifecycle || 'no_schedule'}
+              onCompleteReassessment={handleCompleteCycleReassessment}
+              onStartNewCycleRequest={() => {
+                handleStartNewCycle();
+              }}
+              onArchiveCycle={() => {
+                if (!hasValidActiveExecutionCycle || !activeCycleId) {
+                  return;
+                }
+                if (window.confirm('Archive the active cycle and move it to review mode?')) {
+                  store.endCycle?.(activeCycleId);
+                }
+              }}
+              onResetCycle={handleResetActiveCycle}
+              onDeleteCycle={handleDeleteActiveCycle}
+            />
+          ) : null}
         </div>
       );
     }
 
-    const intakeContract =
-      admissionDraft?.goalIntakeContract || deriveAdmissionIntakeContract(admissionDraft, pendingOnboardingInputs);
     const draftStartDayKey = toDayKey(
       admissionDraft?.startDayKey || admissionDraft?.startDateISO || admissionDraft?.startDate || ''
     );
@@ -816,48 +1049,10 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
           </div>
         ) : null}
 
-        {intakeContract &&
-        (intakeContract.domain === 'podcast' || intakeContract.requiredContextQuestions.length > 0) ? (
-          <div className="rounded-lg border border-line/60 bg-jericho-surface/90 p-4 space-y-2">
-            <p className="text-xs uppercase tracking-[0.14em] text-muted">Intake Contract</p>
-            <div className="text-sm font-semibold text-jericho-text">
-              {intakeContract.domain === 'podcast' ? 'Podcast intake' : 'Goal intake'}
-            </div>
-            <div className="text-xs text-muted space-y-1">
-              <div>
-                <span className="font-semibold">Completion boundary:</span>{' '}
-                {intakeContract.completionBoundary || intakeContract.completionBoundaryStatus}
-              </div>
-              {intakeContract.requiredContextQuestions.length > 0 ? (
-                <div>
-                  <span className="font-semibold">Required question:</span>{' '}
-                  {intakeContract.requiredContextQuestions[0].prompt}
-                </div>
-              ) : null}
-              <div>
-                <span className="font-semibold">Admission state:</span>{' '}
-                {formatPolicyState(intakeContract.readiness.state)}
-              </div>
-              {intakeContract.readiness.assumptionReasons.length > 0 ? (
-                <div>
-                  <span className="font-semibold">Assumptions:</span>{' '}
-                  {intakeContract.readiness.assumptionReasons.map(formatPolicyState).join(', ')}
-                </div>
-              ) : null}
-              {Array.isArray(intakeContract.scopePolicy?.required) && intakeContract.scopePolicy.required.length > 0 ? (
-                <div>
-                  <span className="font-semibold">Required scope:</span>{' '}
-                  {intakeContract.scopePolicy.required.slice(0, 3).join(', ')}
-                </div>
-              ) : null}
-              {Array.isArray(intakeContract.scopePolicy?.recommended) &&
-              intakeContract.scopePolicy.recommended.length > 0 ? (
-                <div>
-                  <span className="font-semibold">Recommended scope:</span>{' '}
-                  {intakeContract.scopePolicy.recommended.slice(0, 3).join(', ')}
-                </div>
-              ) : null}
-            </div>
+        {isBlankStructureState ? (
+          <div className="rounded-lg border border-line/60 bg-jericho-surface/90 p-4 space-y-1">
+            <p className="text-sm font-semibold text-jericho-text">No goal established yet.</p>
+            <p className="text-xs text-muted">Describe a goal to begin structure intake.</p>
           </div>
         ) : null}
 
@@ -868,11 +1063,12 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
         <GoalAdmissionPage
           contract={admissionDraft}
           onContractChange={persistAdmissionDraft}
-          onPlanningTierRouted={({ planningTier, goalDescription }) => {
+          onPlanningTierRouted={({ planningTier, goalDescription, goalArchitecture }) => {
             const nextPending = {
               ...(pendingOnboardingInputs || {}),
               goalPlanningTier: planningTier,
               goalText: goalDescription,
+              goalArchitecture,
               goalDraftV2: {
                 ...((pendingOnboardingInputs || {}).goalDraftV2 || {}),
                 goalText: goalDescription,
@@ -894,8 +1090,14 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
             if (activeProfileId && masterPlanIntake?.status === 'idle') {
               store.masterPlanIntakeStart?.(activeProfileId);
               store.masterPlanIntakeAnswer?.(goalDescription);
+              if (goalArchitecture?.laneComposition?.length) {
+                store.masterPlanIntakeSetLanes?.(goalArchitecture.laneComposition);
+              }
             } else if (masterPlanIntake?.status === 'in-progress' && masterPlanIntake?.step === 1) {
               store.masterPlanIntakeAnswer?.(goalDescription);
+              if (goalArchitecture?.laneComposition?.length) {
+                store.masterPlanIntakeSetLanes?.(goalArchitecture.laneComposition);
+              }
             }
           }}
           onExecutionTypeChange={(executionType) => {
@@ -1075,6 +1277,15 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
           <div className="mt-3 text-xs text-muted/60 italic">
             Read-only. To change goal, archive this cycle and start a new one.
           </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleClearGoal}
+              className="rounded-full border border-red-600 px-3 py-1 text-xs text-red-600 hover:bg-red-600/10"
+            >
+              Clear Goal
+            </button>
+          </div>
         </div>
       )}
 
@@ -1086,6 +1297,10 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
         <MasterPlanStructureSection
           hasActiveMasterPlan={hasActiveMasterPlan}
           masterPlanIntakeStatus={masterPlanIntake?.status || 'idle'}
+          activeMasterPlan={activeMasterPlan}
+          activeCycle={activeCycle}
+          scheduleLifecycle={normalizedScheduleLifecycle || 'no_schedule'}
+          onClearGoal={handleClearGoal}
         />
       ) : null}
 
@@ -1404,7 +1619,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
         </div>
       </details>
 
-      {/* Schedule Status (Read-only in Structure) */}
+      {/* Schedule Status */}
       <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4 space-y-3">
         <p className="text-xs uppercase tracking-[0.14em] text-muted">Schedule Status</p>
         {scheduleStatus === 'draft_schedule_ready' && (
@@ -1494,68 +1709,38 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
         )}
       </div>
 
-      {/* Cycle Management (Collapsed) */}
-      <details className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4">
-        <summary className="cursor-pointer flex items-center gap-2">
-          <p className="text-xs uppercase tracking-[0.14em] text-muted">Cycle Management</p>
-        </summary>
-        <div className="mt-3 space-y-3">
-          <div className="flex gap-2">
-            <button
-              onClick={() => {
-                if (onStartNewCycleRequest) {
-                  onStartNewCycleRequest();
-                } else {
-                  setCycleTransitionModalOpen(true);
-                }
-              }}
-              className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent"
-            >
-              New Cycle
-            </button>
-            <button
-              onClick={() => {
-                if (window.confirm('Archive the active cycle and move it to review mode?')) {
-                  store.endCycle?.(activeCycleId);
-                }
-              }}
-              className="rounded-full border border-amber-600 px-3 py-1 text-xs text-amber-600 hover:bg-amber-600/10"
-            >
-              Archive Cycle
-            </button>
-            <button
-              onClick={() => {
-                if (window.confirm('Reset Jericho to a true blank state? This clears the active goal, schedule, and evidence.')) {
-                  resetIdentity?.();
-                  try {
-                    window.location.hash = '#/structure';
-                  } catch {
-                    // ignore hash routing failures
-                  }
-                }
-              }}
-              className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent"
-            >
-              Reset to Blank
-            </button>
-            <button
-              onClick={() => {
-                if (window.confirm('Delete the active cycle and clear the calendar? This cannot be undone.')) {
-                  store.deleteCycle?.(activeCycleId);
-                  try {
-                    window.location.hash = '#/structure';
-                  } catch {
-                    // ignore hash routing failures
-                  }
-                }
-              }}
-              className="rounded-full border border-red-600 px-3 py-1 text-xs text-red-600 hover:bg-red-600/10"
-            >
-              Delete Cycle
-            </button>
-          </div>
-        </div>
-      </details>
+      <CycleManagementSection
+        activeCycleId={hasValidActiveExecutionCycle ? activeCycleId : null}
+        hasActiveMasterPlan={hasActiveMasterPlan}
+        activeCycle={hasValidActiveExecutionCycle ? activeCycle : null}
+        scheduleLifecycle={normalizedScheduleLifecycle || 'no_schedule'}
+        onCompleteReassessment={handleCompleteCycleReassessment}
+        onStartNewCycleRequest={() => {
+          handleStartNewCycle();
+        }}
+        onArchiveCycle={() => {
+          if (!hasValidActiveExecutionCycle || !activeCycleId) {
+            return;
+          }
+          if (window.confirm('Archive the active cycle and move it to review mode?')) {
+            store.endCycle?.(activeCycleId);
+          }
+        }}
+        onResetCycle={handleResetActiveCycle}
+        onDeleteCycle={() => {
+          if (!hasValidActiveExecutionCycle || !activeCycleId) {
+            return;
+          }
+          if (window.confirm('Delete the active cycle and clear the calendar? This cannot be undone.')) {
+            store.deleteCycle?.(activeCycleId);
+            try {
+              window.location.hash = '#/structure';
+            } catch {
+              // ignore hash routing failures
+            }
+          }
+        }}
+      />
 
       <CycleTransitionModal
         open={isCycleTransitionModalOpen}

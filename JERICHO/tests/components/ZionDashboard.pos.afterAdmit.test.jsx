@@ -300,6 +300,108 @@ function buildStore({
   };
 }
 
+function buildBlankStabilityStore() {
+  const dayKey = '2026-03-10';
+  return {
+    activeProfileId: 'profile-local-default',
+    profilesById: {
+      'profile-local-default': {
+        id: 'profile-local-default',
+        goalIds: [],
+        activeGoalId: null,
+        masterCalendarId: 'calendar-profile-local-default',
+        strategicClusterIds: [],
+      },
+    },
+    goalsById: {},
+    masterPlansById: {},
+    today: { date: dayKey, blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
+    currentWeek: { weekStart: dayKey, days: [], metrics: {} },
+    cycle: [],
+    suggestionEvents: [],
+    suggestedBlocks: [],
+    appTime: { nowISO: `${dayKey}T12:00:00.000Z`, activeDayKey: dayKey, timeZone: 'UTC' },
+    cyclesById: {},
+    activeCycleId: null,
+    goalExecutionContract: null,
+    probabilityByGoal: {},
+    feasibilityByGoal: {},
+    planQualityGateByGoal: {},
+    systemShotClockByGoal: {},
+    constraints: {},
+    masterCalendarsById: {
+      'calendar-profile-local-default': {
+        id: 'calendar-profile-local-default',
+        activeGoalIds: [],
+        activeCycleIds: [],
+        baseWeeklyCapacityHours: 40,
+        availableCapacityHours: 40,
+      },
+    },
+    strategicClustersById: {},
+    goalRelations: [],
+    constraintRelations: [],
+    frictionEvents: [],
+    frictionPropagationResults: [],
+    profileLearning: { cycleCount: 0 },
+    planRecovery: null,
+    pendingPlanConfirmation: false,
+    scheduleApplied: false,
+    coreContinuity: { state: 'absent', activeMissionId: null, linkedMasterPlanIds: [], reasonCodes: [] },
+    coreMissionContractsById: {},
+    deliverablesByCycleId: {},
+    goalAdmissionByGoal: {},
+    goalWorkById: {},
+    debug: { traceLog: [] },
+    lastPlanError: null,
+    cycleDynamicsByCycleId: {},
+    blockStore: { blocks: {} },
+    executionEvents: [],
+    proposedBlocks: [],
+    actions: {
+      completeBlock: noop,
+      missBlock: noop,
+      skipBlock: noop,
+      setDefiniteGoal: noop,
+      setPatternTargets: noop,
+      createBlock: noop,
+      updateBlock: noop,
+      deleteBlock: noop,
+      rescheduleBlock: noop,
+      setActiveDayKey: noop,
+      jumpToToday: noop,
+      tickNow: noop,
+      acceptSuggestedBlock: noop,
+      acceptSuggestedBlockWithPlacement: noop,
+      rejectSuggestedBlock: noop,
+      ignoreSuggestedBlock: noop,
+      dismissSuggestedBlock: noop,
+      setActiveCycle: noop,
+      deleteCycle: noop,
+      startNewCycle: noop,
+      startNewCycleWithDecision: noop,
+      generateScheduleForActiveCycle: noop,
+      generatePlanWithLLM: noop,
+      createDeliverable: noop,
+      updateDeliverable: noop,
+      deleteDeliverable: noop,
+      createCriterion: noop,
+      toggleCriterionDone: noop,
+      deleteCriterion: noop,
+      linkBlockToDeliverable: noop,
+      assignSuggestionLink: noop,
+      generatePlan: noop,
+      commitPreviewItems: noop,
+      applyPlan: noop,
+      setPlanResolutionKind: noop,
+      activateSchedule: noop,
+      applyRenegotiationOption: noop,
+      resetIdentity: noop,
+      addFrictionEvent: noop,
+    },
+  };
+}
+
 describe('ZionDashboard POS after admit', () => {
   it('renders canonical live P.O.S. when execution evidence has admitted the score', () => {
     mockStore = buildStore({ withFeasibility: true });
@@ -388,6 +490,80 @@ describe('ZionDashboard POS after admit', () => {
         /Launch Jericho app: Dependency Blocker · -4h · strategic impact: Launch Jericho app · correction required/i
       )
     ).toBeInTheDocument();
+  });
+
+  it('shows a true blank Stability state when no goal or cycle is active', () => {
+    mockStore = buildBlankStabilityStore();
+    const { container } = render(<ZionDashboard initialView="stability" />);
+
+    const posCard = within(container)
+      .getByText(/Probability of Success/i)
+      .closest('.rounded-xl');
+    expect(posCard).toBeTruthy();
+    expect(within(posCard).getByText(/^Live P\.O\.S\.$/i)).toBeInTheDocument();
+    expect(posCard).toHaveTextContent(/Initial Feasibility/i);
+    expect(posCard).toHaveTextContent(/Pending goal admission\./i);
+    expect(posCard).toHaveTextContent(/Requires admitted goal and execution evidence\./i);
+    expect(posCard).not.toHaveTextContent(/\b50%\b/);
+
+    const stabilityCard = within(container)
+      .getByText(/^Stability Score$/i)
+      .closest('.rounded-xl');
+    expect(stabilityCard).toBeTruthy();
+    expect(stabilityCard).toHaveTextContent(/No active execution cycle\./i);
+    expect(stabilityCard).toHaveTextContent(/Momentum[\s\S]*—/i);
+    expect(stabilityCard).not.toHaveTextContent(/\b50%\b/);
+
+    const containmentCard = within(container)
+      .getByText(/Profile Containment/i)
+      .closest('.rounded-md');
+    expect(containmentCard).toBeTruthy();
+    expect(containmentCard).toHaveTextContent(/Active goals\s*0/i);
+    expect(containmentCard).toHaveTextContent(/Active cycles\s*0/i);
+    expect(within(containmentCard).getByText(/Start an execution cycle before recording cycle friction\./i)).toBeInTheDocument();
+    expect(screen.getByText(/^Record friction event$/i)).toBeInTheDocument();
+  });
+
+  it('keeps the Today calendar accessible in blank state without rerouting to Structure', () => {
+    mockStore = buildBlankStabilityStore();
+    render(<ZionDashboard initialView="today" initialZionView="day" />);
+
+    expect(screen.getByText(/Add block/i)).toBeInTheDocument();
+    expect(screen.getByText(/What moved today/i)).toBeInTheDocument();
+    expect(screen.getByText(/Day details/i)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Structure/i })).not.toBeInTheDocument();
+  });
+
+  it('explains that Today only shows committed execution work while future roadmap stays in Plan', () => {
+    mockStore = buildStore({
+      withFeasibility: true,
+      masterPlanPolicy: {
+        intakeReadiness: { state: 'fully_admitted' },
+        planQuality: { state: 'policy_clean' },
+        posTrust: { state: 'provisional' },
+        feasibility: {
+          state: 'constrained',
+          percent: 61,
+          score: 0.61,
+          range: [0.5, 0.72],
+          confidence: 'moderate',
+          substrateLevel: 'rough_feasibility',
+          summary: 'Possible but dependent on a capital bridge, market conversion.',
+          reasonCodes: ['FEASIBILITY_ASSUMPTION_BURDEN_HIGH'],
+          assumptions: ['a capital bridge', 'market conversion'],
+        },
+      },
+    });
+    mockStore.profilesById['profile-local-default'].activeMasterPlanId = 'masterplan-1';
+    render(<ZionDashboard initialView="today" initialZionView="day" />);
+
+    expect(screen.getAllByText(/First execution cycle schedule/i).length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(/Today shows committed execution work\. Future roadmap and forecast work remain visible in Plan\./i)
+    ).toBeInTheDocument();
+    expect(screen.getByText(/^Active Phase$/i)).toBeInTheDocument();
+    expect(screen.getByText(/P1 · Foundation \/ Launch Proof/i)).toBeInTheDocument();
+    expect(screen.getByText(/Next unlock:/i)).toBeInTheDocument();
   });
 
   it('submits user-reported friction events from Stability without changing schedule automatically', () => {
@@ -542,6 +718,43 @@ describe('ZionDashboard POS after admit', () => {
     expect(posCard).toHaveTextContent(/Range:\s*50-72%\s*·\s*Confidence:\s*Moderate/i);
     expect(posCard).toHaveTextContent(/capital bridge/i);
     expect(within(posCard).getByText(/^Withheld$/i)).toBeInTheDocument();
+    expect(within(posCard).getByText(/^Status Report$/i)).toBeInTheDocument();
+    expect(within(posCard).getByText(/P1 · Foundation \/ Launch Proof/i)).toBeInTheDocument();
+    expect(within(posCard).getByText(/Next unlock readiness:/i)).toBeInTheDocument();
+  });
+
+  it('starts the first execution cycle directly from Structure when no active cycle exists', () => {
+    const startNewCycleWithDecision = vi.fn();
+    mockStore = buildStore({
+      masterPlanPolicy: {
+        intakeReadiness: { state: 'fully_admitted' },
+        planQuality: { state: 'policy_clean' },
+        posTrust: { state: 'provisional' },
+        feasibility: {
+          state: 'constrained',
+          percent: 61,
+          score: 0.61,
+          range: [0.5, 0.72],
+          confidence: 'moderate',
+          substrateLevel: 'rough_feasibility',
+          summary: 'Possible but dependent on a capital bridge, market conversion.',
+          reasonCodes: ['FEASIBILITY_ASSUMPTION_BURDEN_HIGH'],
+          assumptions: ['a capital bridge', 'market conversion'],
+        },
+      },
+    });
+    mockStore.profilesById['profile-local-default'].activeMasterPlanId = 'masterplan-1';
+    mockStore.startNewCycleWithDecision = startNewCycleWithDecision;
+
+    render(<ZionDashboard initialView="structure" />);
+
+    const executionCycleSection = screen.getByText(/^Execution Cycle$/i).closest('details');
+    expect(executionCycleSection).toBeTruthy();
+
+    fireEvent.click(within(executionCycleSection).getByRole('button', { name: /Start Execution Cycle/i }));
+
+    expect(startNewCycleWithDecision).toHaveBeenCalledWith({ mode: 'archive' });
+    expect(screen.queryByRole('dialog', { name: /Replace active execution cycle/i })).not.toBeInTheDocument();
   });
 
   it('prefers canonical initial-feasibility percent over the legacy cycle metric fallback', () => {

@@ -8,12 +8,12 @@ export default function CycleTransitionModal({ open, onArchive, onDelete, onCanc
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Start a new cycle"
+      aria-label="Replace active execution cycle"
     >
       <div className="w-full max-w-md rounded-xl border border-line/60 bg-jericho-surface p-4 shadow-xl">
-        <h2 className="text-base font-semibold text-jericho-text">Start a new cycle?</h2>
+        <h2 className="text-base font-semibold text-jericho-text">Replace active execution cycle?</h2>
         <p className="mt-2 text-sm text-muted">
-          Your current cycle will be archived or deleted before starting a new one.
+          The goal will remain. To start a different execution cycle, choose what to do with the current cycle.
         </p>
 
         <div className="mt-4 flex flex-wrap gap-2">

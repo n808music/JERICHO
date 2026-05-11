@@ -5,6 +5,7 @@ import type { IntakeFeasibilityReport, PrePlanFeasibilityResult } from '../../do
 import { evaluatePrePlanFeasibility, prePlanFeasibility } from '../../domain/goal/prePlanFeasibility';
 import { GoalAdmissionFlow, IntakeProgressState, assembleIntake } from './GoalAdmissionFlow';
 import type { GoalPlanningTier } from '../../domain/goal/planningTierClassifier';
+import type { GoalArchitectureInference } from '../../domain/goal/goalArchitectureClassifier.ts';
 
 function deriveSystemCausalChain(goalText: string) {
   const normalized = String(goalText || '').trim() || 'Reach the admitted outcome';
@@ -52,7 +53,11 @@ interface GoalAdmissionPageProps {
   onAspire: (notes: string) => void;
   existingGoalOutcomes?: string[];
   appTimeISO?: string;
-  onPlanningTierRouted?: (payload: { planningTier: GoalPlanningTier; goalDescription: string }) => void;
+  onPlanningTierRouted?: (payload: {
+    planningTier: GoalPlanningTier;
+    goalDescription: string;
+    goalArchitecture: GoalArchitectureInference;
+  }) => void;
 }
 
 type AdmissionPlanningContract = GoalExecutionContract & {
@@ -255,6 +260,7 @@ export default function GoalAdmissionPage({
         onPlanningTierRouted?.({
           planningTier: payload.planningTier,
           goalDescription: payload.goalDescription,
+          goalArchitecture: payload.goalArchitecture,
         });
       }}
     />

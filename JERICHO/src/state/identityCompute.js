@@ -390,6 +390,12 @@ export function computeDerivedState(state, action) {
     case 'START_NEW_CYCLE_WITH_DECISION':
       startNewCycleWithDecision(next, action.payload || {});
       break;
+    case 'RESET_ACTIVE_CYCLE':
+      resetActiveCycleExecutionState(next, action.cycleId || next.activeCycleId || null);
+      break;
+    case 'COMPLETE_CYCLE_REASSESSMENT':
+      completeCycleReassessment(next, action.cycleId || next.activeCycleId || null);
+      break;
     case 'END_CYCLE':
       endCycle(next, action.cycleId);
       break;
@@ -764,13 +770,38 @@ export function computeDerivedState(state, action) {
         cycle.goalContract = {};
       }
       const normalizedWorkWindows = normalizeCanonicalWorkWindows(payload.workWindows || {});
+      const workWindowCount = countRawWorkWindows(normalizedWorkWindows);
+      const workWindowsSource = workWindowCount > 0 ? 'user_defined' : 'unset';
+      const capacityValidation =
+        workWindowCount > 0 ? buildCycleCapacityValidation(next, cycle, normalizedWorkWindows) : null;
+      const constraintsStatus =
+        workWindowCount === 0 ? 'unsaved' : capacityValidation?.status === 'insufficient' ? 'insufficient' : 'approved';
       cycle.goalContract.workWindows = normalizedWorkWindows;
+      cycle.goalContract.workWindowsSource = workWindowsSource;
+      cycle.goalContract.workWindowsSavedAtISO = next.appTime?.nowISO || new Date().toISOString();
+      cycle.goalContract.constraintsStatus = constraintsStatus;
+      cycle.goalContract.capacityValidation = capacityValidation;
+      cycle.constraintsStatus = constraintsStatus;
+      cycle.capacityValidation = capacityValidation;
       if (next.activeCycleId === cycleId) {
         next.goalExecutionContract = {
           ...(next.goalExecutionContract || {}),
           workWindows: normalizedWorkWindows,
+          workWindowsSource,
+          constraintsStatus,
+          capacityValidation,
         };
       }
+      next.availabilityPolicy = {
+        ...(next.availabilityPolicy || {}),
+        workWindows: normalizedWorkWindows,
+        weeklyWindows: toSchedulerWeeklyWindows(normalizedWorkWindows),
+        constraintsStatus,
+        workWindowsSource,
+        workWindowsSavedAtISO: cycle.goalContract.workWindowsSavedAtISO,
+        capacityValidation,
+        availableWeeklyMinutes: Number(capacityValidation?.availableWeeklyMinutes || 0),
+      };
       next.cyclesById[cycleId] = cycle;
       break;
     }
@@ -1093,6 +1124,19 @@ function ensureProfileOwnership(state) {
     if (goalId) {
       state.goalExecutionContract.goalId = goalId;
     }
+    if (
+      activeCycle?.goalContract?.workWindows &&
+      countRawWorkWindows(state.goalExecutionContract.workWindows || {}) === 0 &&
+      countRawWorkWindows(activeCycle.goalContract.workWindows || {}) > 0
+    ) {
+      state.goalExecutionContract.workWindows = normalizeCanonicalWorkWindows(activeCycle.goalContract.workWindows);
+      state.goalExecutionContract.workWindowsSource =
+        activeCycle.goalContract.workWindowsSource || state.goalExecutionContract.workWindowsSource || 'user_defined';
+      state.goalExecutionContract.constraintsStatus =
+        activeCycle.goalContract.constraintsStatus || state.goalExecutionContract.constraintsStatus || 'approved';
+      state.goalExecutionContract.capacityValidation =
+        activeCycle.goalContract.capacityValidation || state.goalExecutionContract.capacityValidation || null;
+    }
   }
 }
 
@@ -1131,6 +1175,18 @@ export function hydrateActiveCycleState(state) {
     ...(state.goalExecutionContract || {}),
     ...(cycle.goalContract || cycle.contract || {}),
   };
+  if (
+    countRawWorkWindows(state.goalExecutionContract?.workWindows || {}) === 0 &&
+    countRawWorkWindows(cycle?.goalContract?.workWindows || {}) > 0
+  ) {
+    state.goalExecutionContract.workWindows = normalizeCanonicalWorkWindows(cycle.goalContract.workWindows);
+    state.goalExecutionContract.workWindowsSource =
+      cycle.goalContract.workWindowsSource || state.goalExecutionContract.workWindowsSource || 'user_defined';
+    state.goalExecutionContract.constraintsStatus =
+      cycle.goalContract.constraintsStatus || state.goalExecutionContract.constraintsStatus || 'approved';
+    state.goalExecutionContract.capacityValidation =
+      cycle.goalContract.capacityValidation || state.goalExecutionContract.capacityValidation || null;
+  }
   state.activeProfileId = cycle.profileId || state.goalExecutionContract?.profileId || state.activeProfileId || DEFAULT_PROFILE_ID;
   state.goalExecutionContract.profileId = state.goalExecutionContract.profileId || cycle.profileId || state.activeProfileId;
   state.activeGoalId =
@@ -1997,6 +2053,10 @@ function normalizeCanonicalWorkWindows(workWindows) {
   }, {});
 }
 
+function emptyCanonicalWorkWindows() {
+  return normalizeCanonicalWorkWindows({});
+}
+
 function getWorkDaysFromWindows(workWindows) {
   if (!workWindows || typeof workWindows !== 'object') {
     return ['mon', 'tue', 'wed', 'thu', 'fri'];
@@ -2072,6 +2132,112 @@ function hasAnySchedulerWindows(weeklyWindows) {
 function computeWeeklyCapacityFromWorkWindows(workWindows) {
   const workDays = getWorkDaysFromWindows(workWindows);
   return workDays.reduce((total, dow) => total + getAvailableMinutesForDow(dow, workWindows), 0);
+}
+
+function buildCapacityMitigationSuggestions() {
+  return [
+    'Expand availability',
+    'Extend the execution-cycle horizon',
+    'Reduce first-cycle scope',
+    'Defer lower-priority lanes',
+    'Lower cadence',
+    'Revise the success standard',
+  ];
+}
+
+function estimateCycleRequiredWeeklyMinutes(state, cycle) {
+  if (!cycle) {
+    return null;
+  }
+  if (cycle?.source === 'master_plan' && cycle?.masterPlanId && state?.masterPlansById?.[cycle.masterPlanId]) {
+    const plan = state.masterPlansById[cycle.masterPlanId];
+    const descriptors = ensureMasterPlanOperationalCycle(state, plan);
+    const proposalResult = buildMasterPlanFirstCycleProposals(state, plan, descriptors);
+    const proposals = proposalResult.blocks;
+    const totalMinutes = proposals.reduce((sum, proposal) => sum + Number(proposal?.durationMinutes || 0), 0);
+    return {
+      totalMinutes,
+      windowWeeks: 4,
+      requiredWeeklyMinutes: Math.ceil(totalMinutes / 4),
+      proposedBlockCount: proposals.length,
+    };
+  }
+
+  const actionCount = Math.max(
+    Number(getCanonicalCycleActions(cycle)?.length || 0),
+    Number(Array.isArray(cycle?.llmSessionPlan) ? cycle.llmSessionPlan.length : 0)
+  );
+  if (actionCount <= 0) {
+    return null;
+  }
+  const totalMinutes = actionCount * 45;
+  return {
+    totalMinutes,
+    windowWeeks: 2,
+    requiredWeeklyMinutes: Math.ceil(totalMinutes / 2),
+    proposedBlockCount: actionCount,
+  };
+}
+
+function buildCycleCapacityValidation(state, cycle, workWindows) {
+  const normalizedWorkWindows = normalizeCanonicalWorkWindows(workWindows || {});
+  const availableWeeklyMinutes = computeWeeklyCapacityFromWorkWindows(normalizedWorkWindows);
+  const estimate = estimateCycleRequiredWeeklyMinutes(state, cycle);
+  if (!estimate) {
+    return {
+      status: availableWeeklyMinutes > 0 ? 'approved' : 'unsaved',
+      availableWeeklyMinutes,
+      requiredWeeklyMinutes: null,
+      gapWeeklyMinutes: null,
+      mitigationSuggestions: [],
+      proposedBlockCount: null,
+    };
+  }
+  const requiredWeeklyMinutes = Number(estimate.requiredWeeklyMinutes || 0);
+  const gapWeeklyMinutes = Math.max(0, requiredWeeklyMinutes - availableWeeklyMinutes);
+  return {
+    status:
+      availableWeeklyMinutes > 0 && (requiredWeeklyMinutes <= 0 || availableWeeklyMinutes >= requiredWeeklyMinutes)
+        ? 'approved'
+        : 'insufficient',
+    availableWeeklyMinutes,
+    requiredWeeklyMinutes,
+    gapWeeklyMinutes,
+    mitigationSuggestions: gapWeeklyMinutes > 0 ? buildCapacityMitigationSuggestions() : [],
+    proposedBlockCount: estimate.proposedBlockCount,
+  };
+}
+
+function deriveCycleSchedulingAuthority(state, cycle, contract = null) {
+  const canonicalContract = contract || cycle?.goalContract || null;
+  const contractWindows = normalizeCanonicalWorkWindows(canonicalContract?.workWindows || {});
+  const fallbackWindows =
+    countRawWorkWindows(contractWindows) > 0
+      ? contractWindows
+      : normalizeCanonicalWorkWindows(state?.availabilityPolicy?.workWindows || {});
+  const normalizedWorkWindows = fallbackWindows;
+  const workWindowCount = countRawWorkWindows(normalizedWorkWindows);
+  const workWindowsSource =
+    canonicalContract?.workWindowsSource ||
+    cycle?.workWindowsSource ||
+    (workWindowCount > 0 ? 'user_defined' : 'unset');
+  const explicitStatus =
+    canonicalContract?.constraintsStatus || cycle?.constraintsStatus || state?.availabilityPolicy?.constraintsStatus || null;
+  const constraintsStatus =
+    explicitStatus ||
+    (workWindowCount === 0 ? 'unsaved' : workWindowsSource === 'system_inferred' ? 'unsaved' : 'approved');
+  const capacityValidation =
+    canonicalContract?.capacityValidation ||
+    cycle?.capacityValidation ||
+    state?.availabilityPolicy?.capacityValidation ||
+    (workWindowCount > 0 ? buildCycleCapacityValidation(state, cycle, normalizedWorkWindows) : null);
+  return {
+    workWindows: normalizedWorkWindows,
+    workWindowCount,
+    workWindowsSource,
+    constraintsStatus,
+    capacityValidation,
+  };
 }
 
 function clearCycleTransientState(state) {
@@ -2167,8 +2333,236 @@ function clearGoalSessionStateToBlank(state) {
   }
 }
 
+function clearActiveCycleSessionState(state) {
+  state.activeCycleId = null;
+  state.activeGoalId = null;
+  if (state.activeProfileId && state?.profilesById?.[state.activeProfileId]) {
+    state.profilesById[state.activeProfileId].activeGoalId = null;
+  }
+  state.goalExecutionContract = null;
+  state.pendingOnboardingInputs = null;
+  state.proposedBlocks = [];
+  state.suggestedBlocks = [];
+  state.suggestionEvents = [];
+  state.executionEvents = [];
+  state.externalEvidenceEvents = [];
+  state.planMutationEvents = [];
+  state.truthEntries = [];
+  state.planDraft = null;
+  state.planPreview = null;
+  state.planCalibration = null;
+  state.correctionSignals = null;
+  state.lastPlanError = null;
+  state.planRecovery = null;
+  state.blockLifecycleById = {};
+  state.overdueBlockIds = [];
+  state.scheduleApplied = false;
+  state.scheduleLifecycle = 'no_schedule';
+  state.scheduleReviewBlocks = [];
+  state.draftScheduleAppliedAtISO = null;
+  state.pendingPlanConfirmation = false;
+  state.cycle = [];
+  state.today = { ...(state.today || {}), blocks: [] };
+  state.currentWeek = { ...(state.currentWeek || {}), days: [], metrics: {} };
+  state.blockStore = { blocks: {} };
+  if (!state.proposedBlocksByCycleId || typeof state.proposedBlocksByCycleId !== 'object') {
+    state.proposedBlocksByCycleId = {};
+  } else {
+    Object.keys(state.proposedBlocksByCycleId).forEach((key) => {
+      state.proposedBlocksByCycleId[key] = [];
+    });
+  }
+}
+
+function uniqueStrings(values = []) {
+  return Array.from(
+    new Set(
+      (Array.isArray(values) ? values : [])
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+function uniqueById(items = []) {
+  const seen = new Set();
+  return (Array.isArray(items) ? items : []).filter((item) => {
+    const id = String(item?.id || '').trim();
+    if (!id || seen.has(id)) {
+      return false;
+    }
+    seen.add(id);
+    return true;
+  });
+}
+
+function unlinkGoalCycleReference(state, goalId, cycleId) {
+  const normalizedGoalId = String(goalId || '').trim();
+  const normalizedCycleId = String(cycleId || '').trim();
+  if (!normalizedGoalId || !normalizedCycleId || !state.goalsById?.[normalizedGoalId]) {
+    return;
+  }
+  const goal = state.goalsById[normalizedGoalId];
+  goal.cycleIds = Array.isArray(goal.cycleIds)
+    ? goal.cycleIds.filter((candidateId) => String(candidateId || '').trim() !== normalizedCycleId)
+    : [];
+  if (goal.activeCycleId === normalizedCycleId) {
+    goal.activeCycleId = null;
+  }
+  state.goalsById[normalizedGoalId] = goal;
+}
+
+function buildCycleReassessmentSnapshot(state, cycle) {
+  if (!cycle) {
+    return null;
+  }
+  const timeZone = state?.appTime?.timeZone || APP_TIME_ZONE;
+  const todayDayKey = state?.appTime?.activeDayKey || state?.today?.date || nowDayKey(timeZone);
+  const startDayKey = cycle?.startedAtDayKey || cycle?.goalContract?.startDayKey || todayDayKey;
+  const endDayKey = cycle?.goalContract?.endDayKey || todayDayKey;
+  const elapsedDays = Math.max(0, daysBetween(startDayKey, todayDayKey));
+  const remainingHorizonDays = Math.max(0, daysBetween(todayDayKey, endDayKey));
+  const activeFrictionCount = (Array.isArray(state?.frictionEvents) ? state.frictionEvents : []).filter((event) => {
+    if (event?.cycleId && cycle?.id) {
+      return event.cycleId === cycle.id;
+    }
+    return event?.goalId && cycle?.goalContract?.goalId && event.goalId === cycle.goalContract.goalId;
+  }).length;
+  const archivedCycleCount = Object.values(state?.cyclesById || {}).filter((candidate) => {
+    if (!candidate || candidate.id === cycle.id) {
+      return false;
+    }
+    const sameMasterPlan = candidate?.masterPlanId && cycle?.masterPlanId && candidate.masterPlanId === cycle.masterPlanId;
+    const sameGoal =
+      candidate?.goalContract?.goalId &&
+      cycle?.goalContract?.goalId &&
+      candidate.goalContract.goalId === cycle.goalContract.goalId;
+    const status = String(candidate?.status || candidate?.state || '')
+      .trim()
+      .toLowerCase();
+    return (sameMasterPlan || sameGoal) && (status === 'ended' || status === 'archived');
+  }).length;
+  const assumptionCount = uniqueStrings([
+    ...(cycle?.goalContract?.goalIntakeContract?.readiness?.assumptionReasons || []),
+    ...(cycle?.policyState?.goalPolicy?.assumptions || []),
+  ]).length;
+  const weeklyCapacityHours = Number(cycle?.goalContract?.planningIntake?.weeklyHoursAvailable || 0) || 0;
+  return {
+    assessedAtDayKey: todayDayKey,
+    elapsedDaysSinceCycleStart: elapsedDays,
+    remainingHorizonDays,
+    activeFrictionCount,
+    completedEvidenceCount: Array.isArray(cycle?.executionEvents) ? cycle.executionEvents.length : 0,
+    archivedCycleCount,
+    openAssumptionCount: assumptionCount,
+    weeklyCapacityHours,
+    currentPhaseOrMilestone: cycle?.definiteGoal?.outcome || cycle?.goalLabel || cycle?.goalText || null,
+  };
+}
+
+function markCycleReassessmentRequired(state, cycle) {
+  if (!cycle) {
+    return;
+  }
+  cycle.reassessmentStatus = 'required';
+  cycle.reassessmentRequiredAtISO = state?.appTime?.nowISO || new Date().toISOString();
+  cycle.reassessmentCompletedAtISO = null;
+  cycle.reassessmentSnapshot = buildCycleReassessmentSnapshot(state, cycle);
+}
+
+function completeCycleReassessment(state, cycleId) {
+  ensureCycleStructures(state);
+  const targetCycleId = cycleId || state.activeCycleId || null;
+  if (!targetCycleId || !state.cyclesById?.[targetCycleId]) {
+    return;
+  }
+  const cycle = state.cyclesById[targetCycleId];
+  cycle.reassessmentStatus = 'complete';
+  cycle.reassessmentCompletedAtISO = state?.appTime?.nowISO || new Date().toISOString();
+  cycle.reassessmentSnapshot = buildCycleReassessmentSnapshot(state, cycle);
+  state.cyclesById[targetCycleId] = cycle;
+  if (state.lastPlanError?.code === 'CURRENT_STATE_REASSESSMENT_REQUIRED') {
+    state.lastPlanError = null;
+  }
+}
+
+function resetActiveCycleExecutionState(state, cycleId) {
+  ensureCycleStructures(state);
+  const targetCycleId = cycleId || state.activeCycleId || null;
+  if (!targetCycleId || !state.cyclesById?.[targetCycleId]) {
+    return;
+  }
+  const cycle = state.cyclesById[targetCycleId];
+  state.activeCycleId = targetCycleId;
+  clearCycleTransientState(state);
+  cycle.executionEvents = [];
+  cycle.externalEvidenceEvents = [];
+  cycle.planMutationEvents = [];
+  cycle.suggestionEvents = [];
+  cycle.proposedBlocks = [];
+  cycle.suggestedBlocks = [];
+  cycle.truthEntries = [];
+  cycle.planDraft = null;
+  cycle.planPreview = null;
+  cycle.calibration = null;
+  cycle.correctionSignals = null;
+  cycle.autoAsanaPlan = null;
+  cycle.coldPlan = null;
+  cycle.scheduleAppliedAtISO = null;
+  cycle.scheduleActivatedAtISO = null;
+  cycle.scheduleLifecycle = 'no_schedule';
+  cycle.scheduleReviewBlocks = [];
+  cycle.scheduleDraftHash = null;
+  cycle.scheduleActiveHash = null;
+  cycle.planStatus = cycle.goalContract ? 'ready' : cycle.planStatus || 'ready';
+  markCycleReassessmentRequired(state, cycle);
+  state.cyclesById[targetCycleId] = cycle;
+  state.goalExecutionContract = cycle.goalContract || cycle.contract || null;
+  state.activeGoalId =
+    cycle.goalContract?.goalId || cycle.goalGovernanceContract?.goalId || cycle.goalId || state.activeGoalId || null;
+  if (state.activeProfileId && state?.profilesById?.[state.activeProfileId]) {
+    state.profilesById[state.activeProfileId].activeGoalId = state.activeGoalId || null;
+  }
+}
+
 function hasMeaningfulExecutionEvidence(events = []) {
   return (events || []).some((event) => ['complete', 'missed', 'skipped'].includes(String(event?.kind || '')));
+}
+
+export function isCanonicalBlankState(state) {
+  const activeProfileId = String(state?.activeProfileId || '').trim();
+  const activeProfile = activeProfileId ? state?.profilesById?.[activeProfileId] || null : null;
+  const activeCycle = state?.activeCycleId ? state?.cyclesById?.[state.activeCycleId] || null : null;
+  const hasGoalRecords = Object.keys(state?.goalsById || {}).length > 0;
+  const hasMasterPlans = Object.keys(state?.masterPlansById || {}).length > 0;
+  const hasGoalContract = Boolean(state?.goalExecutionContract || activeCycle?.goalContract || activeCycle?.contract);
+  const hasActiveGoalPointer = Boolean(state?.activeGoalId || activeProfile?.activeGoalId);
+  const hasActiveMasterPlanPointer = Boolean(activeProfile?.activeMasterPlanId);
+  const scheduleLifecycle = String(activeCycle?.scheduleLifecycle || state?.scheduleLifecycle || '')
+    .trim()
+    .toLowerCase();
+  const hasScheduleState =
+    Boolean(state?.scheduleApplied) ||
+    scheduleLifecycle === 'draft_schedule_ready' ||
+    scheduleLifecycle === 'applied_review' ||
+    scheduleLifecycle === 'active_schedule' ||
+    (Array.isArray(state?.proposedBlocks) && state.proposedBlocks.length > 0) ||
+    (Array.isArray(activeCycle?.proposedBlocks) && activeCycle.proposedBlocks.length > 0) ||
+    (Array.isArray(activeCycle?.scheduleReviewBlocks) && activeCycle.scheduleReviewBlocks.length > 0);
+  const hasExecutionEvidence =
+    (Array.isArray(state?.executionEvents) && state.executionEvents.length > 0) ||
+    (Array.isArray(state?.externalEvidenceEvents) && state.externalEvidenceEvents.length > 0) ||
+    (Array.isArray(activeCycle?.executionEvents) && activeCycle.executionEvents.length > 0) ||
+    (Array.isArray(activeCycle?.externalEvidenceEvents) && activeCycle.externalEvidenceEvents.length > 0);
+  return !state?.pendingOnboardingInputs &&
+    !hasGoalRecords &&
+    !hasMasterPlans &&
+    !hasGoalContract &&
+    !state?.activeCycleId &&
+    !hasActiveGoalPointer &&
+    !hasActiveMasterPlanPointer &&
+    !hasScheduleState &&
+    !hasExecutionEvidence;
 }
 
 function deriveGoalLifecycleState(state, cycle) {
@@ -2800,7 +3194,7 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
 
 function refreshColdPlanDailyProjection(state) {
   const cycle = getActiveCycle(state);
-  if (!cycle || !cycle.strategy || !cycle.coldPlan) {
+  if (!cycle || !cycle.strategy || !cycle.coldPlan || !Array.isArray(cycle.strategy.deliverables)) {
     return;
   }
   const timeZone = state.appTime?.timeZone || cycle.strategy.constraints?.tz;
@@ -3262,6 +3656,36 @@ function resolveMasterPlanEndDayKey(plan, milestones = [], anchors = [], fallbac
   return targetDates[targetDates.length - 1] || fallbackDayKey || null;
 }
 
+function getNextMasterPlanHardAnchorDayKey(plan, startDayKey) {
+  const datedAnchors = (Array.isArray(plan?.anchors) ? plan.anchors : [])
+    .filter((anchor) => anchor?.isFixed && String(anchor?.date || '').trim())
+    .map((anchor) => String(anchor.date).trim())
+    .sort();
+  const normalizedStart = String(startDayKey || '').trim();
+  return datedAnchors.find((dayKey) => !normalizedStart || dayKey >= normalizedStart) || null;
+}
+
+function hasSchedulableWorkWindowOnDay(dayKey, workWindows = {}) {
+  const weekday = getWeekdayKeyFromDayKey(dayKey);
+  const windows = Array.isArray(workWindows?.[weekday]) ? workWindows[weekday] : [];
+  return windows.some((window) => Math.max(0, parseHHMMToMinutes(window?.end) - parseHHMMToMinutes(window?.start)) > 0);
+}
+
+function resolveSchedulableCoverageDayKey(startDayKey, deadlineDayKey, workWindows = {}, timeZone = APP_TIME_ZONE) {
+  if (!deadlineDayKey) {
+    return null;
+  }
+  let cursor = deadlineDayKey;
+  const lowerBound = String(startDayKey || '').trim() || null;
+  while (cursor && (!lowerBound || cursor >= lowerBound)) {
+    if (hasSchedulableWorkWindowOnDay(cursor, workWindows)) {
+      return cursor;
+    }
+    cursor = addDays(cursor, -1, timeZone);
+  }
+  return deadlineDayKey;
+}
+
 function buildMasterPlanPolicySnapshot(state, plan) {
   if (!plan?.id || !plan?.profileId) {
     return null;
@@ -3315,6 +3739,13 @@ function buildMasterPlanPolicySnapshot(state, plan) {
     startingState: laneStageSummary || 'multi-lane campaign baseline captured',
     masterCalendarId: masterCalendarId || '',
     coreMissionContractId: plan?.coreMissionContractId || '',
+    coreMission: plan?.coreMission || '',
+    outcomeTarget: plan?.outcomeTarget || '',
+    successStandard: plan?.successStandard || '',
+    controllabilityClass: plan?.controllabilityClass || 'controllable',
+    terminalTargetClass: plan?.terminalTargetClass || 'controllable',
+    controllableSuccessSignals: Array.isArray(plan?.controllableSuccessSignals) ? [...plan.controllableSuccessSignals] : [],
+    externallyMediatedTargets: Array.isArray(plan?.externallyMediatedTargets) ? [...plan.externallyMediatedTargets] : [],
     weeklyCapacityHours:
       Number.isFinite(Number(masterCalendar?.availableCapacityHours)) && Number(masterCalendar?.availableCapacityHours) > 0
         ? Number(masterCalendar.availableCapacityHours)
@@ -3325,8 +3756,8 @@ function buildMasterPlanPolicySnapshot(state, plan) {
   };
   const baseIntakeContract = buildGoalIntakeContract({
     goalId,
-    rawGoalText: String(plan?.northStarOutcome || plan?.title || '').trim(),
-    goalText: String(plan?.northStarOutcome || plan?.title || '').trim(),
+    rawGoalText: String(getMasterPlanGoalText(plan)).trim(),
+    goalText: String(getMasterPlanGoalText(plan)).trim(),
     verificationCriteria,
     executionType: 'StrategicExecution',
     deadline: endDayKey,
@@ -3335,9 +3766,9 @@ function buildMasterPlanPolicySnapshot(state, plan) {
   const intakeContract = {
     ...baseIntakeContract,
     goalId,
-    rawGoalText: String(plan?.northStarOutcome || plan?.title || '').trim(),
+    rawGoalText: String(getMasterPlanGoalText(plan)).trim(),
     completionBoundary:
-      /launch|release|publish|drop|ship|client|revenue|sale/i.test(String(plan?.northStarOutcome || ''))
+      /launch|release|publish|drop|ship|client|revenue|sale/i.test(String(getMasterPlanGoalText(plan)))
         ? 'launched'
         : 'delivered',
     completionBoundaryStatus: milestones.length > 0 ? 'resolved' : 'missing',
@@ -3362,9 +3793,22 @@ function buildMasterPlanPolicySnapshot(state, plan) {
       isReadyForPlanning: milestones.length > 0 && lanes.length > 0,
       blockingReasons: [],
       assumptionReasons:
-        milestones.length > 0 && lanes.length > 0
-          ? criticReasonCodes
-          : ['lane calibration incomplete', ...criticReasonCodes],
+        uniqueStrings(
+          milestones.length > 0 && lanes.length > 0
+            ? [
+                ...criticReasonCodes,
+                ...(plan?.controllabilityClass && plan.controllabilityClass !== 'controllable'
+                  ? ['terminal target remains externally mediated']
+                  : []),
+              ]
+            : [
+                'lane calibration incomplete',
+                ...criticReasonCodes,
+                ...(plan?.controllabilityClass && plan.controllabilityClass !== 'controllable'
+                  ? ['terminal target remains externally mediated']
+                  : []),
+              ]
+        ),
     },
   };
 
@@ -3409,15 +3853,15 @@ function buildMasterPlanPolicySnapshot(state, plan) {
   const executionContract = {
     goalId,
     cycleId,
-    goalLabel: plan?.title || null,
-    goalText: plan?.northStarOutcome || plan?.title || null,
+    goalLabel: getMasterPlanGoalLabel(plan),
+    goalText: getMasterPlanGoalText(plan),
     goalIntakeContract: intakeContract,
     startDayKey,
     endDayKey,
     deadline: { dayKey: endDayKey },
     workWindows,
     terminalOutcome: {
-      text: String(plan?.northStarOutcome || plan?.title || '').trim(),
+      text: String(getMasterPlanTargetText(plan)).trim(),
       verificationCriteria,
       isConcrete: milestones.length > 0,
     },
@@ -3447,7 +3891,27 @@ function buildMasterPlanPolicySnapshot(state, plan) {
       isLongHorizon: Boolean((horizonDays || 0) > 120),
       quality: { state: milestones.length > 0 ? 'trusted' : 'withheld', reasonCodes: [] },
       saturation: { saturationShape: milestones.length >= Math.max(3, lanes.length * 2) ? 'balanced' : 'understructured' },
-      uncertainty: { bands: [] },
+      uncertainty: {
+        bands: uniqueById(
+          [
+            plan?.controllabilityClass && plan.controllabilityClass !== 'controllable'
+              ? {
+                  id: `target-uncertainty:${plan.id}:controllability`,
+                  certainty: 'provisional',
+                  phaseTitle: plan?.outcomeTarget || plan?.northStarOutcome || plan?.title || 'Target outcome',
+                }
+              : null,
+            plan?.terminalTargetClass &&
+            !['', 'controllable'].includes(String(plan.terminalTargetClass).trim().toLowerCase())
+              ? {
+                  id: `target-uncertainty:${plan.id}:terminal-class`,
+                  certainty: 'provisional',
+                  phaseTitle: `${plan?.terminalTargetClass || 'target'} uncertainty`,
+                }
+              : null,
+          ].filter(Boolean)
+        ),
+      },
       checkpoints: milestones.map((milestone) => ({
         id: milestone.id,
         title: milestone.title,
@@ -3479,6 +3943,18 @@ function getActiveMasterPlanRecord(state, requestedPlanId = null) {
     return null;
   }
   return state?.masterPlansById?.[activeMasterPlanId] || null;
+}
+
+function getMasterPlanGoalLabel(plan) {
+  return plan?.coreMission || plan?.title || plan?.northStarOutcome || 'Master plan execution goal';
+}
+
+function getMasterPlanGoalText(plan) {
+  return plan?.masterPlanSummary || plan?.northStarOutcome || plan?.outcomeTarget || plan?.title || '';
+}
+
+function getMasterPlanTargetText(plan) {
+  return plan?.outcomeTarget || plan?.northStarOutcome || plan?.title || '';
 }
 
 function mapMasterPlanLaneToPractice(domain) {
@@ -3518,7 +3994,8 @@ function buildMasterPlanOperationalDescriptors(state, plan) {
   const goalId = `masterplan:${plan.id}`;
   const cycleId = `masterplan-cycle:${plan.id}`;
   const startDayKey = String(plan?.horizonStart || fallbackToday).trim() || fallbackToday;
-  const endDayKey = resolveMasterPlanEndDayKey(plan, milestones, plan?.anchors || [], startDayKey);
+  const fullHorizonEndDayKey = resolveMasterPlanEndDayKey(plan, milestones, plan?.anchors || [], startDayKey);
+  const activePhaseScheduleEndDayKey = getNextMasterPlanHardAnchorDayKey(plan, startDayKey) || fullHorizonEndDayKey;
   const weeklyCapacityHours =
     Number.isFinite(Number(masterCalendar?.availableCapacityHours)) && Number(masterCalendar?.availableCapacityHours) > 0
       ? Number(masterCalendar.availableCapacityHours)
@@ -3534,7 +4011,9 @@ function buildMasterPlanOperationalDescriptors(state, plan) {
     goalId,
     cycleId,
     startDayKey,
-    endDayKey,
+    endDayKey: fullHorizonEndDayKey,
+    fullHorizonEndDayKey,
+    activePhaseScheduleEndDayKey,
     timeZone,
     todayDayKey: fallbackToday,
     weeklyCapacityHours,
@@ -3555,6 +4034,8 @@ function ensureMasterPlanOperationalCycle(state, plan) {
     cycleId,
     startDayKey,
     endDayKey,
+    fullHorizonEndDayKey,
+    activePhaseScheduleEndDayKey,
     timeZone,
     weeklyCapacityHours,
   } = descriptors;
@@ -3595,8 +4076,8 @@ function ensureMasterPlanOperationalCycle(state, plan) {
   };
   const intakeContract = buildGoalIntakeContract({
     goalId,
-    rawGoalText: String(plan?.northStarOutcome || plan?.title || '').trim(),
-    goalText: String(plan?.northStarOutcome || plan?.title || '').trim(),
+    rawGoalText: String(getMasterPlanGoalText(plan)).trim(),
+    goalText: String(getMasterPlanGoalText(plan)).trim(),
     verificationCriteria,
     executionType: 'StrategicExecution',
     deadline: endDayKey,
@@ -3611,21 +4092,27 @@ function ensureMasterPlanOperationalCycle(state, plan) {
     executionType: 'StrategicExecution',
     planningTier: 'master_plan',
     admissionStatus: 'ADMITTED',
-    goalLabel: plan?.title || null,
-    goalText: plan?.northStarOutcome || plan?.title || null,
+    goalLabel: getMasterPlanGoalLabel(plan),
+    goalText: getMasterPlanGoalText(plan),
     startDayKey,
-    endDayKey,
-    deadlineISO: `${endDayKey}T23:59:59.000Z`,
-    endDateISO: `${endDayKey}T23:59:59.000Z`,
-    deadline: { dayKey: endDayKey },
-    workWindows: buildMasterPlanWorkWindows(descriptors.masterCalendar),
+    endDayKey: activePhaseScheduleEndDayKey,
+    activePhaseScheduleEndDayKey,
+    fullHorizonEndDayKey,
+    deadlineISO: `${activePhaseScheduleEndDayKey}T23:59:59.000Z`,
+    endDateISO: `${activePhaseScheduleEndDayKey}T23:59:59.000Z`,
+    deadline: { dayKey: activePhaseScheduleEndDayKey },
+    workWindows: emptyCanonicalWorkWindows(),
+    suggestedWorkWindows: buildMasterPlanWorkWindows(descriptors.masterCalendar),
+    workWindowsSource: 'system_inferred',
+    constraintsStatus: 'unsaved',
+    capacityValidation: null,
     goalIntakeContract: intakeContract,
     planningIntake: {
       weeklyHoursAvailable: weeklyCapacityHours,
       executionContext: weeklyCapacityHours >= 30 ? 'full_time' : 'part_time',
     },
     terminalOutcome: {
-      text: String(plan?.northStarOutcome || plan?.title || '').trim(),
+      text: String(getMasterPlanTargetText(plan)).trim(),
       verificationCriteria,
       isConcrete: milestones.length > 0,
     },
@@ -3640,7 +4127,7 @@ function ensureMasterPlanOperationalCycle(state, plan) {
     goalId,
     profileId: profile.id,
     activeFromISO: startDayKey,
-    activeUntilISO: endDayKey,
+    activeUntilISO: activePhaseScheduleEndDayKey,
     scope: {
       domainsAllowed: [],
       timeHorizon: 'week',
@@ -3675,7 +4162,7 @@ function ensureMasterPlanOperationalCycle(state, plan) {
   if (!state.goalsById[goalId]) {
     state.goalsById[goalId] = {
       id: goalId,
-      title: plan?.title || plan?.northStarOutcome || 'Master plan execution goal',
+      title: getMasterPlanGoalLabel(plan),
       profileId: profile.id,
       masterCalendarId,
       masterPlanId: plan.id,
@@ -3711,9 +4198,13 @@ function ensureMasterPlanOperationalCycle(state, plan) {
       masterPlanId: plan.id,
       coreMissionContractId: plan?.coreMissionContractId || null,
       startedAtDayKey: startDayKey,
+      reassessmentStatus: 'required',
+      reassessmentRequiredAtISO: state.appTime?.nowISO || new Date().toISOString(),
+      reassessmentCompletedAtISO: null,
+      reassessmentSnapshot: null,
       definiteGoal: {
-        outcome: plan?.northStarOutcome || plan?.title || 'Master plan execution',
-        deadlineDayKey: endDayKey,
+        outcome: getMasterPlanTargetText(plan) || getMasterPlanGoalLabel(plan),
+        deadlineDayKey: activePhaseScheduleEndDayKey,
       },
       goalContract,
       goalGovernanceContract,
@@ -3723,7 +4214,7 @@ function ensureMasterPlanOperationalCycle(state, plan) {
         admittedAtISO: state.appTime?.nowISO || new Date().toISOString(),
       },
       contract: goalContract,
-      aim: { text: plan?.northStarOutcome || plan?.title || '' },
+      aim: { text: getMasterPlanGoalText(plan) },
       actions,
       strategy: {
         constraints: {
@@ -3760,7 +4251,26 @@ function ensureMasterPlanOperationalCycle(state, plan) {
       masterPlanId: state.cyclesById[cycleId].masterPlanId || plan.id,
       coreMissionContractId:
         state.cyclesById[cycleId].coreMissionContractId || plan?.coreMissionContractId || null,
-      goalContract,
+      reassessmentStatus: state.cyclesById[cycleId].reassessmentStatus || 'required',
+      reassessmentRequiredAtISO:
+        state.cyclesById[cycleId].reassessmentRequiredAtISO || state.appTime?.nowISO || new Date().toISOString(),
+      reassessmentCompletedAtISO: state.cyclesById[cycleId].reassessmentCompletedAtISO || null,
+      reassessmentSnapshot: state.cyclesById[cycleId].reassessmentSnapshot || null,
+      goalContract: {
+        ...goalContract,
+        workWindows:
+          state.cyclesById[cycleId]?.goalContract?.workWindows ||
+          goalContract.workWindows,
+        workWindowsSource:
+          state.cyclesById[cycleId]?.goalContract?.workWindowsSource ||
+          goalContract.workWindowsSource,
+        constraintsStatus:
+          state.cyclesById[cycleId]?.goalContract?.constraintsStatus ||
+          goalContract.constraintsStatus,
+        capacityValidation:
+          state.cyclesById[cycleId]?.goalContract?.capacityValidation ||
+          goalContract.capacityValidation,
+      },
       goalGovernanceContract,
       goalAdmission: state.cyclesById[cycleId].goalAdmission || {
         status: 'ADMITTED',
@@ -3796,7 +4306,10 @@ function ensureMasterPlanOperationalCycle(state, plan) {
     status: 'draft',
     createdAtISO: state.appTime?.nowISO || new Date().toISOString(),
     primaryDomain: 'FOCUS',
-    horizonDays: Math.max(14, Math.min(28, computeInclusiveDaySpan(state.today?.date || startDayKey, endDayKey))),
+    horizonDays: Math.max(
+      14,
+      computeInclusiveDaySpan(state.today?.date || startDayKey, activePhaseScheduleEndDayKey)
+    ),
     daysPerWeek: 5,
   };
 
@@ -3907,13 +4420,18 @@ function buildMasterPlanReadinessCandidates(plan, lanes = [], weeklyCapacityHour
       milestoneId: null,
     });
   }
-  const unresolvedQuestions = Array.isArray(plan?.structureCritic?.unresolvedQuestions)
-    ? plan.structureCritic.unresolvedQuestions
-    : [];
-  unresolvedQuestions.slice(0, 2).forEach((question, index) => {
+  const followupQuestions = [
+    ...(Array.isArray(plan?.structureCritic?.unresolvedQuestions) ? plan.structureCritic.unresolvedQuestions : []),
+    ...(Array.isArray(plan?.structureCritic?.deferredQuestions) ? plan.structureCritic.deferredQuestions : []),
+  ];
+  followupQuestions.slice(0, 2).forEach((question, index) => {
     candidates.push({
       key: `critic-clarification-${index + 1}`,
       title: String(question?.question || 'Clarify unresolved plan substrate').trim(),
+      expectedOutput:
+        String(question?.question || '').trim()
+          ? `Written resolution for: ${String(question.question).trim().replace(/\?+$/g, '')}.`
+          : 'Written resolution for the unresolved plan substrate item.',
       minutes: 30,
       practice: question?.domain === 'income_runway' ? 'RESOURCES' : 'FOCUS',
       priority: String(question?.criticality || '').trim().toLowerCase() === 'high' ? 117 - index : 109 - index,
@@ -3927,10 +4445,113 @@ function buildMasterPlanReadinessCandidates(plan, lanes = [], weeklyCapacityHour
   return candidates;
 }
 
+const QUESTION_TITLE_REWRITES = [
+  {
+    match: /^what cannot be sacrificed if timing slips\??$/i,
+    title: 'Define timing-slip non-negotiables',
+    expectedOutput: 'Written list of what cannot be sacrificed if anchor dates or sequence timing slip.',
+  },
+  {
+    match: /^what must stay true for the hard anchor dates.*\??$/i,
+    title: 'Document hard-anchor requirements',
+    expectedOutput: 'Written rules describing what must stay true for the hard anchor dates to remain credible.',
+  },
+];
+
+const QUESTION_PREFIX_ACTIONS = [
+  { prefix: 'what', verb: 'Define' },
+  { prefix: 'which', verb: 'Confirm' },
+  { prefix: 'do', verb: 'Verify' },
+  { prefix: 'does', verb: 'Verify' },
+  { prefix: 'can', verb: 'Assess' },
+  { prefix: 'should', verb: 'Decide' },
+  { prefix: 'will', verb: 'Confirm' },
+  { prefix: 'why', verb: 'Document rationale for' },
+  { prefix: 'how', verb: 'Map' },
+  { prefix: 'when', verb: 'Set timing for' },
+  { prefix: 'where', verb: 'Identify location for' },
+];
+
+function isQuestionLikeScheduleTitle(title = '') {
+  const normalized = String(title || '').trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+  if (normalized.includes('?')) {
+    return true;
+  }
+  return QUESTION_PREFIX_ACTIONS.some(({ prefix }) => normalized.startsWith(`${prefix} `));
+}
+
+function stripQuestionPrefix(title = '') {
+  return String(title || '')
+    .trim()
+    .replace(/\?+$/g, '')
+    .replace(/^(what|why|how|when|where|which|do|does|can|should|will)\s+/i, '')
+    .trim();
+}
+
+function toSentenceCaseTitle(text = '') {
+  const normalized = String(text || '').trim().replace(/\s+/g, ' ');
+  if (!normalized) {
+    return '';
+  }
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function actionizeMasterPlanCandidateTitle(candidate = {}) {
+  const originalTitle = String(candidate?.title || '').trim();
+  if (!originalTitle) {
+    return null;
+  }
+  const rewrite = QUESTION_TITLE_REWRITES.find(({ match }) => match.test(originalTitle));
+  if (rewrite) {
+    return {
+      title: rewrite.title,
+      expectedOutput: rewrite.expectedOutput,
+      originalQuestion: originalTitle,
+      transformed: true,
+    };
+  }
+  if (!isQuestionLikeScheduleTitle(originalTitle)) {
+    return {
+      title: originalTitle.replace(/\?+$/g, '').trim(),
+      expectedOutput:
+        String(candidate?.expectedOutput || '').trim() ||
+        `Concrete progress documented for: ${originalTitle.replace(/\?+$/g, '').trim()}.`,
+      originalQuestion: null,
+      transformed: false,
+    };
+  }
+  const stripped = stripQuestionPrefix(originalTitle);
+  if (!stripped) {
+    return null;
+  }
+  const prefix = QUESTION_PREFIX_ACTIONS.find(({ prefix: q }) => originalTitle.trim().toLowerCase().startsWith(`${q} `));
+  const actionTitle = toSentenceCaseTitle(`${prefix?.verb || 'Resolve'} ${stripped}`);
+  if (!actionTitle || isQuestionLikeScheduleTitle(actionTitle)) {
+    return null;
+  }
+  return {
+    title: actionTitle,
+    expectedOutput:
+      String(candidate?.expectedOutput || '').trim() ||
+      `Written resolution for: ${originalTitle.replace(/\?+$/g, '').trim()}.`,
+    originalQuestion: originalTitle,
+    transformed: true,
+  };
+}
+
 function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
   const { lanes, milestones, goalId, cycleId, profile, masterCalendarId, todayDayKey, timeZone, weeklyCapacityHours } =
     descriptors;
-  const windowEndDayKey = addDays(todayDayKey, 27, timeZone);
+  const activePhaseDeadlineDayKey =
+    String(descriptors?.goalContract?.activePhaseScheduleEndDayKey || descriptors?.activePhaseScheduleEndDayKey || '').trim() ||
+    addDays(todayDayKey, 27, timeZone);
+  const fullHorizonEndDayKey =
+    String(descriptors?.goalContract?.fullHorizonEndDayKey || descriptors?.fullHorizonEndDayKey || '').trim() ||
+    activePhaseDeadlineDayKey;
+  const windowEndDayKey = activePhaseDeadlineDayKey;
   const milestoneCandidates = milestones
     .filter((milestone) => {
       const targetDate = String(milestone?.targetDate || '').trim();
@@ -4004,28 +4625,95 @@ function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
       seen.add(identity);
       deduped.push(candidate);
     });
-  const maxBlocks = Math.max(4, Math.min(8, Math.ceil(Math.max(weeklyCapacityHours || 12, 12) / 6)));
-  const selected = deduped.slice(0, maxBlocks);
-  const workdaySet = new Set(['mon', 'tue', 'wed', 'thu', 'fri']);
-  const usedDayCounts = new Map();
-  let cursorDayKey = todayDayKey;
-  const nextScheduleDayKey = () => {
-    for (let i = 0; i < 42; i += 1) {
-      const weekday = getWeekdayKeyFromDayKey(cursorDayKey);
-      const count = Number(usedDayCounts.get(cursorDayKey) || 0);
-      const maxPerDay = weeklyCapacityHours >= 30 ? 2 : 1;
-      if (workdaySet.has(weekday) && count < maxPerDay) {
-        usedDayCounts.set(cursorDayKey, count + 1);
-        return cursorDayKey;
+  const descriptorWindows = normalizeCanonicalWorkWindows(descriptors?.goalContract?.workWindows || {});
+  const cycleWindows = normalizeCanonicalWorkWindows(
+    state?.cyclesById?.[cycleId || '']?.goalContract?.workWindows || {}
+  );
+  const policyWindows = normalizeCanonicalWorkWindows(state?.availabilityPolicy?.workWindows || {});
+  const workWindows =
+    countRawWorkWindows(descriptorWindows) > 0
+      ? descriptorWindows
+      : countRawWorkWindows(cycleWindows) > 0
+        ? cycleWindows
+        : policyWindows;
+  const requiredCoverageDayKey = resolveSchedulableCoverageDayKey(
+    todayDayKey,
+    activePhaseDeadlineDayKey,
+    workWindows,
+    timeZone
+  );
+  const slots = [];
+  let dayCursor = todayDayKey;
+  while (dayCursor && dayCursor <= windowEndDayKey) {
+    const weekday = getWeekdayKeyFromDayKey(dayCursor);
+    const windows = Array.isArray(workWindows?.[weekday]) ? workWindows[weekday] : [];
+    windows.forEach((window, windowIndex) => {
+      const startMinutes = parseHHMMToMinutes(window?.start);
+      const endMinutes = parseHHMMToMinutes(window?.end);
+      const capacityMinutes = Math.max(0, endMinutes - startMinutes);
+      if (capacityMinutes > 0) {
+        slots.push({
+          dayKey: dayCursor,
+          startHHMM: window.start,
+          capacityMinutes,
+          windowIndex,
+        });
       }
-      cursorDayKey = addDays(cursorDayKey, 1, timeZone);
+    });
+    dayCursor = addDays(dayCursor, 1, timeZone);
+  }
+  const selected = deduped.slice(0, Math.max(0, slots.length));
+  const scheduled = [];
+  const skippedCandidates = [];
+  const availableSlots = [...slots];
+  selected.forEach((candidate) => {
+    const titleResult = actionizeMasterPlanCandidateTitle(candidate);
+    if (!titleResult) {
+      skippedCandidates.push({
+        key: candidate?.key || null,
+        reasonCode: 'UNACTIONABLE_BLOCK_TITLE',
+        originalTitle: String(candidate?.title || '').trim() || null,
+      });
+      return;
     }
-    return todayDayKey;
-  };
-  return selected.map((candidate, index) => {
-    const scheduledDayKey = nextScheduleDayKey();
-    const slotHour = Number(usedDayCounts.get(scheduledDayKey) || 1) > 1 ? '13:00' : '10:00';
-    const start = buildLocalStartISO(scheduledDayKey, slotHour, timeZone);
+    const durationMinutes = Number(candidate?.minutes || 60);
+    const targetDate = String(candidate?.targetDate || '').trim() || null;
+    let preferredSlotIndex = -1;
+    if (targetDate) {
+      for (let i = availableSlots.length - 1; i >= 0; i -= 1) {
+        const slot = availableSlots[i];
+        if (slot.capacityMinutes >= durationMinutes && slot.dayKey <= targetDate) {
+          preferredSlotIndex = i;
+          break;
+        }
+      }
+      if (preferredSlotIndex === -1) {
+        preferredSlotIndex = availableSlots.findIndex(
+          (slot) => slot.capacityMinutes >= durationMinutes && slot.dayKey >= targetDate
+        );
+      }
+    }
+    if (preferredSlotIndex === -1) {
+      preferredSlotIndex = availableSlots.findIndex((slot) => slot.capacityMinutes >= durationMinutes);
+    }
+    if (preferredSlotIndex === -1) {
+      return;
+    }
+    const [slot] = availableSlots.splice(preferredSlotIndex, 1);
+    scheduled.push({
+      candidate: {
+        ...candidate,
+        title: titleResult.title,
+        expectedOutput: titleResult.expectedOutput,
+        originalQuestion: titleResult.originalQuestion,
+        transformedFromQuestion: titleResult.transformed,
+      },
+      scheduledDayKey: slot.dayKey,
+      slotStartHHMM: slot.startHHMM,
+    });
+  });
+  const blocks = scheduled.map(({ candidate, scheduledDayKey, slotStartHHMM }, index) => {
+    const start = buildLocalStartISO(scheduledDayKey, slotStartHHMM, timeZone);
     const startISO = start?.startISO || `${scheduledDayKey}T10:00:00.000Z`;
     const durationMinutes = Number(candidate?.minutes || 60);
     return {
@@ -4041,6 +4729,9 @@ function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
       masterPlanMilestoneId: candidate?.milestoneId || null,
       title: candidate.title,
       label: candidate.title,
+      expectedOutput:
+        String(candidate?.expectedOutput || '').trim() ||
+        `Concrete progress completed for ${String(candidate?.title || '').trim()}.`,
       domain: candidate.practice || 'FOCUS',
       durationMinutes,
       createdAtISO: state.appTime?.nowISO || new Date().toISOString(),
@@ -4059,8 +4750,85 @@ function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
       placementBasis: candidate?.milestoneId ? 'milestone_priority' : 'first_cycle_readiness',
       requiredSystemBlock: true,
       sessionIndex: index,
+      sourceQuestion: candidate?.originalQuestion || null,
+      transformedFromQuestion: candidate?.transformedFromQuestion === true,
     };
   });
+  const scheduledMinutes = blocks.reduce((sum, block) => sum + Number(block?.durationMinutes || 0), 0);
+  const unscheduledCandidates = selected.slice(blocks.length);
+  const unscheduledMinutes = unscheduledCandidates.reduce((sum, candidate) => sum + Number(candidate?.minutes || 0), 0);
+  const sortedScheduledDayKeys = blocks
+    .map((block) => String(block?.dayKey || '').trim())
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right));
+  const calendarCoverageThroughDayKey = sortedScheduledDayKeys[sortedScheduledDayKeys.length - 1] || null;
+  const coverageStatus =
+    !requiredCoverageDayKey
+      ? 'unbounded'
+      : !calendarCoverageThroughDayKey
+        ? 'failed_before_anchor'
+        : calendarCoverageThroughDayKey >= requiredCoverageDayKey
+          ? 'complete_to_anchor'
+          : 'partial_before_anchor';
+  const coverageFailureReason =
+    coverageStatus === 'complete_to_anchor'
+      ? null
+      : 'Schedule does not reach the active phase hard deadline.';
+  return {
+    blocks,
+    summary: {
+      requiredBlockCount: selected.length,
+      scheduledBlockCount: blocks.length,
+      unscheduledBlockCount: unscheduledCandidates.length + skippedCandidates.length,
+      scheduledMinutes,
+      unscheduledMinutes,
+      executionCycleWindowDays: computeInclusiveDaySpan(todayDayKey, activePhaseDeadlineDayKey),
+      schedulePreviewWindowDays: computeInclusiveDaySpan(todayDayKey, activePhaseDeadlineDayKey),
+      activePhaseDeadlineDayKey,
+      requiredCoverageDayKey,
+      activePhaseScheduleEndDayKey: activePhaseDeadlineDayKey,
+      fullHorizonEndDayKey,
+      calendarCoverageThroughDayKey,
+      coverageStatus,
+      coverageFailureReason,
+      partialScheduleReason:
+        unscheduledCandidates.length + skippedCandidates.length > 0
+          ? coverageStatus === 'complete_to_anchor'
+            ? 'The active phase is scheduled through its hard deadline, but some lower-priority work remains unscheduled.'
+            : 'Only part of the active phase could be scheduled before the hard deadline inside the confirmed work windows.'
+          : null,
+      reasonCodes:
+        [
+          ...(unscheduledCandidates.length + skippedCandidates.length > 0 ? ['PARTIAL_FIRST_CYCLE_SCHEDULE'] : []),
+          ...(coverageStatus === 'partial_before_anchor'
+            ? ['PARTIAL_BEFORE_ANCHOR']
+            : coverageStatus === 'failed_before_anchor'
+              ? ['FAILED_BEFORE_ANCHOR']
+              : []),
+        ],
+      unscheduledReasons: [
+        ...(coverageFailureReason
+          ? [
+              {
+                reasonCode: coverageStatus === 'failed_before_anchor' ? 'FAILED_BEFORE_ANCHOR' : 'PARTIAL_BEFORE_ANCHOR',
+                latestScheduledDayKey: calendarCoverageThroughDayKey,
+                activePhaseDeadlineDayKey,
+              },
+            ]
+          : []),
+        ...(unscheduledCandidates.length > 0
+          ? [
+              {
+                reasonCode: 'INSUFFICIENT_SCHEDULE_SLOTS',
+                count: unscheduledCandidates.length,
+                minutes: unscheduledMinutes,
+              },
+            ]
+          : []),
+        ...skippedCandidates,
+      ],
+    },
+  };
 }
 
 function generateMasterPlanFirstCycle(state, payload = {}) {
@@ -4083,6 +4851,66 @@ function generateMasterPlanFirstCycle(state, payload = {}) {
     return;
   }
   const cycle = descriptors.cycle;
+  if (String(cycle?.reassessmentStatus || '').trim().toLowerCase() === 'required') {
+    state.lastPlanError = {
+      code: 'CURRENT_STATE_REASSESSMENT_REQUIRED',
+      reason: 'Complete current-state reassessment before generating a schedule for this execution cycle.',
+      cycleId: cycle.id,
+      masterPlanId: plan.id,
+    };
+    state.scheduleLifecycle = 'no_schedule';
+    cycle.scheduleLifecycle = 'no_schedule';
+    state.cyclesById[cycle.id] = cycle;
+    return;
+  }
+  const schedulingAuthority = deriveCycleSchedulingAuthority(state, cycle, cycle?.goalContract || descriptors.goalContract);
+  if (schedulingAuthority.workWindowCount === 0 || schedulingAuthority.constraintsStatus === 'unsaved') {
+    state.lastPlanError = {
+      code: 'WORK_WINDOWS_UNSAVED',
+      reason: 'Define and save work windows before generating a schedule.',
+      cycleId: cycle.id,
+      masterPlanId: plan.id,
+      reasonCodes: schedulingAuthority.workWindowCount === 0 ? ['NO_WORK_WINDOWS'] : ['WORK_WINDOWS_UNSAVED'],
+      meta: {
+        workWindowsSource: schedulingAuthority.workWindowsSource,
+      },
+    };
+    state.scheduleLifecycle = 'no_schedule';
+    cycle.scheduleLifecycle = 'no_schedule';
+    state.cyclesById[cycle.id] = cycle;
+    return;
+  }
+  if (schedulingAuthority.constraintsStatus === 'stale') {
+    state.lastPlanError = {
+      code: 'CONSTRAINTS_STALE',
+      reason: 'Re-save work windows to revalidate availability for this execution cycle.',
+      cycleId: cycle.id,
+      masterPlanId: plan.id,
+    };
+    state.scheduleLifecycle = 'no_schedule';
+    cycle.scheduleLifecycle = 'no_schedule';
+    state.cyclesById[cycle.id] = cycle;
+    return;
+  }
+  if (schedulingAuthority.capacityValidation?.status === 'insufficient') {
+    state.lastPlanError = {
+      code: 'CAPACITY_INSUFFICIENT',
+      reason: 'Current availability cannot support the required first-cycle workload.',
+      cycleId: cycle.id,
+      masterPlanId: plan.id,
+      reasonCodes: ['CAPACITY_INSUFFICIENT'],
+      meta: {
+        availableWeeklyMinutes: schedulingAuthority.capacityValidation.availableWeeklyMinutes,
+        requiredWeeklyMinutes: schedulingAuthority.capacityValidation.requiredWeeklyMinutes,
+        gapWeeklyMinutes: schedulingAuthority.capacityValidation.gapWeeklyMinutes,
+        mitigationSuggestions: schedulingAuthority.capacityValidation.mitigationSuggestions || [],
+      },
+    };
+    state.scheduleLifecycle = 'no_schedule';
+    cycle.scheduleLifecycle = 'no_schedule';
+    state.cyclesById[cycle.id] = cycle;
+    return;
+  }
   if (isCycleReadOnly(cycle)) {
     state.lastPlanError = {
       code: 'CYCLE_READ_ONLY',
@@ -4120,7 +4948,9 @@ function generateMasterPlanFirstCycle(state, payload = {}) {
     cycle.scheduleLifecycle = 'stale_draft_invalidated';
     state.scheduleLifecycle = 'stale_draft_invalidated';
   }
-  const suggestions = buildMasterPlanFirstCycleProposals(state, plan, descriptors);
+  const proposalResult = buildMasterPlanFirstCycleProposals(state, plan, descriptors);
+  const suggestions = proposalResult.blocks;
+  const proposalSummary = proposalResult.summary || {};
   cycle.autoAsanaPlan = {
     horizonBlocks: suggestions.map((suggestion) => ({
       id: suggestion.id,
@@ -4137,12 +4967,30 @@ function generateMasterPlanFirstCycle(state, payload = {}) {
     })),
     conflicts: [],
     summary: {
-      planStatus: suggestions.length > 0 ? 'VALID_AND_FULLY_SCHEDULED' : 'NO_PROPOSED_BLOCKS',
-      requiredBlockCount: suggestions.length,
+      planStatus:
+        suggestions.length === 0
+          ? 'NO_PROPOSED_BLOCKS'
+          : Number(proposalSummary?.unscheduledBlockCount || 0) > 0
+            ? 'VALID_BUT_PARTIALLY_SCHEDULED'
+            : 'VALID_AND_FULLY_SCHEDULED',
+      requiredBlockCount: Number(proposalSummary?.requiredBlockCount || suggestions.length),
       scheduledBlockCount: suggestions.length,
-      unscheduledBlockCount: 0,
+      unscheduledBlockCount: Number(proposalSummary?.unscheduledBlockCount || 0),
+      scheduledMinutes: Number(proposalSummary?.scheduledMinutes || 0),
+      unscheduledMinutes: Number(proposalSummary?.unscheduledMinutes || 0),
+      executionCycleWindowDays: Number(proposalSummary?.executionCycleWindowDays || 28),
+      schedulePreviewWindowDays: Number(proposalSummary?.schedulePreviewWindowDays || 28),
+      activePhaseDeadlineDayKey: proposalSummary?.activePhaseDeadlineDayKey || null,
+      activePhaseScheduleEndDayKey: proposalSummary?.activePhaseScheduleEndDayKey || null,
+      fullHorizonEndDayKey: proposalSummary?.fullHorizonEndDayKey || null,
+      calendarCoverageThroughDayKey: proposalSummary?.calendarCoverageThroughDayKey || null,
+      coverageStatus: proposalSummary?.coverageStatus || null,
+      coverageFailureReason: proposalSummary?.coverageFailureReason || null,
+      partialScheduleReason: proposalSummary?.partialScheduleReason || null,
+      unscheduledReasons: Array.isArray(proposalSummary?.unscheduledReasons) ? proposalSummary.unscheduledReasons : [],
       candidateResolutionKinds: [],
       recommendations: [],
+      reasonCodes: Array.isArray(proposalSummary?.reasonCodes) ? proposalSummary.reasonCodes : [],
     },
   };
   cycle.planStatus = suggestions.length > 0 ? 'ready' : 'error';
@@ -8005,6 +8853,20 @@ function startNewCycle(state, payload = {}) {
     status: 'active',
     activationDateISO: startDayKey,
     deadlineISO: deadlineDayKey,
+    workWindows: normalizeCanonicalWorkWindows(payload.workWindows || state.goalExecutionContract?.workWindows || {}),
+    workWindowsSource:
+      payload.workWindowsSource ||
+      state.goalExecutionContract?.workWindowsSource ||
+      (countRawWorkWindows(payload.workWindows || state.goalExecutionContract?.workWindows || {}) > 0
+        ? 'user_defined'
+        : 'unset'),
+    constraintsStatus:
+      payload.constraintsStatus ||
+      state.goalExecutionContract?.constraintsStatus ||
+      (countRawWorkWindows(payload.workWindows || state.goalExecutionContract?.workWindows || {}) > 0
+        ? 'approved'
+        : 'unsaved'),
+    capacityValidation: state.goalExecutionContract?.capacityValidation || null,
     success: [
       {
         metricType: 'binary',
@@ -8126,6 +8988,10 @@ function startNewCycle(state, payload = {}) {
     startDayKey,
     endDayKey: deadlineDayKey,
     successDefinition,
+    workWindows: goalContract.workWindows,
+    workWindowsSource: goalContract.workWindowsSource,
+    constraintsStatus: goalContract.constraintsStatus,
+    capacityValidation: goalContract.capacityValidation,
   };
 
   state.planDraft = {
@@ -8255,10 +9121,6 @@ function deleteCycle(state, cycleId) {
     return;
   }
   const deletingActiveCycle = state.activeCycleId === cycleId;
-  // Allow deleting active cycle: clear active UI state and unset activeCycleId
-  if (deletingActiveCycle) {
-    clearGoalSessionStateToBlank(state);
-  }
   const cycle = state.cyclesById[cycleId];
   const goalId =
     cycle?.goalContract?.goalId ||
@@ -8317,6 +9179,10 @@ function deleteCycle(state, cycleId) {
     delete state.historySignalsByCycleId[cycleId];
     rebuildHistoryProfile(state);
   }
+  unlinkGoalCycleReference(state, goalId, cycleId);
+  if (deletingActiveCycle) {
+    clearActiveCycleSessionState(state);
+  }
   if (deletingActiveCycle) {
     state.meta = {
       ...(state.meta || {}),
@@ -8329,13 +9195,39 @@ function startNewCycleWithDecision(state, payload = {}) {
   ensureCycleStructures(state);
   const mode = payload?.mode === 'delete' ? 'delete' : 'archive';
   const previousActiveCycleId = state.activeCycleId || null;
+  const activeMasterPlan = getActiveMasterPlanRecord(state, payload?.masterPlanId || null);
+  const baseCyclePayload = {
+    goalText: ' ',
+    narrative: '',
+    successDefinition: '',
+    minimumDaysPerWeek: 4,
+  };
+  if (activeMasterPlan) {
+    if (previousActiveCycleId && state.cyclesById?.[previousActiveCycleId]) {
+      if (mode === 'delete') {
+        deleteCycle(state, previousActiveCycleId);
+      } else {
+        endCycle(state, previousActiveCycleId);
+      }
+    }
+    const descriptors = ensureMasterPlanOperationalCycle(state, activeMasterPlan);
+    if (descriptors?.cycle?.id) {
+      resetActiveCycleExecutionState(state, descriptors.cycle.id);
+      state.goalExecutionContract = descriptors.goalContract || state.goalExecutionContract;
+      state.activeGoalId = descriptors.goalContract?.goalId || state.activeGoalId || null;
+      if (state.activeProfileId && state?.profilesById?.[state.activeProfileId]) {
+        state.profilesById[state.activeProfileId].activeGoalId = state.activeGoalId || null;
+      }
+      state.meta = {
+        ...(state.meta || {}),
+        goalEntryRequestedAtISO: state.appTime?.nowISO || null,
+      };
+      assertActiveCycleInvariant(state);
+    }
+    return;
+  }
   if (!previousActiveCycleId || !state.cyclesById?.[previousActiveCycleId]) {
-    startNewCycle(state, {
-      goalText: ' ',
-      narrative: '',
-      successDefinition: '',
-      minimumDaysPerWeek: 4,
-    });
+    startNewCycle(state, baseCyclePayload);
     resetCycleToGoalEntryReady(state, state.activeCycleId);
     state.meta = {
       ...(state.meta || {}),
@@ -8347,14 +9239,10 @@ function startNewCycleWithDecision(state, payload = {}) {
 
   if (mode === 'delete') {
     deleteCycle(state, previousActiveCycleId);
+    startNewCycle(state, baseCyclePayload);
     resetCycleToGoalEntryReady(state, state.activeCycleId);
   } else {
-    startNewCycle(state, {
-      goalText: ' ',
-      narrative: '',
-      successDefinition: '',
-      minimumDaysPerWeek: 4,
-    });
+    startNewCycle(state, baseCyclePayload);
     resetCycleToGoalEntryReady(state, state.activeCycleId);
   }
 
@@ -8506,6 +9394,11 @@ function endCycle(state, cycleId) {
   // Archive behavior: remove from active execution and clear active UI projections
   if (state.activeCycleId === id) {
     state.activeCycleId = null;
+    state.activeGoalId = null;
+    if (state.activeProfileId && state?.profilesById?.[state.activeProfileId]) {
+      state.profilesById[state.activeProfileId].activeGoalId = null;
+    }
+    state.goalExecutionContract = null;
     state.today = { ...(state.today || {}), blocks: [] };
     state.currentWeek = { ...(state.currentWeek || {}), days: [] };
     state.cycle = [];
@@ -8513,7 +9406,16 @@ function endCycle(state, cycleId) {
     state.suggestedBlocks = [];
     state.suggestionEvents = [];
     state.executionEvents = [];
+    state.externalEvidenceEvents = [];
+    state.planMutationEvents = [];
+    state.truthEntries = [];
+    state.scheduleLifecycle = 'no_schedule';
+    state.scheduleApplied = false;
+    state.scheduleReviewBlocks = [];
+    state.draftScheduleAppliedAtISO = null;
+    state.pendingPlanConfirmation = false;
   }
+  unlinkGoalCycleReference(state, cycle.goalId || cycle.goalContract?.goalId || cycle.goalGovernanceContract?.goalId || null, id);
 }
 
 /**
@@ -8625,6 +9527,15 @@ function generatePlan(state, payload = {}) {
       proposedBlocks: state.proposedBlocks || [],
       lastPlanErrorCode: 'CYCLE_TARGET_INVALID',
     });
+    return;
+  }
+  if (String(cycle?.reassessmentStatus || '').trim().toLowerCase() === 'required') {
+    state.lastPlanError = {
+      code: 'CURRENT_STATE_REASSESSMENT_REQUIRED',
+      reason: 'Complete current-state reassessment before generating a schedule for this execution cycle.',
+      cycleId: cycle.id || targetCycleId,
+    };
+    setGenerateHeartbeat(state, cycle.id || targetCycleId, 0, 'CURRENT_STATE_REASSESSMENT_REQUIRED');
     return;
   }
   const currentScheduleLifecycle = getCycleScheduleLifecycle(cycle, state);

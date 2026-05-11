@@ -6,10 +6,12 @@ import {
   getPlannedGlobalQuestions,
   getPlannedLaneQuestions,
   suggestHorizonFromAnchors,
+  inferHorizonYearsFromText,
   buildStructureQuestionPlan,
   evaluateStructureCritic,
 } from '../domain/masterPlan/masterPlanIntakeEngine.js';
 import { generateMilestonesForLane } from '../domain/masterPlan/masterPlanMilestoneGenerator.js';
+import { deriveMasterPlanSemanticModel } from '../domain/masterPlan/masterPlanSemanticModel.js';
 
 export const MASTER_PLAN_ACTION_TYPES = new Set([
   'CREATE_MASTER_PLAN',
@@ -27,9 +29,11 @@ export const MASTER_PLAN_ACTION_TYPES = new Set([
   'MASTER_PLAN_INTAKE_START',
   'MASTER_PLAN_INTAKE_ANSWER',
   'MASTER_PLAN_INTAKE_LANE_ADDED',
+  'MASTER_PLAN_INTAKE_SET_LANES',
   'MASTER_PLAN_INTAKE_ASSESSED',
   'MASTER_PLAN_INTAKE_COMPLETE',
   'MASTER_PLAN_INTAKE_RESET',
+  'DELETE_MASTER_PLAN',
 ]);
 
 // ─── State slice initializer ──────────────────────────────────────────────────
@@ -371,6 +375,13 @@ function applyIntakeLaneAdded(draft, action) {
   }
 }
 
+function applyIntakeSetLanes(draft, action) {
+  const intake = draft.masterPlanIntake;
+  if (!intake) return;
+  intake.extractedLanes = Array.isArray(action.lanes) ? [...action.lanes] : [];
+  refreshQuestionPlan(intake);
+}
+
 function applyIntakeAssessed(draft, action) {
   const intake = draft.masterPlanIntake;
   if (!intake) return;
@@ -415,17 +426,54 @@ function applyIntakeComplete(draft, action) {
     const structureCritic = evaluateStructureCritic(questionPlan, answers, extractedLanes);
 
     const northStarText = answers['step_2'];
+    const goalText = answers['step_1'] || northStarText || '';
     const horizonAnswer = answers['step_3'];
 
+    // Resolve horizonEnd with authority order:
+    // 1. Explicit user answer from step_3 (highest trust)
+    // 2. Multi-year inference from goal text (catches "5-year plan" language)
+    // 3. Anchor-based suggestion (last resort — anchor is a launch milestone, not the full horizon)
+    let resolvedHorizonEnd = horizonAnswer?.horizonEnd || null;
+    if (!resolvedHorizonEnd) {
+      const inferred = inferHorizonYearsFromText(goalText);
+      if (inferred) {
+        const inferredEnd = new Date(nowISO);
+        inferredEnd.setMonth(inferredEnd.getMonth() + inferred.months);
+        resolvedHorizonEnd = inferredEnd.toISOString().slice(0, 10);
+      } else {
+        resolvedHorizonEnd = suggestHorizonFromAnchors(anchors, nowISO)?.horizonEnd || null;
+      }
+    }
+
     const financialConstraint = deriveFinancialConstraintFromAnswers(questionPlan, answers, extractedLanes);
+    const semanticModel = deriveMasterPlanSemanticModel({
+      goalText: northStarText || '',
+      extractedLanes,
+      horizonAnswer,
+    });
     const plan = buildMasterPlan({
       profileId,
-      title: northStarText
-        ? northStarText.slice(0, 60)
-        : 'Master Plan',
+      title: semanticModel.coreMission || (northStarText ? northStarText.slice(0, 60) : 'Master Plan'),
       northStarOutcome: northStarText || '',
+      coreMission: semanticModel.coreMission,
+      outcomeTarget: semanticModel.outcomeTarget,
+      successStandard: semanticModel.successStandard,
+      masterPlanSummary: semanticModel.masterPlanSummary,
+      executionHorizon: semanticModel.executionHorizon,
+      controllableSuccessSignals: semanticModel.controllableSuccessSignals,
+      externallyMediatedTargets: semanticModel.externallyMediatedTargets,
+      controllabilityClass: semanticModel.controllabilityClass,
+      terminalTargetClass: semanticModel.terminalTargetClass,
+      goalArchitecture: semanticModel.goalArchitecture,
+      executionModel: semanticModel.executionModel,
+      primaryLane: semanticModel.primaryLane,
+      supportingLanes: semanticModel.supportingLanes,
+      laneComposition: semanticModel.laneComposition,
+      laneClassificationConfidence: semanticModel.laneClassificationConfidence,
+      classificationSource: semanticModel.classificationSource,
+      officialStartDate: nowISO.slice(0, 10),
       horizonStart: nowISO.slice(0, 10),
-      horizonEnd: horizonAnswer?.horizonEnd || suggestHorizonFromAnchors(anchors, nowISO)?.horizonEnd || null,
+      horizonEnd: resolvedHorizonEnd,
       anchors,
       financialConstraint,
       nowISO,
@@ -516,6 +564,75 @@ function applyIntakeReset(draft) {
   // masterPlansById is NOT touched — reset cancels intake, not a completed plan
 }
 
+function applyDeleteMasterPlan(draft, action) {
+  const masterPlanId = String(action?.masterPlanId || '').trim();
+  if (!masterPlanId) return;
+  const plan = draft.masterPlansById?.[masterPlanId];
+  if (!plan) return;
+
+  const laneIds = Array.isArray(plan.laneIds) ? [...plan.laneIds] : [];
+  laneIds.forEach((laneId) => {
+    const lane = draft.masterPlanLanesById?.[laneId];
+    const milestoneIds = Array.isArray(lane?.milestoneIds) ? [...lane.milestoneIds] : [];
+    milestoneIds.forEach((milestoneId) => {
+      delete draft.masterPlanMilestonesById?.[milestoneId];
+    });
+    delete draft.masterPlanLanesById?.[laneId];
+  });
+
+  const profileId = plan.profileId || action?.profileId || draft.activeProfileId;
+  const profile = draft.profilesById?.[profileId];
+  if (profile) {
+    ensureMasterPlanProfileFields(profile);
+    profile.masterPlanIds = (profile.masterPlanIds || []).filter((id) => id !== masterPlanId);
+    if (profile.activeMasterPlanId === masterPlanId) {
+      profile.activeMasterPlanId = profile.masterPlanIds[0] || null;
+    }
+  }
+
+  delete draft.masterPlansById?.[masterPlanId];
+  if (draft.masterPlanPolicyByPlanId) {
+    delete draft.masterPlanPolicyByPlanId[masterPlanId];
+  }
+
+  const linkedGoalId = `masterplan:${masterPlanId}`;
+  const linkedCycleId = `masterplan-cycle:${masterPlanId}`;
+  if (draft.activeGoalId === linkedGoalId) {
+    draft.activeGoalId = null;
+  }
+  if (draft.activeCycleId === linkedCycleId) {
+    draft.activeCycleId = null;
+  }
+  if (draft.goalsById) {
+    delete draft.goalsById[linkedGoalId];
+  }
+  if (draft.cyclesById) {
+    delete draft.cyclesById[linkedCycleId];
+  }
+  if (draft.deliverablesByCycleId) {
+    delete draft.deliverablesByCycleId[linkedCycleId];
+  }
+  if (draft.goalPolicyByGoalId) {
+    delete draft.goalPolicyByGoalId[linkedGoalId];
+  }
+  if (draft.goalAdmissionByGoal) {
+    delete draft.goalAdmissionByGoal[linkedGoalId];
+  }
+  if (Array.isArray(draft.proposedBlocks)) {
+    draft.proposedBlocks = draft.proposedBlocks.filter((block) => block?.masterPlanId !== masterPlanId);
+  }
+  if (draft.proposedBlocksByCycleId) {
+    delete draft.proposedBlocksByCycleId[linkedCycleId];
+  }
+  if (draft.scheduleReviewBlocksByCycleId) {
+    delete draft.scheduleReviewBlocksByCycleId[linkedCycleId];
+  }
+  if (draft.masterPlanIntake?.draft?.masterPlanId === masterPlanId) {
+    draft.masterPlanIntake.draft = null;
+    draft.masterPlanIntake.status = 'idle';
+  }
+}
+
 // ─── Main dispatch function ───────────────────────────────────────────────────
 // Returns true if the action was handled, false if identityReducer should continue.
 // Usage in identityReducer:
@@ -568,6 +685,9 @@ export function applyMasterPlanAction(draft, action) {
     case 'MASTER_PLAN_INTAKE_LANE_ADDED':
       applyIntakeLaneAdded(draft, action);
       return true;
+    case 'MASTER_PLAN_INTAKE_SET_LANES':
+      applyIntakeSetLanes(draft, action);
+      return true;
     case 'MASTER_PLAN_INTAKE_ASSESSED':
       applyIntakeAssessed(draft, action);
       return true;
@@ -576,6 +696,9 @@ export function applyMasterPlanAction(draft, action) {
       return true;
     case 'MASTER_PLAN_INTAKE_RESET':
       applyIntakeReset(draft);
+      return true;
+    case 'DELETE_MASTER_PLAN':
+      applyDeleteMasterPlan(draft, action);
       return true;
     default:
       return false;
@@ -669,6 +792,12 @@ export function useMasterPlanActions(dispatch) {
     [dispatch]
   );
 
+  const masterPlanIntakeSetLanes = useCallback(
+    (lanes) =>
+      dispatch({ type: 'MASTER_PLAN_INTAKE_SET_LANES', lanes }),
+    [dispatch]
+  );
+
   const masterPlanIntakeAssessed = useCallback(
     (laneIdx, assessment) =>
       dispatch({ type: 'MASTER_PLAN_INTAKE_ASSESSED', laneIdx, assessment }),
@@ -683,6 +812,11 @@ export function useMasterPlanActions(dispatch) {
 
   const masterPlanIntakeReset = useCallback(
     () => dispatch({ type: 'MASTER_PLAN_INTAKE_RESET' }),
+    [dispatch]
+  );
+
+  const deleteMasterPlan = useCallback(
+    (masterPlanId, profileId) => dispatch({ type: 'DELETE_MASTER_PLAN', masterPlanId, profileId }),
     [dispatch]
   );
 
@@ -701,8 +835,10 @@ export function useMasterPlanActions(dispatch) {
     masterPlanIntakeStart,
     masterPlanIntakeAnswer,
     masterPlanIntakeLaneAdded,
+    masterPlanIntakeSetLanes,
     masterPlanIntakeAssessed,
     masterPlanIntakeComplete,
     masterPlanIntakeReset,
+    deleteMasterPlan,
   };
 }

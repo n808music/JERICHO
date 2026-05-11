@@ -3,7 +3,8 @@ import { useIdentityStore } from '../../state/identityStore.js';
 import {
   getIntakePrompt,
   parseAnchorFromInput,
-  suggestHorizonFromAnchors,
+  suggestPlanHorizon,
+  evaluateStructureCritic,
 } from '../../domain/masterPlan/masterPlanIntakeEngine.js';
 import { LANE_ACTIVATION_STATE } from '../../domain/masterPlan/masterPlanSchema.js';
 
@@ -51,8 +52,8 @@ function IntakeStartScreen({ onStart }) {
       <div className="intake-start">
         <h2>Build your master plan</h2>
         <p>
-          A 13-step conversation. You describe your ventures and goals — the system extracts lanes,
-          maps anchors, and builds a timeline worked backward from your fixed dates.
+          A compressed structure intake. Jericho infers the lane map first, asks only the highest-leverage execution
+          questions, and carries lower-confidence detail as assumption debt instead of blocking admission.
         </p>
         <button className="intake-cta" onClick={onStart}>
           Start
@@ -98,7 +99,9 @@ function IntakeActiveScreen({ intake, store }) {
   const { phase, step, extractedLanes, anchors, currentLaneIdx, clarifyingQuestionIdx } = intake;
   const nowISO = store.appTime?.nowISO || new Date().toISOString();
 
-  const suggestedHorizon = suggestHorizonFromAnchors(anchors, nowISO);
+  // Use goal text (step_1) to detect multi-year plans; anchor date is a launch milestone, not the horizon.
+  const goalText = intake.answers?.step_1 || '';
+  const suggestedHorizon = suggestPlanHorizon(goalText, anchors, nowISO);
   const currentLane = extractedLanes?.[currentLaneIdx] || null;
   const currentLaneAssessment = intake.answers?.[`lane_${currentLaneIdx}_system_assessment`] || null;
 
@@ -181,11 +184,34 @@ function IntakeQuestion({ question, phase, step, intake, nowISO, onSubmit, onCom
       <p className="intake-prompt">{question.prompt}</p>
       {question.subtext && <p className="intake-subtext">{question.subtext}</p>}
       {question.reason && question.reason !== question.subtext ? (
-        <p className="intake-subtext">
-          Reason: {question.reason}
-          {question.resolvesField ? ` · Resolves ${question.resolvesField}` : ''}
-          {question.criticality ? ` · ${question.criticality}` : ''}
-        </p>
+        <div className="space-y-2">
+          <p className="intake-subtext">
+            {question.diagnosticMode ? 'Diagnostic · ' : ''}
+            Reason: {question.reason}
+            {question.whyNeeded ? ` · Needed because ${question.whyNeeded}` : ''}
+          </p>
+          <p className="intake-subtext">
+            {question.resolvesField ? `Resolves ${question.resolvesField}` : 'Execution substrate question'}
+            {Array.isArray(question.affects) && question.affects.length > 0 ? ` · Affects ${question.affects.join(', ')}` : ''}
+            {question.criticality ? ` · ${question.criticality}` : ''}
+            {typeof question.canDefer === 'boolean' ? ` · ${question.canDefer ? 'can defer later' : 'needed before admission'}` : ''}
+          </p>
+          {Array.isArray(question.examples) && question.examples.length > 0 ? (
+            <div className="rounded-md border border-line/50 bg-jericho-bg px-3 py-2 text-xs text-muted">
+              <p className="mb-1 font-medium text-jericho-text">Answer examples</p>
+              <ul className="list-disc space-y-1 pl-4">
+                {question.examples.slice(0, 2).map((example) => (
+                  <li key={example}>{example}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {question.fallbackBehavior ? (
+            <div className="rounded-md border border-line/40 bg-jericho-surface/70 px-3 py-2 text-xs text-muted">
+              <span className="font-medium text-jericho-text">If you are unsure:</span> {question.fallbackBehavior}
+            </div>
+          ) : null}
+        </div>
       ) : null}
       <IntakeInput
         inputType={question.inputType}
@@ -206,10 +232,10 @@ function IntakeQuestion({ question, phase, step, intake, nowISO, onSubmit, onCom
 function IntakeInput({ inputType, question, phase, step, intake, nowISO, onSubmit, onComplete }) {
   switch (inputType) {
     case 'textarea':
-      return <TextareaInput onSubmit={onSubmit} />;
+      return <TextareaInput question={question} onSubmit={onSubmit} />;
 
     case 'text':
-      return <TextInput onSubmit={onSubmit} />;
+      return <TextInput question={question} onSubmit={onSubmit} />;
 
     case 'anchor_input':
       return <AnchorInput nowISO={nowISO} onSubmit={onSubmit} />;
@@ -240,13 +266,28 @@ function IntakeInput({ inputType, question, phase, step, intake, nowISO, onSubmi
       );
 
     default:
-      return <TextInput onSubmit={onSubmit} />;
+      return <TextInput question={question} onSubmit={onSubmit} />;
   }
 }
 
 // ─── Input components ─────────────────────────────────────────────────────────
 
-function TextareaInput({ onSubmit }) {
+function AssumptionButton({ question, onSubmit }) {
+  if (!question?.fallbackBehavior) {
+    return null;
+  }
+  return (
+    <button
+      type="button"
+      className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent"
+      onClick={() => onSubmit('Not sure — use system assumption')}
+    >
+      Use system assumption
+    </button>
+  );
+}
+
+function TextareaInput({ question, onSubmit }) {
   const [value, setValue] = useState('');
   const charCount = value.length;
   const isTooLong = charCount > MASTER_PLAN_TEXTAREA_MAX_CHARS;
@@ -277,14 +318,17 @@ function TextareaInput({ onSubmit }) {
           </p>
         )}
       </div>
-      <button onClick={submit} disabled={!value.trim() || isTooLong}>
-        Continue
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button onClick={submit} disabled={!value.trim() || isTooLong}>
+          Continue
+        </button>
+        <AssumptionButton question={question} onSubmit={onSubmit} />
+      </div>
     </div>
   );
 }
 
-function TextInput({ onSubmit }) {
+function TextInput({ question, onSubmit }) {
   const [value, setValue] = useState('');
   const submit = useCallback(() => {
     if (!value.trim()) return;
@@ -301,9 +345,12 @@ function TextInput({ onSubmit }) {
         placeholder="Type your answer…"
         onKeyDown={(e) => e.key === 'Enter' && submit()}
       />
-      <button onClick={submit} disabled={!value.trim()}>
-        Continue
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button onClick={submit} disabled={!value.trim()}>
+          Continue
+        </button>
+        <AssumptionButton question={question} onSubmit={onSubmit} />
+      </div>
     </div>
   );
 }
@@ -445,21 +492,81 @@ function LoadingStep({ onSubmit }) {
 }
 
 function TimelineReviewInput({ intake, onSubmit }) {
+  const critic = evaluateStructureCritic(
+    intake.questionPlan,
+    intake.answers || {},
+    intake.extractedLanes || []
+  );
+  const userConfirmedCount = Object.entries(intake.answers || {}).filter(([key, value]) => {
+    if (key.includes('system_assessment')) {
+      return false;
+    }
+    if (value == null) {
+      return false;
+    }
+    if (typeof value === 'string') {
+      return value.trim().length > 0;
+    }
+    return true;
+  }).length;
+  const systemInferred = [
+    intake.extractedLanes?.length ? `${intake.extractedLanes.length} inferred lane${intake.extractedLanes.length === 1 ? '' : 's'}` : null,
+    intake.anchors?.length ? `${intake.anchors.length} inferred anchor${intake.anchors.length === 1 ? '' : 's'}` : null,
+    critic?.derivedReasonCodes?.length ? `${critic.derivedReasonCodes.length} derived risk signal${critic.derivedReasonCodes.length === 1 ? '' : 's'}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
   return (
     <div className="intake-timeline-review">
       <p className="timeline-placeholder">
         {intake.extractedLanes.length} lane{intake.extractedLanes.length !== 1 ? 's' : ''} ·{' '}
         {intake.anchors.length} anchor{intake.anchors.length !== 1 ? 's' : ''}
       </p>
+      <div className="rounded-md border border-line/50 bg-jericho-bg px-3 py-3 text-xs text-muted space-y-1">
+        <p>
+          <span className="font-medium text-jericho-text">User-confirmed:</span> {userConfirmedCount} answer
+          {userConfirmedCount === 1 ? '' : 's'}
+        </p>
+        <p>
+          <span className="font-medium text-jericho-text">System-inferred:</span> {systemInferred || 'none yet'}
+        </p>
+        <p>
+          <span className="font-medium text-jericho-text">Assumed due to uncertainty:</span>{' '}
+          {critic?.unresolvedQuestions?.length || 0}
+        </p>
+        <p>
+          <span className="font-medium text-jericho-text">Unresolved assumption debt:</span>{' '}
+          {critic?.unresolvedReasonCodes?.length
+            ? critic.unresolvedReasonCodes.slice(0, 4).join(' · ')
+            : 'none'}
+        </p>
+      </div>
       <button onClick={() => onSubmit({ approved: true })}>Looks good</button>
     </div>
   );
 }
 
-function ScheduleConfirmInput({ onSubmit }) {
+function ScheduleConfirmInput({ intake, onSubmit }) {
+  const horizon = intake?.answers?.step_3 || {};
+  const masterPlanHorizon =
+    horizon?.horizonEnd && horizon?.horizonMonths
+      ? `${horizon.horizonMonths} months · through ${horizon.horizonEnd}`
+      : horizon?.horizonEnd || 'Long-horizon plan preserved';
   return (
     <div className="intake-schedule-confirm">
-      <p>Active lanes will be scheduled for the next two weeks.</p>
+      <p>This creates the master plan and then schedules only the first execution cycle.</p>
+      <div className="rounded-md border border-line/50 bg-jericho-bg px-3 py-3 text-xs text-muted space-y-1">
+        <p>
+          <span className="font-medium text-jericho-text">Master-plan horizon:</span> {masterPlanHorizon}
+        </p>
+        <p>
+          <span className="font-medium text-jericho-text">First execution cycle:</span> default 2-week schedule window
+        </p>
+        <p>
+          <span className="font-medium text-jericho-text">Why this slice comes first:</span> Jericho schedules the
+          nearest executable window now, then reassesses before extending the calendar.
+        </p>
+      </div>
       <button onClick={onSubmit}>Confirm and create plan</button>
     </div>
   );

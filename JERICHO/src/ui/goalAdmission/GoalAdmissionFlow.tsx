@@ -10,6 +10,12 @@ import type {
 import type { PrePlanFeasibilityResult, IntakeFeasibilityReport } from '../../domain/goal/prePlanFeasibility';
 import { evaluatePrePlanFeasibility, prePlanFeasibility } from '../../domain/goal/prePlanFeasibility';
 import { classifyGoalPlanningTier, type GoalPlanningTier } from '../../domain/goal/planningTierClassifier';
+import {
+  inferGoalArchitecture,
+  type GoalArchitectureInference,
+  type InferredLane,
+} from '../../domain/goal/goalArchitectureClassifier.ts';
+import { deriveMasterPlanSemanticModel } from '../../domain/masterPlan/masterPlanSemanticModel.js';
 import WorkWindowsEditor from '../../components/zion/WorkWindowsEditor';
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -23,6 +29,11 @@ export interface Screen1Data {
   formulaPathway: 'custom_development' | 'base_modification' | 'white_label' | 'undecided' | null;
   targetCategory: 'food_product' | 'dietary_supplement' | 'functional_food' | null;
   distributionChannel: 'direct_to_consumer' | 'marketplace' | 'retail' | 'wholesale' | null;
+  intakeRoutingView?: 'goal_only' | 'simple_type' | 'master_plan_lanes';
+  laneMapAccepted?: boolean;
+  adjustLanesMode?: boolean;
+  selectedLaneDomains?: string[];
+  primaryLaneOverride?: string | null;
 }
 
 export interface AudienceEntry {
@@ -79,7 +90,12 @@ export interface GoalAdmissionFlowProps {
   savedState?: IntakeProgressState | null;
   onStateChange?: (state: IntakeProgressState) => void;
   appTimeISO?: string;
-  onPlanningTierRouted?: (payload: { planningTier: GoalPlanningTier; goalDescription: string; screen1: Screen1Data }) => void;
+  onPlanningTierRouted?: (payload: {
+    planningTier: GoalPlanningTier;
+    goalDescription: string;
+    screen1: Screen1Data;
+    goalArchitecture: GoalArchitectureInference;
+  }) => void;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -234,9 +250,65 @@ function hasAnyWorkWindow(workWindows: Record<string, Array<{ start: string; end
   );
 }
 
-function validateScreen1(d: Screen1Data): ValidationError {
+function buildLaneOverrides(screen1: Screen1Data, architecture: GoalArchitectureInference | null): InferredLane[] {
+  if (!architecture) {
+    return [];
+  }
+  const allowedDomains = new Set(
+    Array.isArray(screen1.selectedLaneDomains) && screen1.selectedLaneDomains.length > 0
+      ? screen1.selectedLaneDomains
+      : architecture.laneComposition.map((lane) => lane.domain)
+  );
+  return architecture.laneComposition.filter((lane) => allowedDomains.has(lane.domain));
+}
+
+function deriveScreen1RoutingView(
+  screen1: Screen1Data,
+  planningTier: GoalPlanningTier | null,
+  architecture: GoalArchitectureInference | null
+): 'goal_only' | 'simple_type' | 'master_plan_lanes' {
+  const hasGoalText = String(screen1.goalDescription || '').trim().length > 0;
+  if (screen1.intakeRoutingView === 'simple_type') {
+    return 'simple_type';
+  }
+  if (screen1.intakeRoutingView === 'master_plan_lanes') {
+    return 'master_plan_lanes';
+  }
+  if (planningTier === 'master_plan' && architecture) {
+    return 'master_plan_lanes';
+  }
+  if (screen1.goalType) {
+    return 'simple_type';
+  }
+  if (hasGoalText) {
+    return 'simple_type';
+  }
+  return 'goal_only';
+}
+
+function validateScreen1(
+  d: Screen1Data,
+  planningTier: GoalPlanningTier | null,
+  architecture: GoalArchitectureInference | null
+): ValidationError {
   if (!d.goalDescription || d.goalDescription.trim().length < 10) {
     return { field: 'goalDescription', message: 'Please describe your goal (at least 10 characters).' };
+  }
+  if (planningTier === 'master_plan') {
+    if (!architecture || architecture.laneComposition.length === 0) {
+      return { field: 'goalDescription', message: 'Jericho could not infer the lane composition yet. Add a little more structure to the goal description.' };
+    }
+    if (!d.laneMapAccepted && !d.adjustLanesMode) {
+      return { field: 'goalDescription', message: 'Review the detected master-plan lanes before continuing.' };
+    }
+    const selectedCount = buildLaneOverrides(d, architecture).length;
+    if (selectedCount === 0) {
+      return { field: 'goalDescription', message: 'Keep at least one lane in the master-plan lane map.' };
+    }
+    if (architecture.laneClassificationConfidence === 'low' && !(d.primaryLaneOverride || architecture.primaryLane)) {
+      return { field: 'goalDescription', message: 'Choose the main driver lane so Jericho can route the master plan correctly.' };
+    }
+    return null;
   }
   if (!d.goalType) {
     return { field: 'goalType', message: 'Please select a goal type.' };
@@ -364,14 +436,32 @@ function Screen1({
   onChange,
   onContinue,
   error,
+  planningTier,
+  goalArchitecture,
+  routingView,
+  missionPreview,
 }: {
   data: Screen1Data;
   onChange: (d: Screen1Data) => void;
   onContinue: () => void;
   error: ValidationError;
+  planningTier: GoalPlanningTier | null;
+  goalArchitecture: GoalArchitectureInference | null;
+  routingView: 'goal_only' | 'simple_type' | 'master_plan_lanes';
+  missionPreview?: {
+    coreMission?: string;
+    outcomeTarget?: string;
+    successStandard?: string;
+  } | null;
 }) {
   const isPhysical = data.goalType === 'physical_product';
   const isConsumable = isPhysical && data.isConsumable === true;
+  const isMasterPlan = routingView === 'master_plan_lanes' && planningTier === 'master_plan' && Boolean(goalArchitecture);
+  const showPrimitiveGoalType = routingView === 'simple_type' && !isMasterPlan;
+  const selectedLaneDomains =
+    Array.isArray(data.selectedLaneDomains) && data.selectedLaneDomains.length > 0
+      ? data.selectedLaneDomains
+      : goalArchitecture?.laneComposition.map((lane) => lane.domain) || [];
 
   return (
     <div className="space-y-5">
@@ -389,25 +479,184 @@ function Screen1({
           maxLength={1000}
           placeholder="e.g., Launch a caffeinated gum brand and make my first real sale."
           value={data.goalDescription}
-          onChange={(e) => onChange({ ...data, goalDescription: e.target.value })}
+          onChange={(e) =>
+            onChange({
+              ...data,
+              goalDescription: e.target.value,
+              intakeRoutingView: 'goal_only',
+              laneMapAccepted: false,
+              adjustLanesMode: false,
+              selectedLaneDomains: [],
+              primaryLaneOverride: null,
+            })
+          }
         />
         <p className="text-[10px] text-muted/60 text-right">{data.goalDescription.length}/1000</p>
         <FieldError field="goalDescription" error={error} />
       </div>
 
-      {/* Goal classification */}
-      <div>
-        <p className="text-xs uppercase tracking-[0.12em] text-muted mb-2">What kind of goal is this?</p>
-        {(
-          [
-            { id: 'physical_product', label: 'Physical product', sub: 'I am making something physical to sell' },
-            { id: 'digital_product', label: 'Digital product', sub: 'I am building software, content, or a digital asset' },
-            { id: 'service', label: 'Service', sub: 'I am offering my skills or expertise' },
-            { id: 'personal_development', label: 'Personal development', sub: 'I am building a habit, skill, or outcome for myself' },
-            { id: 'other', label: 'Other', sub: '' },
-          ] as const
-        ).map(({ id, label, sub }) => (
-          <label key={id} className="flex items-start gap-2 py-1.5 cursor-pointer">
+      {routingView === 'goal_only' ? (
+        <div className="rounded-lg border border-line/40 bg-jericho-surface/60 p-3 text-xs text-muted">
+          Describe the goal first. Jericho will determine whether this is a simple goal or a multi-lane master plan
+          before asking for any additional structure.
+        </div>
+      ) : null}
+
+      {isMasterPlan ? (
+        <div className="rounded-lg border border-line/60 bg-jericho-surface/70 p-4 space-y-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.12em] text-muted mb-1">Detected master-plan lanes</p>
+            <p className="text-sm font-medium text-jericho-text">
+              Jericho detected this as an {goalArchitecture?.goalArchitecture === 'portfolio_master_plan' ? 'portfolio' : 'integrated'} master plan.
+            </p>
+            <p className="text-xs text-muted mt-1">
+              Review the lane map before continuing.
+            </p>
+          </div>
+          <div className="grid gap-2 text-xs text-muted">
+            {missionPreview?.coreMission ? (
+              <div>
+                Core Mission: <span className="font-medium text-jericho-text">{missionPreview.coreMission}</span>
+              </div>
+            ) : null}
+            {missionPreview?.outcomeTarget ? (
+              <div>
+                Outcome Target: <span className="font-medium text-jericho-text">{missionPreview.outcomeTarget}</span>
+              </div>
+            ) : null}
+            {missionPreview?.successStandard ? (
+              <div>
+                Success Standard: <span className="font-medium text-jericho-text">{missionPreview.successStandard}</span>
+              </div>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(goalArchitecture?.laneComposition || []).map((lane) => {
+              const selected = selectedLaneDomains.includes(lane.domain);
+              return (
+                <label
+                  key={lane.domain}
+                  className={`rounded-full border px-3 py-1 text-xs cursor-pointer ${
+                    selected ? 'border-jericho-accent text-jericho-accent' : 'border-line/60 text-muted'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={selected}
+                    disabled={!data.adjustLanesMode}
+                    onChange={() => {
+                      const current = new Set(selectedLaneDomains);
+                      if (current.has(lane.domain)) {
+                        current.delete(lane.domain);
+                      } else {
+                        current.add(lane.domain);
+                      }
+                      onChange({
+                        ...data,
+                        intakeRoutingView: 'master_plan_lanes',
+                        selectedLaneDomains: Array.from(current),
+                        laneMapAccepted: true,
+                        goalType: 'other',
+                      });
+                    }}
+                    aria-label={lane.title}
+                  />
+                  {lane.title}
+                </label>
+              );
+            })}
+          </div>
+          <div className="text-xs text-muted space-y-1">
+            <div>Architecture: <span className="font-medium text-jericho-text">{goalArchitecture?.goalArchitecture}</span></div>
+            <div>Primary lane: <span className="font-medium text-jericho-text">{goalArchitecture?.primaryLane || 'pending'}</span></div>
+            <div>Supporting lanes: <span className="font-medium text-jericho-text">{goalArchitecture?.supportingLanes.join(', ') || 'none'}</span></div>
+            <div>Execution model: <span className="font-medium text-jericho-text">{goalArchitecture?.executionModel}</span></div>
+            <div>Confidence: <span className="font-medium text-jericho-text">{goalArchitecture?.laneClassificationConfidence}</span></div>
+          </div>
+          {goalArchitecture?.laneClassificationConfidence === 'low' ? (
+            <div>
+              <label className="block text-xs uppercase tracking-[0.12em] text-muted mb-1" htmlFor="primaryLaneOverride">
+                Which lane is the main driver of this plan?
+              </label>
+              <select
+                id="primaryLaneOverride"
+                className="w-full rounded border border-line/60 bg-transparent px-3 py-2 text-sm"
+                value={data.primaryLaneOverride || ''}
+                onChange={(e) =>
+                onChange({
+                  ...data,
+                  intakeRoutingView: 'master_plan_lanes',
+                  primaryLaneOverride: e.target.value || null,
+                  laneMapAccepted: true,
+                  goalType: 'other',
+                  })
+                }
+              >
+                <option value="">Select one</option>
+                {(goalArchitecture?.laneComposition || []).map((lane) => (
+                  <option key={lane.domain} value={lane.domain}>
+                    {lane.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="rounded-full border border-jericho-accent px-3 py-1 text-xs font-semibold text-jericho-accent hover:bg-jericho-accent/10"
+              onClick={() =>
+                onChange({
+                  ...data,
+                  intakeRoutingView: 'master_plan_lanes',
+                  laneMapAccepted: true,
+                  adjustLanesMode: false,
+                  selectedLaneDomains,
+                  goalType: 'other',
+                })
+              }
+            >
+              Accept lane map
+            </button>
+            <button
+              type="button"
+              className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent"
+              onClick={() =>
+                onChange({
+                  ...data,
+                  intakeRoutingView: 'master_plan_lanes',
+                  adjustLanesMode: true,
+                  laneMapAccepted: true,
+                  selectedLaneDomains,
+                  goalType: 'other',
+                })
+              }
+            >
+              Adjust lanes
+            </button>
+          </div>
+        </div>
+      ) : showPrimitiveGoalType ? (
+        <div>
+          <p className="text-xs uppercase tracking-[0.12em] text-muted mb-2">What kind of goal is this?</p>
+          {(
+            [
+              { id: 'physical_product', label: 'Physical product', sub: 'I am making something physical to sell' },
+              { id: 'digital_product', label: 'Digital product', sub: 'I am building software, content, or a digital asset' },
+              { id: 'service', label: 'Service', sub: 'I am offering my skills or expertise' },
+              { id: 'personal_development', label: 'Personal development', sub: 'I am building a habit, skill, or outcome for myself' },
+              { id: 'other', label: 'Other', sub: '' },
+            ] as const
+          ).map(({ id, label, sub }) => (
+            <label
+              key={id}
+              className={`mb-2 flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3 ${
+                data.goalType === id
+                  ? 'border-jericho-accent bg-jericho-accent/5'
+                  : 'border-line/60 bg-jericho-surface/60 hover:border-jericho-accent/40'
+              }`}
+            >
               <input
                 type="radio"
                 name="goalType"
@@ -416,6 +665,7 @@ function Screen1({
                 onChange={() =>
                   onChange({
                     ...data,
+                    intakeRoutingView: 'simple_type',
                     goalType: id,
                     isConsumable: null,
                     formulaPathway: null,
@@ -426,17 +676,18 @@ function Screen1({
                 className="mt-0.5"
                 aria-label={label}
               />
-            <span className="text-sm">
-              <span className="font-medium">{label}</span>
-              {sub && <span className="text-xs text-muted ml-1">— {sub}</span>}
-            </span>
-          </label>
-        ))}
-        <FieldError field="goalType" error={error} />
-      </div>
+              <span className="text-sm leading-relaxed">
+                <span className="font-medium">{label}</span>
+                {sub && <span className="block pt-1 text-xs text-muted">{sub}</span>}
+              </span>
+            </label>
+          ))}
+          <FieldError field="goalType" error={error} />
+        </div>
+      ) : null}
 
       {/* Consumable sub-question */}
-      {isPhysical && (
+      {!isMasterPlan && showPrimitiveGoalType && isPhysical && (
         <div>
           <p className="text-xs uppercase tracking-[0.12em] text-muted mb-2">
             Is your product a food, supplement, or other consumable?
@@ -445,7 +696,14 @@ function Screen1({
             { val: true, label: 'Yes — it is ingested (food, gum, drink, supplement)' },
             { val: false, label: 'No — it is worn, used, or applied externally' },
           ].map(({ val, label }) => (
-            <label key={String(val)} className="flex items-center gap-2 py-1.5 cursor-pointer">
+            <label
+              key={String(val)}
+              className={`mb-2 flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3 ${
+                data.isConsumable === val
+                  ? 'border-jericho-accent bg-jericho-accent/5'
+                  : 'border-line/60 bg-jericho-surface/60 hover:border-jericho-accent/40'
+              }`}
+            >
               <input
                 type="radio"
                 name="isConsumable"
@@ -461,7 +719,7 @@ function Screen1({
                 }
                 aria-label={label}
               />
-              <span className="text-sm">{label}</span>
+              <span className="text-sm leading-relaxed">{label}</span>
             </label>
           ))}
           <FieldError field="isConsumable" error={error} />
@@ -469,7 +727,7 @@ function Screen1({
       )}
 
       {/* Formula pathway */}
-      {isConsumable && (
+      {showPrimitiveGoalType && isConsumable && (
         <div>
           <p className="text-xs uppercase tracking-[0.12em] text-muted mb-2">
             How do you plan to develop the product formula?
@@ -498,7 +756,14 @@ function Screen1({
               },
             ] as const
           ).map(({ id, label, sub }) => (
-            <label key={id} className="flex items-start gap-2 py-2 cursor-pointer">
+            <label
+              key={id}
+              className={`mb-2 flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3 ${
+                data.formulaPathway === id
+                  ? 'border-jericho-accent bg-jericho-accent/5'
+                  : 'border-line/60 bg-jericho-surface/60 hover:border-jericho-accent/40'
+              }`}
+            >
               <input
                 type="radio"
                 name="formulaPathway"
@@ -508,7 +773,7 @@ function Screen1({
                 className="mt-0.5"
                 aria-label={label}
               />
-              <span className="text-sm">
+              <span className="text-sm leading-relaxed">
                 <span className="font-medium">{label}</span>
                 {sub && <span className="block text-xs text-muted">{sub}</span>}
               </span>
@@ -518,7 +783,7 @@ function Screen1({
         </div>
       )}
 
-      {isConsumable && (
+      {showPrimitiveGoalType && isConsumable && (
         <div>
           <p className="text-xs uppercase tracking-[0.12em] text-muted mb-2">
             Which category best describes the product?
@@ -542,7 +807,14 @@ function Screen1({
               },
             ] as const
           ).map(({ id, label, sub }) => (
-            <label key={id} className="flex items-start gap-2 py-2 cursor-pointer">
+            <label
+              key={id}
+              className={`mb-2 flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3 ${
+                data.targetCategory === id
+                  ? 'border-jericho-accent bg-jericho-accent/5'
+                  : 'border-line/60 bg-jericho-surface/60 hover:border-jericho-accent/40'
+              }`}
+            >
               <input
                 type="radio"
                 name="targetCategory"
@@ -552,7 +824,7 @@ function Screen1({
                 className="mt-0.5"
                 aria-label={label}
               />
-              <span className="text-sm">
+              <span className="text-sm leading-relaxed">
                 <span className="font-medium">{label}</span>
                 {sub && <span className="block text-xs text-muted">{sub}</span>}
               </span>
@@ -591,7 +863,14 @@ function Screen1({
               },
             ] as const
           ).map(({ id, label, sub }) => (
-            <label key={id} className="flex items-start gap-2 py-2 cursor-pointer">
+            <label
+              key={id}
+              className={`mb-2 flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3 ${
+                data.distributionChannel === id
+                  ? 'border-jericho-accent bg-jericho-accent/5'
+                  : 'border-line/60 bg-jericho-surface/60 hover:border-jericho-accent/40'
+              }`}
+            >
               <input
                 type="radio"
                 name="distributionChannel"
@@ -601,7 +880,7 @@ function Screen1({
                 className="mt-0.5"
                 aria-label={label}
               />
-              <span className="text-sm">
+              <span className="text-sm leading-relaxed">
                 <span className="font-medium">{label}</span>
                 {sub && <span className="block text-xs text-muted">{sub}</span>}
               </span>
@@ -1632,6 +1911,11 @@ function emptyScreen1(): Screen1Data {
     formulaPathway: null,
     targetCategory: null,
     distributionChannel: null,
+    intakeRoutingView: 'goal_only',
+    laneMapAccepted: false,
+    adjustLanesMode: false,
+    selectedLaneDomains: [],
+    primaryLaneOverride: null,
   };
 }
 
@@ -1770,6 +2054,35 @@ export function GoalAdmissionFlow({
   const s3 = state.screen3 ?? emptyScreen3();
   const s4 = state.screen4 ?? emptyScreen4();
   const goalClassification = s1.goalType ? deriveGoalClassification(s1) : null;
+  const inferredPlanningTier = s1.goalDescription.trim()
+    ? classifyGoalPlanningTier(s1.goalDescription, {
+        goalType: s1.goalType,
+        isConsumable: s1.isConsumable,
+      })
+    : null;
+  const inferredGoalArchitecture =
+    inferredPlanningTier === 'master_plan'
+      ? inferGoalArchitecture(s1.goalDescription, {
+          planningTier: 'master_plan',
+          laneOverrides:
+            Array.isArray(s1.selectedLaneDomains) && s1.selectedLaneDomains.length > 0
+              ? inferGoalArchitecture(s1.goalDescription, { planningTier: 'master_plan' }).laneComposition.filter((lane) =>
+                  s1.selectedLaneDomains?.includes(lane.domain)
+                )
+              : undefined,
+          classificationSource:
+            Array.isArray(s1.selectedLaneDomains) && s1.selectedLaneDomains.length > 0 ? 'user_corrected' : 'inferred',
+        })
+      : null;
+  const screen1RoutingView = deriveScreen1RoutingView(s1, inferredPlanningTier, inferredGoalArchitecture);
+  const masterPlanSemanticPreview =
+    inferredPlanningTier === 'master_plan'
+      ? deriveMasterPlanSemanticModel({
+          goalText: s1.goalDescription,
+          extractedLanes: inferredGoalArchitecture?.laneComposition || [],
+          horizonAnswer: null,
+        })
+      : null;
 
   function advanceTo(screen: 1 | 2 | 3 | 4 | 5) {
     setValidationError(null);
@@ -1777,19 +2090,30 @@ export function GoalAdmissionFlow({
   }
 
   function handleScreen1Continue() {
-    const err = validateScreen1(s1);
+    const planningTier =
+      inferredPlanningTier ||
+      classifyGoalPlanningTier(s1.goalDescription, {
+        goalType: s1.goalType,
+        isConsumable: s1.isConsumable,
+      });
+    const architecture =
+      inferredGoalArchitecture ||
+      (planningTier === 'master_plan' ? inferGoalArchitecture(s1.goalDescription, { planningTier }) : null);
+    const routingView = deriveScreen1RoutingView(s1, planningTier, architecture);
+    if (routingView === 'goal_only') {
+      setValidationError({ field: 'goalDescription', message: 'Please describe your goal (at least 10 characters).' });
+      return;
+    }
+    const err = validateScreen1(s1, planningTier, architecture);
     setValidationError(err);
     if (err) return;
-    const planningTier = classifyGoalPlanningTier(s1.goalDescription, {
-      goalType: s1.goalType,
-      isConsumable: s1.isConsumable,
-    });
     if (planningTier === 'master_plan' && onPlanningTierRouted) {
       setState((prev) => ({ ...prev, screen1: s1 }));
       onPlanningTierRouted({
         planningTier,
         goalDescription: s1.goalDescription.trim(),
         screen1: s1,
+        goalArchitecture: architecture || inferGoalArchitecture(s1.goalDescription, { planningTier }),
       });
       return;
     }
@@ -1845,6 +2169,10 @@ export function GoalAdmissionFlow({
           onChange={(d) => setState((prev) => ({ ...prev, screen1: d }))}
           onContinue={handleScreen1Continue}
           error={validationError}
+          planningTier={inferredPlanningTier}
+          goalArchitecture={inferredGoalArchitecture}
+          routingView={screen1RoutingView}
+          missionPreview={masterPlanSemanticPreview}
         />
       )}
 
