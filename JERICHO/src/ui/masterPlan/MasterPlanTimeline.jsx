@@ -195,7 +195,7 @@ function deriveLanePhaseStatus(lane, phaseIndex, totalPhases) {
 
 function buildStrategicPhases(plan, lanes, anchors) {
   const horizonStart = normalizeDayKey(plan?.horizonStart);
-  const horizonEnd = normalizeDayKey(plan?.horizonEnd);
+  const horizonEnd = normalizeDayKey(plan?.fullHorizonEndDayKey || plan?.horizonEnd);
   if (!horizonStart || !horizonEnd) {
     return [];
   }
@@ -235,7 +235,7 @@ function buildStrategicPhases(plan, lanes, anchors) {
 
 function buildStrategicCoverage(plan, anchors, planCycle, firstCycleWindow) {
   const horizonStart = normalizeDayKey(plan?.horizonStart);
-  const horizonEnd = normalizeDayKey(plan?.horizonEnd);
+  const horizonEnd = normalizeDayKey(plan?.fullHorizonEndDayKey || plan?.horizonEnd);
   const firstAnchor = getFirstFixedAnchor(anchors);
   const firstAnchorDayKey = normalizeDayKey(firstAnchor?.date);
   const executionCycleWindowDays = Number(planCycle?.autoAsanaPlan?.summary?.executionCycleWindowDays || 28);
@@ -275,7 +275,7 @@ function buildStrategicCoverage(plan, anchors, planCycle, firstCycleWindow) {
 }
 
 function buildCommitmentLayers({ plan, lanes, milestones, anchors, planCycle, committedBlocks, strategicPhases, criticQuestionsByLane }) {
-  const horizonEnd = normalizeDayKey(plan?.horizonEnd);
+  const horizonEnd = normalizeDayKey(plan?.fullHorizonEndDayKey || plan?.horizonEnd);
   const firstAnchor = getFirstFixedAnchor(anchors);
   const firstAnchorDayKey = normalizeDayKey(firstAnchor?.date);
   const committedWindowEnd = normalizeDayKey(committedBlocks?.[committedBlocks.length - 1]?.dayKey || committedBlocks?.[committedBlocks.length - 1]?.startISO);
@@ -562,7 +562,7 @@ function MasterPlanTimelineView({ plan, store }) {
   const visibleHorizonEnd = useMemo(() => {
     const visibility = phaseModel?.horizonVisibility;
     if (!visibility) {
-      return normalizeDayKey(plan?.horizonEnd);
+      return normalizeDayKey(plan?.fullHorizonEndDayKey || plan?.horizonEnd);
     }
     if (horizonView === 'one_year') {
       return minDayKey(visibility.oneYearEnd, visibility.fullEnd);

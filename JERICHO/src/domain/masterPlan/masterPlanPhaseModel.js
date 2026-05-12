@@ -305,7 +305,9 @@ function deriveLanePhaseStatus(lane, phaseIndex, sequencingCritiquesByLane) {
 
 function derivePhaseSegments({ plan, anchorClassifications }) {
   const horizonStart = normalizeDayKey(plan?.horizonStart);
-  const horizonEnd = normalizeDayKey(plan?.horizonEnd);
+  // fullHorizonEndDayKey is authoritative: set at creation and extended by the compute
+  // normalization pass when goal text declares a longer duration than stored horizonEnd.
+  const horizonEnd = normalizeDayKey(plan?.fullHorizonEndDayKey || plan?.horizonEnd);
   if (!horizonStart || !horizonEnd) {
     return [];
   }
@@ -408,7 +410,7 @@ function buildStatusReport({
 
 function buildHorizonVisibility(plan) {
   const start = normalizeDayKey(plan?.horizonStart);
-  const end = normalizeDayKey(plan?.horizonEnd);
+  const end = normalizeDayKey(plan?.fullHorizonEndDayKey || plan?.horizonEnd);
   if (!start || !end) {
     return null;
   }

@@ -313,10 +313,10 @@ describe('MasterPlanTimeline rendering', () => {
       await user.click(screen.getByTestId(`timeline-lane-${laneIdByTitle['Podcast rollout']}`));
     });
 
-    expect(screen.getAllByText(/Record pilot episode batch/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Record pilot episode 1/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Set up podcast distribution/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Publish launch episode/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Record and publish promo episodes supporting/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Record promo episode for anchor campaign/i).length).toBeGreaterThan(0);
 
     await act(async () => {
       await user.click(screen.getByLabelText(/close lane detail/i));

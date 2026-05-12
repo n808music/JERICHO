@@ -374,13 +374,14 @@ export function inferHorizonYearsFromText(goalText) {
   // Word-form year patterns
   const wordYears = { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
   for (const [word, years] of Object.entries(wordYears)) {
-    if (new RegExp(`\\b${word}[- ]year\\b`).test(lower)) {
+    if (new RegExp(`\\b${word}[- ]years?\\b`).test(lower)) {
       return { years, months: years * 12 };
     }
   }
 
   // Multi-year / long-horizon signals without explicit count → 3 years minimum
-  if (/\bmulti[- ]year\b|\blong[- ]horizon\b|\blong[- ]term vision\b|\bdecade\b/.test(lower)) {
+  // "master plan" signals strategic multi-year intent even without an explicit year count.
+  if (/\bmulti[- ]year\b|\blong[- ]horizon\b|\blong[- ]term vision\b|\bdecade\b|\bmaster\s+plan\b/.test(lower)) {
     return { years: 3, months: 36 };
   }
 

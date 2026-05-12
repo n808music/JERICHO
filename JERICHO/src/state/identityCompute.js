@@ -19,6 +19,7 @@ import { admitGoal, isAdmitted } from './goalAdmission.ts';
 import { compileAutoAsanaPlan } from './engine/autoAsanaPlan.ts';
 import { buildAssumptionsHash, normalizeDeliverables, normalizeRouteOption } from './strategy.ts';
 import { buildAutoDeliverablesFromGoalContract } from '../domain/autoStrategy.ts';
+import { inferHorizonYearsFromText } from '../domain/masterPlan/masterPlanIntakeEngine.js';
 import { buildGoalIntakeContract, getIntakeGateCode } from '../domain/goal/GoalIntakeContract.ts';
 import { buildGoalPolicySnapshot } from '../domain/goal/GoalPolicy.ts';
 import { evaluatePlanQualityGate } from '../domain/planQuality/evaluatePlanQualityGate.ts';
@@ -2732,10 +2733,12 @@ function setCycleProposedBlocks(state, cycleId, proposals = []) {
       return;
     }
     seen.add(identity);
+    const rawFinalTitle = resolvedTitle || proposal.title;
+    const safeFinalTitle = safeBlockTitle(rawFinalTitle, null);
     normalized.push({
       ...proposal,
-      title: resolvedTitle || proposal.title,
-      label: resolvedTitle || proposal.label,
+      title: safeFinalTitle,
+      label: safeFinalTitle,
       lineageTitle: canonicalActionTitle || proposal.lineageTitle || null,
       id: proposal.id || identity,
       identityKey: proposal.identityKey || identity,
@@ -3638,7 +3641,7 @@ function inferMasterPlanOutcomeAuthority(lanes = []) {
 }
 
 function resolveMasterPlanEndDayKey(plan, milestones = [], anchors = [], fallbackDayKey) {
-  const explicitEnd = String(plan?.horizonEnd || '').trim();
+  const explicitEnd = String(plan?.fullHorizonEndDayKey || plan?.horizonEnd || '').trim();
   if (explicitEnd) {
     return explicitEnd;
   }
@@ -4542,6 +4545,264 @@ function actionizeMasterPlanCandidateTitle(candidate = {}) {
   };
 }
 
+// Safety net: normalize legacy bare-token milestone titles at the block level.
+// Guards against OLD plans created before normalizeMilestoneTitle was applied at intake time.
+function safeBlockTitle(rawTitle, lane) {
+  const t = String(rawTitle || '').trim();
+  if (/^drop$/i.test(t)) return `Release ${lane?.title || 'project'}`;
+  if (/^launch$/i.test(t)) return `Launch ${lane?.title || 'product'}`;
+  return t;
+}
+
+// Numeric-range composite decomposer.
+// Catches any candidate whose title still contains "(episodes N–M)" or "(episodes N-M)"
+// after template fixes, and expands it into one candidate per episode.
+// This is a safety net for legacy milestone data — template fixes are the primary source fix.
+function tryDecomposeNumericRangeCandidate(candidate) {
+  const title = String(candidate?.title || '').trim();
+  // Match: "some title (episodes N–M)" or "... (episodes N-M)"
+  const parenMatch = title.match(/^(.+?)\s*\(\s*episodes?\s+(\d+)\s*[–\-]\s*(\d+)\s*\)\s*$/i);
+  if (parenMatch) {
+    const base = parenMatch[1].replace(/\s*\bbatch\b\s*/i, ' ').replace(/\s+/g, ' ').trim();
+    const start = parseInt(parenMatch[2], 10);
+    const end = parseInt(parenMatch[3], 10);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || end - start > 9) return null;
+    return Array.from({ length: end - start + 1 }, (_, i) => {
+      const n = start + i;
+      return {
+        ...candidate,
+        key: `${candidate.key || 'ep'}:ep${n}`,
+        title: `${base} ${n}`,
+        derivedFrom: `${candidate.derivedFrom || 'composite'}:ep${n}`,
+      };
+    });
+  }
+  // Also catch bare inline range: "Record episodes 1–3" or "Film episodes 1-3"
+  const inlineMatch = title.match(/^(.+?\s)episodes?\s+(\d+)\s*[–\-]\s*(\d+)(.*)$/i);
+  if (inlineMatch) {
+    const pre = inlineMatch[1].trim();
+    const start = parseInt(inlineMatch[2], 10);
+    const end = parseInt(inlineMatch[3], 10);
+    const post = inlineMatch[4].trim();
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || end - start > 9) return null;
+    return Array.from({ length: end - start + 1 }, (_, i) => {
+      const n = start + i;
+      const atomicTitle = [`${pre} episode ${n}`, post].filter(Boolean).join(' ').trim();
+      return {
+        ...candidate,
+        key: `${candidate.key || 'ep'}:ep${n}`,
+        title: atomicTitle,
+        derivedFrom: `${candidate.derivedFrom || 'composite'}:ep${n}`,
+      };
+    });
+  }
+  return null;
+}
+
+// Runs decomposition on every candidate in the list.
+// Returns a new flat array where composites are replaced by their atomic children.
+function decomposeCompositeCandidates(candidates) {
+  const result = [];
+  for (const candidate of Array.isArray(candidates) ? candidates : []) {
+    const decomposed = tryDecomposeNumericRangeCandidate(candidate);
+    if (decomposed && decomposed.length > 0) {
+      result.push(...decomposed);
+    } else {
+      result.push(candidate);
+    }
+  }
+  return result;
+}
+
+// Lane cadence work: domain → rotating array of action-title functions.
+// Each lane generates one block every CADENCE_INTERVAL_DAYS, cycling through its templates.
+const LANE_CADENCE_INTERVAL_DAYS = 14;
+const LANE_RECURRING_WORK = {
+  creative: [
+    (l) => `Complete recording session and advance ${l} toward release`,
+    (l) => `Review and finalize ${l} mastering, mix, and artwork assets`,
+    (l) => `Advance ${l} distribution setup, pre-save campaign, and promotion`,
+    (l) => `Evaluate ${l} release readiness and confirm distribution timeline`,
+    (l) => `Execute ${l} promo material batch — social, press, and visual assets`,
+  ],
+  product: [
+    (l) => `Complete ${l} development sprint — feature, fix, or integration`,
+    (l) => `Test and validate ${l} user flow, onboarding, and checkout path`,
+    (l) => `Review ${l} beta feedback and prioritize next development cycle`,
+    (l) => `Update ${l} app store listing, metadata, and landing page`,
+    (l) => `Advance ${l} launch readiness — stability, monitoring, and go-live gate`,
+  ],
+  media: [
+    (l) => `Record next ${l} episode`,
+    (l) => `Edit and publish latest ${l} episode`,
+    (l) => `Plan next ${l} content: outline topics and production structure`,
+    (l) => `Review ${l} listener metrics and adjust content strategy`,
+  ],
+  income: [
+    (l) => `Advance ${l} revenue pipeline — outreach, follow-ups, and deal progress`,
+    (l) => `Review and update ${l} offer definition and pricing`,
+    (l) => `Evaluate ${l} income progress and identify next high-leverage action`,
+  ],
+  brand: [
+    (l) => `Advance ${l} partnerships and positioning — outreach and relationship progress`,
+    (l) => `Review ${l} market presence and identify next visibility action`,
+  ],
+  company: [
+    (l) => `Run cross-lane operations review — blockers, dependencies, and cadence check`,
+    (l) => `Review company-level progress on ${l} and realign team priorities`,
+  ],
+  capital: [
+    (l) => `Advance ${l} research — thesis, market analysis, and structure options`,
+  ],
+  institution: [
+    (l) => `Review ${l} model definition and research progress`,
+  ],
+  civic: [
+    (l) => `Review ${l} stakeholder mapping and preparation progress`,
+  ],
+  resources: [
+    (l) => `Review ${l} resource pipeline and capacity planning`,
+  ],
+};
+
+function buildLaneCadenceCandidates(lanes, todayDayKey, windowEndDayKey, timeZone) {
+  const candidates = [];
+  const activeLanes = (Array.isArray(lanes) ? lanes : []).filter((lane) => {
+    const activation = String(lane?.activationState || '').trim().toLowerCase();
+    return activation === 'active';
+  });
+  for (const lane of activeLanes) {
+    const domain = String(lane?.domain || '').trim().toLowerCase();
+    const templates = LANE_RECURRING_WORK[domain] || [];
+    if (templates.length === 0) continue;
+    const laneLabel = lane.title || `${domain} work`;
+    const laneId = lane.id;
+    const startDate = addDays(todayDayKey, 7, timeZone);
+    if (!startDate || startDate > windowEndDayKey) continue;
+    let cursor = startDate;
+    let templateIdx = 0;
+    while (cursor && cursor <= windowEndDayKey) {
+      const titleFn = templates[templateIdx % templates.length];
+      candidates.push({
+        key: `cadence:${laneId}:${cursor}`,
+        title: titleFn(laneLabel),
+        minutes: 60,
+        practice: mapMasterPlanLaneToPractice(domain),
+        priority: 4,
+        laneId,
+        targetDate: cursor,
+        milestoneType: 'checkpoint',
+        derivedFrom: `cadence:${laneId}`,
+        missConsequence: `Consistent execution in ${laneLabel} supports launch readiness.`,
+      });
+      cursor = addDays(cursor, LANE_CADENCE_INTERVAL_DAYS, timeZone);
+      templateIdx += 1;
+    }
+  }
+  return candidates;
+}
+
+const MILESTONE_WORK_EXPANSION = {
+  creative: {
+    anchor: [
+      { title: (l) => `Finalize ${l} release checklist and confirm distribution is live`, offsetDays: -5, minutes: 60 },
+      { title: (l) => `Prepare ${l} release-day social campaign and notification push`, offsetDays: -2, minutes: 45 },
+      { title: (l) => `Release-day coordination and monitoring check for ${l}`, offsetDays: 0, minutes: 30 },
+    ],
+    gate: [
+      { title: (l) => `Prepare ${l} distribution files and metadata`, offsetDays: -4, minutes: 45 },
+      { title: (l) => `Finalize and upload ${l} artwork for distribution`, offsetDays: -3, minutes: 30 },
+    ],
+    checkpoint: [
+      { title: (l) => `Review and approve ${l} checkpoint progress`, offsetDays: -1, minutes: 45 },
+    ],
+  },
+  product: {
+    anchor: [
+      { title: (l) => `Run final pre-launch QA checklist for ${l}`, offsetDays: -4, minutes: 75 },
+      { title: (l) => `Prepare ${l} launch-day onboarding flow and user communication`, offsetDays: -2, minutes: 60 },
+      { title: (l) => `Review and confirm ${l} launch readiness gate`, offsetDays: 0, minutes: 45 },
+    ],
+    gate: [
+      { title: (l) => `Prepare ${l} app store screenshots`, offsetDays: -5, minutes: 45 },
+      { title: (l) => `Write ${l} app store metadata and description`, offsetDays: -4, minutes: 45 },
+      { title: (l) => `Complete final pre-submission QA and regression review for ${l}`, offsetDays: -3, minutes: 60 },
+    ],
+    checkpoint: [
+      { title: (l) => `Document and review ${l} milestone progress`, offsetDays: -1, minutes: 45 },
+    ],
+  },
+  media: {
+    anchor: [
+      { title: (l) => `Finalize and upload ${l} launch content package`, offsetDays: -3, minutes: 60 },
+    ],
+    gate: [
+      { title: (l) => `Complete and finalize ${l} episode production`, offsetDays: -5, minutes: 60 },
+      { title: (l) => `Upload ${l} episode to distribution platform`, offsetDays: -4, minutes: 30 },
+    ],
+    checkpoint: [
+      { title: (l) => `Record next ${l} episode`, offsetDays: -2, minutes: 75 },
+    ],
+  },
+  brand: {
+    checkpoint: [
+      { title: (l) => `Review ${l} outreach and positioning progress`, offsetDays: 0, minutes: 45 },
+    ],
+  },
+  income: {
+    gate: [
+      { title: (l) => `Review ${l} revenue pipeline and identify next revenue actions`, offsetDays: -2, minutes: 45 },
+    ],
+    checkpoint: [
+      { title: (l) => `Assess ${l} income progress and update pipeline`, offsetDays: 0, minutes: 45 },
+    ],
+  },
+  company: {
+    checkpoint: [
+      { title: (l) => `Review ${l} operating cadence and cross-lane alignment`, offsetDays: 0, minutes: 45 },
+    ],
+  },
+};
+
+function expandMilestoneToWorkCandidates(milestone, todayDayKey, timeZone) {
+  const domain = String(milestone?.lane?.domain || milestone?.domain || '').trim().toLowerCase();
+  const milestoneType = String(milestone?.milestoneType || 'checkpoint').trim().toLowerCase();
+  const targetDate = String(milestone?.targetDate || '').trim();
+  const laneLabel = milestone?.lane?.title || `${domain} work`;
+  const laneId = milestone?.lane?.id || milestone?.laneId || null;
+  const milestoneId = milestone?.id;
+  if (!targetDate || !milestoneId) {
+    return [];
+  }
+  const domainTemplates = MILESTONE_WORK_EXPANSION[domain] || {};
+  const typeTemplates = domainTemplates[milestoneType] || domainTemplates.checkpoint || [];
+  if (typeTemplates.length === 0) {
+    return [];
+  }
+  const today = String(todayDayKey || '').trim();
+  return typeTemplates
+    .map((template, idx) => {
+      const prepDate = addDays(targetDate, template.offsetDays, timeZone);
+      if (!prepDate || (today && prepDate < today)) {
+        return null;
+      }
+      return {
+        key: `expand:${milestoneId}:${idx}`,
+        title: template.title(laneLabel),
+        minutes: template.minutes,
+        practice: mapMasterPlanLaneToPractice(domain),
+        priority: getMasterPlanMilestonePriority(milestone) - 3 - idx,
+        missConsequence: `Preparation for ${laneLabel} milestone: ${milestone.title}`,
+        derivedFrom: `expanded:${milestoneId}`,
+        laneId,
+        milestoneId,
+        targetDate: prepDate,
+        milestoneType: 'checkpoint',
+      };
+    })
+    .filter(Boolean);
+}
+
 function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
   const { lanes, milestones, goalId, cycleId, profile, masterCalendarId, todayDayKey, timeZone, weeklyCapacityHours } =
     descriptors;
@@ -4562,7 +4823,7 @@ function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
     })
     .map((milestone) => ({
       key: `milestone:${milestone.id}`,
-      title: milestone.title,
+      title: safeBlockTitle(milestone.title, milestone.lane),
       minutes:
         String(milestone?.milestoneType || '').trim().toLowerCase() === 'gate'
           ? 90
@@ -4604,10 +4865,21 @@ function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
     })
     .filter(Boolean);
   const readinessCandidates = buildMasterPlanReadinessCandidates(plan, lanes, weeklyCapacityHours);
-  const combined = [...readinessCandidates, ...milestoneCandidates];
+  const expansionCandidates = milestoneCandidates
+    .filter((c) => c.milestoneType === 'anchor' || c.milestoneType === 'gate')
+    .flatMap((candidate) => {
+      const milestone = milestones.find((m) => m.id === candidate.milestoneId);
+      if (!milestone) {
+        return [];
+      }
+      return expandMilestoneToWorkCandidates(milestone, todayDayKey, timeZone);
+    });
+  const cadenceCandidates = buildLaneCadenceCandidates(lanes, todayDayKey, windowEndDayKey, timeZone);
+  const rawCombined = [...readinessCandidates, ...milestoneCandidates, ...expansionCandidates, ...cadenceCandidates];
   if (milestoneCandidates.length === 0) {
-    combined.push(...fallbackMilestonesByLane);
+    rawCombined.push(...fallbackMilestonesByLane);
   }
+  const combined = decomposeCompositeCandidates(rawCombined);
   const deduped = [];
   const seen = new Set();
   combined
@@ -5290,6 +5562,30 @@ function applyGoalPolicy(state) {
   Object.values(state?.masterPlansById || {}).forEach((plan) => {
     if (!plan?.id) {
       return;
+    }
+    // Correct truncated horizonEnd: if the goal text declares a multi-year duration
+    // that is longer than the stored horizon, extend to match. This handles plans
+    // created before the horizon-inference fix, where users entered a short window
+    // even though their goal text stated "5-year plan" etc.
+    // Only EXTENDS — never shrinks a correctly-set horizon.
+    const horizonInference = inferHorizonYearsFromText(plan.northStarOutcome || plan.title || '');
+    const declaredMonths = horizonInference?.months || 0;
+    if (declaredMonths >= 24 && plan.horizonStart && plan.horizonEnd) {
+      const startMs = new Date(`${plan.horizonStart}T12:00:00Z`).getTime();
+      const storedEndMs = new Date(`${plan.horizonEnd}T12:00:00Z`).getTime();
+      const storedMonths = Math.round((storedEndMs - startMs) / (1000 * 60 * 60 * 24 * 30.44));
+      if (storedMonths < declaredMonths * 0.7) {
+        const extendedEnd = new Date(`${plan.horizonStart}T12:00:00Z`);
+        extendedEnd.setMonth(extendedEnd.getMonth() + declaredMonths);
+        const extendedEndKey = extendedEnd.toISOString().slice(0, 10);
+        plan.horizonEnd = extendedEndKey;
+        if (!plan.fullHorizonEndDayKey || plan.fullHorizonEndDayKey < extendedEndKey) {
+          plan.fullHorizonEndDayKey = extendedEndKey;
+        }
+      }
+    }
+    if (!plan.fullHorizonEndDayKey && plan.horizonEnd) {
+      plan.fullHorizonEndDayKey = plan.horizonEnd;
     }
     const snapshot = buildMasterPlanPolicySnapshot(state, plan);
     if (!snapshot) {

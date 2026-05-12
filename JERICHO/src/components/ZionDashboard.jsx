@@ -1217,7 +1217,7 @@ export default function ZionDashboard({
     ? 'Schedule applied — not active yet. Activate the cycle before logging completion, misses, or skips.'
     : '';
   const masterPlanHorizonLabel = activeMasterPlan
-    ? formatRangeLabel(activeMasterPlan.horizonStart || null, activeMasterPlan.horizonEnd || null)
+    ? formatRangeLabel(activeMasterPlan.horizonStart || null, activeMasterPlan.fullHorizonEndDayKey || activeMasterPlan.horizonEnd || null)
     : '—';
   const executionCycleHorizonLabel = activeCycle
     ? formatRangeLabel(

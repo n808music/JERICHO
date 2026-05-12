@@ -241,6 +241,7 @@ export function buildMasterPlan({
 
     horizonStart: horizonStart || null,
     horizonEnd: horizonEnd || null,
+    fullHorizonEndDayKey: horizonEnd || null,
     northStarOutcome,
     coreMission: coreMission || title,
     outcomeTarget: outcomeTarget || northStarOutcome,

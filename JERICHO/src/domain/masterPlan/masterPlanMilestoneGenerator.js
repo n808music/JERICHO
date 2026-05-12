@@ -100,16 +100,22 @@ const TEMPLATES = {
 
   media: {
     'pre-concept': [
-      { title: 'Record pilot episode batch (episodes 1–3)',         offsetWeeks: 10, flex: F.HIGH, type: T.CHECKPOINT, miss: 'Cannot list on directories without initial batch.' },
+      { title: 'Record pilot episode 1',                            offsetWeeks: 12, flex: F.HIGH, type: T.CHECKPOINT, miss: 'Cannot list on directories without initial batch.' },
+      { title: 'Record pilot episode 2',                            offsetWeeks: 11, flex: F.HIGH, type: T.CHECKPOINT, miss: '' },
+      { title: 'Record pilot episode 3',                            offsetWeeks: 10, flex: F.HIGH, type: T.CHECKPOINT, miss: '' },
       { title: 'Set up podcast distribution and hosting',           offsetWeeks: 9,  flex: F.LOW,  type: T.CHECKPOINT, miss: 'Approval windows vary by platform.' },
       { title: 'Publish launch episode',                            offsetWeeks: 8,  flex: F.LOW,  type: T.CHECKPOINT, miss: 'Must precede anchor date to build audience.' },
-      { title: 'Record and publish promo episodes supporting anchor', offsetWeeks: 4, flex: F.HIGH, type: T.CHECKPOINT, miss: '' },
+      { title: 'Record promo episode for anchor campaign',          offsetWeeks: 5,  flex: F.HIGH, type: T.CHECKPOINT, miss: '' },
+      { title: 'Publish promo episode for anchor campaign',         offsetWeeks: 4,  flex: F.HIGH, type: T.CHECKPOINT, miss: '' },
     ],
     'pre-launch': [
-      { title: 'Record pilot episode batch (episodes 1–3)',         offsetWeeks: 10, flex: F.HIGH, type: T.CHECKPOINT, miss: 'Cannot list on directories without initial batch.' },
+      { title: 'Record pilot episode 1',                            offsetWeeks: 12, flex: F.HIGH, type: T.CHECKPOINT, miss: 'Cannot list on directories without initial batch.' },
+      { title: 'Record pilot episode 2',                            offsetWeeks: 11, flex: F.HIGH, type: T.CHECKPOINT, miss: '' },
+      { title: 'Record pilot episode 3',                            offsetWeeks: 10, flex: F.HIGH, type: T.CHECKPOINT, miss: '' },
       { title: 'Set up podcast distribution and hosting',           offsetWeeks: 9,  flex: F.LOW,  type: T.CHECKPOINT, miss: 'Approval windows vary by platform.' },
       { title: 'Publish launch episode',                            offsetWeeks: 8,  flex: F.LOW,  type: T.CHECKPOINT, miss: 'Must precede anchor date to build audience.' },
-      { title: 'Record and publish promo episodes supporting anchor', offsetWeeks: 4, flex: F.HIGH, type: T.CHECKPOINT, miss: '' },
+      { title: 'Record promo episode for anchor campaign',          offsetWeeks: 5,  flex: F.HIGH, type: T.CHECKPOINT, miss: '' },
+      { title: 'Publish promo episode for anchor campaign',         offsetWeeks: 4,  flex: F.HIGH, type: T.CHECKPOINT, miss: '' },
     ],
     'in-development': [
       { title: 'Complete current episode production batch',         offsetWeeks: 6, flex: F.HIGH, type: T.CHECKPOINT, miss: '' },
@@ -235,10 +241,10 @@ function normalizeMilestoneTitle(rawTitle, lane) {
   if (/^launch$/i.test(rawTitle)) return `Launch ${laneLabel}`;
 
   // Media lane vague titles
-  if (/^album promo episodes?$/i.test(rawTitle)) return `Record and publish promo episodes supporting ${laneLabel}`;
+  if (/^album promo episodes?$/i.test(rawTitle)) return `Record promo episode for ${laneLabel} anchor campaign`;
   if (/^anchor promo push$/i.test(rawTitle)) return `Publish anchor-week promo content for ${laneLabel}`;
   if (/^anchor tie-in series begins$/i.test(rawTitle)) return `Begin anchor tie-in content series for ${laneLabel}`;
-  if (/^promo episodes? complete$/i.test(rawTitle)) return `Complete promo episode batch for ${laneLabel}`;
+  if (/^promo episodes? complete$/i.test(rawTitle)) return `Publish final promo episode for ${laneLabel}`;
   if (/^promo push$/i.test(rawTitle)) return `Execute pre-release promo push for ${laneLabel}`;
 
   // Generic milestone titles — leave unchanged

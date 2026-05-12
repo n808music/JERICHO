@@ -42,6 +42,18 @@ describe('inferHorizonYearsFromText', () => {
     expect(result).toMatchObject({ years: 3, months: 36 });
   });
 
+  it('detects "master plan" as 3-year minimum (anchor is a launch event, not the plan end)', () => {
+    const result = inferHorizonYearsFromText('Build and coordinate Operation Endgame through a multi-lane master plan');
+    expect(result).toMatchObject({ years: 3, months: 36 });
+  });
+
+  it('"master plan" detection does not trigger on single-event goal text', () => {
+    // "master plan" alone should trigger; but short-term, no-year language should stay null
+    expect(inferHorizonYearsFromText('Release my EP by October')).toBeNull();
+    expect(inferHorizonYearsFromText('Launch the app this quarter')).toBeNull();
+    expect(inferHorizonYearsFromText('')).toBeNull();
+  });
+
   it('returns null for short-term goals', () => {
     expect(inferHorizonYearsFromText('Release my EP by October')).toBeNull();
     expect(inferHorizonYearsFromText('Launch the app this quarter')).toBeNull();

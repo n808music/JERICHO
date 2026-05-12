@@ -220,7 +220,9 @@ export function deriveSystemShotClock({
   const elapsedDays = Math.max(0, Math.min(totalHorizonDays, Number.isFinite(elapsedDaysRaw) ? Number(elapsedDaysRaw) : 0));
   const remainingDays = Math.max(
     0,
-    Math.min(totalHorizonDays, Number.isFinite(remainingDaysRaw) ? Number(remainingDaysRaw) : 0)
+    totalHorizonDays > 0
+      ? Math.min(totalHorizonDays, Number.isFinite(remainingDaysRaw) ? Number(remainingDaysRaw) : 0)
+      : Number.isFinite(remainingDaysRaw) ? Number(remainingDaysRaw) : 0
   );
   const elapsedRatio = totalHorizonDays > 0 ? clampRatio(elapsedDays / totalHorizonDays) : 0;
   const remainingRatio = totalHorizonDays > 0 ? clampRatio(remainingDays / totalHorizonDays) : 0;

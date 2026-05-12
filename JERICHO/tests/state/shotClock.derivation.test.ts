@@ -109,6 +109,21 @@ describe('system shot clock derivation', () => {
     expect(result.paceState).toBe('insufficient_evidence');
   });
 
+  it('uses raw days-to-end when startDayKey is absent (null contractStartDate does not zero out remainingDays)', () => {
+    const result = deriveSystemShotClock({
+      goalId: GOAL_ID,
+      cycleId: CYCLE_ID,
+      contract: { startDayKey: null, endDayKey: '2026-06-09' },
+      nowISO: '2026-05-11T12:00:00.000Z',
+      timeZone: 'UTC',
+      blocks: [],
+      executionEvents: [],
+    });
+
+    expect(result.totalHorizonDays).toBe(0);
+    expect(result.remainingDays).toBe(29);
+  });
+
   it('classifies timed deadlines across upcoming, due soon, due now, missed candidate, and completed late states', () => {
     const blocks = [
       makeBlock({

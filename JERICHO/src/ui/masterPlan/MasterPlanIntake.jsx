@@ -99,8 +99,8 @@ function IntakeActiveScreen({ intake, store }) {
   const { phase, step, extractedLanes, anchors, currentLaneIdx, clarifyingQuestionIdx } = intake;
   const nowISO = store.appTime?.nowISO || new Date().toISOString();
 
-  // Use goal text (step_1) to detect multi-year plans; anchor date is a launch milestone, not the horizon.
-  const goalText = intake.answers?.step_1 || '';
+  // Use goal text (step_1 or step_2) to detect multi-year plans; anchor date is a launch milestone, not the horizon.
+  const goalText = intake.answers?.step_1 || intake.answers?.step_2 || '';
   const suggestedHorizon = suggestPlanHorizon(goalText, anchors, nowISO);
   const currentLane = extractedLanes?.[currentLaneIdx] || null;
   const currentLaneAssessment = intake.answers?.[`lane_${currentLaneIdx}_system_assessment`] || null;
@@ -421,7 +421,7 @@ function HorizonConfirmInput({ suggested, nowISO, onSubmit }) {
         <input
           type="number"
           min={1}
-          max={60}
+          max={120}
           value={months}
           onChange={(e) => setMonths(parseInt(e.target.value, 10) || 12)}
         />
