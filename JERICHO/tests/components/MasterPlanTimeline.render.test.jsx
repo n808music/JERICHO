@@ -7,6 +7,7 @@ import userEvent from '@testing-library/user-event';
 import { buildBlankIdentityState, DEFAULT_PROFILE_ID } from '../../src/state/identityStore.js';
 import { applyMasterPlanAction } from '../../src/state/masterPlanStore.js';
 import { computeDerivedState } from '../../src/state/identityCompute.js';
+import { createMinimalCoreMissionContract } from '../../src/domain/core/CoreMissionContractMinimal';
 import MasterPlanTimeline from '../../src/ui/masterPlan/MasterPlanTimeline.jsx';
 
 let mockStore = {};
@@ -23,6 +24,8 @@ function buildFinalizedMasterPlanState({
   withCriticDebt = false,
   withGeneratedSchedule = false,
   horizonEnd = '2026-11-01',
+  strategicMissionYears = null,
+  strategicMissionText = '',
 } = {}) {
   const state = buildBlankIdentityState({
     timeZone: 'UTC',
@@ -188,6 +191,25 @@ function buildFinalizedMasterPlanState({
       scope: 'global',
     },
   ];
+  if (strategicMissionYears || strategicMissionText) {
+    const contract = createMinimalCoreMissionContract({
+      profileId: DEFAULT_PROFILE_ID,
+      durableObjective:
+        strategicMissionText ||
+        'Build and execute Operation Endgame: a 5-year master plan coordinating the Jericho app and surrounding ecosystem.',
+      horizonYears: strategicMissionYears || 5,
+      strategicThesis: 'The full strategic agenda extends beyond the current forecast roadmap.',
+    });
+    next.coreMissionContractsById = {
+      ...(next.coreMissionContractsById || {}),
+      [contract.missionId]: contract,
+    };
+    next.profilesById[DEFAULT_PROFILE_ID].activeCoreMissionContractId = contract.missionId;
+    const activePlanId = next.profilesById[DEFAULT_PROFILE_ID].activeMasterPlanId;
+    if (activePlanId && next.masterPlansById?.[activePlanId]) {
+      next.masterPlansById[activePlanId].coreMissionContractId = contract.missionId;
+    }
+  }
   return next;
 }
 
@@ -240,7 +262,7 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByText(/Not yet scheduled does not mean not recognized\./i)).toBeInTheDocument();
     expect(screen.getByText(/Future work remains forecast or gated until reassessment confirms it\./i)).toBeInTheDocument();
     expect(screen.getByText(/Full Phase Plan/i)).toBeInTheDocument();
-    expect(screen.getByText(/Plan is complete\. Schedule is earned through phase evidence\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Plan is complete; schedule is earned through phase evidence\./i)).toBeInTheDocument();
     expect(screen.getByText(/^Active Phase$/i)).toBeInTheDocument();
     expect(screen.getByText(/^Next Unlock$/i)).toBeInTheDocument();
     expect(screen.getByTestId('phase-card-p1')).toBeInTheDocument();
@@ -248,14 +270,14 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByTestId('phase-card-p3')).toBeInTheDocument();
     expect(screen.getByText(/^Roadmap coverage$/i)).toBeInTheDocument();
     expect(screen.getAllByText(/^Forecast schedule$/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/^Committed schedule$/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/^Committed schedule$/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/^Next reassessment gate$/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /1-year/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /3-year/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /1 year/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /3 years/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Full horizon/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Committed only/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Committed \+ forecast/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Roadmap \/ milestones/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Committed schedule/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Forecast roadmap/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Full strategic agenda/i })).toBeInTheDocument();
     expect(screen.getByText(/Master Calendar Context/i)).toBeInTheDocument();
     expect(screen.getByText(/Integrated strategic clusters/i)).toBeInTheDocument();
     expect(screen.getByText(/Oct17 Launch/i)).toBeInTheDocument();
@@ -357,6 +379,44 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getAllByText(/P2 · Conversion \/ Operating System/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/P3 · Scale \/ Terminal Readiness/i).length).toBeGreaterThan(0);
     expect(screen.queryByTestId('masterplan-coverage-warning')).not.toBeInTheDocument();
+  });
+
+  it('uses the strategic agenda horizon instead of capped roadmap coverage for full strategic agenda', async () => {
+    mockStore = buildFinalizedMasterPlanState({
+      withGeneratedSchedule: true,
+      horizonEnd: '2029-05-04',
+      strategicMissionYears: 5,
+      strategicMissionText: 'Build and execute Operation Endgame: a 5-year master plan through May 2031.',
+    });
+    const user = userEvent.setup();
+
+    await act(async () => {
+      render(<MasterPlanTimeline />);
+    });
+
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /Full strategic agenda/i }));
+    });
+
+    expect(screen.getAllByText(/May 4, 2026 → May 4, 2031/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/^May 4, 2031$/i)).toBeInTheDocument();
+    expect(screen.getByTestId('timeline-plan-through-label')).toHaveTextContent(/through\s+May 2031/i);
+    expect(screen.getAllByText(/P3 · Scale \/ Terminal Readiness/i).length).toBeGreaterThan(0);
+    expect(screen.getByTestId('phase-card-p3')).toHaveTextContent(/2031/);
+
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /Forecast roadmap/i }));
+    });
+
+    expect(screen.getByText(/Forecast roadmap view\./i)).toBeInTheDocument();
+    expect(screen.getByTestId('timeline-plan-through-label')).not.toHaveTextContent(/2031/i);
+
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /Committed schedule/i }));
+    });
+
+    expect(screen.getByText(/Committed schedule view\./i)).toBeInTheDocument();
+    expect(screen.getByTestId('timeline-plan-through-label')).toHaveTextContent(/through\s+May 2026/i);
   });
 
   it('surfaces unresolved structure critic debt as chart inspection risk', async () => {

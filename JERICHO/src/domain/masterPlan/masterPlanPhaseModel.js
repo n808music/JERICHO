@@ -1,3 +1,5 @@
+import { normalizeStrategicDayKey as normalizeResolvedDayKey } from './strategicHorizon.js';
+
 function normalizeDayKey(value) {
   if (!value) {
     return null;
@@ -303,11 +305,12 @@ function deriveLanePhaseStatus(lane, phaseIndex, sequencingCritiquesByLane) {
   return 'active';
 }
 
-function derivePhaseSegments({ plan, anchorClassifications }) {
+function derivePhaseSegments({ plan, anchorClassifications, horizonEndDayKey = null }) {
   const horizonStart = normalizeDayKey(plan?.horizonStart);
   // fullHorizonEndDayKey is authoritative: set at creation and extended by the compute
   // normalization pass when goal text declares a longer duration than stored horizonEnd.
-  const horizonEnd = normalizeDayKey(plan?.fullHorizonEndDayKey || plan?.horizonEnd);
+  const horizonEnd =
+    normalizeResolvedDayKey(horizonEndDayKey) || normalizeDayKey(plan?.fullHorizonEndDayKey || plan?.horizonEnd);
   if (!horizonStart || !horizonEnd) {
     return [];
   }
@@ -408,15 +411,20 @@ function buildStatusReport({
   };
 }
 
-function buildHorizonVisibility(plan) {
+function buildHorizonVisibility(plan, horizonEndDayKey = null) {
   const start = normalizeDayKey(plan?.horizonStart);
-  const end = normalizeDayKey(plan?.fullHorizonEndDayKey || plan?.horizonEnd);
+  const end =
+    normalizeResolvedDayKey(horizonEndDayKey) || normalizeDayKey(plan?.fullHorizonEndDayKey || plan?.horizonEnd);
   if (!start || !end) {
     return null;
   }
   return {
+    currentCycleEnd: addDaysToDayKey(start, 27), // approx 4 weeks
     oneYearEnd: addDaysToDayKey(start, 364),
+    twoYearEnd: addDaysToDayKey(start, 365 * 2 - 1),
     threeYearEnd: addDaysToDayKey(start, 365 * 3 - 1),
+    fourYearEnd: addDaysToDayKey(start, 365 * 4 - 1),
+    fiveYearEnd: addDaysToDayKey(start, 365 * 5 - 1),
     fullEnd: end,
   };
 }
@@ -429,6 +437,8 @@ export function deriveMasterPlanPhaseModel({
   planCycle = null,
   committedBlocks = [],
   criticQuestionsByLane = {},
+  horizonEndDayKey = null,
+  visibleHorizonEndDayKey = null,
 }) {
   if (!plan) {
     return {
@@ -440,6 +450,7 @@ export function deriveMasterPlanPhaseModel({
       critiques: [],
       anchorClassifications: [],
       horizonVisibility: null,
+      resolvedStrategicHorizonEndDayKey: null,
     };
   }
 
@@ -455,8 +466,8 @@ export function deriveMasterPlanPhaseModel({
     }
     return acc;
   }, {});
-  const segments = derivePhaseSegments({ plan, anchorClassifications });
-  const horizonVisibility = buildHorizonVisibility(plan);
+  const segments = derivePhaseSegments({ plan, anchorClassifications, horizonEndDayKey });
+  const horizonVisibility = buildHorizonVisibility(plan, horizonEndDayKey);
   const activeStart = normalizeDayKey(planCycle?.startedAtDayKey || committedBlocks?.[0]?.dayKey || plan?.horizonStart);
   let activePhaseIndex = Math.max(
     0,
@@ -466,6 +477,7 @@ export function deriveMasterPlanPhaseModel({
     activePhaseIndex = -1;
   }
 
+  const normalizedVisibleHorizonEnd = normalizeResolvedDayKey(visibleHorizonEndDayKey);
   const phases = segments.map((segment, index) => {
     const blueprint = blueprints[Math.min(index, blueprints.length - 1)] || blueprints[blueprints.length - 1];
     const phaseMilestones = milestones.filter((milestone) => {
@@ -476,6 +488,18 @@ export function deriveMasterPlanPhaseModel({
       const dayKey = getTemporalDayKey(block);
       return dayKey && dayKey >= segment.start && dayKey <= segment.end;
     });
+    
+    // Track which artifacts are visible vs future
+    const visiblePhaseMilestones = phaseMilestones.filter((milestone) => {
+      const dayKey = getTemporalDayKey(milestone);
+      return !normalizedVisibleHorizonEnd || !dayKey || dayKey <= normalizedVisibleHorizonEnd;
+    });
+    const visiblePhaseBlocks = phaseCommittedBlocks.filter((block) => {
+      const dayKey = getTemporalDayKey(block);
+      return !normalizedVisibleHorizonEnd || !dayKey || dayKey <= normalizedVisibleHorizonEnd;
+    });
+    const futurePhaseExists = normalizedVisibleHorizonEnd && segment.start > normalizedVisibleHorizonEnd;
+    const phaseIsPartiallyVisible = !futurePhaseExists && normalizedVisibleHorizonEnd && segment.end > normalizedVisibleHorizonEnd;
     const anchorsInPhase = anchorClassifications.filter(
       (anchor) => anchor.date && anchor.date >= segment.start && anchor.date <= segment.end
     );
@@ -492,6 +516,16 @@ export function deriveMasterPlanPhaseModel({
         anchorsInPhase.some((anchor) => Array.isArray(anchor?.affectedLaneIds) && anchor.affectedLaneIds.includes(lane.laneId)) ||
         lane.status !== 'deferred'
       );
+    
+    // Detect coverage deficiency: phase is within visible horizon but has no artifacts
+    const hasVisibleArtifacts = visiblePhaseMilestones.length > 0 || visiblePhaseBlocks.length > 0 || laneParticipation.length > 0;
+    const visibilityStatus = futurePhaseExists
+      ? 'future_strategic'
+      : phaseIsPartiallyVisible
+        ? 'partially_visible'
+        : hasVisibleArtifacts
+          ? 'visible_with_artifacts'
+          : 'visible_but_sparse';
     const criticQuestions = laneParticipation.flatMap((lane) => criticQuestionsByLane[lane.laneId] || []);
     const dependencyGates = [
       ...phaseMilestones
@@ -528,6 +562,9 @@ export function deriveMasterPlanPhaseModel({
       startBoundary: segment.start,
       endBoundary: segment.end,
       milestones: phaseMilestones,
+      visibleMilestones: visiblePhaseMilestones,
+      visibleBlocks: visiblePhaseBlocks,
+      visibilityStatus,
       unlockCriteria: blueprint.unlockCriteria,
       executionScheduleStatus:
         index === activePhaseIndex
@@ -559,6 +596,16 @@ export function deriveMasterPlanPhaseModel({
       phaseCritiques,
       activeCycle: planCycle,
     });
+    
+    // Add coverage deficiency code if applicable
+    if (visibilityStatus === 'visible_but_sparse' && !futurePhaseExists) {
+      phase.coverageDeficiency = {
+        code: 'PHASE_VISIBLE_BUT_SPARSE_ARTIFACTS',
+        reason: `${phase.label} is within the selected horizon but has limited visible strategic artifacts. Plan likely continues beyond current evidence.`,
+        affectsVisualization: true,
+      };
+    }
+    
     return phase;
   });
 
@@ -577,6 +624,8 @@ export function deriveMasterPlanPhaseModel({
     critiques,
     anchorClassifications,
     horizonVisibility,
+    resolvedStrategicHorizonEndDayKey:
+      normalizeResolvedDayKey(horizonEndDayKey) || normalizeDayKey(plan?.fullHorizonEndDayKey || plan?.horizonEnd),
   };
 }
 

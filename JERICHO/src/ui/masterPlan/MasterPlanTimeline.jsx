@@ -7,6 +7,7 @@ import {
   selectMasterPlanAnchors,
 } from '../../domain/masterPlan/masterPlanSelectors.js';
 import { deriveMasterPlanPhaseModel } from '../../domain/masterPlan/masterPlanPhaseModel.js';
+import { clampDayKeyToRange, normalizeStrategicDayKey, resolveStrategicAgendaHorizon } from '../../domain/masterPlan/strategicHorizon.js';
 import TimelineGrid from './TimelineGrid.jsx';
 import MasterPlanLaneCard from './MasterPlanLaneCard.jsx';
 
@@ -88,15 +89,7 @@ function formatRangeLabel(startValue, endValue) {
 }
 
 function minDayKey(left, right) {
-  const a = normalizeDayKey(left);
-  const b = normalizeDayKey(right);
-  if (!a) {
-    return b;
-  }
-  if (!b) {
-    return a;
-  }
-  return a < b ? a : b;
+  return clampDayKeyToRange(left, right);
 }
 
 function getTemporalDayKey(item) {
@@ -193,9 +186,10 @@ function deriveLanePhaseStatus(lane, phaseIndex, totalPhases) {
   return 'active';
 }
 
-function buildStrategicPhases(plan, lanes, anchors) {
+function buildStrategicPhases(plan, lanes, anchors, strategicHorizonEndDayKey = null) {
   const horizonStart = normalizeDayKey(plan?.horizonStart);
-  const horizonEnd = normalizeDayKey(plan?.fullHorizonEndDayKey || plan?.horizonEnd);
+  const horizonEnd =
+    normalizeStrategicDayKey(strategicHorizonEndDayKey) || normalizeDayKey(plan?.fullHorizonEndDayKey || plan?.horizonEnd);
   if (!horizonStart || !horizonEnd) {
     return [];
   }
@@ -233,9 +227,10 @@ function buildStrategicPhases(plan, lanes, anchors) {
   });
 }
 
-function buildStrategicCoverage(plan, anchors, planCycle, firstCycleWindow) {
+function buildStrategicCoverage(plan, anchors, planCycle, firstCycleWindow, strategicHorizonEndDayKey = null) {
   const horizonStart = normalizeDayKey(plan?.horizonStart);
-  const horizonEnd = normalizeDayKey(plan?.fullHorizonEndDayKey || plan?.horizonEnd);
+  const horizonEnd =
+    normalizeStrategicDayKey(strategicHorizonEndDayKey) || normalizeDayKey(plan?.fullHorizonEndDayKey || plan?.horizonEnd);
   const firstAnchor = getFirstFixedAnchor(anchors);
   const firstAnchorDayKey = normalizeDayKey(firstAnchor?.date);
   const executionCycleWindowDays = Number(planCycle?.autoAsanaPlan?.summary?.executionCycleWindowDays || 28);
@@ -274,8 +269,9 @@ function buildStrategicCoverage(plan, anchors, planCycle, firstCycleWindow) {
   };
 }
 
-function buildCommitmentLayers({ plan, lanes, milestones, anchors, planCycle, committedBlocks, strategicPhases, criticQuestionsByLane }) {
-  const horizonEnd = normalizeDayKey(plan?.fullHorizonEndDayKey || plan?.horizonEnd);
+function buildCommitmentLayers({ plan, lanes, milestones, anchors, planCycle, committedBlocks, strategicHorizonEndDayKey, criticQuestionsByLane }) {
+  const horizonEnd =
+    normalizeStrategicDayKey(strategicHorizonEndDayKey) || normalizeDayKey(plan?.fullHorizonEndDayKey || plan?.horizonEnd);
   const firstAnchor = getFirstFixedAnchor(anchors);
   const firstAnchorDayKey = normalizeDayKey(firstAnchor?.date);
   const committedWindowEnd = normalizeDayKey(committedBlocks?.[committedBlocks.length - 1]?.dayKey || committedBlocks?.[committedBlocks.length - 1]?.startISO);
@@ -322,10 +318,7 @@ function buildCommitmentLayers({ plan, lanes, milestones, anchors, planCycle, co
     forecastItems.push(item);
   });
 
-  const roadmapCoverageEnd =
-    strategicPhases?.length > 0
-      ? strategicPhases[strategicPhases.length - 1]?.end || horizonEnd
-      : roadmapItems[roadmapItems.length - 1]?.dayKey || firstAnchorDayKey || horizonEnd;
+  const roadmapCoverageEnd = roadmapItems[roadmapItems.length - 1]?.dayKey || committedWindowEnd || firstAnchorDayKey || null;
   const forecastCoverageEnd = forecastItems[forecastItems.length - 1]?.dayKey || null;
   const nextReassessmentGate = planCycle
     ? String(planCycle?.reassessmentStatus || '').trim().toLowerCase() === 'required'
@@ -351,8 +344,10 @@ function buildCommitmentLayers({ plan, lanes, milestones, anchors, planCycle, co
     roadmapItems,
     forecastItems,
     gatedItems,
+    committedWindowEnd,
     roadmapCoverageEnd,
     forecastCoverageEnd,
+    strategicAgendaEndDayKey: horizonEnd,
     nextReassessmentGate,
     forecastShortReason,
   };
@@ -498,11 +493,27 @@ function MasterPlanTimelineView({ plan, store }) {
       lifecycle: planCycle?.scheduleLifecycle || null,
     };
   }, [canonicalPreviewBlocks, planCycle]);
-  const strategicCoverage = useMemo(
-    () => buildStrategicCoverage(plan, anchors, planCycle, firstCycleWindow),
-    [plan, anchors, planCycle, firstCycleWindow]
+  const activeProfile = store?.activeProfileId ? store?.profilesById?.[store.activeProfileId] || null : null;
+  const activeMissionContractId = plan?.coreMissionContractId || activeProfile?.activeCoreMissionContractId || null;
+  const activeMissionContract = activeMissionContractId ? store?.coreMissionContractsById?.[activeMissionContractId] || null : null;
+  const strategicAgenda = useMemo(
+    () => resolveStrategicAgendaHorizon(plan, activeMissionContract),
+    [plan, activeMissionContract]
   );
-  const strategicPhases = useMemo(() => buildStrategicPhases(plan, lanes, anchors), [plan, lanes, anchors]);
+  const strategicCoverage = useMemo(
+    () => {
+      const resolvedHorizon = resolveStrategicAgendaHorizon(plan, activeMissionContract).resolvedStrategicHorizonEndDayKey;
+      return buildStrategicCoverage(plan, anchors, planCycle, firstCycleWindow, resolvedHorizon);
+    },
+    [plan, anchors, planCycle, firstCycleWindow, activeMissionContract]
+  );
+  const strategicPhases = useMemo(
+    () => {
+      const resolvedHorizon = resolveStrategicAgendaHorizon(plan, activeMissionContract).resolvedStrategicHorizonEndDayKey;
+      return buildStrategicPhases(plan, lanes, anchors, resolvedHorizon);
+    },
+    [plan, lanes, anchors, activeMissionContract]
+  );
   const laneDiagnostics = useMemo(() => {
     const laneMap = {};
     lanes.forEach((lane) => {
@@ -541,12 +552,12 @@ function MasterPlanTimelineView({ plan, store }) {
         anchors,
         planCycle,
         committedBlocks: canonicalPreviewBlocks,
-        strategicPhases,
+        strategicHorizonEndDayKey: strategicAgenda.resolvedStrategicHorizonEndDayKey,
         criticQuestionsByLane,
       }),
-    [plan, lanes, allMilestones, anchors, planCycle, canonicalPreviewBlocks, strategicPhases, criticQuestionsByLane]
+    [plan, lanes, allMilestones, anchors, planCycle, canonicalPreviewBlocks, strategicAgenda, criticQuestionsByLane]
   );
-  const phaseModel = useMemo(
+  const strategicPhaseModel = useMemo(
     () =>
       deriveMasterPlanPhaseModel({
         plan,
@@ -556,22 +567,62 @@ function MasterPlanTimelineView({ plan, store }) {
         planCycle,
         committedBlocks: canonicalPreviewBlocks,
         criticQuestionsByLane,
+        horizonEndDayKey: resolveStrategicAgendaHorizon(plan, activeMissionContract).resolvedStrategicHorizonEndDayKey,
       }),
-    [plan, lanes, allMilestones, anchors, planCycle, canonicalPreviewBlocks, criticQuestionsByLane]
+    [plan, lanes, allMilestones, anchors, planCycle, canonicalPreviewBlocks, criticQuestionsByLane, activeMissionContract]
   );
+  const layerHorizonEnd = useMemo(() => {
+    if (commitmentView === 'committed_only') {
+      return commitmentLayers.committedWindowEnd || strategicCoverage.executionCycleWindow?.end || strategicCoverage.horizonStart;
+    }
+    if (commitmentView === 'committed_forecast') {
+      return commitmentLayers.roadmapCoverageEnd || commitmentLayers.committedWindowEnd || strategicCoverage.horizonStart;
+    }
+    // For 'roadmap_milestones' (Full strategic agenda), always use the full strategic horizon
+    // This ensures that even if the stored plan horizon is capped, the full agenda shows the declared strategic scope
+    return resolveStrategicAgendaHorizon(plan, activeMissionContract).resolvedStrategicHorizonEndDayKey || strategicCoverage.horizonEnd;
+  }, [commitmentLayers, commitmentView, strategicCoverage, plan, activeMissionContract]);
   const visibleHorizonEnd = useMemo(() => {
-    const visibility = phaseModel?.horizonVisibility;
+    const visibility = strategicPhaseModel?.horizonVisibility;
     if (!visibility) {
-      return normalizeDayKey(plan?.fullHorizonEndDayKey || plan?.horizonEnd);
+      return layerHorizonEnd || strategicAgenda.resolvedStrategicHorizonEndDayKey || normalizeDayKey(plan?.fullHorizonEndDayKey || plan?.horizonEnd);
+    }
+    let requestedEnd = visibility.fullEnd;
+    if (horizonView === 'current_cycle') {
+      requestedEnd = minDayKey(visibility.currentCycleEnd, visibility.fullEnd);
     }
     if (horizonView === 'one_year') {
-      return minDayKey(visibility.oneYearEnd, visibility.fullEnd);
+      requestedEnd = minDayKey(visibility.oneYearEnd, visibility.fullEnd);
+    }
+    if (horizonView === 'two_year') {
+      requestedEnd = minDayKey(visibility.twoYearEnd, visibility.fullEnd);
     }
     if (horizonView === 'three_year') {
-      return minDayKey(visibility.threeYearEnd, visibility.fullEnd);
+      requestedEnd = minDayKey(visibility.threeYearEnd, visibility.fullEnd);
     }
-    return visibility.fullEnd;
-  }, [phaseModel, horizonView, plan]);
+    if (horizonView === 'four_year') {
+      requestedEnd = minDayKey(visibility.fourYearEnd, visibility.fullEnd);
+    }
+    if (horizonView === 'five_year') {
+      requestedEnd = minDayKey(visibility.fiveYearEnd, visibility.fullEnd);
+    }
+    return minDayKey(requestedEnd, layerHorizonEnd || visibility.fullEnd);
+  }, [strategicPhaseModel, horizonView, plan, layerHorizonEnd, strategicAgenda]);
+  const displayedPhaseModel = useMemo(
+    () =>
+      deriveMasterPlanPhaseModel({
+        plan,
+        lanes,
+        milestones: allMilestones,
+        anchors,
+        planCycle,
+        committedBlocks: canonicalPreviewBlocks,
+        criticQuestionsByLane,
+        horizonEndDayKey: resolveStrategicAgendaHorizon(plan, activeMissionContract).resolvedStrategicHorizonEndDayKey,
+        visibleHorizonEndDayKey: visibleHorizonEnd,
+      }),
+    [plan, lanes, allMilestones, anchors, planCycle, canonicalPreviewBlocks, criticQuestionsByLane, visibleHorizonEnd, activeMissionContract]
+  );
   const visibleMilestones = useMemo(
     () =>
       allMilestones.filter((milestone) => {
@@ -612,7 +663,6 @@ function MasterPlanTimelineView({ plan, store }) {
       }),
     [commitmentLayers.gatedItems, visibleHorizonEnd]
   );
-  const activeProfile = store?.activeProfileId ? store?.profilesById?.[store.activeProfileId] || null : null;
   const activeMasterCalendar =
     activeProfile?.masterCalendarId ? store?.masterCalendarsById?.[activeProfile.masterCalendarId] || null : null;
   const strategicClusters = Array.isArray(activeProfile?.strategicClusterIds)
@@ -635,10 +685,10 @@ function MasterPlanTimelineView({ plan, store }) {
       successStandard: plan.successStandard,
       northStarOutcome: plan.northStarOutcome,
       horizonStart: plan.horizonStart,
-      horizonEnd: plan.horizonEnd,
+      horizonEnd: visibleHorizonEnd,
       status: plan.status,
     }),
-    [plan]
+    [plan, visibleHorizonEnd]
   );
 
   const gridLanes = useMemo(
@@ -729,8 +779,9 @@ function MasterPlanTimelineView({ plan, store }) {
       <StrategicCoveragePanel
         plan={plan}
         strategicCoverage={strategicCoverage}
-        strategicPhases={phaseModel.phases}
-        phaseModel={phaseModel}
+        strategicPhases={displayedPhaseModel.phases}
+        phaseModel={displayedPhaseModel}
+        strategicAgenda={strategicAgenda}
         commitmentLayers={commitmentLayers}
         commitmentView={commitmentView}
         onCommitmentViewChange={setCommitmentView}
@@ -771,6 +822,7 @@ function StrategicCoveragePanel({
   strategicCoverage,
   strategicPhases,
   phaseModel,
+  strategicAgenda,
   commitmentLayers,
   commitmentView,
   onCommitmentViewChange,
@@ -782,6 +834,12 @@ function StrategicCoveragePanel({
   const hasInsufficientCoverage =
     strategicCoverage.coverageStatus === 'anchor_only' ||
     strategicCoverage.coverageStatus === 'insufficient_strategy_beyond_anchor';
+  const selectedLayerLabel =
+    commitmentView === 'committed_only'
+      ? 'Committed schedule'
+      : commitmentView === 'committed_forecast'
+        ? 'Forecast roadmap'
+        : 'Full strategic agenda';
 
   return (
     <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4 space-y-3">
@@ -841,11 +899,15 @@ function StrategicCoveragePanel({
         />
         <CoverageItem
           label="Unscheduled strategy remains recognized through"
-          value={formatDateLabel(strategicCoverage.horizonEnd)}
+          value={formatDateLabel(strategicAgenda.resolvedStrategicHorizonEndDayKey || strategicCoverage.horizonEnd)}
         />
         <CoverageItem
           label="Roadmap coverage"
-          value={formatRangeLabel(strategicCoverage.horizonStart, commitmentLayers.roadmapCoverageEnd || strategicCoverage.horizonEnd)}
+          value={
+            commitmentLayers.roadmapCoverageEnd
+              ? formatRangeLabel(strategicCoverage.horizonStart, commitmentLayers.roadmapCoverageEnd)
+              : 'No forecast roadmap beyond the committed window yet'
+          }
         />
         <CoverageItem
           label="Forecast schedule"
@@ -878,10 +940,14 @@ function StrategicCoveragePanel({
           <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Horizon View</p>
           <div className="flex flex-wrap gap-2">
             {[
-              ['one_year', '1-year'],
-              ['three_year', '3-year'],
-              ['full', 'Full horizon'],
-            ].map(([value, label]) => (
+              ['current_cycle', 'Current cycle', 'Executable strategic surface for the active phase.'],
+              ['one_year', '1 year', 'Tactical launch readiness and near-term anchors.'],
+              ['two_year', '2 years', 'Operating-system buildout and early scale path.'],
+              ['three_year', '3 years', 'Mid-horizon expansion and measurable strategic inflection.'],
+              ['four_year', '4 years', 'Late-scale preparation and terminal-readiness buildup.'],
+              ['five_year', '5 years', 'Full mission arc through terminal readiness.'],
+              ['full', 'Full horizon', 'Complete strategic architecture through 2031.'],
+            ].map(([value, label, tooltip]) => (
               <button
                 key={value}
                 type="button"
@@ -891,12 +957,22 @@ function StrategicCoveragePanel({
                     ? 'border-jericho-accent text-jericho-accent bg-jericho-accent/10'
                     : 'border-line/50 text-muted hover:text-jericho-text'
                 }`}
+                title={tooltip}
               >
                 {label}
               </button>
             ))}
           </div>
         </div>
+        <p>{
+          horizonView === 'current_cycle' ? 'Current cycle view: executable strategic surface for the active phase.' :
+          horizonView === 'one_year' ? '1-year view: tactical launch readiness and near-term anchors.' :
+          horizonView === 'two_year' ? '2-year view: operating-system buildout and early scale path.' :
+          horizonView === 'three_year' ? '3-year view: mid-horizon expansion and measurable strategic inflection.' :
+          horizonView === 'four_year' ? '4-year view: late-scale preparation and terminal-readiness buildup.' :
+          horizonView === 'five_year' ? '5-year view: full mission arc through terminal readiness.' :
+          'Full horizon view: complete strategic architecture through 2031.'
+        }</p>
         <p>Only the first execution cycle is scheduled.</p>
         <p>Future work remains forecast or gated until reassessment confirms it.</p>
         <p>Future phases are strategic, not calendar-committed.</p>
@@ -912,15 +988,25 @@ function StrategicCoveragePanel({
       <div className="rounded-xl border border-line/50 bg-jericho-surface/70 p-3 space-y-3">
         <div className="space-y-1">
           <p className="text-xs uppercase tracking-[0.14em] text-muted">Full Phase Plan</p>
-          <p className="text-[11px] text-muted">Plan is complete. Schedule is earned through phase evidence.</p>
+          <p className="text-[11px] text-muted">
+            {selectedLayerLabel} view. Plan is complete; schedule is earned through phase evidence.
+          </p>
         </div>
         <div className="grid gap-3 lg:grid-cols-3">
-          {(phaseModel?.phases || []).map((phase) => (
+          {(phaseModel?.phases || []).map((phase) => {
+            const isFuturePhase = phase.visibilityStatus === 'future_strategic';
+            const isSparseCoverage = phase.visibilityStatus === 'visible_but_sparse';
+            const visibleMilestoneCount = phase.visibleMilestones?.length || 0;
+            const totalMilestoneCount = phase.milestones?.length || 0;
+            
+            return (
             <div
               key={phase.id}
               data-testid={`phase-card-${String(phase.label || '').toLowerCase()}`}
               className={`rounded-xl border p-3 space-y-2 ${
-                phase.activeState === 'active'
+                isFuturePhase
+                  ? 'border-line/30 bg-jericho-surface/50 opacity-60'
+                  : phase.activeState === 'active'
                   ? 'border-jericho-accent/50 bg-jericho-accent/5'
                   : phase.activeState === 'completed'
                     ? 'border-green-500/40 bg-green-500/5'
@@ -931,17 +1017,18 @@ function StrategicCoveragePanel({
                 <div>
                   <p className="text-sm font-semibold text-jericho-text">
                     {phase.label} · {phase.name}
+                    {isFuturePhase ? ' (Strategic Preview)' : ''}
                   </p>
                   <p className="text-[11px] text-muted">{formatRangeLabel(phase.startBoundary, phase.endBoundary)}</p>
                 </div>
                 <span className="rounded-full border border-line/50 px-2 py-0.5 text-[10px] text-muted">
-                  {titleCaseWords(phase.activeState)}
+                  {isFuturePhase ? 'Future' : titleCaseWords(phase.activeState)}
                 </span>
               </div>
               <p className="text-[11px] text-muted">{phase.phaseObjective}</p>
               <div className="space-y-1 text-[11px] text-muted">
                 <p>
-                  <span className="font-semibold text-jericho-text">Milestones:</span> {phase.milestones.length}
+                  <span className="font-semibold text-jericho-text">Milestones:</span> {visibleMilestoneCount}{totalMilestoneCount > visibleMilestoneCount ? ` / ${totalMilestoneCount} (${totalMilestoneCount - visibleMilestoneCount} future)` : ''}
                 </p>
                 <p>
                   <span className="font-semibold text-jericho-text">Unlock criteria:</span>{' '}
@@ -966,8 +1053,15 @@ function StrategicCoveragePanel({
                   </p>
                 ) : null}
               </div>
+              {isSparseCoverage && phase.coverageDeficiency ? (
+                <div className="rounded-md border border-amber-400/30 bg-amber-400/5 px-2 py-1 text-[10px] text-amber-600">
+                  <p className="font-semibold">{phase.coverageDeficiency.code}</p>
+                  <p>{phase.coverageDeficiency.reason}</p>
+                </div>
+              ) : null}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -1038,9 +1132,9 @@ function StrategicCoveragePanel({
           <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Commitment layers</p>
           <div className="flex flex-wrap gap-2">
             {[
-              ['committed_only', 'Committed only'],
-              ['committed_forecast', 'Committed + forecast'],
-              ['roadmap_milestones', 'Roadmap / milestones'],
+              ['committed_only', 'Committed schedule'],
+              ['committed_forecast', 'Forecast roadmap'],
+              ['roadmap_milestones', 'Full strategic agenda'],
             ].map(([value, label]) => (
               <button
                 key={value}

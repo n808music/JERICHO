@@ -364,25 +364,33 @@ export function parseAnchorFromInput(text, referenceISO) {
 export function inferHorizonYearsFromText(goalText) {
   const lower = String(goalText || '').toLowerCase();
 
-  // Numeric year patterns: "5-year", "5 year", "5yr"
+  // Numeric year patterns: "5-year", "5 year", "5yr"  → explicit count
   const numericMatch = lower.match(/\b(\d+)[- ]?(?:yr|year)s?\b/);
   if (numericMatch) {
     const years = parseInt(numericMatch[1], 10);
-    if (years >= 2 && years <= 20) return { years, months: years * 12 };
+    if (years >= 2 && years <= 20) return { years, months: years * 12, explicit: true };
   }
 
-  // Word-form year patterns
+  // Word-form year patterns → explicit count
   const wordYears = { two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
   for (const [word, years] of Object.entries(wordYears)) {
     if (new RegExp(`\\b${word}[- ]years?\\b`).test(lower)) {
-      return { years, months: years * 12 };
+      return { years, months: years * 12, explicit: true };
     }
   }
 
-  // Multi-year / long-horizon signals without explicit count → 3 years minimum
+  // Explicit month count stored in plan.executionHorizon: "60 months", "36 months" → explicit count
+  const monthsMatch = lower.match(/\b(\d+)\s+months?\b/);
+  if (monthsMatch) {
+    const months = parseInt(monthsMatch[1], 10);
+    if (months >= 24 && months <= 240) return { years: months / 12, months, explicit: true };
+  }
+
+  // Vague multi-year signals → 3-year minimum, not explicit.
+  // Only applied for legacy plans that have no declaredHorizonMonths (see applyGoalPolicy).
   // "master plan" signals strategic multi-year intent even without an explicit year count.
   if (/\bmulti[- ]year\b|\blong[- ]horizon\b|\blong[- ]term vision\b|\bdecade\b|\bmaster\s+plan\b/.test(lower)) {
-    return { years: 3, months: 36 };
+    return { years: 3, months: 36, explicit: false };
   }
 
   return null;

@@ -20,6 +20,7 @@ import { buildBlankIdentityState, DEFAULT_PROFILE_ID } from '../../src/state/ide
 import { computeDerivedState } from '../../src/state/identityCompute.js';
 import { applyMasterPlanAction } from '../../src/state/masterPlanStore.js';
 import { deriveMasterPlanPhaseModel } from '../../src/domain/masterPlan/masterPlanPhaseModel.js';
+import { buildMasterPlan } from '../../src/domain/masterPlan/masterPlanFactory.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -244,31 +245,30 @@ describe('phase horizon — word-form year and "master plan" text normalization'
     expect(plan?.fullHorizonEndDayKey > '2030-01-01').toBe(true);
   });
 
-  it('"master plan" text triggers 3-year minimum — a 6-month stored horizon is extended', () => {
+  it('"master plan" in legacy plan (no declaredHorizonMonths) triggers 3-year minimum', () => {
+    // Simulates a plan created before declaredHorizonMonths was added.
+    // The vague "master plan" signal is only honoured when declaredHorizonMonths is absent
+    // so that a legitimate 6-month plan whose user wrote "master plan" is not extended.
     const nowISO = '2026-05-11T10:00:00.000Z';
     const state = buildBlankIdentityState({ timeZone: 'UTC', nowISO, todayDate: '2026-05-11' });
-    state.masterPlanIntake = {
-      status: 'in-progress', phase: 4, step: 13, profileId: DEFAULT_PROFILE_ID,
-      answers: {
-        step_2: 'Coordinate Operation Endgame through a multi-lane master plan',
-        step_3: { horizonEnd: '2026-11-11', months: 6, label: 'Nov 2026' },
-        step_5: { exists: false, urgency: 'low', notes: '' },
-        step_6: 'Execute.',
-        lane_0_description: 'App in development.',
-        lane_0_system_assessment: { assessedStage: 'in-development', assessedConfidence: 'high', assessmentNotes: '' },
-        lane_0_activation: 'active',
-        lane_0_clarifying_0: 'foundation stage',
-      },
-      extractedLanes: [{ title: 'App launch', domain: 'product', role: 'revenue-engine' }],
+    const plan = buildMasterPlan({
+      profileId: DEFAULT_PROFILE_ID,
+      title: 'Operation Endgame',
+      northStarOutcome: 'Coordinate Operation Endgame through a multi-lane master plan',
+      horizonStart: '2026-05-11',
+      horizonEnd: '2026-11-11', // 6-month stored value
       anchors: [],
-      currentLaneIdx: 0, clarifyingQuestionIdx: 0, draft: null, errorMessage: null,
-    };
-    applyMasterPlanAction(state, { type: 'MASTER_PLAN_INTAKE_COMPLETE', nowISO });
+      nowISO,
+    });
+    delete plan.declaredHorizonMonths; // simulate legacy plan without the field
+    state.masterPlansById = { [plan.id]: plan };
+    state.profilesById[DEFAULT_PROFILE_ID].activeMasterPlanId = plan.id;
+    state.profilesById[DEFAULT_PROFILE_ID].masterPlanIds = [plan.id];
     const derived = computeDerivedState(state, { type: 'NO_OP' });
-    const plan = getPlan(derived);
-    // "master plan" triggers 3-year minimum; stored 6-month horizon should be extended
-    expect(plan?.horizonEnd > '2028-01-01').toBe(true);
-    expect(plan?.fullHorizonEndDayKey > '2028-01-01').toBe(true);
+    const normalized = getPlan(derived);
+    // "master plan" triggers 3-year minimum for legacy plans; 6 months < 36*0.7=25.2 → extends
+    expect(normalized?.horizonEnd > '2028-01-01').toBe(true);
+    expect(normalized?.fullHorizonEndDayKey > '2028-01-01').toBe(true);
   });
 });
 

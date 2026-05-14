@@ -445,6 +445,21 @@ function applyIntakeComplete(draft, action) {
       }
     }
 
+    // Compute and store declared months so the normalization pass in applyGoalPolicy
+    // can extend a truncated horizonEnd without depending on text-inference alone.
+    // Priority: explicit step_3.months → computed from resolvedHorizonEnd vs nowISO → null.
+    let declaredHorizonMonths = null;
+    if (horizonAnswer?.months && Number.isFinite(Number(horizonAnswer.months))) {
+      declaredHorizonMonths = Math.round(Number(horizonAnswer.months));
+    } else if (resolvedHorizonEnd) {
+      const startMs = new Date(`${nowISO.slice(0, 10)}T12:00:00Z`).getTime();
+      const endMs = new Date(`${resolvedHorizonEnd}T12:00:00Z`).getTime();
+      const computed = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24 * 30.44));
+      if (computed > 0) {
+        declaredHorizonMonths = computed;
+      }
+    }
+
     const financialConstraint = deriveFinancialConstraintFromAnswers(questionPlan, answers, extractedLanes);
     const semanticModel = deriveMasterPlanSemanticModel({
       goalText: northStarText || '',
@@ -474,6 +489,7 @@ function applyIntakeComplete(draft, action) {
       officialStartDate: nowISO.slice(0, 10),
       horizonStart: nowISO.slice(0, 10),
       horizonEnd: resolvedHorizonEnd,
+      declaredHorizonMonths,
       anchors,
       financialConstraint,
       nowISO,

@@ -153,7 +153,9 @@ export default function TimelineGrid({
   const milestonesByLane = useMemo(() => {
     const map = {};
     for (const ms of milestones) {
-      if (!map[ms.laneId]) map[ms.laneId] = [];
+      if (!map[ms.laneId]) {
+        map[ms.laneId] = [];
+      }
       map[ms.laneId].push(ms);
     }
     return map;
@@ -162,7 +164,9 @@ export default function TimelineGrid({
     const map = {};
     for (const block of proposedBlocks) {
       const laneId = block?.masterPlanLaneId || '__unassigned__';
-      if (!map[laneId]) map[laneId] = [];
+      if (!map[laneId]) {
+        map[laneId] = [];
+      }
       map[laneId].push(block);
     }
     return map;
@@ -171,7 +175,9 @@ export default function TimelineGrid({
     const map = {};
     for (const block of forecastBlocks) {
       const laneId = block?.laneId || '__unassigned__';
-      if (!map[laneId]) map[laneId] = [];
+      if (!map[laneId]) {
+        map[laneId] = [];
+      }
       map[laneId].push(block);
     }
     return map;
@@ -180,7 +186,9 @@ export default function TimelineGrid({
     const map = {};
     for (const block of gatedBlocks) {
       const laneId = block?.laneId || '__unassigned__';
-      if (!map[laneId]) map[laneId] = [];
+      if (!map[laneId]) {
+        map[laneId] = [];
+      }
       map[laneId].push(block);
     }
     return map;
@@ -239,29 +247,45 @@ export default function TimelineGrid({
               const byMonth = {};
               for (const ms of laneMilestones) {
                 const mk = ms.targetDate?.slice(0, 7);
-                if (!mk) continue;
-                if (!byMonth[mk]) byMonth[mk] = [];
+                if (!mk) {
+                  continue;
+                }
+                if (!byMonth[mk]) {
+                  byMonth[mk] = [];
+                }
                 byMonth[mk].push(ms);
               }
               const blocksByMonth = {};
               for (const block of laneBlocks) {
                 const mk = normalizeMonthKey(block?.dayKey || block?.startISO);
-                if (!mk) continue;
-                if (!blocksByMonth[mk]) blocksByMonth[mk] = [];
+                if (!mk) {
+                  continue;
+                }
+                if (!blocksByMonth[mk]) {
+                  blocksByMonth[mk] = [];
+                }
                 blocksByMonth[mk].push(block);
               }
               const forecastByMonth = {};
               for (const block of forecastByLane[lane.id] || []) {
                 const mk = normalizeMonthKey(block?.dayKey || block?.startISO);
-                if (!mk) continue;
-                if (!forecastByMonth[mk]) forecastByMonth[mk] = [];
+                if (!mk) {
+                  continue;
+                }
+                if (!forecastByMonth[mk]) {
+                  forecastByMonth[mk] = [];
+                }
                 forecastByMonth[mk].push(block);
               }
               const gatedByMonthMap = {};
               for (const block of gatedByLane[lane.id] || []) {
                 const mk = normalizeMonthKey(block?.dayKey || block?.startISO);
-                if (!mk) continue;
-                if (!gatedByMonthMap[mk]) gatedByMonthMap[mk] = [];
+                if (!mk) {
+                  continue;
+                }
+                if (!gatedByMonthMap[mk]) {
+                  gatedByMonthMap[mk] = [];
+                }
                 gatedByMonthMap[mk].push(block);
               }
               const stripe = laneIdx % 2 !== 0;
@@ -446,7 +470,7 @@ function PlanHeader({ plan, anchors }) {
       </div>
       <div className="flex items-center gap-3 text-xs text-muted shrink-0">
         {plan.horizonEnd && (
-          <span>
+          <span data-testid="timeline-plan-through-label">
             through{' '}
             <span className="text-jericho-text font-medium">
               {new Date(plan.horizonEnd).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}

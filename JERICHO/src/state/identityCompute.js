@@ -5563,13 +5563,56 @@ function applyGoalPolicy(state) {
     if (!plan?.id) {
       return;
     }
-    // Correct truncated horizonEnd: if the goal text declares a multi-year duration
-    // that is longer than the stored horizon, extend to match. This handles plans
-    // created before the horizon-inference fix, where users entered a short window
-    // even though their goal text stated "5-year plan" etc.
-    // Only EXTENDS — never shrinks a correctly-set horizon.
-    const horizonInference = inferHorizonYearsFromText(plan.northStarOutcome || plan.title || '');
-    const declaredMonths = horizonInference?.months || 0;
+    // Correct truncated horizonEnd: if the declared duration exceeds the stored horizon,
+    // extend to match.  Only EXTENDS — never shrinks a correctly-set horizon.
+    //
+    // Signal priority (take the maximum of all sources):
+    //   1. plan.declaredHorizonMonths — stored at intake from horizonAnswer.months
+    //      (primary signal; reliable even when northStarOutcome has no year-count phrase)
+    //   2. inferHorizonYearsFromText over user-written text (northStarOutcome + title).
+    //      Explicit signals ("5-year", "five-year", "N months") are always used.
+    //      Vague signals ("master plan", "multi-year") are only used when declaredHorizonMonths
+    //      is absent — i.e., legacy plans created before this field existed.
+    //      masterPlanSummary is excluded — always auto-generated "Master plan coordinating X".
+    //   3. plan.executionHorizon: "60 months" via months pattern, or a date label like
+    //      "may 2031" (year-date inference relative to horizonStart).
+    const hasExplicitDeclaration = Number.isFinite(Number(plan.declaredHorizonMonths)) && Number(plan.declaredHorizonMonths) > 0;
+    const inferText = [plan.northStarOutcome, plan.title, plan.coreMission].filter(Boolean).join(' ');
+    const horizonInference = inferHorizonYearsFromText(inferText);
+    // For plans with declaredHorizonMonths, ignore vague signals that would override a short
+    // but legitimate declaration (e.g., 6-month plan that writes "master plan" in description).
+    const textMonths = horizonInference
+      ? (hasExplicitDeclaration && !horizonInference.explicit ? 0 : horizonInference.months)
+      : 0;
+
+    // executionHorizon-specific inference: "60 months" via months pattern, or a date label
+    // like "may 2031" → compute months from horizonStart.  Applied to executionHorizon only
+    // (not combined text) to avoid false positives from aspirational years in northStarOutcome.
+    let executionHorizonMonths = 0;
+    if (plan.executionHorizon) {
+      const fromExecution = inferHorizonYearsFromText(plan.executionHorizon);
+      if (fromExecution?.months) {
+        executionHorizonMonths = fromExecution.months;
+      } else if (plan.horizonStart) {
+        const yearMatch = plan.executionHorizon.match(/\b(20[2-9]\d)\b/);
+        if (yearMatch) {
+          const targetYear = parseInt(yearMatch[1], 10);
+          const startYear = parseInt(plan.horizonStart.slice(0, 4), 10);
+          const approxMonths = (targetYear - startYear) * 12;
+          if (approxMonths >= 24 && approxMonths <= 240) {
+            executionHorizonMonths = approxMonths;
+          }
+        }
+      }
+    }
+
+    // Take the maximum across all sources — none should shadow the others.
+    // e.g. dropdown=24mo but text="five-year" → 60 wins; dropdown=60mo no text → 60 wins.
+    const declaredMonths = Math.max(
+      hasExplicitDeclaration ? Math.round(Number(plan.declaredHorizonMonths)) : 0,
+      textMonths,
+      executionHorizonMonths
+    );
     if (declaredMonths >= 24 && plan.horizonStart && plan.horizonEnd) {
       const startMs = new Date(`${plan.horizonStart}T12:00:00Z`).getTime();
       const storedEndMs = new Date(`${plan.horizonEnd}T12:00:00Z`).getTime();

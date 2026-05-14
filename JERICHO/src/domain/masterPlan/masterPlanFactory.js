@@ -208,6 +208,7 @@ export function buildMasterPlan({
   classificationSource = 'fallback',
   horizonStart,
   horizonEnd = null,
+  declaredHorizonMonths = null,
   anchors = [],
   financialConstraint = null,
   coreMissionContractId = null,
@@ -242,6 +243,14 @@ export function buildMasterPlan({
     horizonStart: horizonStart || null,
     horizonEnd: horizonEnd || null,
     fullHorizonEndDayKey: horizonEnd || null,
+    // Months between horizonStart and horizonEnd as declared at intake time.
+    // Used by the normalization pass in applyGoalPolicy so existing plans with a
+    // truncated horizonEnd (e.g., form defaulted to 2 years despite 5-year intent)
+    // are extended correctly even when the northStarOutcome text contains no explicit
+    // year-count phrase.
+    declaredHorizonMonths: Number.isFinite(Number(declaredHorizonMonths)) && Number(declaredHorizonMonths) > 0
+      ? Math.round(Number(declaredHorizonMonths))
+      : null,
     northStarOutcome,
     coreMission: coreMission || title,
     outcomeTarget: outcomeTarget || northStarOutcome,
