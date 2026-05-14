@@ -345,6 +345,8 @@ export function buildBlankIdentityState(options = {}) {
     executionCorrectionByGoal: {},
     cycleDynamicsByCycleId: {},
     viewDate: todayDate,
+    selectedHorizonMode: 'current_cycle',
+    calendarDisplayBlocks: [],
     templates: { objectives: {} },
     lastAdaptedDate: null,
     stability: { headline: '', actionLine: '' },
@@ -870,6 +872,14 @@ function identityReducer(state, action) {
     return computeDerivedState(draft, { type: 'NO_OP' });
   }
 
+  if (action.type === 'SET_SELECTED_HORIZON_MODE') {
+    const VALID_MODES = new Set(['current_cycle', '1_year', '2_year', '3_year', '4_year', '5_year', 'full_horizon']);
+    const mode = VALID_MODES.has(action.mode) ? action.mode : 'current_cycle';
+    const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
+    draft.selectedHorizonMode = mode;
+    return computeDerivedState(draft, { type: 'NO_OP' });
+  }
+
   if (action.type === 'JUMP_TO_TODAY') {
     const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
     const timeZone = draft.appTime?.timeZone || 'UTC';
@@ -903,6 +913,11 @@ function identityReducer(state, action) {
 
   // Handle completion in the reducer to keep ledger append single-source
   if (action.type === 'COMPLETE_BLOCK') {
+    // Silently refuse to mutate derived forecast blocks — they are visible but not executable
+    const isForecastBlock = (state?.calendarDisplayBlocks || []).some(
+      b => b.source === 'derived' && String(b.id || '') === String(action.id || '')
+    );
+    if (isForecastBlock) return state;
     const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
     draft.ledger = draft.ledger || [];
     const candidate = findBlockForExecutionOutcome(draft, action.id);
@@ -969,6 +984,11 @@ function identityReducer(state, action) {
   }
 
   if (action.type === 'MISS_BLOCK' || action.type === 'SKIP_BLOCK') {
+    // Silently refuse to mutate derived forecast blocks
+    const isForecastBlock = (state?.calendarDisplayBlocks || []).some(
+      b => b.source === 'derived' && String(b.id || '') === String(action.id || '')
+    );
+    if (isForecastBlock) return state;
     const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
     const targetStatus = action.type === 'MISS_BLOCK' ? 'missed' : 'skipped';
     const targetKind = action.type === 'MISS_BLOCK' ? 'missed' : 'skipped';
@@ -1132,6 +1152,7 @@ export function IdentityProvider({ children, initialState }) {
   const setAim = useCallback((payload) => dispatch({ type: 'SET_AIM', ...payload }), []);
   const setPatternTargets = useCallback((payload) => dispatch({ type: 'SET_PATTERN_TARGETS', ...payload }), []);
   const setViewDate = useCallback((date) => dispatch({ type: 'SET_VIEW_DATE', date }), []);
+  const setSelectedHorizonMode = useCallback((mode) => dispatch({ type: 'SET_SELECTED_HORIZON_MODE', mode }), []);
   const highlightPractice = useCallback((practice) => setActivePractice(practice), []);
   const openLens = useCallback((lens) => setActiveLens(lens), []);
   const rebalanceToday = useCallback((mode) => dispatch({ type: 'REBALANCE_TODAY', mode }), []);
@@ -1347,6 +1368,7 @@ export function IdentityProvider({ children, initialState }) {
     rescheduleBlock,
     applyLenses,
     setViewDate,
+    setSelectedHorizonMode,
     highlightPractice,
     openLens,
     rebalanceToday,

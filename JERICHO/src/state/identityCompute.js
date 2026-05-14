@@ -71,6 +71,8 @@ import { buildCycleDynamicsTransitionPatch, deriveCycleDynamicsProfile } from '.
 import { compileGoalToDeliverables, toLegacyWorkspaceDeliverables } from './engine/goalToDeliverables.ts';
 import { evaluateExecutionCorrection } from './engine/executionCorrectionEvaluator.ts';
 import { deriveSystemShotClock } from './engine/shotClock.ts';
+import { deriveForecastBlocks, resolveHorizonEndForMode } from '../domain/masterPlan/forecastBlockDerivation.js';
+import { deriveMasterPlanPhaseModel } from '../domain/masterPlan/masterPlanPhaseModel.js';
 
 /**
  * Computes core continuity state from active mission contract and linked master plans.
@@ -186,6 +188,12 @@ export function computeDerivedState(state, action) {
   }
   if (typeof next.pendingPlanConfirmation !== 'boolean') {
     next.pendingPlanConfirmation = false;
+  }
+  if (!next.selectedHorizonMode) {
+    next.selectedHorizonMode = 'current_cycle';
+  }
+  if (!Array.isArray(next.calendarDisplayBlocks)) {
+    next.calendarDisplayBlocks = [];
   }
   ensureCycleStructures(next);
   ensureAdmissionStores(next);
@@ -878,6 +886,13 @@ export function computeDerivedState(state, action) {
     case 'DISMISS_SUGGESTED_BLOCK':
       dismissSuggestedBlock(next, action.proposalId);
       break;
+    case 'SET_SELECTED_HORIZON_MODE': {
+      const VALID_HORIZON_MODES = new Set(['current_cycle', '1_year', '2_year', '3_year', '4_year', '5_year', 'full_horizon']);
+      if (VALID_HORIZON_MODES.has(action.mode)) {
+        next.selectedHorizonMode = action.mode;
+      }
+      break;
+    }
     case 'NO_OP':
       break;
     default:
@@ -950,6 +965,7 @@ export function computeDerivedState(state, action) {
   applySystemShotClock(next);
   applyExecutionCorrection(next);
   applyGoalPolicy(next);
+  applyLongHorizonCalendarBlocks(next);
   applyGoalLifecycleState(next);
   next.correctionSignals = computeCorrectionSignals(next, 14);
   mergePriorTodayBlocks(next, previousTodayBlocks);
@@ -5642,6 +5658,65 @@ function applyGoalPolicy(state) {
     };
   });
   state.masterPlanPolicyByPlanId = masterPlanPolicyByPlanId;
+}
+
+function applyLongHorizonCalendarBlocks(state) {
+  // Resolve active master plan
+  const activeProfileId = String(state?.activeProfileId || '').trim();
+  const activeProfile = state?.profilesById?.[activeProfileId] || null;
+  const activeMasterPlanId = String(activeProfile?.activeMasterPlanId || '').trim();
+  const plan = activeMasterPlanId ? state?.masterPlansById?.[activeMasterPlanId] || null : null;
+
+  // Expose strategic horizon end for Plan/Today agreement
+  state.strategicHorizonEndDayKey = plan?.fullHorizonEndDayKey || plan?.horizonEnd || null;
+
+  const mode = String(state?.selectedHorizonMode || 'current_cycle').trim();
+
+  // In current_cycle mode: no forecast blocks — calendar uses execution pipeline only
+  if (!plan || mode === 'current_cycle') {
+    state.calendarDisplayBlocks = [];
+    return;
+  }
+
+  // Build a lightweight phase model (no committed blocks needed for horizon derivation)
+  const lanes = Array.isArray(plan.laneIds)
+    ? plan.laneIds.map(id => state?.masterPlanLanesById?.[id]).filter(Boolean)
+    : [];
+  const milestones = lanes.flatMap(lane =>
+    Array.isArray(lane?.milestoneIds)
+      ? lane.milestoneIds.map(id => state?.masterPlanMilestonesById?.[id]).filter(Boolean)
+      : []
+  );
+  const anchors = Array.isArray(plan.anchors) ? plan.anchors : [];
+
+  const phaseModel = deriveMasterPlanPhaseModel({
+    plan, lanes, milestones, anchors,
+    planCycle: null, committedBlocks: [], criticQuestionsByLane: {},
+  });
+
+  if (!phaseModel?.phases?.length) {
+    state.calendarDisplayBlocks = [];
+    return;
+  }
+
+  // Resolve the horizon end cutoff for this mode
+  const horizonEndForMode = resolveHorizonEndForMode(
+    phaseModel.horizonVisibility,
+    mode,
+    null
+  ) || plan.fullHorizonEndDayKey || plan.horizonEnd;
+
+  // Derive forecast blocks for all non-P1 phases within the selected horizon
+  const allForecastBlocks = [];
+  for (const phase of phaseModel.phases) {
+    if (phase.label === 'P1') continue;
+    // Skip phases that start entirely beyond the selected horizon
+    if (horizonEndForMode && phase.startBoundary > horizonEndForMode) continue;
+    const blocks = deriveForecastBlocks({ plan, phase, horizonEndDayKey: horizonEndForMode });
+    allForecastBlocks.push(...blocks);
+  }
+
+  state.calendarDisplayBlocks = allForecastBlocks;
 }
 
 function applyExecutionCorrection(state) {

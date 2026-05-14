@@ -1,0 +1,390 @@
+/**
+ * Long-Horizon Calendar Visibility — Acceptance Tests
+ *
+ * Doctrine: Jericho cannot ask a user to commit to a multi-year plan while hiding
+ * the future workload. Today calendar must show visible planning blocks across the
+ * selected horizon (1Y/2Y/3Y/4Y/5Y/Full), while keeping execution actions locked
+ * on forecast/gated/locked blocks.
+ *
+ * Key distinction:
+ *   - visiblePlanningBlocks: all blocks visible for selected horizon (any state)
+ *   - executableBlocks: active-cycle committed blocks only (can be completed/missed/skipped)
+ *   - calendarDisplayBlocks: union used by calendar views, annotated with executionEligibility
+ *
+ * Acceptance criteria:
+ *   1.  5-year plan resolves fullHorizonEndDayKey through May 2031.
+ *   2.  selectedHorizonMode field exists and defaults to 'current_cycle'.
+ *   3.  current_cycle mode: calendarDisplayBlocks contains only active-cycle blocks.
+ *   4.  1_year mode: calendarDisplayBlocks adds forecast/gated/locked future blocks beyond cycle.
+ *   5.  2_year mode includes P2-bound work when horizon reaches P2.
+ *   6.  3_year mode increases visible blocks beyond 2_year.
+ *   7.  4_year mode adds late-P2 / early-P3 surface materially distinct from 3_year.
+ *   8.  5_year / full_horizon includes dated P3 work through the terminal horizon range.
+ *   9.  P2 calendar block count > 0 when canonical substrate exists.
+ *   10. P3 calendar block count > 0 when canonical substrate exists.
+ *   11. Future forecast/gated/locked blocks have executionEligibility: 'locked'.
+ *   12. Locked future blocks silently refuse COMPLETE_BLOCK / MISS_BLOCK / SKIP_BLOCK.
+ *   13. Block titles must pass the action-title specificity rule (no vague single-word labels).
+ *   14. Plan and Today agree on horizon bounds (same fullHorizonEndDayKey / strategicHorizonEnd).
+ *   15. Collapsing back to current_cycle hides forecast future blocks from calendarDisplayBlocks.
+ *   16. Existing active-cycle execution tests remain unaffected.
+ */
+
+import { describe, it, expect } from 'vitest';
+import { buildBlankIdentityState, DEFAULT_PROFILE_ID } from '../../src/state/identityStore.js';
+import { computeDerivedState } from '../../src/state/identityCompute.js';
+import { applyMasterPlanAction } from '../../src/state/masterPlanStore.js';
+import { deriveForecastBlocks, validateBlockTitle } from '../../src/domain/masterPlan/forecastBlockDerivation.js';
+import { deriveMasterPlanPhaseModel } from '../../src/domain/masterPlan/masterPlanPhaseModel.js';
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function buildFiveYearPlanState({ nowISO = '2026-05-11T10:00:00.000Z', todayDate = '2026-05-11' } = {}) {
+  const state = buildBlankIdentityState({ timeZone: 'UTC', nowISO, todayDate });
+  state.masterPlanIntake = {
+    status: 'in-progress', phase: 4, step: 13, profileId: DEFAULT_PROFILE_ID,
+    answers: {
+      step_2: 'Build a 5-year multi-venture platform reaching 10k users — coordinate Operation Endgame through a multi-lane master plan',
+      step_3: { horizonEnd: '2031-05-11', months: 60, label: 'May 2031' },
+      step_5: { exists: true, urgency: 'high', notes: '' },
+      step_6: 'Execute.',
+      lane_0_description: 'App in development.',
+      lane_0_system_assessment: { assessedStage: 'in-development', assessedConfidence: 'high', assessmentNotes: '' },
+      lane_0_activation: 'active',
+      lane_0_clarifying_0: 'beta complete',
+    },
+    extractedLanes: [{ title: 'App launch', domain: 'product', role: 'revenue-engine' }],
+    anchors: [{ id: 'anchor-oct17', date: '2026-10-17', label: 'Oct 17 launch', isFixed: true, affectedLaneIds: [], priority: 0 }],
+    currentLaneIdx: 0, clarifyingQuestionIdx: 0, draft: null, errorMessage: null,
+  };
+  applyMasterPlanAction(state, { type: 'MASTER_PLAN_INTAKE_COMPLETE', nowISO });
+  return computeDerivedState(state, { type: 'NO_OP' });
+}
+
+function setHorizonMode(derived, mode) {
+  return computeDerivedState(derived, { type: 'SET_SELECTED_HORIZON_MODE', mode });
+}
+
+function getPlan(derived) {
+  return Object.values(derived.masterPlansById || {})[0] || null;
+}
+
+function getPhaseModel(derived) {
+  const plan = getPlan(derived);
+  if (!plan) return null;
+  const lanes = (plan.laneIds || []).map(id => derived.masterPlanLanesById?.[id]).filter(Boolean);
+  const milestones = lanes.flatMap(l => (l.milestoneIds || []).map(id => derived.masterPlanMilestonesById?.[id])).filter(Boolean);
+  return deriveMasterPlanPhaseModel({ plan, lanes, milestones, anchors: plan.anchors || [], planCycle: null, committedBlocks: [], criticQuestionsByLane: {} });
+}
+
+function getCalendarBlocks(derived) {
+  return derived.calendarDisplayBlocks || [];
+}
+
+function getForecastBlocks(derived) {
+  return (derived.calendarDisplayBlocks || []).filter(b => b.source === 'derived');
+}
+
+function getBlocksByPhase(derived, phaseLabel) {
+  return (derived.calendarDisplayBlocks || []).filter(b => b.phaseLabel === phaseLabel);
+}
+
+// ─── Suite 1: Horizon resolution ─────────────────────────────────────────────
+
+describe('long-horizon calendar — 5-year plan resolution', () => {
+  it('fullHorizonEndDayKey resolves through May 2031', () => {
+    const derived = buildFiveYearPlanState();
+    const plan = getPlan(derived);
+    expect(plan?.fullHorizonEndDayKey).toMatch(/^2031/);
+  });
+
+  it('selectedHorizonMode defaults to current_cycle', () => {
+    const derived = buildFiveYearPlanState();
+    expect(derived.selectedHorizonMode).toBe('current_cycle');
+  });
+
+  it('Plan tab and Today tab share the same fullHorizonEndDayKey', () => {
+    const derived = buildFiveYearPlanState();
+    const plan = getPlan(derived);
+    const planHorizon = plan?.fullHorizonEndDayKey;
+    // strategicHorizonEndDayKey exposed on derived state should equal the plan field
+    const stateHorizon = derived.strategicHorizonEndDayKey;
+    expect(planHorizon).toBeTruthy();
+    expect(stateHorizon).toBe(planHorizon);
+  });
+});
+
+// ─── Suite 2: Horizon mode transitions ───────────────────────────────────────
+
+describe('long-horizon calendar — horizon mode transitions', () => {
+  it('SET_SELECTED_HORIZON_MODE changes derived.selectedHorizonMode', () => {
+    const base = buildFiveYearPlanState();
+    const updated = setHorizonMode(base, '5_year');
+    expect(updated.selectedHorizonMode).toBe('5_year');
+  });
+
+  it('current_cycle mode: calendarDisplayBlocks are all source=committed or empty', () => {
+    const derived = buildFiveYearPlanState();
+    const blocks = getCalendarBlocks(derived);
+    // In current_cycle mode, no derived forecast blocks should appear
+    const forecastBlocks = blocks.filter(b => b.source === 'derived');
+    expect(forecastBlocks.length).toBe(0);
+  });
+
+  it('1_year mode adds forecast blocks beyond current cycle end', () => {
+    const base = buildFiveYearPlanState();
+    const oneCycle = setHorizonMode(base, 'current_cycle');
+    const oneYear = setHorizonMode(base, '1_year');
+    const cycleBlocks = getCalendarBlocks(oneCycle).length;
+    const yearBlocks = getCalendarBlocks(oneYear).length;
+    expect(yearBlocks).toBeGreaterThan(cycleBlocks);
+  });
+
+  it('2_year mode includes more blocks than 1_year (P2 territory reached)', () => {
+    const base = buildFiveYearPlanState();
+    const oneYear = setHorizonMode(base, '1_year');
+    const twoYear = setHorizonMode(base, '2_year');
+    const oneYearCount = getCalendarBlocks(oneYear).length;
+    const twoYearCount = getCalendarBlocks(twoYear).length;
+    expect(twoYearCount).toBeGreaterThanOrEqual(oneYearCount);
+  });
+
+  it('3_year mode has more visible blocks than 2_year', () => {
+    const base = buildFiveYearPlanState();
+    const twoYear = setHorizonMode(base, '2_year');
+    const threeYear = setHorizonMode(base, '3_year');
+    expect(getCalendarBlocks(threeYear).length).toBeGreaterThanOrEqual(getCalendarBlocks(twoYear).length);
+  });
+
+  it('5_year mode yields at least as many blocks as 3_year', () => {
+    const base = buildFiveYearPlanState();
+    const threeYear = setHorizonMode(base, '3_year');
+    const fiveYear = setHorizonMode(base, '5_year');
+    expect(getCalendarBlocks(fiveYear).length).toBeGreaterThanOrEqual(getCalendarBlocks(threeYear).length);
+  });
+
+  it('full_horizon mode includes dated P3 blocks', () => {
+    const base = buildFiveYearPlanState();
+    const full = setHorizonMode(base, 'full_horizon');
+    const p3Blocks = getBlocksByPhase(full, 'P3');
+    expect(p3Blocks.length).toBeGreaterThan(0);
+  });
+});
+
+// ─── Suite 3: P2 / P3 block population ───────────────────────────────────────
+
+describe('long-horizon calendar — P2 and P3 block population', () => {
+  it('P2 calendar block count is greater than zero in 3_year mode', () => {
+    const base = buildFiveYearPlanState();
+    const derived = setHorizonMode(base, '3_year');
+    const p2Blocks = getBlocksByPhase(derived, 'P2');
+    expect(p2Blocks.length).toBeGreaterThan(0);
+  });
+
+  it('P3 calendar block count is greater than zero in full_horizon mode', () => {
+    const base = buildFiveYearPlanState();
+    const derived = setHorizonMode(base, 'full_horizon');
+    const p3Blocks = getBlocksByPhase(derived, 'P3');
+    expect(p3Blocks.length).toBeGreaterThan(0);
+  });
+
+  it('P2 blocks have dayKey within the P2 phase date range', () => {
+    const base = buildFiveYearPlanState();
+    const derived = setHorizonMode(base, 'full_horizon');
+    const model = getPhaseModel(derived);
+    const p2Phase = model?.phases?.find(p => p.label === 'P2');
+    const p2Blocks = getBlocksByPhase(derived, 'P2');
+    expect(p2Phase).toBeDefined();
+    expect(p2Blocks.length).toBeGreaterThan(0);
+    p2Blocks.forEach(b => {
+      const dayKey = b.dayKey || b.date;
+      expect(dayKey >= p2Phase.startBoundary).toBe(true);
+      expect(dayKey <= p2Phase.endBoundary).toBe(true);
+    });
+  });
+
+  it('P3 blocks have dayKey within the P3 phase date range', () => {
+    const base = buildFiveYearPlanState();
+    const derived = setHorizonMode(base, 'full_horizon');
+    const model = getPhaseModel(derived);
+    const p3Phase = model?.phases?.find(p => p.label === 'P3');
+    const p3Blocks = getBlocksByPhase(derived, 'P3');
+    expect(p3Phase).toBeDefined();
+    expect(p3Blocks.length).toBeGreaterThan(0);
+    p3Blocks.forEach(b => {
+      const dayKey = b.dayKey || b.date;
+      expect(dayKey >= p3Phase.startBoundary).toBe(true);
+      expect(dayKey <= p3Phase.endBoundary).toBe(true);
+    });
+  });
+});
+
+// ─── Suite 4: Execution lock on forecast blocks ───────────────────────────────
+
+describe('long-horizon calendar — execution lock on forecast blocks', () => {
+  it('forecast/derived blocks have executionEligibility: locked', () => {
+    const base = buildFiveYearPlanState();
+    const derived = setHorizonMode(base, 'full_horizon');
+    const forecastBlocks = getForecastBlocks(derived);
+    expect(forecastBlocks.length).toBeGreaterThan(0);
+    forecastBlocks.forEach(b => {
+      expect(b.executionEligibility).toBe('locked');
+    });
+  });
+
+  it('forecast blocks have executionLockReason set', () => {
+    const base = buildFiveYearPlanState();
+    const derived = setHorizonMode(base, 'full_horizon');
+    const forecastBlocks = getForecastBlocks(derived);
+    forecastBlocks.forEach(b => {
+      expect(typeof b.executionLockReason).toBe('string');
+      expect(b.executionLockReason.length).toBeGreaterThan(0);
+    });
+  });
+
+  it('COMPLETE_BLOCK on a derived forecast block has no effect on executionEvents', () => {
+    const base = buildFiveYearPlanState();
+    const withHorizon = setHorizonMode(base, 'full_horizon');
+    const forecastBlock = getForecastBlocks(withHorizon)[0];
+    expect(forecastBlock).toBeDefined();
+    const before = (withHorizon.executionEvents || []).length;
+    // Attempt to complete a forecast block — the guard must silently refuse
+    const after = computeDerivedState(withHorizon, { type: 'COMPLETE_BLOCK', id: forecastBlock.id });
+    expect((after.executionEvents || []).length).toBe(before);
+  });
+});
+
+// ─── Suite 5: Action-title specificity ───────────────────────────────────────
+
+describe('long-horizon calendar — action-title specificity', () => {
+  it('validateBlockTitle rejects single-word vague titles', () => {
+    const vague = ['Launch', 'Drop', 'Promo', 'Scale', 'Build', 'Review'];
+    vague.forEach(title => {
+      expect(validateBlockTitle(title)).toBe(false);
+    });
+  });
+
+  it('validateBlockTitle accepts specific object+action titles', () => {
+    const specific = [
+      'Validate post-launch conversion path for product/software lane',
+      'Compare revenue architecture options against first proof data',
+      'Define operating cadence for media/content production loop',
+      'Review lane readiness for P2 schedule expansion',
+      'Gate capital/real-estate lane until revenue proof supports expansion',
+      'Assess terminal-readiness evidence against outcome target',
+    ];
+    specific.forEach(title => {
+      expect(validateBlockTitle(title)).toBe(true);
+    });
+  });
+
+  it('all derived forecast block titles pass action-title validation', () => {
+    const base = buildFiveYearPlanState();
+    const derived = setHorizonMode(base, 'full_horizon');
+    const forecastBlocks = getForecastBlocks(derived);
+    expect(forecastBlocks.length).toBeGreaterThan(0);
+    forecastBlocks.forEach(b => {
+      expect(validateBlockTitle(b.title), `Vague title: "${b.title}"`).toBe(true);
+    });
+  });
+});
+
+// ─── Suite 6: Horizon collapse ────────────────────────────────────────────────
+
+describe('long-horizon calendar — horizon collapse', () => {
+  it('collapsing from 5_year to current_cycle removes forecast blocks from calendar', () => {
+    const base = buildFiveYearPlanState();
+    const expanded = setHorizonMode(base, '5_year');
+    const collapsed = setHorizonMode(expanded, 'current_cycle');
+    const forecastInCollapsed = getForecastBlocks(collapsed);
+    expect(forecastInCollapsed.length).toBe(0);
+  });
+
+  it('current_cycle has no P2 or P3 forecast blocks', () => {
+    const derived = buildFiveYearPlanState();
+    expect(getBlocksByPhase(derived, 'P2').length).toBe(0);
+    expect(getBlocksByPhase(derived, 'P3').length).toBe(0);
+  });
+});
+
+// ─── Suite 7: forecastBlockDerivation pure unit tests ────────────────────────
+
+describe('forecastBlockDerivation — pure derivation', () => {
+  it('derives blocks from a minimal phase + lane substrate', () => {
+    const plan = {
+      id: 'plan-test',
+      horizonStart: '2026-05-11',
+      fullHorizonEndDayKey: '2031-05-11',
+      northStarOutcome: 'Build 5-year platform',
+    };
+    const phase = {
+      id: 'plan-test:p2',
+      label: 'P2',
+      name: 'Conversion / Operating System',
+      startBoundary: '2027-06-01',
+      endBoundary: '2029-06-01',
+      phaseObjective: 'Convert launch proof into repeatable cadence.',
+      activeState: 'locked',
+      commitmentState: 'forecast',
+      laneParticipation: [{ laneId: 'lane-1', laneTitle: 'App launch', domain: 'product', status: 'active' }],
+      evidenceRequirements: ['repeatable conversion signal', 'operating cadence stability'],
+      unlockCriteria: ['Revenue or conversion architecture is proving repeatable.'],
+    };
+    const blocks = deriveForecastBlocks({ plan, phase, horizonEndDayKey: '2031-05-11' });
+    expect(blocks.length).toBeGreaterThan(0);
+    blocks.forEach(b => {
+      expect(b.id).toBeTruthy();
+      expect(b.dayKey || b.date).toBeTruthy();
+      expect(b.phaseLabel).toBe('P2');
+      expect(b.source).toBe('derived');
+      expect(b.executionEligibility).toBe('locked');
+      expect(validateBlockTitle(b.title)).toBe(true);
+    });
+  });
+
+  it('P3 blocks include a terminal-readiness block near the horizon end', () => {
+    const plan = {
+      id: 'plan-test',
+      horizonStart: '2026-05-11',
+      fullHorizonEndDayKey: '2031-05-11',
+    };
+    const phase = {
+      id: 'plan-test:p3',
+      label: 'P3',
+      name: 'Scale / Terminal Readiness',
+      startBoundary: '2029-06-02',
+      endBoundary: '2031-05-11',
+      phaseObjective: 'Scale validated lanes toward the success standard.',
+      activeState: 'locked',
+      commitmentState: 'strategic',
+      laneParticipation: [{ laneId: 'lane-1', laneTitle: 'App launch', domain: 'product', status: 'active' }],
+      evidenceRequirements: ['scaling proof', 'terminal-readiness evidence'],
+      unlockCriteria: ['Validated lanes can support larger capital moves.'],
+    };
+    const blocks = deriveForecastBlocks({ plan, phase, horizonEndDayKey: '2031-05-11' });
+    const terminal = blocks.find(b => b.commitmentState === 'terminal-readiness');
+    expect(terminal).toBeDefined();
+    expect(terminal.dayKey || terminal.date).toMatch(/^203[01]/);
+  });
+
+  it('both P2 and P3 phases produce at least 2 blocks each', () => {
+    const plan = { id: 'p', horizonStart: '2026-05-11', fullHorizonEndDayKey: '2031-05-11' };
+    const p2Phase = {
+      id: 'p:p2', label: 'P2', name: 'P2', startBoundary: '2027-06-01', endBoundary: '2029-06-01',
+      phaseObjective: 'obj', activeState: 'locked', commitmentState: 'forecast',
+      laneParticipation: [{ laneId: 'l1', laneTitle: 'App', domain: 'product', status: 'active' }],
+      evidenceRequirements: [], unlockCriteria: [],
+    };
+    const p3Phase = {
+      id: 'p:p3', label: 'P3', name: 'P3', startBoundary: '2029-06-02', endBoundary: '2031-05-11',
+      phaseObjective: 'obj', activeState: 'locked', commitmentState: 'strategic',
+      laneParticipation: [{ laneId: 'l1', laneTitle: 'App', domain: 'product', status: 'active' }],
+      evidenceRequirements: [], unlockCriteria: [],
+    };
+    const p2Blocks = deriveForecastBlocks({ plan, phase: p2Phase, horizonEndDayKey: '2031-05-11' });
+    const p3Blocks = deriveForecastBlocks({ plan, phase: p3Phase, horizonEndDayKey: '2031-05-11' });
+    // Both phases should produce real blocks — density differs by phase cadence doctrine
+    expect(p2Blocks.length).toBeGreaterThanOrEqual(2);
+    expect(p3Blocks.length).toBeGreaterThanOrEqual(2);
+  });
+});

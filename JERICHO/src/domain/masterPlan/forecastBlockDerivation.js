@@ -1,0 +1,353 @@
+/**
+ * forecastBlockDerivation.js
+ *
+ * Deterministically derives dated future forecast/gated/locked planning blocks
+ * from the canonical master-plan substrate (phase model + lanes + plan metadata).
+ *
+ * These blocks are NOT execution events. They are visible planning artifacts that
+ * represent the execution burden the user must inspect before committing to a
+ * multi-year plan. They carry executionEligibility: 'locked' and cannot be
+ * completed/missed/skipped until committed into an active cycle.
+ *
+ * Density doctrine:
+ *   P2 (Conversion / Operating System): biweekly → monthly cadence blocks
+ *   P3 (Scale / Terminal Readiness): monthly → quarterly strategic review blocks
+ *
+ * Action-title rule: every block title must be a specific object + action phrase
+ * (e.g. "Validate post-launch conversion path for product lane", not "Review").
+ */
+
+// ─── Title templates ──────────────────────────────────────────────────────────
+
+const LANE_FAMILY_LABELS = {
+  product_software: 'product/software lane',
+  creative_media: 'media/creative lane',
+  media_channel: 'media channel lane',
+  company_operations: 'company operations lane',
+  income_stream: 'income stream lane',
+  capital_real_estate: 'capital/real-estate lane',
+  institution_education: 'institution/education lane',
+  civic_development: 'civic development lane',
+  general: 'primary lane',
+};
+
+function inferLaneFamily(lane) {
+  const domain = String(lane?.domain || '').trim().toLowerCase();
+  const title = String(lane?.title || '').trim().toLowerCase();
+  if (domain === 'product' || title.includes('app') || title.includes('software')) return 'product_software';
+  if (domain === 'creative' || title.includes('album') || title.includes('release') || title.includes('music')) return 'creative_media';
+  if (domain === 'media' || title.includes('podcast') || title.includes('content')) return 'media_channel';
+  if (domain === 'brand' || title.includes('company') || title.includes('agency') || title.includes('studio')) return 'company_operations';
+  if (domain === 'income' || title.includes('income') || title.includes('revenue')) return 'income_stream';
+  if (domain === 'capital' || domain === 'real_estate' || title.includes('real estate') || title.includes('property')) return 'capital_real_estate';
+  if (domain === 'institution' || domain === 'education' || title.includes('school') || title.includes('franchise')) return 'institution_education';
+  if (domain === 'civic' || domain === 'district' || title.includes('district') || title.includes('community')) return 'civic_development';
+  return domain || 'general';
+}
+
+function laneLabel(lane) {
+  if (!lane) return 'primary lane';
+  const family = inferLaneFamily(lane);
+  return LANE_FAMILY_LABELS[family] || 'primary lane';
+}
+
+function p2TitleTemplates(lane) {
+  const ll = laneLabel(lane);
+  return [
+    `Validate post-launch conversion path for ${ll}`,
+    `Review operating cadence quality and schedule consistency for ${ll}`,
+    `Compare revenue architecture options against first proof data for ${ll}`,
+    `Audit conversion repeatability and operating rhythm for ${ll}`,
+    `Assess P2 expansion readiness for ${ll} before widening commitment`,
+    `Define stable operating cadence and review schedule for ${ll}`,
+    `Gate ${ll} expansion until conversion evidence supports increased commitment`,
+    `Review lane-priority evidence and dependency clearance for ${ll}`,
+  ];
+}
+
+function p3TitleTemplates(lane) {
+  const ll = laneLabel(lane);
+  return [
+    `Review P3 scale readiness against validated evidence from P2 for ${ll}`,
+    `Audit validated pathway and operating system health for ${ll}`,
+    `Assess capital/partnership gate clearance requirements for ${ll}`,
+    `Compare trajectory against outcome target for ${ll}`,
+    `Review institutionalization and delegation readiness for ${ll}`,
+  ];
+}
+
+const TERMINAL_READINESS_TITLE =
+  'Assess terminal-readiness evidence against the success standard and outcome target';
+
+// ─── Date utilities ───────────────────────────────────────────────────────────
+
+function addDaysToKey(dayKey, days) {
+  const d = new Date(`${dayKey}T12:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function addMonthsToKey(dayKey, months) {
+  const d = new Date(`${dayKey}T12:00:00.000Z`);
+  d.setUTCMonth(d.getUTCMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
+function daysBetween(startKey, endKey) {
+  const ms = new Date(`${endKey}T12:00:00.000Z`) - new Date(`${startKey}T12:00:00.000Z`);
+  return Math.max(0, Math.round(ms / 86400000));
+}
+
+function clampKey(key, maxKey) {
+  if (!key || !maxKey) return key || maxKey;
+  return key < maxKey ? key : maxKey;
+}
+
+function nextFirstOfMonth(dayKey) {
+  const d = new Date(`${dayKey}T12:00:00.000Z`);
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+// ─── ID generator ─────────────────────────────────────────────────────────────
+
+function forecastBlockId(planId, phaseLabel, dayKey, index) {
+  return `forecast-${planId}-${phaseLabel.toLowerCase()}-${dayKey}-${index}`;
+}
+
+// ─── Block factory ────────────────────────────────────────────────────────────
+
+function buildForecastBlock({ planId, phase, lane, dayKey, title, commitmentState, index }) {
+  return {
+    id: forecastBlockId(planId, phase.label, dayKey, index),
+    title,
+    dayKey,
+    date: dayKey,
+    phaseId: phase.id,
+    phaseLabel: phase.label,
+    laneId: lane?.laneId || null,
+    laneLabel: lane ? laneLabel({ domain: lane.domain, title: lane.laneTitle }) : null,
+    commitmentState: commitmentState || phase.commitmentState || 'forecast',
+    executionEligibility: 'locked',
+    executionLockReason:
+      'Forecast block visible for long-horizon inspection. Not executable until committed into an active cycle.',
+    source: 'derived',
+    derivationReason: `Derived from ${phase.label} phase substrate: ${phase.phaseObjective || 'phase objective'}`,
+    expectedOutput: null,
+  };
+}
+
+// ─── P2 derivation ────────────────────────────────────────────────────────────
+
+function deriveP2Blocks({ planId, phase, lane, horizonEndDayKey }) {
+  const { startBoundary, endBoundary } = phase;
+  if (!startBoundary || !endBoundary) return [];
+
+  const phaseEnd = clampKey(endBoundary, horizonEndDayKey);
+  const totalDays = daysBetween(startBoundary, phaseEnd);
+  if (totalDays < 14) return [];
+
+  const templates = p2TitleTemplates(lane ? { domain: lane.domain, title: lane.laneTitle } : null);
+  const blocks = [];
+
+  // Entry block: first month start after phase start
+  const entryKey = clampKey(nextFirstOfMonth(startBoundary), phaseEnd);
+  if (entryKey <= phaseEnd) {
+    blocks.push(buildForecastBlock({
+      planId, phase, lane, dayKey: entryKey,
+      title: templates[0 % templates.length],
+      commitmentState: phase.commitmentState,
+      index: blocks.length,
+    }));
+  }
+
+  // Biweekly/monthly blocks through the phase — cap density based on duration
+  const intervalDays = totalDays > 365 ? 28 : 14; // monthly for long P2, biweekly for short
+  const maxBlocks = Math.min(Math.floor(totalDays / intervalDays), 8);
+
+  let cursor = entryKey ? addDaysToKey(entryKey, intervalDays) : addDaysToKey(startBoundary, intervalDays);
+  let templateIdx = 1;
+  while (cursor <= phaseEnd && blocks.length <= maxBlocks) {
+    const title = templates[templateIdx % templates.length];
+    blocks.push(buildForecastBlock({
+      planId, phase, lane, dayKey: cursor,
+      title,
+      commitmentState: phase.commitmentState,
+      index: blocks.length,
+    }));
+    cursor = addDaysToKey(cursor, intervalDays);
+    templateIdx++;
+  }
+
+  // Late-P2 gate review block: 2 months before phase end
+  const gateKey = clampKey(addMonthsToKey(phaseEnd, -2), phaseEnd);
+  if (gateKey > (blocks[blocks.length - 1]?.dayKey || startBoundary) && gateKey <= phaseEnd) {
+    blocks.push(buildForecastBlock({
+      planId, phase, lane, dayKey: gateKey,
+      title: `Assess P2 expansion readiness for ${lane ? laneLabel({ domain: lane.domain, title: lane.laneTitle }) : 'primary lane'} before widening commitment`,
+      commitmentState: 'review-required',
+      index: blocks.length,
+    }));
+  }
+
+  return blocks;
+}
+
+// ─── P3 derivation ────────────────────────────────────────────────────────────
+
+function deriveP3Blocks({ planId, phase, lane, horizonEndDayKey }) {
+  const { startBoundary, endBoundary } = phase;
+  if (!startBoundary || !endBoundary) return [];
+
+  const phaseEnd = clampKey(endBoundary, horizonEndDayKey);
+  const totalDays = daysBetween(startBoundary, phaseEnd);
+  if (totalDays < 30) return [];
+
+  const templates = p3TitleTemplates(lane ? { domain: lane.domain, title: lane.laneTitle } : null);
+  const blocks = [];
+
+  // Entry block: first quarter start
+  const entryKey = clampKey(nextFirstOfMonth(startBoundary), phaseEnd);
+  if (entryKey <= phaseEnd) {
+    blocks.push(buildForecastBlock({
+      planId, phase, lane, dayKey: entryKey,
+      title: templates[0 % templates.length],
+      commitmentState: phase.commitmentState,
+      index: blocks.length,
+    }));
+  }
+
+  // Quarterly blocks (every 3 months)
+  const maxBlocks = Math.min(Math.floor(totalDays / 90), 6);
+  let cursor = entryKey ? addDaysToKey(entryKey, 90) : addDaysToKey(startBoundary, 90);
+  let templateIdx = 1;
+  while (cursor <= phaseEnd && blocks.length <= maxBlocks) {
+    blocks.push(buildForecastBlock({
+      planId, phase, lane, dayKey: cursor,
+      title: templates[templateIdx % templates.length],
+      commitmentState: phase.commitmentState,
+      index: blocks.length,
+    }));
+    cursor = addDaysToKey(cursor, 90);
+    templateIdx++;
+  }
+
+  // Terminal-readiness block: 1 month before horizon end (mandatory P3 artifact)
+  const terminalKey = clampKey(addMonthsToKey(phaseEnd, -1), phaseEnd);
+  const lastBlockKey = blocks[blocks.length - 1]?.dayKey || startBoundary;
+  if (terminalKey > lastBlockKey) {
+    blocks.push(buildForecastBlock({
+      planId, phase, lane: null, dayKey: terminalKey,
+      title: TERMINAL_READINESS_TITLE,
+      commitmentState: 'terminal-readiness',
+      index: blocks.length,
+    }));
+  }
+
+  return blocks;
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
+
+/**
+ * Derive dated future forecast/gated/locked blocks for a single phase.
+ * Returns an empty array for P1 (active phase — handled by the execution pipeline).
+ *
+ * @param {object} opts
+ * @param {object} opts.plan   - master plan object (id, horizonStart, fullHorizonEndDayKey)
+ * @param {object} opts.phase  - phase from deriveMasterPlanPhaseModel
+ * @param {string} opts.horizonEndDayKey - selected horizon end (may be less than fullHorizonEndDayKey)
+ * @returns {Array}
+ */
+export function deriveForecastBlocks({ plan, phase, horizonEndDayKey }) {
+  if (!plan || !phase) return [];
+  const label = String(phase.label || '').trim().toUpperCase();
+  if (label === 'P1') return []; // P1 handled by execution pipeline
+
+  const planId = String(plan.id || 'plan');
+  const effectiveHorizonEnd = horizonEndDayKey || plan.fullHorizonEndDayKey || plan.horizonEnd;
+  if (!effectiveHorizonEnd) return [];
+
+  // Use the primary lane for title generation (first active/non-deferred lane)
+  const primaryLane =
+    (phase.laneParticipation || []).find(l => l.status !== 'deferred') ||
+    (phase.laneParticipation || [])[0] ||
+    null;
+
+  if (label === 'P2') {
+    return deriveP2Blocks({ planId, phase, lane: primaryLane, horizonEndDayKey: effectiveHorizonEnd });
+  }
+
+  if (label === 'P3') {
+    return deriveP3Blocks({ planId, phase, lane: primaryLane, horizonEndDayKey: effectiveHorizonEnd });
+  }
+
+  return [];
+}
+
+/**
+ * Validate that a block title meets the action-title specificity rule.
+ * Returns false for single-word titles or known vague labels.
+ *
+ * Rule: title must contain at least one space (i.e. more than one word)
+ *       and must not be on the vague-label blocklist.
+ */
+export function validateBlockTitle(title) {
+  if (!title) return false;
+  const t = String(title).trim();
+  if (!t) return false;
+
+  const VAGUE = new Set([
+    'launch', 'drop', 'promo', 'scale', 'build', 'review',
+    'prep', 'work', 'execute', 'plan', 'ship', 'push',
+    'meet', 'call', 'check', 'write', 'post', 'share',
+  ]);
+
+  const normalized = t.toLowerCase();
+
+  // Single-word check
+  if (!normalized.includes(' ')) return false;
+
+  // Check if the entire title (lower-cased, trimmed) is a single known vague word
+  if (VAGUE.has(normalized)) return false;
+
+  return true;
+}
+
+/**
+ * Resolve the horizon end dayKey for a given selectedHorizonMode,
+ * given the plan's horizonVisibility object.
+ *
+ * @param {object} horizonVisibility - from deriveMasterPlanPhaseModel
+ * @param {string} mode              - selectedHorizonMode
+ * @param {string} cycleDedlineDayKey - active cycle deadline (fallback for current_cycle)
+ * @returns {string|null}
+ */
+export function resolveHorizonEndForMode(horizonVisibility, mode, cycleDeadlineDayKey = null) {
+  if (!horizonVisibility) return cycleDeadlineDayKey || null;
+  switch (mode) {
+    case 'current_cycle': return cycleDeadlineDayKey || horizonVisibility.currentCycleEnd || null;
+    case '1_year':        return horizonVisibility.oneYearEnd || null;
+    case '2_year':        return horizonVisibility.twoYearEnd || null;
+    case '3_year':        return horizonVisibility.threeYearEnd || null;
+    case '4_year':        return horizonVisibility.fourYearEnd || null;
+    case '5_year':        return horizonVisibility.fiveYearEnd || null;
+    case 'full_horizon':  return horizonVisibility.fullEnd || null;
+    default:              return cycleDeadlineDayKey || null;
+  }
+}
+
+export const HORIZON_MODES = ['current_cycle', '1_year', '2_year', '3_year', '4_year', '5_year', 'full_horizon'];
+
+export const LONG_HORIZON_REASON_CODES = {
+  TODAY_SELECTED_HORIZON_NO_BLOCK_EXPANSION: 'TODAY_SELECTED_HORIZON_NO_BLOCK_EXPANSION',
+  FULL_HORIZON_CALENDAR_WORKLOAD_MISSING: 'FULL_HORIZON_CALENDAR_WORKLOAD_MISSING',
+  P2_CALENDAR_SUBSTRATE_EMPTY: 'P2_CALENDAR_SUBSTRATE_EMPTY',
+  P3_CALENDAR_SUBSTRATE_EMPTY: 'P3_CALENDAR_SUBSTRATE_EMPTY',
+  FORECAST_BLOCKS_NOT_RENDERED_IN_TODAY: 'FORECAST_BLOCKS_NOT_RENDERED_IN_TODAY',
+  LONG_HORIZON_WORK_DECOMPOSITION_MISSING: 'LONG_HORIZON_WORK_DECOMPOSITION_MISSING',
+  SELECTED_HORIZON_VISIBLE_ONLY_IN_PLAN: 'SELECTED_HORIZON_VISIBLE_ONLY_IN_PLAN',
+  CALENDAR_COMMITMENT_VISIBILITY_CONFLATED: 'CALENDAR_COMMITMENT_VISIBILITY_CONFLATED',
+  FULL_HORIZON_EXECUTION_BURDEN_NOT_EXPRESSED: 'FULL_HORIZON_EXECUTION_BURDEN_NOT_EXPRESSED',
+};

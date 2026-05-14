@@ -61,6 +61,16 @@ const ZION_VIEW_TABS = [
   { key: 'quarter', label: 'Quarter' },
   { key: 'year', label: 'Year' },
 ];
+
+const HORIZON_MODE_TABS = [
+  { key: 'current_cycle', label: 'Cycle' },
+  { key: '1_year', label: '1Y' },
+  { key: '2_year', label: '2Y' },
+  { key: '3_year', label: '3Y' },
+  { key: '4_year', label: '4Y' },
+  { key: '5_year', label: '5Y' },
+  { key: 'full_horizon', label: 'Full' },
+];
 const FRICTION_EVENT_TYPE_OPTIONS = [
   'missed_work',
   'external_rejection',
@@ -669,6 +679,9 @@ function useZionState() {
     resetIdentity,
     addFrictionEvent,
     completeCycleReassessment,
+    selectedHorizonMode,
+    calendarDisplayBlocks,
+    setSelectedHorizonMode,
   } = useIdentityStore();
   return {
     activeProfileId,
@@ -714,6 +727,8 @@ function useZionState() {
     scheduleApplied,
     coreContinuity,
     coreMissionContractsById,
+    selectedHorizonMode,
+    calendarDisplayBlocks,
     actions: {
       completeBlock,
       missBlock,
@@ -755,6 +770,7 @@ function useZionState() {
       resetIdentity,
       addFrictionEvent,
       completeCycleReassessment,
+      setSelectedHorizonMode,
     },
   };
 }
@@ -813,6 +829,8 @@ export default function ZionDashboard({
     scheduleApplied,
     coreContinuity,
     coreMissionContractsById,
+    selectedHorizonMode,
+    calendarDisplayBlocks: forecastCalendarBlocks = [],
     actions,
   } = useZionState();
   const activeCycle = activeCycleId && cyclesById ? cyclesById[activeCycleId] : null;
@@ -1321,6 +1339,20 @@ export default function ZionDashboard({
     ? activeCycle.strategy.constraints.blackoutDayKeys
     : [];
   const deadlineDayKey = getContractDeadlineDayKey(contract);
+  // When in expanded horizon mode, extend the calendar range to cover forecast blocks
+  const effectiveHorizonEndDayKey = useMemo(() => {
+    if (!selectedHorizonMode || selectedHorizonMode === 'current_cycle') return deadlineDayKey;
+    const forecastEnd = forecastCalendarBlocks.length > 0
+      ? [...forecastCalendarBlocks]
+          .map(b => b.dayKey || b.date)
+          .filter(Boolean)
+          .sort()
+          .pop() || null
+      : null;
+    if (!forecastEnd) return deadlineDayKey;
+    if (!deadlineDayKey) return forecastEnd;
+    return forecastEnd > deadlineDayKey ? forecastEnd : deadlineDayKey;
+  }, [selectedHorizonMode, deadlineDayKey, forecastCalendarBlocks]);
   const getScheduleItemDayKey = (item) =>
     item?.dayKey || dayKeyFromISO(item?.startISO || item?.start || item?.date || '', timeZone);
   const proposedScheduleItemsAll = useMemo(() => {
@@ -1407,10 +1439,12 @@ export default function ZionDashboard({
         .sort((a, b) => a.localeCompare(b)),
     [scheduleDisplayItemsAllResolved, timeZone]
   );
-  const calendarSurfaceBlocks = useMemo(
-    () => normalizeScheduleSurfaceBlocks(scheduleDisplayItemsAllResolved),
-    [scheduleDisplayItemsAllResolved]
-  );
+  const calendarSurfaceBlocks = useMemo(() => {
+    const committed = normalizeScheduleSurfaceBlocks(scheduleDisplayItemsAllResolved);
+    if (!selectedHorizonMode || selectedHorizonMode === 'current_cycle') return committed;
+    const forecast = Array.isArray(forecastCalendarBlocks) ? forecastCalendarBlocks : [];
+    return [...committed, ...forecast];
+  }, [scheduleDisplayItemsAllResolved, selectedHorizonMode, forecastCalendarBlocks]);
   const calendarDayBlocksMap = useMemo(() => {
     const map = new Map();
     (calendarSurfaceBlocks || []).forEach((b) => {
@@ -1658,7 +1692,8 @@ export default function ZionDashboard({
     [scheduleDisplayItemsAllResolved, timeZone]
   );
   const committedHorizonMonths = useMemo(() => {
-    if (!calendarSurfaceBlocks.length || !deadlineDayKey) return [];
+    const horizonEndKey = effectiveHorizonEndDayKey || deadlineDayKey;
+    if (!calendarSurfaceBlocks.length || !horizonEndKey) return [];
     const horizonStartDayKey =
       contractStartDayKey ||
       calendarSurfaceBlocks
@@ -1667,7 +1702,7 @@ export default function ZionDashboard({
         .sort()[0] ||
       null;
     if (!horizonStartDayKey) return [];
-    return getMonthStartKeysInRange(horizonStartDayKey, deadlineDayKey).map((monthStartKey) => {
+    return getMonthStartKeysInRange(horizonStartDayKey, horizonEndKey).map((monthStartKey) => {
       const monthPrefix = monthStartKey.slice(0, 7);
       const monthBlocks = calendarSurfaceBlocks
         .filter((block) => {
@@ -1697,7 +1732,7 @@ export default function ZionDashboard({
           dayKey: monthStartKey,
           hasBlocks: monthBlocks.length > 0,
           contractStartDayKey,
-          deadlineDayKey,
+          deadlineDayKey: effectiveHorizonEndDayKey || deadlineDayKey,
           scheduleDayKeys: scheduleDisplayDayKeys,
           blackoutDayKeys,
           workWindows: contractWorkWindows,
@@ -1708,6 +1743,7 @@ export default function ZionDashboard({
     });
   }, [
     calendarSurfaceBlocks,
+    effectiveHorizonEndDayKey,
     deadlineDayKey,
     contractStartDayKey,
     scheduleDisplayDayKeys,
@@ -2755,6 +2791,30 @@ export default function ZionDashboard({
 
           {view === 'today' ? (
             <div className="space-y-4">
+              {activeMasterPlan && (activeMasterPlan.fullHorizonEndDayKey || activeMasterPlan.horizonEnd) ? (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] uppercase tracking-[0.12em] text-muted">Horizon</span>
+                  {HORIZON_MODE_TABS.map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => actions.setSelectedHorizonMode(tab.key)}
+                      className={`px-2 py-1 rounded border text-[11px] ${
+                        selectedHorizonMode === tab.key
+                          ? 'border-jericho-accent text-jericho-accent font-semibold'
+                          : 'border-line/40 text-muted'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                  {selectedHorizonMode !== 'current_cycle' && forecastCalendarBlocks.length > 0 ? (
+                    <span className="text-[10px] text-muted ml-1">
+                      {forecastCalendarBlocks.length} forecast block{forecastCalendarBlocks.length === 1 ? '' : 's'} visible
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="flex gap-2">
                   {ZION_VIEW_TABS.map((tab) => (
