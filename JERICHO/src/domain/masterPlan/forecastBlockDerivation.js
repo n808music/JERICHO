@@ -79,6 +79,19 @@ function p3TitleTemplates(lane) {
 const TERMINAL_READINESS_TITLE =
   'Assess terminal-readiness evidence against the success standard and outcome target';
 
+function p1PostCycleTitleTemplates(lane) {
+  const ll = laneLabel(lane);
+  return [
+    `Audit post-anchor conversion evidence for ${ll}`,
+    `Validate first-proof cadence and operating rhythm for ${ll}`,
+    `Compare post-launch evidence against P1 unlock criteria for ${ll}`,
+    `Prepare next-cycle commitment scope based on current execution evidence for ${ll}`,
+    `Assess ${ll} milestone progress and schedule consistency before P2 transition`,
+    `Reassess lane readiness for P1-to-P2 expansion for ${ll}`,
+    `Review execution evidence density before unlocking next-phase commitment for ${ll}`,
+  ];
+}
+
 // ─── Date utilities ───────────────────────────────────────────────────────────
 
 function addDaysToKey(dayKey, days) {
@@ -248,22 +261,90 @@ function deriveP3Blocks({ planId, phase, lane, horizonEndDayKey }) {
   return blocks;
 }
 
+// ─── P1 post-cycle derivation ─────────────────────────────────────────────────
+
+function deriveP1PostCycleBlocks({ planId, phase, lane, cycleEndDayKey, horizonEndDayKey }) {
+  const { startBoundary, endBoundary } = phase;
+  if (!startBoundary || !endBoundary) return [];
+
+  const phaseEnd = clampKey(endBoundary, horizonEndDayKey);
+
+  // Post-cycle P1 blocks start after the active cycle ends (or after phase start
+  // if no cycle is established yet, using the estimated current-cycle window).
+  const postCycleStart = cycleEndDayKey
+    ? addDaysToKey(cycleEndDayKey, 1)
+    : nextFirstOfMonth(startBoundary);
+
+  // Clamp: post-cycle start must be within the P1 phase window and horizon
+  const windowStart = clampKey(postCycleStart, phaseEnd);
+  if (!windowStart || windowStart > phaseEnd) return [];
+
+  const totalDays = daysBetween(windowStart, phaseEnd);
+  if (totalDays < 14) return [];
+
+  const templates = p1PostCycleTitleTemplates(lane ? { domain: lane.domain, title: lane.laneTitle } : null);
+  const blocks = [];
+
+  // Entry block: first month boundary after cycle end
+  const entryKey = clampKey(nextFirstOfMonth(windowStart), phaseEnd);
+  const useEntryKey = entryKey && entryKey <= phaseEnd ? entryKey : windowStart;
+  blocks.push(buildForecastBlock({
+    planId, phase, lane, dayKey: useEntryKey,
+    title: templates[0],
+    commitmentState: 'forecast',
+    index: blocks.length,
+  }));
+
+  // Monthly blocks through P1 window — capped at 5 (density doctrine: near-term = monthly)
+  const intervalDays = 28;
+  const maxBlocks = Math.min(Math.floor(totalDays / intervalDays), 5);
+  let cursor = addDaysToKey(useEntryKey, intervalDays);
+  let templateIdx = 1;
+  while (cursor <= phaseEnd && blocks.length <= maxBlocks) {
+    blocks.push(buildForecastBlock({
+      planId, phase, lane, dayKey: cursor,
+      title: templates[templateIdx % templates.length],
+      commitmentState: 'forecast',
+      index: blocks.length,
+    }));
+    cursor = addDaysToKey(cursor, intervalDays);
+    templateIdx++;
+  }
+
+  // P1-to-P2 readiness gate: 3 weeks before P1 end (if not already covered)
+  const gateKey = addDaysToKey(phaseEnd, -21);
+  const lastBlockKey = blocks[blocks.length - 1]?.dayKey || windowStart;
+  if (gateKey > lastBlockKey && gateKey <= phaseEnd) {
+    const ll = lane ? laneLabel({ domain: lane.domain, title: lane.laneTitle }) : 'primary lane';
+    blocks.push(buildForecastBlock({
+      planId, phase, lane, dayKey: gateKey,
+      title: `Reassess lane readiness for P1-to-P2 expansion for ${ll}`,
+      commitmentState: 'review-required',
+      index: blocks.length,
+    }));
+  }
+
+  return blocks;
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
  * Derive dated future forecast/gated/locked blocks for a single phase.
- * Returns an empty array for P1 (active phase — handled by the execution pipeline).
+ *
+ * For P1: derives post-cycle forecast work beginning after cycleEndDayKey.
+ * For P2/P3: derives phase-level planning blocks within the selected horizon.
  *
  * @param {object} opts
- * @param {object} opts.plan   - master plan object (id, horizonStart, fullHorizonEndDayKey)
- * @param {object} opts.phase  - phase from deriveMasterPlanPhaseModel
- * @param {string} opts.horizonEndDayKey - selected horizon end (may be less than fullHorizonEndDayKey)
+ * @param {object} opts.plan            - master plan object
+ * @param {object} opts.phase           - phase from deriveMasterPlanPhaseModel
+ * @param {string} opts.horizonEndDayKey - selected horizon end
+ * @param {string} [opts.cycleEndDayKey] - active cycle deadline; P1 blocks start after this
  * @returns {Array}
  */
-export function deriveForecastBlocks({ plan, phase, horizonEndDayKey }) {
+export function deriveForecastBlocks({ plan, phase, horizonEndDayKey, cycleEndDayKey = null }) {
   if (!plan || !phase) return [];
   const label = String(phase.label || '').trim().toUpperCase();
-  if (label === 'P1') return []; // P1 handled by execution pipeline
 
   const planId = String(plan.id || 'plan');
   const effectiveHorizonEnd = horizonEndDayKey || plan.fullHorizonEndDayKey || plan.horizonEnd;
@@ -274,6 +355,15 @@ export function deriveForecastBlocks({ plan, phase, horizonEndDayKey }) {
     (phase.laneParticipation || []).find(l => l.status !== 'deferred') ||
     (phase.laneParticipation || [])[0] ||
     null;
+
+  if (label === 'P1') {
+    // Only derive P1 post-cycle blocks when a cycle end is known (or estimable)
+    return deriveP1PostCycleBlocks({
+      planId, phase, lane: primaryLane,
+      cycleEndDayKey,
+      horizonEndDayKey: effectiveHorizonEnd,
+    });
+  }
 
   if (label === 'P2') {
     return deriveP2Blocks({ planId, phase, lane: primaryLane, horizonEndDayKey: effectiveHorizonEnd });

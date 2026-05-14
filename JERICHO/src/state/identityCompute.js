@@ -5699,20 +5699,33 @@ function applyLongHorizonCalendarBlocks(state) {
     return;
   }
 
+  // Compute the active cycle's deadline as the "cycle end" boundary for P1 post-cycle derivation.
+  // Fall back to horizonVisibility.currentCycleEnd when no active cycle is established.
+  const activeCycleId = String(state?.activeCycleId || '').trim();
+  const activeCycle = activeCycleId ? state?.cyclesById?.[activeCycleId] || null : null;
+  const rawCycleDeadline =
+    activeCycle?.deadlineDayKey ||
+    activeCycle?.contract?.deadlineISO?.slice(0, 10) ||
+    activeCycle?.goalContract?.deadlineISO?.slice(0, 10) ||
+    null;
+  const cycleEndDayKey = rawCycleDeadline || phaseModel.horizonVisibility?.currentCycleEnd || null;
+
   // Resolve the horizon end cutoff for this mode
   const horizonEndForMode = resolveHorizonEndForMode(
     phaseModel.horizonVisibility,
     mode,
-    null
+    cycleEndDayKey
   ) || plan.fullHorizonEndDayKey || plan.horizonEnd;
 
-  // Derive forecast blocks for all non-P1 phases within the selected horizon
+  // Derive forecast blocks for all phases within the selected horizon.
+  // P1 yields post-cycle forecast work; P2/P3 yield phase-level planning blocks.
   const allForecastBlocks = [];
   for (const phase of phaseModel.phases) {
-    if (phase.label === 'P1') continue;
     // Skip phases that start entirely beyond the selected horizon
     if (horizonEndForMode && phase.startBoundary > horizonEndForMode) continue;
-    const blocks = deriveForecastBlocks({ plan, phase, horizonEndDayKey: horizonEndForMode });
+    const blocks = deriveForecastBlocks({
+      plan, phase, horizonEndDayKey: horizonEndForMode, cycleEndDayKey,
+    });
     allForecastBlocks.push(...blocks);
   }
 

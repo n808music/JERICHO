@@ -387,4 +387,111 @@ describe('forecastBlockDerivation — pure derivation', () => {
     expect(p2Blocks.length).toBeGreaterThanOrEqual(2);
     expect(p3Blocks.length).toBeGreaterThanOrEqual(2);
   });
+
+  it('P1 phase derives post-cycle blocks when cycleEndDayKey is provided', () => {
+    const plan = { id: 'plan-test', horizonStart: '2026-05-11', fullHorizonEndDayKey: '2031-05-11' };
+    const p1Phase = {
+      id: 'plan-test:p1', label: 'P1', name: 'Foundation / Launch Proof',
+      startBoundary: '2026-05-11', endBoundary: '2027-06-01',
+      phaseObjective: 'Build launch substrate and capture first proof window.',
+      activeState: 'active', commitmentState: 'committed',
+      laneParticipation: [{ laneId: 'lane-1', laneTitle: 'App launch', domain: 'product', status: 'active' }],
+      evidenceRequirements: ['launch-readiness proof', 'post-anchor signal'],
+      unlockCriteria: ['Post-anchor proof exists for audience, users, or revenue.'],
+    };
+    // cycleEndDayKey = Oct 17 anchor (typical first cycle end)
+    const blocks = deriveForecastBlocks({ plan, phase: p1Phase, horizonEndDayKey: '2027-06-01', cycleEndDayKey: '2026-10-17' });
+    expect(blocks.length).toBeGreaterThan(0);
+    blocks.forEach(b => {
+      expect(b.source).toBe('derived');
+      expect(b.phaseLabel).toBe('P1');
+      expect(b.executionEligibility).toBe('locked');
+      const dayKey = b.dayKey || b.date;
+      // All P1 post-cycle blocks must be after the cycle end
+      expect(dayKey > '2026-10-17').toBe(true);
+      expect(validateBlockTitle(b.title)).toBe(true);
+    });
+  });
+
+  it('P1 returns empty when no cycleEndDayKey is provided and window is too short', () => {
+    const plan = { id: 'plan-test', horizonStart: '2026-05-11', fullHorizonEndDayKey: '2031-05-11' };
+    const shortP1 = {
+      id: 'plan-test:p1', label: 'P1', startBoundary: '2026-05-11', endBoundary: '2026-05-20',
+      phaseObjective: 'obj', activeState: 'active', commitmentState: 'committed',
+      laneParticipation: [], evidenceRequirements: [], unlockCriteria: [],
+    };
+    const blocks = deriveForecastBlocks({ plan, phase: shortP1, horizonEndDayKey: '2026-05-20', cycleEndDayKey: null });
+    // 9-day window after nextFirstOfMonth → empty
+    expect(blocks.length).toBe(0);
+  });
+});
+
+// ─── Suite 8: 1-year mode shows P1 post-cycle surface ────────────────────────
+
+describe('long-horizon calendar — 1_year mode shows P1 post-cycle surface', () => {
+  it('1_year mode adds forecast blocks beyond current_cycle', () => {
+    const base = buildFiveYearPlanState();
+    const currentCycle = setHorizonMode(base, 'current_cycle');
+    const oneYear = setHorizonMode(base, '1_year');
+    expect(getCalendarBlocks(oneYear).length).toBeGreaterThan(getCalendarBlocks(currentCycle).length);
+  });
+
+  it('1_year forecast blocks include at least some P1 post-cycle work', () => {
+    const base = buildFiveYearPlanState();
+    const oneYear = setHorizonMode(base, '1_year');
+    const forecastBlocks = getForecastBlocks(oneYear);
+    expect(forecastBlocks.length).toBeGreaterThan(0);
+    // P1 post-cycle blocks must appear — horizon may also reach early P2
+    const p1Blocks = forecastBlocks.filter(b => b.phaseLabel === 'P1');
+    expect(p1Blocks.length).toBeGreaterThan(0);
+  });
+
+  it('1_year forecast blocks start after estimated cycle end (no duplicate committed blocks)', () => {
+    const base = buildFiveYearPlanState();
+    const oneYear = setHorizonMode(base, '1_year');
+    const currentCycle = setHorizonMode(base, 'current_cycle');
+    const committedIds = new Set((getCalendarBlocks(currentCycle)).map(b => b.id));
+    const forecastBlocks = getForecastBlocks(oneYear);
+    forecastBlocks.forEach(b => {
+      expect(committedIds.has(b.id)).toBe(false);
+    });
+  });
+
+  it('1_year forecast blocks are execution-locked', () => {
+    const base = buildFiveYearPlanState();
+    const oneYear = setHorizonMode(base, '1_year');
+    const forecastBlocks = getForecastBlocks(oneYear);
+    expect(forecastBlocks.length).toBeGreaterThan(0);
+    forecastBlocks.forEach(b => {
+      expect(b.executionEligibility).toBe('locked');
+    });
+  });
+
+  it('1_year forecast block titles pass action-title validation', () => {
+    const base = buildFiveYearPlanState();
+    const oneYear = setHorizonMode(base, '1_year');
+    const forecastBlocks = getForecastBlocks(oneYear);
+    expect(forecastBlocks.length).toBeGreaterThan(0);
+    forecastBlocks.forEach(b => {
+      expect(validateBlockTitle(b.title), `Vague title: "${b.title}"`).toBe(true);
+    });
+  });
+
+  it('current_cycle still hides P1 post-cycle forecast blocks', () => {
+    const derived = buildFiveYearPlanState();
+    expect(getForecastBlocks(derived).length).toBe(0);
+  });
+
+  it('2_year/3_year/full_horizon retain their existing block populations', () => {
+    const base = buildFiveYearPlanState();
+    const twoYear = setHorizonMode(base, '2_year');
+    const threeYear = setHorizonMode(base, '3_year');
+    const full = setHorizonMode(base, 'full_horizon');
+    // All should have forecast blocks
+    expect(getCalendarBlocks(twoYear).length).toBeGreaterThan(0);
+    expect(getCalendarBlocks(threeYear).length).toBeGreaterThan(0);
+    expect(getCalendarBlocks(full).length).toBeGreaterThan(0);
+    // P3 should still exist in full_horizon
+    expect(getBlocksByPhase(full, 'P3').length).toBeGreaterThan(0);
+  });
 });
