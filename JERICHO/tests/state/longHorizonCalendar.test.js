@@ -165,7 +165,7 @@ describe('long-horizon calendar — horizon mode transitions', () => {
   it('week projection renders forecast calendarDisplayBlocks from the selected horizon', () => {
     const base = buildFiveYearPlanState();
     const derived = setHorizonMode(base, '3_year');
-    const forecastBlock = getForecastBlocks(derived).find((b) => b.date && !b.start);
+    const forecastBlock = getForecastBlocks(derived).find((b) => b.date);
     expect(forecastBlock).toBeDefined();
 
     const weekDays = projectWeekDays({ anchorDate: forecastBlock.date, blocks: derived.calendarDisplayBlocks });
@@ -176,7 +176,7 @@ describe('long-horizon calendar — horizon mode transitions', () => {
   it('year→month→day invariant preserves forecast visibility through drill-down', () => {
     const base = buildFiveYearPlanState();
     const derived = setHorizonMode(base, '3_year');
-    const forecastBlock = getForecastBlocks(derived).find((b) => b.date && !b.start);
+    const forecastBlock = getForecastBlocks(derived).find((b) => b.date);
     expect(forecastBlock).toBeDefined();
 
     const monthKey = forecastBlock.date.slice(0, 7);
@@ -212,6 +212,22 @@ describe('long-horizon calendar — horizon mode transitions', () => {
     const full = setHorizonMode(base, 'full_horizon');
     const p3Blocks = getBlocksByPhase(full, 'P3');
     expect(p3Blocks.length).toBeGreaterThan(0);
+  });
+
+  it('full-horizon schedule expansion returns blocks through May 2031', () => {
+    const derived = setHorizonMode(buildFiveYearPlanState(), 'full_horizon');
+    const blocks = getCalendarBlocks(derived) || [];
+    const has2031 = blocks.some((b) => (b.date || b.dayKey || '').slice(0, 7) === '2031-05');
+    expect(has2031).toBe(true);
+  });
+
+  it('full-horizon has reasonable density across 2027-2031', () => {
+    const derived = setHorizonMode(buildFiveYearPlanState(), 'full_horizon');
+    const blocks = getCalendarBlocks(derived) || [];
+    for (const year of ['2027', '2028', '2029', '2030', '2031']) {
+      const count = blocks.filter((b) => (b.date || b.dayKey || '').slice(0, 4) === year).length;
+      expect(count).toBeGreaterThanOrEqual(2);
+    }
   });
 });
 

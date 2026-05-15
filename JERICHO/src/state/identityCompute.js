@@ -20,6 +20,7 @@ import { compileAutoAsanaPlan } from './engine/autoAsanaPlan.ts';
 import { buildAssumptionsHash, normalizeDeliverables, normalizeRouteOption } from './strategy.ts';
 import { buildAutoDeliverablesFromGoalContract } from '../domain/autoStrategy.ts';
 import { inferHorizonYearsFromText } from '../domain/masterPlan/masterPlanIntakeEngine.js';
+import { expandFullHorizonSchedule } from '../domain/masterPlan/fullHorizonScheduleExpansion.js';
 import { buildGoalIntakeContract, getIntakeGateCode } from '../domain/goal/GoalIntakeContract.ts';
 import { buildGoalPolicySnapshot } from '../domain/goal/GoalPolicy.ts';
 import { evaluatePlanQualityGate } from '../domain/planQuality/evaluatePlanQualityGate.ts';
@@ -5729,7 +5730,27 @@ function applyLongHorizonCalendarBlocks(state) {
     allForecastBlocks.push(...blocks);
   }
 
-  state.calendarDisplayBlocks = allForecastBlocks;
+  // Expand the sparse forecast markers into a full-horizon dated workload substrate.
+  // This produces a canonical `fullHorizonScheduleBlocks` array that all UI surfaces
+  // (Structure deliverables, Plan chart, Today calendar) should consume.
+  try {
+    const fullHorizonScheduleBlocks = expandFullHorizonSchedule({
+      plan,
+      phaseModel,
+      horizonStartDayKey: phaseModel.horizonVisibility?.horizonStart || plan.horizonStart || plan.officialStartDate || null,
+      horizonEndDayKey: horizonEndForMode || plan.fullHorizonEndDayKey || plan.horizonEnd,
+      lanes: plan?.lanes || [],
+      existingForecastBlocks: allForecastBlocks,
+      committedBlocks: [],
+    });
+    state.fullHorizonScheduleBlocks = fullHorizonScheduleBlocks;
+    state.calendarDisplayBlocks = fullHorizonScheduleBlocks;
+  } catch (err) {
+    // Fallback to the derived forecast markers if expansion fails for safety.
+    state.fullHorizonScheduleBlocks = allForecastBlocks;
+    state.calendarDisplayBlocks = allForecastBlocks;
+    if (!IS_PRODUCTION) console.warn('Full-horizon expansion failed:', err && err.message);
+  }
 }
 
 function applyExecutionCorrection(state) {
