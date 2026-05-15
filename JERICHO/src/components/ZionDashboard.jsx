@@ -681,6 +681,7 @@ function useZionState() {
     completeCycleReassessment,
     selectedHorizonMode,
     calendarDisplayBlocks,
+    fullHorizonScheduleBlocks,
     setSelectedHorizonMode,
   } = useIdentityStore();
   return {
@@ -831,6 +832,7 @@ export default function ZionDashboard({
     coreMissionContractsById,
     selectedHorizonMode,
     calendarDisplayBlocks: forecastCalendarBlocks = [],
+    fullHorizonScheduleBlocks: fullHorizon = [],
     actions,
   } = useZionState();
   const activeCycle = activeCycleId && cyclesById ? cyclesById[activeCycleId] : null;
@@ -1392,6 +1394,19 @@ export default function ZionDashboard({
     hasActiveSchedule ||
     (Boolean(scheduleApplied) && !pendingPlanConfirmation && proposedScheduleItemsAll.length === 0);
   const scheduleDisplayFallbackItemsAll = useMemo(() => {
+    // If the user has selected an expanded horizon and the canonical full-horizon
+    // substrate exists, prefer it as the Plan overview workload source.
+    if (selectedHorizonMode && selectedHorizonMode !== 'current_cycle' && Array.isArray(fullHorizon) && fullHorizon.length > 0) {
+      const filtered = (fullHorizon || []).filter((item) => {
+        const dayKey = getScheduleItemDayKey(item);
+        if (!dayKey) return false;
+        if (contractStartDayKey && dayKey < contractStartDayKey) return false;
+        if (deadlineDayKey && dayKey > deadlineDayKey) return false;
+        return true;
+      });
+      if (filtered.length > 0) return filtered;
+      // fall through to other fallbacks if full horizon substrate is empty after filtering
+    }
     if (scheduleDisplayItemsAll.length > 0) {
       return scheduleDisplayItemsAll;
     }

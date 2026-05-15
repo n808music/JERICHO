@@ -667,6 +667,12 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
       .filter((block) => !activeCycleId || block?.cycleId === activeCycleId);
   }, [activeCycle?.executionEvents, activeCycleId, appTime?.nowISO, appTime?.activeDayKey]);
   const chartScheduleBlocks = useMemo(() => {
+    // If user has selected an expanded horizon, prefer the full-horizon substrate
+    const selectedHorizonMode = String(store?.selectedHorizonMode || 'current_cycle').trim();
+    const fullHorizon = Array.isArray(store?.fullHorizonScheduleBlocks) ? store.fullHorizonScheduleBlocks : [];
+    if (selectedHorizonMode && selectedHorizonMode !== 'current_cycle' && fullHorizon.length > 0) {
+      return fullHorizon;
+    }
     if (reviewBlocks.length > 0) {
       return reviewBlocks;
     }
