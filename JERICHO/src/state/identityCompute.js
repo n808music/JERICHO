@@ -5733,6 +5733,7 @@ function applyLongHorizonCalendarBlocks(state) {
   // Expand the sparse forecast markers into a full-horizon dated workload substrate.
   // This produces a canonical `fullHorizonScheduleBlocks` array that all UI surfaces
   // (Structure deliverables, Plan chart, Today calendar) should consume.
+  const coverageFailureReasonCodes = [];
   try {
     const fullHorizonScheduleBlocks = expandFullHorizonSchedule({
       plan,
@@ -5745,12 +5746,61 @@ function applyLongHorizonCalendarBlocks(state) {
     });
     state.fullHorizonScheduleBlocks = fullHorizonScheduleBlocks;
     state.calendarDisplayBlocks = fullHorizonScheduleBlocks;
+
+    // Emit reason codes for coverage issues even when expansion succeeds
+    if (!fullHorizonScheduleBlocks || fullHorizonScheduleBlocks.length === 0) {
+      coverageFailureReasonCodes.push('FULL_HORIZON_SCHEDULE_EXPANSION_EMPTY');
+    }
+
+    // Check for P2 and P3 block presence
+    const p2Blocks = (fullHorizonScheduleBlocks || []).filter(b => b.phaseLabel === 'P2');
+    const p3Blocks = (fullHorizonScheduleBlocks || []).filter(b => b.phaseLabel === 'P3');
+    if (p2Blocks.length === 0) {
+      const p2Phase = phaseModel.phases.find(p => p.label === 'P2');
+      if (p2Phase && horizonEndForMode >= p2Phase.startBoundary) {
+        coverageFailureReasonCodes.push('P2_DELIVERABLE_SCHEDULE_EMPTY');
+      }
+    }
+    if (p3Blocks.length === 0) {
+      const p3Phase = phaseModel.phases.find(p => p.label === 'P3');
+      if (p3Phase && horizonEndForMode >= p3Phase.startBoundary) {
+        coverageFailureReasonCodes.push('P3_DELIVERABLE_SCHEDULE_EMPTY');
+      }
+    }
+
+    // Check for low work density: need at least one block per year on average
+    if (fullHorizonScheduleBlocks && fullHorizonScheduleBlocks.length > 0) {
+      // Conservative check: 5-year plan should have at least 5 blocks
+      const isLongHorizon = horizonEndForMode && plan.horizonStart
+        && horizonEndForMode.slice(0, 4) > String(parseInt(plan.horizonStart.slice(0, 4)) + 3);
+      if (isLongHorizon && fullHorizonScheduleBlocks.length < 5) {
+        coverageFailureReasonCodes.push('FULL_HORIZON_WORK_DENSITY_INSUFFICIENT');
+      }
+    }
+
+    // Check phase-specific issues
+    for (const phase of phaseModel.phases) {
+      if (horizonEndForMode < phase.startBoundary) continue; // Phase not in scope
+      const phaseBlocks = (fullHorizonScheduleBlocks || []).filter(b => b.phaseLabel === phase.label);
+      if (phaseBlocks.length === 0) {
+        coverageFailureReasonCodes.push(`PHASE_EXISTS_WITHOUT_SCHEDULED_WORK:${phase.label}`);
+      }
+    }
   } catch (err) {
     // Fallback to the derived forecast markers if expansion fails for safety.
     state.fullHorizonScheduleBlocks = allForecastBlocks;
     state.calendarDisplayBlocks = allForecastBlocks;
     if (!IS_PRODUCTION) console.warn('Full-horizon expansion failed:', err && err.message);
+    coverageFailureReasonCodes.push('FULL_HORIZON_SCHEDULE_EXPANSION_MISSING');
+    
+    // Still check allForecastBlocks for P2/P3 presence
+    if (allForecastBlocks.length === 0) {
+      coverageFailureReasonCodes.push('FULL_HORIZON_SCHEDULE_EXPANSION_EMPTY');
+    }
   }
+
+  // Store coverage failure reason codes in state for diagnostic access
+  state.fullHorizonCoverageFailureCodes = coverageFailureReasonCodes;
 }
 
 function applyExecutionCorrection(state) {

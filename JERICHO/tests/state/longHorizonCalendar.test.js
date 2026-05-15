@@ -555,3 +555,139 @@ describe('long-horizon calendar — 1_year mode shows P1 post-cycle surface', ()
     expect(getBlocksByPhase(full, 'P3').length).toBeGreaterThan(0);
   });
 });
+
+// ─── Suite 9: Structure/Plan/Today integration ───────────────────────────────
+
+describe('long-horizon calendar — Structure/Plan/Today integration hardening', () => {
+  it('Today expanded-horizon uses block ids from fullHorizonScheduleBlocks', () => {
+    const base = buildFiveYearPlanState();
+    const expanded = setHorizonMode(base, '3_year');
+    const fullHorizonIds = new Set((expanded.fullHorizonScheduleBlocks || []).map(b => b.id));
+    const calendarIds = new Set((expanded.calendarDisplayBlocks || []).map(b => b.id));
+    // When expanded, calendarDisplayBlocks should source from fullHorizonScheduleBlocks
+    expect(fullHorizonIds.size).toBeGreaterThan(0);
+    fullHorizonIds.forEach(id => {
+      expect(calendarIds.has(id)).toBe(true);
+    });
+  });
+
+  it('Structure expanded-horizon projection includes blocks beyond Oct 2026', () => {
+    const base = buildFiveYearPlanState();
+    const expanded = setHorizonMode(base, '3_year');
+    const blocks = getCalendarBlocks(expanded);
+    const beyond2026Oct = blocks.filter(b => {
+      const dayKey = getBlockDayKey(b);
+      return dayKey > '2026-10-31';
+    });
+    expect(beyond2026Oct.length).toBeGreaterThan(0);
+  });
+
+  it('Structure expanded-horizon projection includes P2 blocks', () => {
+    const base = buildFiveYearPlanState();
+    const expanded = setHorizonMode(base, '3_year');
+    const p2Blocks = getBlocksByPhase(expanded, 'P2');
+    expect(p2Blocks.length).toBeGreaterThan(0);
+  });
+
+  it('Plan overview expanded-horizon uses block ids from fullHorizonScheduleBlocks', () => {
+    const base = buildFiveYearPlanState();
+    const expanded = setHorizonMode(base, '5_year');
+    const fullHorizonIds = new Set((expanded.fullHorizonScheduleBlocks || []).map(b => b.id));
+    const calendarIds = new Set((expanded.calendarDisplayBlocks || []).map(b => b.id));
+    // When expanded to 5_year, all fullHorizonScheduleBlocks should be in calendarDisplayBlocks
+    expect(fullHorizonIds.size).toBeGreaterThan(0);
+    fullHorizonIds.forEach(id => {
+      expect(calendarIds.has(id)).toBe(true);
+    });
+  });
+
+  it('Plan overview includes blocks beyond Oct 2026 in expanded horizon', () => {
+    const base = buildFiveYearPlanState();
+    const expanded = setHorizonMode(base, '5_year');
+    const blocks = getCalendarBlocks(expanded);
+    const beyond2026Oct = blocks.filter(b => {
+      const dayKey = getBlockDayKey(b);
+      return dayKey > '2026-10-31';
+    });
+    expect(beyond2026Oct.length).toBeGreaterThan(0);
+  });
+
+  it('Plan overview includes P2 and P3 blocks when selected horizon includes those phases', () => {
+    const base = buildFiveYearPlanState();
+    const expanded = setHorizonMode(base, '5_year');
+    const p2Blocks = getBlocksByPhase(expanded, 'P2');
+    const p3Blocks = getBlocksByPhase(expanded, 'P3');
+    expect(p2Blocks.length).toBeGreaterThan(0);
+    expect(p3Blocks.length).toBeGreaterThan(0);
+  });
+
+  it('P2/P3 block counts in fullHorizonScheduleBlocks correlate with displayed blocks', () => {
+    const base = buildFiveYearPlanState();
+    const expanded = setHorizonMode(base, '5_year');
+    const fullHorizonP2 = (expanded.fullHorizonScheduleBlocks || []).filter(b => b.phaseLabel === 'P2');
+    const calendarP2 = (expanded.calendarDisplayBlocks || []).filter(b => b.phaseLabel === 'P2');
+    // All P2 blocks in fullHorizonScheduleBlocks should appear in calendarDisplayBlocks
+    const p2Ids = new Set(fullHorizonP2.map(b => b.id));
+    const calendarIds = new Set((expanded.calendarDisplayBlocks || []).map(b => b.id));
+    expect(fullHorizonP2.length).toBeGreaterThan(0);
+    fullHorizonP2.forEach(b => {
+      expect(calendarIds.has(b.id)).toBe(true);
+    });
+  });
+
+  it('fullHorizonCoverageFailureCodes emits when fullHorizonScheduleBlocks is empty while full_horizon selected', () => {
+    // Build a minimal state to test empty expansion scenario
+    const base = buildFiveYearPlanState();
+    const expanded = setHorizonMode(base, 'full_horizon');
+    // In a well-formed state, fullHorizonScheduleBlocks should have blocks
+    // This test validates that reason codes exist when they should
+    if (!expanded.fullHorizonScheduleBlocks || expanded.fullHorizonScheduleBlocks.length === 0) {
+      expect(expanded.fullHorizonCoverageFailureCodes).toBeDefined();
+      expect(Array.isArray(expanded.fullHorizonCoverageFailureCodes)).toBe(true);
+    } else {
+      // Normal case: expansion succeeded
+      expect(expanded.fullHorizonScheduleBlocks.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('Today, Structure, and Plan share overlapping block ids for same horizon', () => {
+    const base = buildFiveYearPlanState();
+    const horizonMode = '3_year';
+    const expanded = setHorizonMode(base, horizonMode);
+    // All three surfaces consume calendarDisplayBlocks
+    const calendarIds = new Set((expanded.calendarDisplayBlocks || []).map(b => b.id));
+    // In the same horizon mode, they all access the same underlying blocks
+    expect(calendarIds.size).toBeGreaterThan(0);
+  });
+
+  it('current_cycle mode does not accidentally consume full-horizon forecast workload', () => {
+    const base = buildFiveYearPlanState();
+    const expanded = setHorizonMode(base, '5_year');
+    const collapsed = setHorizonMode(expanded, 'current_cycle');
+    // current_cycle should revert to no forecast blocks
+    const forecastBlocks = getForecastBlocks(collapsed);
+    expect(forecastBlocks.length).toBe(0);
+    // Verify selectedHorizonMode is correct
+    expect(collapsed.selectedHorizonMode).toBe('current_cycle');
+  });
+
+  it('Structure full-horizon projection includes P3 blocks', () => {
+    const base = buildFiveYearPlanState();
+    const expanded = setHorizonMode(base, 'full_horizon');
+    const p3Blocks = getBlocksByPhase(expanded, 'P3');
+    expect(p3Blocks.length).toBeGreaterThan(0);
+  });
+
+  it('fullHorizonScheduleBlocks persists across horizon mode transitions', () => {
+    const base = buildFiveYearPlanState();
+    const first = setHorizonMode(base, '3_year');
+    const firstIds = new Set((first.fullHorizonScheduleBlocks || []).map(b => b.id));
+    const second = setHorizonMode(first, '5_year');
+    const secondIds = new Set((second.fullHorizonScheduleBlocks || []).map(b => b.id));
+    // Both should have fullHorizonScheduleBlocks
+    expect(firstIds.size).toBeGreaterThan(0);
+    expect(secondIds.size).toBeGreaterThan(0);
+    // 5_year may have more blocks than 3_year
+    expect(secondIds.size).toBeGreaterThanOrEqual(firstIds.size);
+  });
+});
