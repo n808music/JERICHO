@@ -7872,6 +7872,15 @@ function dayKeyUTC(iso) {
   }
 }
 
+export function getBlockDayKey(block) {
+  if (!block) return null;
+  const explicit = String(block?.date || block?.dayKey || '').trim();
+  if (explicit) {
+    return explicit;
+  }
+  return dayKeyFromISO(block?.start || block?.startISO || '', 'UTC');
+}
+
 export function projectWeekDays({ anchorDate, blocks }) {
   const start = normalizeWeekStart(anchorDate || new Date().toISOString());
   const days = [];
@@ -7892,7 +7901,7 @@ export function projectWeekDays({ anchorDate, blocks }) {
   const targetMap = {};
   const byDate = new Map(days.map((d) => [d.date, d]));
   (blocks || []).forEach((block) => {
-    const key = dayKeyUTC(block.start);
+    const key = getBlockDayKey(block);
     const day = key && byDate.get(key);
     if (!day) {
       return;
@@ -7981,7 +7990,7 @@ export function projectMonthDays({ monthKey, blocks, includePadding = true }) {
 
   const byDay = new Map();
   for (const b of blocks || []) {
-    const key = (b?.start || '').slice(0, 10);
+    const key = getBlockDayKey(b);
     if (!key) {
       continue;
     }

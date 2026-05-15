@@ -32,7 +32,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { buildBlankIdentityState, DEFAULT_PROFILE_ID } from '../../src/state/identityStore.js';
-import { computeDerivedState } from '../../src/state/identityCompute.js';
+import { computeDerivedState, projectMonthDays, projectWeekDays, getBlockDayKey } from '../../src/state/identityCompute.js';
 import { applyMasterPlanAction } from '../../src/state/masterPlanStore.js';
 import { deriveForecastBlocks, validateBlockTitle } from '../../src/domain/masterPlan/forecastBlockDerivation.js';
 import { deriveMasterPlanPhaseModel } from '../../src/domain/masterPlan/masterPlanPhaseModel.js';
@@ -147,6 +147,50 @@ describe('long-horizon calendar — horizon mode transitions', () => {
     const oneYearCount = getCalendarBlocks(oneYear).length;
     const twoYearCount = getCalendarBlocks(twoYear).length;
     expect(twoYearCount).toBeGreaterThanOrEqual(oneYearCount);
+  });
+
+  it('month projection renders forecast calendarDisplayBlocks from the selected horizon', () => {
+    const base = buildFiveYearPlanState();
+    const derived = setHorizonMode(base, '3_year');
+    const forecastBlocks = getForecastBlocks(derived);
+    expect(forecastBlocks.length).toBeGreaterThan(0);
+    const monthKey = forecastBlocks.find((b) => b.date)?.date?.slice(0, 7);
+    expect(monthKey).toBeTruthy();
+
+    const monthDays = projectMonthDays({ monthKey, blocks: derived.calendarDisplayBlocks, includePadding: false });
+    const visibleForecastBlocks = monthDays.flatMap((day) => day.blocks || []).filter((block) => block.source === 'derived');
+    expect(visibleForecastBlocks.length).toBeGreaterThan(0);
+  });
+
+  it('week projection renders forecast calendarDisplayBlocks from the selected horizon', () => {
+    const base = buildFiveYearPlanState();
+    const derived = setHorizonMode(base, '3_year');
+    const forecastBlock = getForecastBlocks(derived).find((b) => b.date && !b.start);
+    expect(forecastBlock).toBeDefined();
+
+    const weekDays = projectWeekDays({ anchorDate: forecastBlock.date, blocks: derived.calendarDisplayBlocks });
+    const visibleForecastBlocks = weekDays.flatMap((day) => day.blocks || []).filter((block) => block.id === forecastBlock.id);
+    expect(visibleForecastBlocks.length).toBeGreaterThan(0);
+  });
+
+  it('year→month→day invariant preserves forecast visibility through drill-down', () => {
+    const base = buildFiveYearPlanState();
+    const derived = setHorizonMode(base, '3_year');
+    const forecastBlock = getForecastBlocks(derived).find((b) => b.date && !b.start);
+    expect(forecastBlock).toBeDefined();
+
+    const monthKey = forecastBlock.date.slice(0, 7);
+    const monthDays = projectMonthDays({ monthKey, blocks: derived.calendarDisplayBlocks, includePadding: false });
+    const day = monthDays.find((d) => d.date === forecastBlock.date);
+    expect(day).toBeDefined();
+    expect(day.blocks.some((b) => b.id === forecastBlock.id && b.title === forecastBlock.title)).toBe(true);
+  });
+
+  it('getBlockDayKey normalizes date/dayKey/start/startISO shapes consistently', () => {
+    expect(getBlockDayKey({ date: '2029-04-05' })).toBe('2029-04-05');
+    expect(getBlockDayKey({ dayKey: '2029-04-06' })).toBe('2029-04-06');
+    expect(getBlockDayKey({ start: '2029-04-07T09:00:00.000Z' })).toBe('2029-04-07');
+    expect(getBlockDayKey({ startISO: '2029-04-08T17:30:00.000Z' })).toBe('2029-04-08');
   });
 
   it('3_year mode has more visible blocks than 2_year', () => {
