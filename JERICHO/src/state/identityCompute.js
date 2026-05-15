@@ -5740,7 +5740,7 @@ function applyLongHorizonCalendarBlocks(state) {
       phaseModel,
       horizonStartDayKey: phaseModel.horizonVisibility?.horizonStart || plan.horizonStart || plan.officialStartDate || null,
       horizonEndDayKey: horizonEndForMode || plan.fullHorizonEndDayKey || plan.horizonEnd,
-      lanes: plan?.lanes || [],
+      lanes,
       existingForecastBlocks: allForecastBlocks,
       committedBlocks: [],
     });

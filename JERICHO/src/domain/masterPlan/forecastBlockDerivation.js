@@ -131,7 +131,8 @@ function forecastBlockId(planId, phaseLabel, dayKey, index) {
 
 // ─── Block factory ────────────────────────────────────────────────────────────
 
-function buildForecastBlock({ planId, phase, lane, dayKey, title, commitmentState, index }) {
+function buildForecastBlock({ planId, phase, lane, dayKey, title, commitmentState, index, blockType = 'review' }) {
+  const laneId = lane?.laneId || null;
   return {
     id: forecastBlockId(planId, phase.label, dayKey, index),
     title,
@@ -139,8 +140,9 @@ function buildForecastBlock({ planId, phase, lane, dayKey, title, commitmentStat
     date: dayKey,
     phaseId: phase.id,
     phaseLabel: phase.label,
-    laneId: lane?.laneId || null,
+    laneId,
     laneLabel: lane ? laneLabel({ domain: lane.domain, title: lane.laneTitle }) : null,
+    blockType,
     commitmentState: commitmentState || phase.commitmentState || 'forecast',
     executionEligibility: 'locked',
     executionLockReason:
@@ -148,6 +150,26 @@ function buildForecastBlock({ planId, phase, lane, dayKey, title, commitmentStat
     source: 'derived',
     derivationReason: `Derived from ${phase.label} phase substrate: ${phase.phaseObjective || 'phase objective'}`,
     expectedOutput: null,
+    timeEstimateMinutes: blockType === 'terminal-readiness' ? 90 : 60,
+    sourceInputs: [
+      `plan:${planId}`,
+      phase?.id ? `phase:${phase.id}` : null,
+      laneId ? `lane:${laneId}` : null,
+    ].filter(Boolean),
+    dependsOn: phase?.label === 'P2' ? ['phase:P1'] : phase?.label === 'P3' ? ['phase:P2'] : [],
+    unlocks:
+      phase?.label === 'P1'
+        ? ['phase:P2']
+        : phase?.label === 'P2'
+          ? ['phase:P3']
+          : ['terminal-review'],
+    riskOrConstraintAddressed: `Keeps ${phase.label} future work visible without allowing execution mutation before commitment.`,
+    successCriterionServed:
+      phase?.label === 'P1'
+        ? 'Launch proof and next-phase readiness'
+        : phase?.label === 'P2'
+          ? 'Conversion and operating-system proof'
+          : 'Scale and terminal-readiness evidence',
   };
 }
 
@@ -172,6 +194,7 @@ function deriveP2Blocks({ planId, phase, lane, horizonEndDayKey }) {
       title: templates[0 % templates.length],
       commitmentState: phase.commitmentState,
       index: blocks.length,
+      blockType: 'readiness',
     }));
   }
 
@@ -188,6 +211,7 @@ function deriveP2Blocks({ planId, phase, lane, horizonEndDayKey }) {
       title,
       commitmentState: phase.commitmentState,
       index: blocks.length,
+      blockType: templateIdx % 2 === 0 ? 'audit' : 'action',
     }));
     cursor = addDaysToKey(cursor, intervalDays);
     templateIdx++;
@@ -201,6 +225,7 @@ function deriveP2Blocks({ planId, phase, lane, horizonEndDayKey }) {
       title: `Assess P2 expansion readiness for ${lane ? laneLabel({ domain: lane.domain, title: lane.laneTitle }) : 'primary lane'} before widening commitment`,
       commitmentState: 'review-required',
       index: blocks.length,
+      blockType: 'gate',
     }));
   }
 
@@ -228,6 +253,7 @@ function deriveP3Blocks({ planId, phase, lane, horizonEndDayKey }) {
       title: templates[0 % templates.length],
       commitmentState: phase.commitmentState,
       index: blocks.length,
+      blockType: 'review',
     }));
   }
 
@@ -241,6 +267,7 @@ function deriveP3Blocks({ planId, phase, lane, horizonEndDayKey }) {
       title: templates[templateIdx % templates.length],
       commitmentState: phase.commitmentState,
       index: blocks.length,
+      blockType: templateIdx % 2 === 0 ? 'audit' : 'readiness',
     }));
     cursor = addDaysToKey(cursor, 90);
     templateIdx++;
@@ -255,6 +282,7 @@ function deriveP3Blocks({ planId, phase, lane, horizonEndDayKey }) {
       title: TERMINAL_READINESS_TITLE,
       commitmentState: 'terminal-readiness',
       index: blocks.length,
+      blockType: 'terminal-readiness',
     }));
   }
 
@@ -293,6 +321,7 @@ function deriveP1PostCycleBlocks({ planId, phase, lane, cycleEndDayKey, horizonE
     title: templates[0],
     commitmentState: 'forecast',
     index: blocks.length,
+    blockType: 'audit',
   }));
 
   // Monthly blocks through P1 window — capped at 5 (density doctrine: near-term = monthly)
@@ -306,6 +335,7 @@ function deriveP1PostCycleBlocks({ planId, phase, lane, cycleEndDayKey, horizonE
       title: templates[templateIdx % templates.length],
       commitmentState: 'forecast',
       index: blocks.length,
+      blockType: templateIdx % 2 === 0 ? 'validation' : 'action',
     }));
     cursor = addDaysToKey(cursor, intervalDays);
     templateIdx++;
@@ -321,6 +351,7 @@ function deriveP1PostCycleBlocks({ planId, phase, lane, cycleEndDayKey, horizonE
       title: `Reassess lane readiness for P1-to-P2 expansion for ${ll}`,
       commitmentState: 'review-required',
       index: blocks.length,
+      blockType: 'gate',
     }));
   }
 
