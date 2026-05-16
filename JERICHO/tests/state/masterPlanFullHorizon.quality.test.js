@@ -60,13 +60,51 @@ function cloneBlocks(blocks) {
 }
 
 describe('master-plan full-horizon quality gate', () => {
-  it('lets the baseline Operation Endgame schedule pass at least provisional quality', () => {
+  it('lets the baseline Operation Endgame schedule reach trusted quality', () => {
     const state = buildGeneratedState();
     const quality = state.fullHorizonPlanQuality;
 
     expect(state.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
-    expect(['trusted', 'provisional']).toContain(quality?.state);
-    expect(Number(quality?.score || 0)).toBeGreaterThanOrEqual(72);
+    expect(state.fullHorizonCoverageAudit?.fullHorizonQualityTrusted).toBe(true);
+    expect(quality?.state).toBe('trusted');
+    expect(Number(quality?.score || 0)).toBeGreaterThanOrEqual(90);
+    expect(quality?.reasonCodes || []).toEqual([]);
+  });
+
+  it('keeps expectedOutput populated across the trusted baseline schedule', () => {
+    const state = buildGeneratedState();
+
+    expect((state.fullHorizonScheduleBlocks || []).every((block) => String(block.expectedOutput || '').trim().length > 0)).toBe(true);
+  });
+
+  it('keeps lane/object context populated across the trusted baseline schedule', () => {
+    const state = buildGeneratedState();
+    const missingContext = (state.fullHorizonScheduleBlocks || []).filter((block) => {
+      const title = String(block.title || '');
+      return !/(lane|operation endgame|app platform|album release engine|pipeline|system|bridge|thesis|design|development)/i.test(
+        title
+      );
+    });
+
+    expect(missingContext).toEqual([]);
+  });
+
+  it('keeps baseline title repetition below the trusted threshold', () => {
+    const state = buildGeneratedState();
+    const counts = new Map();
+    for (const block of state.fullHorizonScheduleBlocks || []) {
+      const title = String(block.title || '');
+      counts.set(title, (counts.get(title) || 0) + 1);
+    }
+
+    expect(Math.max(...counts.values())).toBeLessThanOrEqual(18);
+  });
+
+  it('keeps professionalism repetition below the trusted threshold', () => {
+    const quality = evaluateForState(buildGeneratedState());
+
+    expect(quality.dimensions.precision.reasonCodes).not.toContain('PRECISION_TEMPLATE_REPETITION');
+    expect(quality.dimensions.professionalism.reasonCodes).not.toContain('PROFESSIONALISM_REPETITIVE_BLOCK_PATTERN');
   });
 
   it('captures P2 conversion-system work in the baseline schedule', () => {

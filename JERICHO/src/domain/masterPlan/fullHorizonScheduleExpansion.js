@@ -123,6 +123,284 @@ function resolveTimeEstimateMinutes(blockType) {
   }
 }
 
+function parseDayKey(dayKey) {
+  const value = clampKey(dayKey);
+  return value ? new Date(`${value}T12:00:00.000Z`) : null;
+}
+
+function formatMonthYear(dayKey) {
+  const date = parseDayKey(dayKey);
+  if (!date) {
+    return 'current review window';
+  }
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+function formatQuarterYear(dayKey) {
+  const date = parseDayKey(dayKey);
+  if (!date) {
+    return 'current quarter';
+  }
+  return `Q${Math.floor(date.getUTCMonth() / 3) + 1} ${date.getUTCFullYear()}`;
+}
+
+function getReviewWindowLabel(phaseLabel, dayKey) {
+  if (phaseLabel === 'P3') {
+    return formatQuarterYear(dayKey);
+  }
+  return formatMonthYear(dayKey);
+}
+
+function getOccurrenceFocusOptions(family, phaseLabel, laneTitle) {
+  const genericLane = laneTitle || 'this lane';
+  const byFamily = {
+    product_software: {
+      P1: [
+        'beta onboarding proof',
+        'launch blocker clearance',
+        'activation instrumentation coverage',
+        'first-user feedback evidence',
+      ],
+      P2: [
+        'first-cohort completion data',
+        'activation-to-retention evidence',
+        'release instrumentation quality',
+        'support-friction evidence',
+        'conversion threshold proof',
+        'repeat usage evidence',
+      ],
+      P3: [
+        'delegation control coverage',
+        'scale-entry risk controls',
+        'terminal product evidence',
+        'operating-system resilience proof',
+      ],
+    },
+    creative_media: {
+      P1: [
+        'release asset completion',
+        'audience-capture proof',
+        'distribution readiness',
+        'post-launch conversion evidence',
+      ],
+      P2: [
+        'catalog replay evidence',
+        'merch-to-listener conversion proof',
+        'creative spend efficiency data',
+        'repeat release-system evidence',
+      ],
+      P3: [
+        'long-tail monetization proof',
+        'catalog resilience evidence',
+        'terminal creative package quality',
+        'delegated release-system evidence',
+      ],
+    },
+    media_channel: {
+      P1: [
+        'distribution consistency proof',
+        'capture-to-conversion bridge evidence',
+        'anchor-story alignment',
+        'editorial cadence readiness',
+      ],
+      P2: [
+        'audience growth loop data',
+        'episode completion evidence',
+        'sponsor-readiness proof',
+        'cross-channel conversion evidence',
+      ],
+      P3: [
+        'scale distribution resilience',
+        'delegated editorial controls',
+        'terminal audience evidence',
+        'partner-system durability',
+      ],
+    },
+    company_operations: {
+      P1: [
+        'operator checklist coverage',
+        'handoff rhythm proof',
+        'meeting-control discipline',
+        'execution risk controls',
+      ],
+      P2: [
+        'dashboard review discipline',
+        'delegation bottleneck evidence',
+        'staffing gate readiness',
+        'cross-lane operating cadence proof',
+      ],
+      P3: [
+        'delegation readiness evidence',
+        'systemization durability',
+        'scale-governance controls',
+        'terminal operating-system evidence',
+      ],
+    },
+    income_stream: {
+      P1: [
+        'cashflow protection proof',
+        'offer bridge viability',
+        'urgent revenue signal',
+        'runway protection evidence',
+      ],
+      P2: [
+        'margin-readiness evidence',
+        'repeatable close-rate proof',
+        'conversion quality threshold',
+        'offer-system durability',
+      ],
+      P3: [
+        'scale economics evidence',
+        'delegated revenue controls',
+        'terminal monetization package',
+        'recurring revenue resilience',
+      ],
+    },
+    capital_real_estate: {
+      P1: [
+        'capital-readiness prerequisites',
+        'property-action gate dependencies',
+        'financing blocker evidence',
+        'proof-before-expansion controls',
+      ],
+      P2: [
+        'acquisition thesis evidence',
+        'financing prerequisite quality',
+        'asset-readiness proof',
+        'capital stack viability',
+      ],
+      P3: [
+        'scale-entry gate evidence',
+        'terminal capital-readiness proof',
+        'asset expansion controls',
+        'risk-managed financing path',
+      ],
+    },
+    institution_education: {
+      P1: [
+        'institution model assumptions',
+        'legal prerequisite proof',
+        'proof-before-charter controls',
+        'program dependency mapping',
+      ],
+      P2: [
+        'program viability evidence',
+        'partner-readiness proof',
+        'operating charter quality',
+        'curriculum system readiness',
+      ],
+      P3: [
+        'institutional scale-readiness',
+        'delegated program governance',
+        'terminal institutional evidence',
+        'charter durability controls',
+      ],
+    },
+    civic_development: {
+      P1: [
+        'credibility dependency map',
+        'coalition prerequisite proof',
+        'capital-before-district controls',
+        'public-trust dependencies',
+      ],
+      P2: [
+        'district opportunity criteria',
+        'coalition-readiness evidence',
+        'public-interest proof quality',
+        'partner viability controls',
+      ],
+      P3: [
+        'civic scale-readiness',
+        'terminal coalition evidence',
+        'delegated district governance',
+        'public-partnership durability',
+      ],
+    },
+    general: {
+      P1: [`${genericLane} proof sequence`],
+      P2: [`${genericLane} operating cadence`],
+      P3: [`${genericLane} terminal evidence`],
+    },
+  };
+
+  return byFamily[family]?.[phaseLabel] || byFamily.general[phaseLabel] || byFamily.general.P2;
+}
+
+function getArtifactLabel(family, phaseLabel, blockType, laneTitle) {
+  const genericLane = laneTitle || 'this lane';
+  const byFamily = {
+    product_software: {
+      P1: 'launch-proof packet',
+      P2: blockType === 'audit' ? 'funnel audit memo' : 'conversion operating brief',
+      P3: 'terminal product evidence package',
+    },
+    creative_media: {
+      P1: 'release-proof packet',
+      P2: 'creative conversion brief',
+      P3: 'terminal creative evidence package',
+    },
+    media_channel: {
+      P1: 'distribution proof log',
+      P2: 'audience operating brief',
+      P3: 'terminal media evidence package',
+    },
+    company_operations: {
+      P1: 'operator control sheet',
+      P2: 'operating cadence brief',
+      P3: 'terminal operating-system package',
+    },
+    income_stream: {
+      P1: 'revenue protection brief',
+      P2: 'conversion margin brief',
+      P3: 'terminal revenue evidence package',
+    },
+    capital_real_estate: {
+      P1: 'capital gate memo',
+      P2: 'asset-readiness brief',
+      P3: 'terminal capital-readiness package',
+    },
+    institution_education: {
+      P1: 'institution dependency brief',
+      P2: 'program viability brief',
+      P3: 'terminal institutional evidence package',
+    },
+    civic_development: {
+      P1: 'coalition dependency brief',
+      P2: 'district-readiness brief',
+      P3: 'terminal civic evidence package',
+    },
+    general: {
+      P1: `${genericLane} proof brief`,
+      P2: `${genericLane} operating brief`,
+      P3: `${genericLane} terminal brief`,
+    },
+  };
+
+  return byFamily[family]?.[phaseLabel] || byFamily.general[phaseLabel] || `${genericLane} evidence package`;
+}
+
+function decorateDescriptorForOccurrence({ descriptor, phaseLabel, lane, dayKey, idx }) {
+  const laneTitle = getLaneTitle(lane);
+  const family = inferLaneFamily(lane);
+  const reviewWindow = getReviewWindowLabel(phaseLabel, dayKey);
+  const focusOptions = getOccurrenceFocusOptions(family, phaseLabel, laneTitle);
+  const focus = focusOptions[idx % focusOptions.length] || `${laneTitle} evidence`;
+  const artifact = getArtifactLabel(family, phaseLabel, descriptor.blockType, laneTitle);
+  const titleWindowLabel =
+    phaseLabel === 'P3' ? `${reviewWindow} scale review window` : `${reviewWindow} review window`;
+
+  return {
+    ...descriptor,
+    title: `${descriptor.title} using ${focus} for the ${titleWindowLabel}`,
+    expectedOutput: `${descriptor.expectedOutput} Deliver ${artifact} with ${focus}, explicit owner, and next gate timing for ${reviewWindow}.`,
+    derivationReason: `${descriptor.derivationReason} Occurrence tuned to ${focus} for ${reviewWindow}.`,
+  };
+}
+
 function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
   const laneTitle = getLaneTitle(lane);
   const laneLabel = getLaneLabel(lane);
@@ -311,10 +589,17 @@ function buildBlock({
 }) {
   const laneId = lane?.id || lane?.laneId || null;
   const blockType = descriptor.blockType;
+  const occurrenceDescriptor = decorateDescriptorForOccurrence({
+    descriptor,
+    phaseLabel: phase?.label || null,
+    lane,
+    dayKey,
+    idx,
+  });
   const commitmentState =
-    descriptor.blockType === 'gate'
+    occurrenceDescriptor.blockType === 'gate'
       ? 'review-required'
-      : descriptor.blockType === 'terminal-readiness'
+      : occurrenceDescriptor.blockType === 'terminal-readiness'
         ? 'terminal-readiness'
         : phase?.label === 'P1'
           ? 'forecast'
@@ -324,7 +609,7 @@ function buildBlock({
 
   return {
     id: mkId(planId, phase?.label, laneId || 'lane', dayKey, idx),
-    title: descriptor.title,
+    title: occurrenceDescriptor.title,
     date: dayKey,
     dayKey,
     start: `${dayKey}T09:00:00.000Z`,
@@ -334,14 +619,14 @@ function buildBlock({
     laneId,
     laneLabel: getLaneTitle(lane),
     deliverableId: laneId ? `masterplan-deliverable:${laneId}` : null,
-    blockType,
+    blockType: occurrenceDescriptor.blockType,
     commitmentState,
     executionEligibility: 'locked',
     executionLockReason:
       'Full-horizon substrate is inspectable but not executable. Future work must remain locked until committed in Today.',
     source: 'derived',
-    expectedOutput: descriptor.expectedOutput,
-    derivationReason: descriptor.derivationReason,
+    expectedOutput: occurrenceDescriptor.expectedOutput,
+    derivationReason: occurrenceDescriptor.derivationReason,
     timeEstimateMinutes: resolveTimeEstimateMinutes(blockType),
     predecessors: (lane?.dependsOnLaneIds || []).map((dependencyId) => `lane:${dependencyId}`),
     sourceInputs: [
@@ -356,9 +641,9 @@ function buildBlock({
       ...(phase?.label === 'P3' ? ['phase:P2'] : []),
       ...((lane?.dependsOnLaneIds || []).map((dependencyId) => `lane:${dependencyId}`)),
     ],
-    unlocks: descriptor.unlocks,
-    riskOrConstraintAddressed: descriptor.riskOrConstraintAddressed,
-    successCriterionServed: descriptor.successCriterionServed,
+    unlocks: occurrenceDescriptor.unlocks,
+    riskOrConstraintAddressed: occurrenceDescriptor.riskOrConstraintAddressed,
+    successCriterionServed: occurrenceDescriptor.successCriterionServed,
     executionContext: {
       laneStatus,
       planOrientation: inferPlanOrientation(plan),
@@ -372,7 +657,7 @@ function buildGlobalTerminalBlock({ planId, phase, horizonEndDayKey, plan }) {
   if (!dayKey || phase?.label !== 'P3') return null;
   return {
     id: mkId(planId, phase?.label, 'terminal', dayKey, 999),
-    title: 'Assess terminal-readiness evidence against the success standard and outcome target',
+    title: `Assess terminal-readiness evidence for the cross-lane Operation Endgame review against the success standard and outcome target in ${formatQuarterYear(dayKey)}`,
     date: dayKey,
     dayKey,
     start: `${dayKey}T15:00:00.000Z`,
@@ -388,8 +673,10 @@ function buildGlobalTerminalBlock({ planId, phase, horizonEndDayKey, plan }) {
     executionLockReason:
       'Terminal-readiness review is inspectable for the strategic horizon but cannot mutate execution state.',
     source: 'derived',
-    expectedOutput: 'Cross-lane terminal-readiness decision and horizon review',
-    derivationReason: 'Derived from P3 success standard comparison against the declared outcome target.',
+    expectedOutput:
+      'Terminal-readiness evidence package updated for the cross-lane Operation Endgame review with current proof, remaining gaps, and final horizon decision.',
+    derivationReason:
+      `Derived from P3 success standard comparison against the declared outcome target for the ${formatQuarterYear(dayKey)} terminal review window.`,
     timeEstimateMinutes: 120,
     predecessors: [],
     sourceInputs: [

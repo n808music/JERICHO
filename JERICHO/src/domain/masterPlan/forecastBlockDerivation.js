@@ -77,7 +77,36 @@ function p3TitleTemplates(lane) {
 }
 
 const TERMINAL_READINESS_TITLE =
-  'Assess terminal-readiness evidence against the success standard and outcome target';
+  'Assess terminal-readiness evidence for the cross-lane Operation Endgame review against the success standard and outcome target';
+
+function buildForecastExpectedOutput({ blockType, lane, phase, title }) {
+  const laneContext = lane ? laneLabel({ domain: lane.domain, title: lane.laneTitle }) : 'cross-lane terminal review';
+  const phaseLabel = String(phase?.label || '').trim() || 'phase';
+  const normalizedTitle = String(title || '').trim();
+
+  if (blockType === 'gate') {
+    return `Gate decision for ${laneContext} recorded with pass/fail criteria, blocked dependencies, and next unlock timing.`;
+  }
+  if (blockType === 'terminal-readiness') {
+    return `Terminal-readiness evidence package for ${laneContext} updated with current proof, remaining gaps, and final horizon decision.`;
+  }
+  if (blockType === 'readiness') {
+    return `Readiness decision for ${laneContext} documented with owner, threshold, and next evidence requirement for ${phaseLabel}.`;
+  }
+  if (blockType === 'audit') {
+    return `Audit findings for ${laneContext} captured with weak points, corrective actions, and follow-up review timing.`;
+  }
+  if (blockType === 'validation') {
+    return `Validation result for ${laneContext} captured with evidence reviewed, disposition, and required next action.`;
+  }
+  if (blockType === 'action') {
+    return `Updated action package for ${laneContext} with owner, cadence, and deliverable needed before the next review.`;
+  }
+  if (blockType === 'review') {
+    return `Review decision for ${laneContext} documented with evidence summary, hold/advance choice, and next proof target.`;
+  }
+  return `Specific ${phaseLabel} output for ${laneContext} documented from: ${normalizedTitle}.`;
+}
 
 function p1PostCycleTitleTemplates(lane) {
   const ll = laneLabel(lane);
@@ -148,8 +177,8 @@ function buildForecastBlock({ planId, phase, lane, dayKey, title, commitmentStat
     executionLockReason:
       'Forecast block visible for long-horizon inspection. Not executable until committed into an active cycle.',
     source: 'derived',
-    derivationReason: `Derived from ${phase.label} phase substrate: ${phase.phaseObjective || 'phase objective'}`,
-    expectedOutput: null,
+    derivationReason: `Derived from ${phase.label} phase substrate for ${lane ? laneLabel({ domain: lane.domain, title: lane.laneTitle }) : 'cross-lane terminal review'}: ${phase.phaseObjective || 'phase objective'}`,
+    expectedOutput: buildForecastExpectedOutput({ blockType, lane, phase, title }),
     timeEstimateMinutes: blockType === 'terminal-readiness' ? 90 : 60,
     sourceInputs: [
       `plan:${planId}`,
