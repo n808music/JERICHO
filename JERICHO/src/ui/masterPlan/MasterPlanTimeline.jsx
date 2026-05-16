@@ -11,6 +11,10 @@ import {
   getFullHorizonCoverageLabel,
   getFullHorizonCoverageTone,
 } from '../../domain/masterPlan/fullHorizonCoverageAudit.js';
+import {
+  getFullHorizonPlanQualityLabel,
+  getFullHorizonPlanQualityTone,
+} from '../../domain/masterPlan/fullHorizonPlanQuality.js';
 import { deriveMasterPlanPhaseModel } from '../../domain/masterPlan/masterPlanPhaseModel.js';
 import { clampDayKeyToRange, normalizeStrategicDayKey, resolveStrategicAgendaHorizon } from '../../domain/masterPlan/strategicHorizon.js';
 import TimelineGrid from './TimelineGrid.jsx';
@@ -819,6 +823,7 @@ function MasterPlanTimelineView({ plan, store }) {
         plan={plan}
         strategicCoverage={strategicCoverage}
         strategicCoverageAudit={strategicCoverageAudit}
+        strategicPlanQuality={store?.fullHorizonPlanQuality || null}
         strategicPhases={displayedPhaseModel.phases}
         phaseModel={displayedPhaseModel}
         strategicAgenda={strategicAgenda}
@@ -861,6 +866,7 @@ function StrategicCoveragePanel({
   plan,
   strategicCoverage,
   strategicCoverageAudit,
+  strategicPlanQuality,
   strategicPhases,
   phaseModel,
   strategicAgenda,
@@ -873,7 +879,12 @@ function StrategicCoveragePanel({
 }) {
   const coverageStatusLabel = getFullHorizonCoverageLabel(strategicCoverageAudit);
   const coverageTone = getFullHorizonCoverageTone(strategicCoverageAudit);
+  const qualityStatusLabel = getFullHorizonPlanQualityLabel(strategicPlanQuality);
+  const qualityTone = getFullHorizonPlanQualityTone(strategicPlanQuality);
   const hasInsufficientCoverage = coverageTone !== 'positive';
+  const qualityFinding = strategicPlanQuality?.reasonCodes?.[0]
+    ? titleCaseWords(String(strategicPlanQuality.reasonCodes[0]).replace(/^[A-Z0-9]+_/, ''))
+    : null;
   const selectedLayerLabel =
     commitmentView === 'committed_only'
       ? 'Committed schedule'
@@ -905,6 +916,38 @@ function StrategicCoveragePanel({
           }`}
         >
           {coverageStatusLabel}
+        </span>
+      </div>
+
+      <div className="flex items-start justify-between gap-3 rounded-lg border border-line/50 bg-jericho-surface/60 px-3 py-2">
+        <div>
+          <p className="text-[11px] font-medium text-body">Plan quality</p>
+          <p className="text-[11px] text-muted">
+            {strategicCoverageAudit?.fullHorizonCovered
+              ? strategicPlanQuality?.state === 'trusted'
+                ? 'Full horizon covered and the generated P2/P3 workload passes the current quality gate.'
+                : strategicPlanQuality?.state === 'provisional'
+                  ? 'Full horizon covered; plan quality provisional.'
+                  : strategicPlanQuality?.state === 'degraded'
+                    ? 'Full horizon covered, but the generated P2/P3 workload needs quality correction.'
+                    : 'Coverage passed, but plan quality is not yet trusted.'
+              : 'Coverage must pass before the plan-quality gate can trust the long-horizon workload.'}
+          </p>
+          {qualityFinding ? <p className="text-[11px] text-muted">{qualityFinding}.</p> : null}
+        </div>
+        <span
+          data-testid="masterplan-quality-status"
+          className={`rounded-full border px-2 py-0.5 text-[11px] ${
+            qualityTone === 'positive'
+              ? 'border-green-500/40 text-green-600'
+              : qualityTone === 'warning'
+                ? 'border-amber-400/40 text-amber-600'
+                : qualityTone === 'critical'
+                  ? 'border-rose-500/40 text-rose-600'
+                  : 'border-line/50 text-muted'
+          }`}
+        >
+          {qualityStatusLabel}
         </span>
       </div>
 

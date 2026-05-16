@@ -258,6 +258,8 @@ describe('MasterPlanTimeline rendering', () => {
       screen.getByText(/Jericho has resolved the horizon endpoint, but full terminal coverage is not yet proven\./i)
     ).toBeInTheDocument();
     expect(screen.getByTestId('masterplan-coverage-status')).toHaveTextContent(/Horizon resolved/i);
+    expect(screen.getByTestId('masterplan-quality-status')).toHaveTextContent(/Plan quality unavailable/i);
+    expect(screen.getByText(/Coverage must pass before the plan-quality gate can trust the long-horizon workload\./i)).toBeInTheDocument();
     expect(screen.getByText(/Only the first execution cycle is scheduled\./i)).toBeInTheDocument();
     expect(screen.getByText(/Not yet scheduled does not mean not recognized\./i)).toBeInTheDocument();
     expect(screen.getByText(/Future work remains forecast or gated until reassessment confirms it\./i)).toBeInTheDocument();
@@ -403,6 +405,9 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByTestId('timeline-plan-through-label')).toHaveTextContent(/through\s+May 2031/i);
     expect(screen.getAllByText(/P3 · Scale \/ Terminal Readiness/i).length).toBeGreaterThan(0);
     expect(screen.getByTestId('phase-card-p3')).toHaveTextContent(/2031/);
+    expect(screen.getByTestId('masterplan-coverage-status')).toHaveTextContent(/Horizon resolved/i);
+    expect(screen.getByTestId('masterplan-quality-status')).toHaveTextContent(/Plan quality unavailable/i);
+    expect(screen.getByText(/Coverage must pass before the plan-quality gate can trust the long-horizon workload\./i)).toBeInTheDocument();
 
     await act(async () => {
       await user.click(screen.getByRole('button', { name: /Forecast roadmap/i }));

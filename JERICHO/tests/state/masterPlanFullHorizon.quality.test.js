@@ -1,0 +1,266 @@
+import { describe, expect, it } from 'vitest';
+
+import { auditFullHorizonCoverage } from '../../src/domain/masterPlan/fullHorizonCoverageAudit.js';
+import { evaluateFullHorizonPlanQuality } from '../../src/domain/masterPlan/fullHorizonPlanQuality.js';
+import { deriveMasterPlanPhaseModel } from '../../src/domain/masterPlan/masterPlanPhaseModel.js';
+import { buildOperationEndgameState, getActivePlan, setHorizonMode } from '../helpers/masterPlanFullHorizonScenario.js';
+
+function buildGeneratedState(options = {}) {
+  return setHorizonMode(buildOperationEndgameState(options), 'full_horizon');
+}
+
+function buildContext(state = buildGeneratedState()) {
+  const plan = getActivePlan(state);
+  const lanes = Array.isArray(plan?.laneIds)
+    ? plan.laneIds.map((laneId) => state?.masterPlanLanesById?.[laneId]).filter(Boolean)
+    : [];
+  const milestones = lanes.flatMap((lane) =>
+    Array.isArray(lane?.milestoneIds)
+      ? lane.milestoneIds.map((milestoneId) => state?.masterPlanMilestonesById?.[milestoneId]).filter(Boolean)
+      : []
+  );
+  const phaseModel = deriveMasterPlanPhaseModel({
+    plan,
+    lanes,
+    milestones,
+    anchors: Array.isArray(plan?.anchors) ? plan.anchors : [],
+    planCycle: null,
+    committedBlocks: [],
+    criticQuestionsByLane: {},
+  });
+
+  return { state, plan, lanes, phaseModel };
+}
+
+function evaluateForState(state = buildGeneratedState(), blocks = state.fullHorizonScheduleBlocks || []) {
+  const { plan, lanes, phaseModel } = buildContext(state);
+  const coverageAudit = auditFullHorizonCoverage({
+    fullHorizonScheduleBlocks: blocks,
+    phaseModel,
+    fullHorizonStartDayKey: plan?.horizonStart,
+    fullHorizonEndDayKey: plan?.fullHorizonEndDayKey || plan?.horizonEnd,
+    laneModel: lanes,
+    selectedHorizonMode: state?.selectedHorizonMode || 'full_horizon',
+  });
+  return evaluateFullHorizonPlanQuality({
+    fullHorizonScheduleBlocks: blocks,
+    fullHorizonCoverageAudit: coverageAudit,
+    phaseModel,
+    laneModel: lanes,
+    masterPlanContract: plan,
+    anchors: plan?.anchors || [],
+    successStandard: plan?.successStandard || null,
+    outcomeTarget: plan?.outcomeTarget || null,
+    constraints: plan?.financialConstraint || plan?.constraints || null,
+  });
+}
+
+function cloneBlocks(blocks) {
+  return JSON.parse(JSON.stringify(blocks || []));
+}
+
+describe('master-plan full-horizon quality gate', () => {
+  it('lets the baseline Operation Endgame schedule pass at least provisional quality', () => {
+    const state = buildGeneratedState();
+    const quality = state.fullHorizonPlanQuality;
+
+    expect(state.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
+    expect(['trusted', 'provisional']).toContain(quality?.state);
+    expect(Number(quality?.score || 0)).toBeGreaterThanOrEqual(72);
+  });
+
+  it('captures P2 conversion-system work in the baseline schedule', () => {
+    const quality = evaluateForState(buildGeneratedState());
+
+    expect(quality.dimensions.progression.reasonCodes).not.toContain('PROGRESSION_P2_LACKS_CONVERSION_SYSTEM');
+  });
+
+  it('captures P2 operating cadence work in the baseline schedule', () => {
+    const quality = evaluateForState(buildGeneratedState());
+
+    expect(quality.dimensions.progression.reasonCodes).not.toContain('PROGRESSION_P2_LACKS_OPERATING_CADENCE');
+  });
+
+  it('captures P2 revenue architecture or monetization validation work in the baseline schedule', () => {
+    const quality = evaluateForState(buildGeneratedState());
+
+    expect(quality.dimensions.progression.reasonCodes).not.toContain('PROGRESSION_P2_LACKS_REVENUE_ARCHITECTURE');
+  });
+
+  it('keeps P2 lane maturation and repeatable loop work in the baseline schedule', () => {
+    const state = buildGeneratedState();
+    const p2Titles = (state.fullHorizonScheduleBlocks || [])
+      .filter((block) => block.phaseLabel === 'P2')
+      .map((block) => `${block.title} ${block.expectedOutput || ''}`.toLowerCase());
+
+    expect(p2Titles.some((text) => /repeatable|expansion readiness|operating cadence|conversion/.test(text))).toBe(true);
+  });
+
+  it('captures P3 terminal-readiness work in the baseline schedule', () => {
+    const quality = evaluateForState(buildGeneratedState());
+
+    expect(quality.dimensions.progression.reasonCodes).not.toContain('PROGRESSION_P3_LACKS_TERMINAL_READINESS');
+  });
+
+  it('captures P3 scale-readiness work in the baseline schedule', () => {
+    const quality = evaluateForState(buildGeneratedState());
+
+    expect(quality.dimensions.progression.reasonCodes).not.toContain('PROGRESSION_P3_LACKS_SCALE_READINESS');
+  });
+
+  it('captures P3 delegation or institutionalization work in the baseline schedule', () => {
+    const state = buildGeneratedState();
+    const p3Texts = (state.fullHorizonScheduleBlocks || [])
+      .filter((block) => block.phaseLabel === 'P3')
+      .map((block) => `${block.title} ${block.expectedOutput || ''} ${block.derivationReason || ''}`.toLowerCase());
+
+    expect(p3Texts.some((text) => /delegation|institutional|operating system|coalition|charter/.test(text))).toBe(true);
+  });
+
+  it('captures P3 outcome-target gap or evidence review work in the baseline schedule', () => {
+    const state = buildGeneratedState();
+    const p3Texts = (state.fullHorizonScheduleBlocks || [])
+      .filter((block) => block.phaseLabel === 'P3')
+      .map((block) => `${block.title} ${block.successCriterionServed || ''}`.toLowerCase());
+
+    expect(p3Texts.some((text) => /outcome target|success standard|terminal-readiness|evidence/.test(text))).toBe(true);
+  });
+
+  it('fails precision when vague titles are injected', () => {
+    const state = buildGeneratedState();
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks);
+    blocks[0].title = 'Review';
+
+    const quality = evaluateForState(state, blocks);
+    expect(quality.dimensions.precision.reasonCodes).toContain('PRECISION_VAGUE_TITLE');
+  });
+
+  it('fails precision and professionalism when expectedOutput is removed', () => {
+    const state = buildGeneratedState();
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks);
+    blocks[0].expectedOutput = '';
+
+    const quality = evaluateForState(state, blocks);
+    expect(quality.dimensions.precision.reasonCodes).toContain('PRECISION_MISSING_EXPECTED_OUTPUT');
+  });
+
+  it('fails professionalism when lineage inputs are removed', () => {
+    const state = buildGeneratedState();
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks);
+    blocks[0].sourceInputs = [];
+    blocks[0].derivationReason = '';
+
+    const quality = evaluateForState(state, blocks);
+    expect(quality.dimensions.professionalism.reasonCodes).toContain('PROFESSIONALISM_INSUFFICIENT_LINEAGE');
+  });
+
+  it('fails professionalism when template repetition dominates the schedule', () => {
+    const state = buildGeneratedState();
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks).map((block) => ({
+      ...block,
+      title: `Repeat template ${block.phaseLabel}`,
+    }));
+
+    const quality = evaluateForState(state, blocks);
+    expect(quality.dimensions.professionalism.reasonCodes).toContain('PROFESSIONALISM_REPETITIVE_BLOCK_PATTERN');
+  });
+
+  it('fails pacing when quarter and year gaps are introduced', () => {
+    const state = buildGeneratedState();
+    const blocks = (state.fullHorizonScheduleBlocks || []).filter(
+      (block) =>
+        String(block.dayKey || '') < '2029-01-01' ||
+        String(block.dayKey || '') === '2029-01-01' ||
+        String(block.dayKey || '') === '2031-05-11'
+    );
+
+    const quality = evaluateForState(state, blocks);
+    expect(quality.dimensions.pacing.reasonCodes).toEqual(
+      expect.arrayContaining(['PACING_YEAR_GAP', 'PACING_QUARTER_GAP', 'PACING_LATE_HORIZON_DENSITY_COLLAPSE'])
+    );
+  });
+
+  it('fails pacing when same-day pileups are introduced', () => {
+    const state = buildGeneratedState();
+    const pileupDay = '2028-07-01';
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks).map((block, index) =>
+      index < 24 ? { ...block, dayKey: pileupDay, date: pileupDay } : block
+    );
+
+    const quality = evaluateForState(state, blocks);
+    expect(quality.dimensions.pacing.reasonCodes).toContain('PACING_SINGLE_DAY_PILEUP');
+  });
+
+  it('fails progression when P3 is overwritten with launch-style P1 work', () => {
+    const state = buildGeneratedState();
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks).map((block) =>
+      block.phaseLabel === 'P3'
+        ? {
+            ...block,
+            title: 'Launch release asset for creative lane',
+            expectedOutput: 'Launch artifact shipped',
+          }
+        : block
+    );
+
+    const quality = evaluateForState(state, blocks);
+    expect(quality.dimensions.progression.reasonCodes).toContain('PROGRESSION_LATER_PHASE_REPEATS_P1');
+  });
+
+  it('keeps the capital lane gated when capital remains zero', () => {
+    const state = buildGeneratedState({ capitalAvailable: 0 });
+    const capitalBlocks = (state.fullHorizonScheduleBlocks || []).filter((block) =>
+      /real estate|capital/i.test(String(block.laneLabel || ''))
+    );
+
+    expect(capitalBlocks.length).toBeGreaterThan(0);
+    expect(capitalBlocks.every((block) => block.executionEligibility === 'locked')).toBe(true);
+    expect(capitalBlocks.every((block) => block.blockType !== 'action')).toBe(true);
+  });
+
+  it('narrows institution, civic, and capital expansion when the success standard narrows', () => {
+    const baseline = buildGeneratedState();
+    const narrowed = buildGeneratedState({
+      successStandard: 'Build a single profitable product line with repeatable conversion and no ecosystem expansion.',
+    });
+    const baselineStrategic = (baseline.fullHorizonScheduleBlocks || []).filter((block) =>
+      /institution|civic|district|capital|real estate/i.test(String(block.laneLabel || ''))
+    );
+    const narrowedStrategic = (narrowed.fullHorizonScheduleBlocks || []).filter((block) =>
+      /institution|civic|district|capital|real estate/i.test(String(block.laneLabel || ''))
+    );
+
+    expect(narrowedStrategic.length).toBeLessThan(baselineStrategic.length);
+    expect(['trusted', 'provisional']).toContain(narrowed.fullHorizonPlanQuality?.state);
+  });
+
+  it('moves downstream P2 timing when the first hard anchor moves later while preserving acceptable quality', () => {
+    const baseline = buildGeneratedState();
+    const delayed = buildGeneratedState({ anchorDate: '2027-03-15' });
+    const baselineFirstP2 = (baseline.fullHorizonScheduleBlocks || []).find((block) => block.phaseLabel === 'P2');
+    const delayedFirstP2 = (delayed.fullHorizonScheduleBlocks || []).find((block) => block.phaseLabel === 'P2');
+
+    expect(delayedFirstP2.dayKey > baselineFirstP2.dayKey).toBe(true);
+    expect(['trusted', 'provisional']).toContain(delayed.fullHorizonPlanQuality?.state);
+  });
+
+  it('keeps quality trust false when coverage passes but schedule quality degrades', () => {
+    const state = buildGeneratedState();
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks).map((block, index) => ({
+      ...block,
+      title: index % 2 === 0 ? 'Review' : block.title,
+      expectedOutput: index % 3 === 0 ? '' : block.expectedOutput,
+    }));
+
+    const quality = evaluateForState(state, blocks);
+    const audit = {
+      ...state.fullHorizonCoverageAudit,
+      fullHorizonQualityTrusted: quality.state === 'trusted',
+    };
+
+    expect(state.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
+    expect(quality.state).not.toBe('trusted');
+    expect(audit.fullHorizonQualityTrusted).toBe(false);
+    expect(quality.reasonCodes).toContain('COVERAGE_PASSED_BUT_QUALITY_DEGRADED');
+  });
+});

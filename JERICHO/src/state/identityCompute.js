@@ -22,6 +22,7 @@ import { buildAutoDeliverablesFromGoalContract } from '../domain/autoStrategy.ts
 import { inferHorizonYearsFromText } from '../domain/masterPlan/masterPlanIntakeEngine.js';
 import { expandFullHorizonSchedule } from '../domain/masterPlan/fullHorizonScheduleExpansion.js';
 import { auditFullHorizonCoverage } from '../domain/masterPlan/fullHorizonCoverageAudit.js';
+import { evaluateFullHorizonPlanQuality } from '../domain/masterPlan/fullHorizonPlanQuality.js';
 import { buildGoalIntakeContract, getIntakeGateCode } from '../domain/goal/GoalIntakeContract.ts';
 import { buildGoalPolicySnapshot } from '../domain/goal/GoalPolicy.ts';
 import { evaluatePlanQualityGate } from '../domain/planQuality/evaluatePlanQualityGate.ts';
@@ -5735,10 +5736,12 @@ function applyLongHorizonCalendarBlocks(state) {
   // This produces a canonical `fullHorizonScheduleBlocks` array that all UI surfaces
   // (Structure deliverables, Plan chart, Today calendar) should consume.
   const coverageFailureReasonCodes = [];
+  const qualityFailureReasonCodes = [];
   const fullHorizonStartDayKey =
     phaseModel.horizonVisibility?.horizonStart || plan.horizonStart || plan.officialStartDate || null;
   const fullHorizonEndDayKey = horizonEndForMode || plan.fullHorizonEndDayKey || plan.horizonEnd;
   let coverageAudit = null;
+  let planQuality = null;
   try {
     const fullHorizonScheduleBlocks = expandFullHorizonSchedule({
       plan,
@@ -5757,6 +5760,21 @@ function applyLongHorizonCalendarBlocks(state) {
       laneModel: lanes,
       selectedHorizonMode: mode,
     });
+    planQuality = evaluateFullHorizonPlanQuality({
+      fullHorizonScheduleBlocks,
+      fullHorizonCoverageAudit: coverageAudit,
+      phaseModel,
+      laneModel: lanes,
+      masterPlanContract: plan,
+      anchors,
+      successStandard: plan?.successStandard || plan?.northStarOutcome || null,
+      outcomeTarget: plan?.outcomeTarget || null,
+      constraints: plan?.financialConstraint || plan?.constraints || null,
+    });
+    coverageAudit = {
+      ...coverageAudit,
+      fullHorizonQualityTrusted: planQuality?.state === 'trusted',
+    };
     state.fullHorizonScheduleBlocks = fullHorizonScheduleBlocks;
     state.calendarDisplayBlocks = fullHorizonScheduleBlocks;
 
@@ -5823,9 +5841,36 @@ function applyLongHorizonCalendarBlocks(state) {
       selectedHorizonMode: mode,
     });
   }
+  if (!planQuality && Array.isArray(state.fullHorizonScheduleBlocks) && state.fullHorizonScheduleBlocks.length > 0) {
+    planQuality = evaluateFullHorizonPlanQuality({
+      fullHorizonScheduleBlocks: state.fullHorizonScheduleBlocks,
+      fullHorizonCoverageAudit: coverageAudit,
+      phaseModel,
+      laneModel: lanes,
+      masterPlanContract: plan,
+      anchors,
+      successStandard: plan?.successStandard || plan?.northStarOutcome || null,
+      outcomeTarget: plan?.outcomeTarget || null,
+      constraints: plan?.financialConstraint || plan?.constraints || null,
+    });
+  }
+  if (coverageAudit) {
+    coverageAudit = {
+      ...coverageAudit,
+      fullHorizonQualityTrusted: planQuality?.state === 'trusted',
+    };
+  }
+  if (Array.isArray(planQuality?.reasonCodes)) {
+    qualityFailureReasonCodes.push(...planQuality.reasonCodes.filter(Boolean));
+  }
   state.fullHorizonCoverageAudit = coverageAudit;
+  state.fullHorizonPlanQuality = planQuality;
   state.fullHorizonCoverageFailureCodes = [
-    ...new Set([...(coverageFailureReasonCodes || []), ...((coverageAudit?.reasonCodes || []).filter(Boolean))]),
+    ...new Set([
+      ...(coverageFailureReasonCodes || []),
+      ...(qualityFailureReasonCodes || []),
+      ...((coverageAudit?.reasonCodes || []).filter(Boolean)),
+    ]),
   ];
 }
 
