@@ -6,6 +6,11 @@ import {
   selectMasterTimeline,
   selectMasterPlanAnchors,
 } from '../../domain/masterPlan/masterPlanSelectors.js';
+import {
+  auditFullHorizonCoverage,
+  getFullHorizonCoverageLabel,
+  getFullHorizonCoverageTone,
+} from '../../domain/masterPlan/fullHorizonCoverageAudit.js';
 import { deriveMasterPlanPhaseModel } from '../../domain/masterPlan/masterPlanPhaseModel.js';
 import { clampDayKeyToRange, normalizeStrategicDayKey, resolveStrategicAgendaHorizon } from '../../domain/masterPlan/strategicHorizon.js';
 import TimelineGrid from './TimelineGrid.jsx';
@@ -500,6 +505,12 @@ function MasterPlanTimelineView({ plan, store }) {
     () => resolveStrategicAgendaHorizon(plan, activeMissionContract),
     [plan, activeMissionContract]
   );
+  const canonicalFullHorizonBlocks = useMemo(() => {
+    const blocks = Array.isArray(store?.fullHorizonScheduleBlocks) ? store.fullHorizonScheduleBlocks : [];
+    return blocks
+      .filter((block) => String(block?.masterPlanId || block?.planId || plan.id).trim() === plan.id || !block?.masterPlanId)
+      .sort((left, right) => String(left?.dayKey || left?.date || '').localeCompare(String(right?.dayKey || right?.date || '')));
+  }, [store, plan.id]);
   const strategicCoverage = useMemo(
     () => {
       const resolvedHorizon = resolveStrategicAgendaHorizon(plan, activeMissionContract).resolvedStrategicHorizonEndDayKey;
@@ -571,6 +582,20 @@ function MasterPlanTimelineView({ plan, store }) {
       }),
     [plan, lanes, allMilestones, anchors, planCycle, canonicalPreviewBlocks, criticQuestionsByLane, activeMissionContract]
   );
+  const strategicCoverageAudit = useMemo(() => {
+    const resolvedHorizon = resolveStrategicAgendaHorizon(plan, activeMissionContract).resolvedStrategicHorizonEndDayKey;
+    return (
+      store?.fullHorizonCoverageAudit ||
+      auditFullHorizonCoverage({
+        fullHorizonScheduleBlocks: canonicalFullHorizonBlocks,
+        phaseModel: strategicPhaseModel,
+        fullHorizonStartDayKey: plan?.horizonStart,
+        fullHorizonEndDayKey: resolvedHorizon || plan?.fullHorizonEndDayKey || plan?.horizonEnd,
+        laneModel: lanes,
+        selectedHorizonMode: store?.selectedHorizonMode || 'full_horizon',
+      })
+    );
+  }, [store, canonicalFullHorizonBlocks, strategicPhaseModel, plan, activeMissionContract, lanes]);
   const layerHorizonEnd = useMemo(() => {
     if (commitmentView === 'committed_only') {
       return commitmentLayers.committedWindowEnd || strategicCoverage.executionCycleWindow?.end || strategicCoverage.horizonStart;
@@ -648,20 +673,34 @@ function MasterPlanTimelineView({ plan, store }) {
     [canonicalPreviewBlocks, visibleHorizonEnd]
   );
   const visibleForecastBlocks = useMemo(
-    () =>
-      commitmentLayers.forecastItems.filter((block) => {
+    () => {
+      const sourceBlocks =
+        commitmentView === 'roadmap_milestones' && canonicalFullHorizonBlocks.length > 0
+          ? canonicalFullHorizonBlocks.filter((block) => String(block?.blockType || '').trim().toLowerCase() !== 'gate')
+          : commitmentLayers.forecastItems;
+      return sourceBlocks.filter((block) => {
         const dayKey = normalizeDayKey(block?.dayKey || block?.startISO);
         return !visibleHorizonEnd || !dayKey || dayKey <= visibleHorizonEnd;
-      }),
-    [commitmentLayers.forecastItems, visibleHorizonEnd]
+      });
+    },
+    [commitmentLayers.forecastItems, visibleHorizonEnd, commitmentView, canonicalFullHorizonBlocks]
   );
   const visibleGatedBlocks = useMemo(
-    () =>
-      commitmentLayers.gatedItems.filter((block) => {
+    () => {
+      const sourceBlocks =
+        commitmentView === 'roadmap_milestones' && canonicalFullHorizonBlocks.length > 0
+          ? canonicalFullHorizonBlocks.filter(
+              (block) =>
+                String(block?.blockType || '').trim().toLowerCase() === 'gate' ||
+                String(block?.commitmentState || '').trim().toLowerCase() === 'review-required'
+            )
+          : commitmentLayers.gatedItems;
+      return sourceBlocks.filter((block) => {
         const dayKey = normalizeDayKey(block?.dayKey || block?.startISO);
         return !visibleHorizonEnd || !dayKey || dayKey <= visibleHorizonEnd;
-      }),
-    [commitmentLayers.gatedItems, visibleHorizonEnd]
+      });
+    },
+    [commitmentLayers.gatedItems, visibleHorizonEnd, commitmentView, canonicalFullHorizonBlocks]
   );
   const activeMasterCalendar =
     activeProfile?.masterCalendarId ? store?.masterCalendarsById?.[activeProfile.masterCalendarId] || null : null;
@@ -779,6 +818,7 @@ function MasterPlanTimelineView({ plan, store }) {
       <StrategicCoveragePanel
         plan={plan}
         strategicCoverage={strategicCoverage}
+        strategicCoverageAudit={strategicCoverageAudit}
         strategicPhases={displayedPhaseModel.phases}
         phaseModel={displayedPhaseModel}
         strategicAgenda={strategicAgenda}
@@ -820,6 +860,7 @@ function MasterPlanTimelineView({ plan, store }) {
 function StrategicCoveragePanel({
   plan,
   strategicCoverage,
+  strategicCoverageAudit,
   strategicPhases,
   phaseModel,
   strategicAgenda,
@@ -830,10 +871,9 @@ function StrategicCoveragePanel({
   onHorizonViewChange,
   visibleHorizonEnd,
 }) {
-  const coverageStatusLabel = titleCaseWords(strategicCoverage.coverageStatus);
-  const hasInsufficientCoverage =
-    strategicCoverage.coverageStatus === 'anchor_only' ||
-    strategicCoverage.coverageStatus === 'insufficient_strategy_beyond_anchor';
+  const coverageStatusLabel = getFullHorizonCoverageLabel(strategicCoverageAudit);
+  const coverageTone = getFullHorizonCoverageTone(strategicCoverageAudit);
+  const hasInsufficientCoverage = coverageTone !== 'positive';
   const selectedLayerLabel =
     commitmentView === 'committed_only'
       ? 'Committed schedule'
@@ -847,15 +887,21 @@ function StrategicCoveragePanel({
         <div>
           <p className="text-xs uppercase tracking-[0.14em] text-muted">Strategic coverage</p>
           <p className="text-sm text-muted">
-            Jericho plans through the full horizon. Only the current execution cycle is committed to Today.
+            {strategicCoverageAudit?.fullHorizonCovered
+              ? 'Jericho expresses meaningful work through the declared horizon. Only the current execution cycle is committed to Today.'
+              : strategicCoverageAudit?.horizonExpanded
+                ? 'Future work is expanding beyond the current cycle, but terminal coverage is not yet fully trusted.'
+                : 'Jericho has resolved the horizon endpoint, but full terminal coverage is not yet proven.'}
           </p>
         </div>
         <span
           data-testid="masterplan-coverage-status"
           className={`rounded-full border px-2 py-0.5 text-[11px] ${
-            hasInsufficientCoverage
-              ? 'border-amber-400/40 text-amber-600'
-              : 'border-green-500/40 text-green-600'
+            coverageTone === 'positive'
+              ? 'border-green-500/40 text-green-600'
+              : coverageTone === 'warning'
+                ? 'border-amber-400/40 text-amber-600'
+                : 'border-line/50 text-muted'
           }`}
         >
           {coverageStatusLabel}
@@ -902,6 +948,14 @@ function StrategicCoveragePanel({
           value={formatDateLabel(strategicAgenda.resolvedStrategicHorizonEndDayKey || strategicCoverage.horizonEnd)}
         />
         <CoverageItem
+          label="Last meaningful work"
+          value={formatDateLabel(strategicCoverageAudit?.lastMeaningfulWorkDate)}
+        />
+        <CoverageItem
+          label="Expected terminal date"
+          value={formatDateLabel(strategicCoverageAudit?.expectedTerminalDate || strategicCoverage.horizonEnd)}
+        />
+        <CoverageItem
           label="Roadmap coverage"
           value={
             commitmentLayers.roadmapCoverageEnd
@@ -934,6 +988,12 @@ function StrategicCoveragePanel({
           value="Not yet scheduled does not mean not recognized."
         />
       </div>
+      {Array.isArray(strategicCoverageAudit?.reasonCodes) && strategicCoverageAudit.reasonCodes.length > 0 ? (
+        <div className="rounded-md border border-line/50 bg-jericho-surface/70 px-3 py-2 text-[11px] text-muted space-y-1">
+          <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Coverage audit</p>
+          <p>{strategicCoverageAudit.reasonCodes.slice(0, 4).join(' · ')}</p>
+        </div>
+      ) : null}
 
       <div className="rounded-md border border-line/50 bg-jericho-surface/70 px-3 py-2 text-[11px] text-muted space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">

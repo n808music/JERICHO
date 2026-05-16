@@ -255,9 +255,9 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByText(/^Success:/i)).toBeInTheDocument();
     expect(screen.getByText(/Strategic coverage/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/Jericho plans through the full horizon\. Only the current execution cycle is committed to Today\./i)
+      screen.getByText(/Jericho has resolved the horizon endpoint, but full terminal coverage is not yet proven\./i)
     ).toBeInTheDocument();
-    expect(screen.getByTestId('masterplan-coverage-status')).toHaveTextContent(/Full Horizon Covered/i);
+    expect(screen.getByTestId('masterplan-coverage-status')).toHaveTextContent(/Horizon resolved/i);
     expect(screen.getByText(/Only the first execution cycle is scheduled\./i)).toBeInTheDocument();
     expect(screen.getByText(/Not yet scheduled does not mean not recognized\./i)).toBeInTheDocument();
     expect(screen.getByText(/Future work remains forecast or gated until reassessment confirms it\./i)).toBeInTheDocument();
@@ -374,11 +374,11 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByText(/^Roadmap coverage$/i)).toBeInTheDocument();
     expect(screen.getAllByText(/^Forecast schedule$/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/Unscheduled strategy remains recognized through/i)).toBeInTheDocument();
-    expect(screen.getByText(/^May 4, 2029$/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/^May 4, 2029$/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/P1 · Foundation \/ Launch Proof/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/P2 · Conversion \/ Operating System/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/P3 · Scale \/ Terminal Readiness/i).length).toBeGreaterThan(0);
-    expect(screen.queryByTestId('masterplan-coverage-warning')).not.toBeInTheDocument();
+    expect(screen.getByTestId('masterplan-coverage-warning')).toBeInTheDocument();
   });
 
   it('uses the strategic agenda horizon instead of capped roadmap coverage for full strategic agenda', async () => {
@@ -399,7 +399,7 @@ describe('MasterPlanTimeline rendering', () => {
     });
 
     expect(screen.getAllByText(/May 4, 2026 → May 4, 2031/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/^May 4, 2031$/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/^May 4, 2031$/i).length).toBeGreaterThan(0);
     expect(screen.getByTestId('timeline-plan-through-label')).toHaveTextContent(/through\s+May 2031/i);
     expect(screen.getAllByText(/P3 · Scale \/ Terminal Readiness/i).length).toBeGreaterThan(0);
     expect(screen.getByTestId('phase-card-p3')).toHaveTextContent(/2031/);
