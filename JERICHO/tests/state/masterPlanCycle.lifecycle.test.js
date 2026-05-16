@@ -191,14 +191,19 @@ describe('master-plan cycle lifecycle semantics', () => {
     });
     const cycleId = started.activeCycleId;
 
-    const deleted = computeDerivedState(started, { type: 'DELETE_CYCLE', cycleId });
+    const expanded = computeDerivedState(started, { type: 'SET_SELECTED_HORIZON_MODE', mode: 'full_horizon' });
+    const deleted = computeDerivedState(expanded, { type: 'DELETE_CYCLE', cycleId });
     const rehydrated = rehydratePersistedState(JSON.parse(JSON.stringify(deleted)));
 
     expect(deleted.activeCycleId).toBeNull();
+    expect(deleted.selectedHorizonMode).toBe('current_cycle');
+    expect(deleted.calendarDisplayBlocks).toEqual([]);
     expect(deleted.masterPlansById[planId]).toBeDefined();
     expect(deleted.profilesById[DEFAULT_PROFILE_ID].activeMasterPlanId).toBe(planId);
     expect(deleted.cyclesById[cycleId]).toBeUndefined();
     expect(rehydrated.activeCycleId).toBeNull();
+    expect(rehydrated.selectedHorizonMode).toBe('current_cycle');
+    expect(rehydrated.calendarDisplayBlocks).toEqual([]);
     expect(rehydrated.cyclesById[cycleId]).toBeUndefined();
     expect(rehydrated.masterPlansById[planId]).toBeDefined();
   });

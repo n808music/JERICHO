@@ -36,6 +36,7 @@ import { computeDerivedState, projectMonthDays, projectWeekDays, getBlockDayKey 
 import { applyMasterPlanAction } from '../../src/state/masterPlanStore.js';
 import { deriveForecastBlocks, validateBlockTitle } from '../../src/domain/masterPlan/forecastBlockDerivation.js';
 import { deriveMasterPlanPhaseModel } from '../../src/domain/masterPlan/masterPlanPhaseModel.js';
+import { buildOperationEndgameState } from '../helpers/masterPlanFullHorizonScenario.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -87,6 +88,14 @@ function getForecastBlocks(derived) {
 
 function getBlocksByPhase(derived, phaseLabel) {
   return (derived.calendarDisplayBlocks || []).filter(b => b.phaseLabel === phaseLabel);
+}
+
+function buildFreshMasterPlanCycleState() {
+  const established = buildOperationEndgameState();
+  return computeDerivedState(established, {
+    type: 'START_NEW_CYCLE_WITH_DECISION',
+    payload: { mode: 'archive' },
+  });
 }
 
 // ─── Suite 1: Horizon resolution ─────────────────────────────────────────────
@@ -233,6 +242,48 @@ describe('long-horizon calendar — horizon mode transitions', () => {
     const full = setHorizonMode(base, 'full_horizon');
     const p3Blocks = getBlocksByPhase(full, 'P3');
     expect(p3Blocks.length).toBeGreaterThan(0);
+  });
+
+  it('fresh master-plan cycle with no generated schedule stays empty in current_cycle mode', () => {
+    const fresh = buildFreshMasterPlanCycleState();
+
+    expect(fresh.selectedHorizonMode).toBe('current_cycle');
+    expect(fresh.scheduleLifecycle).toBe('no_schedule');
+    expect(fresh.calendarDisplayBlocks).toEqual([]);
+  });
+
+  it('fresh master-plan cycle does not surface forecast blocks in Today even when full_horizon is reselected', () => {
+    const fresh = buildFreshMasterPlanCycleState();
+    const expanded = setHorizonMode(fresh, 'full_horizon');
+
+    expect(expanded.scheduleLifecycle).toBe('no_schedule');
+    expect(expanded.calendarDisplayBlocks).toEqual([]);
+    expect((expanded.fullHorizonScheduleBlocks || []).length).toBeGreaterThan(0);
+    expect((expanded.fullHorizonScheduleBlocks || []).every((block) => block.ownerScope === 'master_plan')).toBe(true);
+    expect((expanded.fullHorizonScheduleBlocks || []).every((block) => block.cycleId === null)).toBe(true);
+  });
+
+  it('deleting an active master-plan cycle resets horizon mode and clears Today calendar blocks', () => {
+    const fresh = buildFreshMasterPlanCycleState();
+    const expanded = setHorizonMode(fresh, 'full_horizon');
+    const deleted = computeDerivedState(expanded, { type: 'DELETE_CYCLE', cycleId: expanded.activeCycleId });
+
+    expect(deleted.selectedHorizonMode).toBe('current_cycle');
+    expect(deleted.calendarDisplayBlocks).toEqual([]);
+    expect(deleted.activeCycleId).toBeNull();
+  });
+
+  it('starting a replacement cycle after deletion begins with no inherited calendar-visible blocks', () => {
+    const fresh = buildFreshMasterPlanCycleState();
+    const firstCycleId = fresh.activeCycleId;
+    const deleted = computeDerivedState(fresh, { type: 'DELETE_CYCLE', cycleId: firstCycleId });
+    const restarted = computeDerivedState(deleted, {
+      type: 'START_NEW_CYCLE_WITH_DECISION',
+      payload: { mode: 'archive' },
+    });
+
+    expect(restarted.activeCycleId).toBeTruthy();
+    expect(restarted.calendarDisplayBlocks).toEqual([]);
   });
 
   it('full-horizon schedule expansion returns blocks through May 2031', () => {
