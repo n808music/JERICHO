@@ -23,6 +23,10 @@ import { inferHorizonYearsFromText } from '../domain/masterPlan/masterPlanIntake
 import { expandFullHorizonSchedule } from '../domain/masterPlan/fullHorizonScheduleExpansion.js';
 import { auditFullHorizonCoverage } from '../domain/masterPlan/fullHorizonCoverageAudit.js';
 import { evaluateFullHorizonPlanQuality } from '../domain/masterPlan/fullHorizonPlanQuality.js';
+import {
+  auditFullHorizonRenderTruth,
+  applyRenderTruthToCoverageAudit,
+} from '../domain/masterPlan/fullHorizonRenderTruthAudit.js';
 import { projectBlocksForDisplay } from '../domain/masterPlan/blockDisplayProjection.js';
 import { buildGoalIntakeContract, getIntakeGateCode } from '../domain/goal/GoalIntakeContract.ts';
 import { buildGoalPolicySnapshot } from '../domain/goal/GoalPolicy.ts';
@@ -2262,6 +2266,7 @@ function deriveCycleSchedulingAuthority(state, cycle, contract = null) {
 }
 
 function clearCycleTransientState(state) {
+  state.selectedHorizonMode = 'current_cycle';
   state.proposedBlocks = [];
   if (!state.proposedBlocksByCycleId || typeof state.proposedBlocksByCycleId !== 'object') {
     state.proposedBlocksByCycleId = {};
@@ -2309,6 +2314,9 @@ function clearCycleTransientState(state) {
 }
 
 function clearGoalSessionStateToBlank(state) {
+  state.selectedHorizonMode = 'current_cycle';
+  state.calendarDisplayBlocks = [];
+  state.fullHorizonScheduleBlocks = [];
   state.activeCycleId = null;
   state.activeGoalId = null;
   if (state.activeProfileId && state?.profilesById?.[state.activeProfileId]) {
@@ -2355,6 +2363,8 @@ function clearGoalSessionStateToBlank(state) {
 }
 
 function clearActiveCycleSessionState(state) {
+  state.selectedHorizonMode = 'current_cycle';
+  state.calendarDisplayBlocks = [];
   state.activeCycleId = null;
   state.activeGoalId = null;
   if (state.activeProfileId && state?.profilesById?.[state.activeProfileId]) {
@@ -2550,6 +2560,17 @@ function hasMeaningfulExecutionEvidence(events = []) {
   return (events || []).some((event) => ['complete', 'missed', 'skipped'].includes(String(event?.kind || '')));
 }
 
+function hasCycleOwnedScheduleState(cycle) {
+  const scheduleLifecycle = String(cycle?.scheduleLifecycle || '').trim().toLowerCase();
+  return (
+    scheduleLifecycle === 'draft_schedule_ready' ||
+    scheduleLifecycle === 'applied_review' ||
+    scheduleLifecycle === 'active_schedule' ||
+    (Array.isArray(cycle?.proposedBlocks) && cycle.proposedBlocks.length > 0) ||
+    (Array.isArray(cycle?.scheduleReviewBlocks) && cycle.scheduleReviewBlocks.length > 0)
+  );
+}
+
 export function isCanonicalBlankState(state) {
   const activeProfileId = String(state?.activeProfileId || '').trim();
   const activeProfile = activeProfileId ? state?.profilesById?.[activeProfileId] || null : null;
@@ -2685,6 +2706,8 @@ export function resetCycleToGoalEntryReady(state, cycleId) {
   state.cyclesById[targetCycleId] = cycle;
 
   state.goalExecutionContract = null;
+  state.selectedHorizonMode = 'current_cycle';
+  state.calendarDisplayBlocks = [];
   state.pendingOnboardingInputs = null;
   state.proposedBlocks = [];
   if (!state.proposedBlocksByCycleId || typeof state.proposedBlocksByCycleId !== 'object') {
@@ -5707,6 +5730,8 @@ function applyLongHorizonCalendarBlocks(state) {
   // Fall back to horizonVisibility.currentCycleEnd when no active cycle is established.
   const activeCycleId = String(state?.activeCycleId || '').trim();
   const activeCycle = activeCycleId ? state?.cyclesById?.[activeCycleId] || null : null;
+  const activeCycleScheduleStatePresent = hasCycleOwnedScheduleState(activeCycle);
+  const suppressTodayForecastForFreshCycle = Boolean(activeCycle && !activeCycleScheduleStatePresent);
   const rawCycleDeadline =
     activeCycle?.deadlineDayKey ||
     activeCycle?.contract?.deadlineISO?.slice(0, 10) ||
@@ -5743,6 +5768,7 @@ function applyLongHorizonCalendarBlocks(state) {
   const fullHorizonEndDayKey = horizonEndForMode || plan.fullHorizonEndDayKey || plan.horizonEnd;
   let coverageAudit = null;
   let planQuality = null;
+  let renderTruthAudit = null;
   try {
     const fullHorizonScheduleBlocks = expandFullHorizonSchedule({
       plan,
@@ -5779,12 +5805,29 @@ function applyLongHorizonCalendarBlocks(state) {
     const projectedFullHorizonScheduleBlocks = projectBlocksForDisplay(fullHorizonScheduleBlocks, {
       surface: 'full_horizon',
     });
+    projectedFullHorizonScheduleBlocks.forEach((block) => {
+      block.ownerScope = 'master_plan';
+      block.cycleId = null;
+      block.masterPlanId = block.masterPlanId || plan.id;
+      block.forecastInspectionOnly = true;
+    });
     state.fullHorizonScheduleBlocks = projectedFullHorizonScheduleBlocks;
-    state.calendarDisplayBlocks = projectedFullHorizonScheduleBlocks;
+    state.calendarDisplayBlocks = suppressTodayForecastForFreshCycle ? [] : projectedFullHorizonScheduleBlocks;
+    renderTruthAudit = auditFullHorizonRenderTruth({
+      state,
+      fullHorizonScheduleBlocks: state.fullHorizonScheduleBlocks,
+      calendarDisplayBlocks: state.calendarDisplayBlocks,
+      selectedHorizonMode: mode,
+      timeZone: state?.appTime?.timeZone || APP_TIME_ZONE,
+    });
+    coverageAudit = applyRenderTruthToCoverageAudit(coverageAudit, renderTruthAudit);
 
     // Emit reason codes for coverage issues even when expansion succeeds
     if (!fullHorizonScheduleBlocks || fullHorizonScheduleBlocks.length === 0) {
       coverageFailureReasonCodes.push('FULL_HORIZON_SCHEDULE_EXPANSION_EMPTY');
+    }
+    if (Array.isArray(renderTruthAudit?.reasonCodes) && renderTruthAudit.reasonCodes.length > 0) {
+      coverageFailureReasonCodes.push(...renderTruthAudit.reasonCodes);
     }
 
     // Check for P2 and P3 block presence
@@ -5824,8 +5867,14 @@ function applyLongHorizonCalendarBlocks(state) {
   } catch (err) {
     // Fallback to the derived forecast markers if expansion fails for safety.
     const projectedForecastBlocks = projectBlocksForDisplay(allForecastBlocks, { surface: 'full_horizon_fallback' });
+    projectedForecastBlocks.forEach((block) => {
+      block.ownerScope = 'master_plan';
+      block.cycleId = null;
+      block.masterPlanId = block.masterPlanId || plan.id;
+      block.forecastInspectionOnly = true;
+    });
     state.fullHorizonScheduleBlocks = projectedForecastBlocks;
-    state.calendarDisplayBlocks = projectedForecastBlocks;
+    state.calendarDisplayBlocks = suppressTodayForecastForFreshCycle ? [] : projectedForecastBlocks;
     if (!IS_PRODUCTION) console.warn('Full-horizon expansion failed:', err && err.message);
     coverageFailureReasonCodes.push('FULL_HORIZON_SCHEDULE_EXPANSION_MISSING');
     
@@ -5870,6 +5919,7 @@ function applyLongHorizonCalendarBlocks(state) {
   }
   state.fullHorizonCoverageAudit = coverageAudit;
   state.fullHorizonPlanQuality = planQuality;
+  state.fullHorizonRenderTruthAudit = renderTruthAudit;
   state.fullHorizonCoverageFailureCodes = [
     ...new Set([
       ...(coverageFailureReasonCodes || []),

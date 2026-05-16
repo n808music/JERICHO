@@ -515,6 +515,18 @@ function MasterPlanTimelineView({ plan, store }) {
       .filter((block) => String(block?.masterPlanId || block?.planId || plan.id).trim() === plan.id || !block?.masterPlanId)
       .sort((left, right) => String(left?.dayKey || left?.date || '').localeCompare(String(right?.dayKey || right?.date || '')));
   }, [store, plan.id]);
+  const fullHorizonBlockCountsByPhase = useMemo(
+    () =>
+      (canonicalFullHorizonBlocks || []).reduce((acc, block) => {
+        const label = String(block?.phaseLabel || '').trim();
+        if (!label) {
+          return acc;
+        }
+        acc[label] = (acc[label] || 0) + 1;
+        return acc;
+      }, {}),
+    [canonicalFullHorizonBlocks]
+  );
   const strategicCoverage = useMemo(
     () => {
       const resolvedHorizon = resolveStrategicAgendaHorizon(plan, activeMissionContract).resolvedStrategicHorizonEndDayKey;
@@ -826,6 +838,7 @@ function MasterPlanTimelineView({ plan, store }) {
         strategicPlanQuality={store?.fullHorizonPlanQuality || null}
         strategicPhases={displayedPhaseModel.phases}
         phaseModel={displayedPhaseModel}
+        fullHorizonBlockCountsByPhase={fullHorizonBlockCountsByPhase}
         strategicAgenda={strategicAgenda}
         commitmentLayers={commitmentLayers}
         commitmentView={commitmentView}
@@ -869,6 +882,7 @@ function StrategicCoveragePanel({
   strategicPlanQuality,
   strategicPhases,
   phaseModel,
+  fullHorizonBlockCountsByPhase = {},
   strategicAgenda,
   commitmentLayers,
   commitmentView,
@@ -1101,6 +1115,7 @@ function StrategicCoveragePanel({
             const isSparseCoverage = phase.visibilityStatus === 'visible_but_sparse';
             const visibleMilestoneCount = phase.visibleMilestones?.length || 0;
             const totalMilestoneCount = phase.milestones?.length || 0;
+            const scheduledWorkCount = Number(fullHorizonBlockCountsByPhase[String(phase.label || '').trim()] || 0);
             
             return (
             <div
@@ -1132,6 +1147,9 @@ function StrategicCoveragePanel({
               <div className="space-y-1 text-[11px] text-muted">
                 <p>
                   <span className="font-semibold text-jericho-text">Milestones:</span> {visibleMilestoneCount}{totalMilestoneCount > visibleMilestoneCount ? ` / ${totalMilestoneCount} (${totalMilestoneCount - visibleMilestoneCount} future)` : ''}
+                </p>
+                <p>
+                  <span className="font-semibold text-jericho-text">Scheduled work:</span> {scheduledWorkCount}
                 </p>
                 <p>
                   <span className="font-semibold text-jericho-text">Unlock criteria:</span>{' '}

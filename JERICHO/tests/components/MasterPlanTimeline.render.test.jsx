@@ -270,6 +270,8 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByTestId('phase-card-p1')).toBeInTheDocument();
     expect(screen.getByTestId('phase-card-p2')).toBeInTheDocument();
     expect(screen.getByTestId('phase-card-p3')).toBeInTheDocument();
+    expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Scheduled work:/i);
+    expect(screen.getByTestId('phase-card-p3')).toHaveTextContent(/Scheduled work:/i);
     expect(screen.getByText(/^Roadmap coverage$/i)).toBeInTheDocument();
     expect(screen.getAllByText(/^Forecast schedule$/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/^Committed schedule$/i).length).toBeGreaterThan(0);

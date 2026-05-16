@@ -1184,6 +1184,11 @@ export default function ZionDashboard({
   });
   const hasAppliedReviewSchedule = normalizedScheduleLifecycle === 'applied_review' && reviewScheduleBlocks.length > 0;
   const hasActiveSchedule = normalizedScheduleLifecycle === 'active_schedule';
+  const hasGeneratedCycleSchedule =
+    hasActiveSchedule ||
+    hasAppliedReviewSchedule ||
+    normalizedScheduleLifecycle === 'draft_schedule_ready' ||
+    (Array.isArray(activeCycle?.proposedBlocks) && activeCycle.proposedBlocks.length > 0);
   const allRenderedBlocks = useMemo(() => {
     const rawBlocks = getAllBlocks({ today, currentWeek, cycle, blockStore });
     return normalizeBlocks(rawBlocks);
@@ -1355,6 +1360,8 @@ export default function ZionDashboard({
     if (!deadlineDayKey) return forecastEnd;
     return forecastEnd > deadlineDayKey ? forecastEnd : deadlineDayKey;
   }, [selectedHorizonMode, deadlineDayKey, forecastCalendarBlocks]);
+  const visibleScheduleEndDayKey =
+    selectedHorizonMode && selectedHorizonMode !== 'current_cycle' ? effectiveHorizonEndDayKey || deadlineDayKey : deadlineDayKey;
   const getScheduleItemDayKey = (item) =>
     item?.dayKey || dayKeyFromISO(item?.startISO || item?.start || item?.date || '', timeZone);
   const proposedScheduleItemsAll = useMemo(() => {
@@ -1401,7 +1408,7 @@ export default function ZionDashboard({
         const dayKey = getScheduleItemDayKey(item);
         if (!dayKey) return false;
         if (contractStartDayKey && dayKey < contractStartDayKey) return false;
-        if (deadlineDayKey && dayKey > deadlineDayKey) return false;
+        if (visibleScheduleEndDayKey && dayKey > visibleScheduleEndDayKey) return false;
         return true;
       });
       if (filtered.length > 0) return filtered;
@@ -1442,6 +1449,7 @@ export default function ZionDashboard({
     proposedScheduleItemsAll,
     contractStartDayKey,
     deadlineDayKey,
+    visibleScheduleEndDayKey,
     timeZone,
   ]);
   const scheduleDisplayItemsAllResolved = scheduleDisplayFallbackItemsAll;
@@ -1460,6 +1468,12 @@ export default function ZionDashboard({
     const forecast = Array.isArray(forecastCalendarBlocks) ? forecastCalendarBlocks : [];
     return [...committed, ...forecast];
   }, [scheduleDisplayItemsAllResolved, selectedHorizonMode, forecastCalendarBlocks]);
+  const shouldShowMasterPlanForecastInspectionNotice =
+    view === 'today' &&
+    Boolean(selectedHorizonMode && selectedHorizonMode !== 'current_cycle') &&
+    !hasGeneratedCycleSchedule &&
+    Array.isArray(fullHorizon) &&
+    fullHorizon.length > 0;
   const calendarDayBlocksMap = useMemo(() => {
     const map = new Map();
     (calendarSurfaceBlocks || []).forEach((b) => {
@@ -2828,6 +2842,12 @@ export default function ZionDashboard({
                     </span>
                   ) : null}
                 </div>
+              ) : null}
+
+              {shouldShowMasterPlanForecastInspectionNotice ? (
+                <p className="text-[11px] text-muted">
+                  No execution cycle schedule generated. Master-plan forecast remains available in Plan.
+                </p>
               ) : null}
 
               <div className="flex items-center justify-between flex-wrap gap-3">
