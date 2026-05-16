@@ -186,6 +186,27 @@ describe('long-horizon calendar — horizon mode transitions', () => {
     expect(day.blocks.some((b) => b.id === forecastBlock.id && b.title === forecastBlock.title)).toBe(true);
   });
 
+  it('month drill-down preserves displayTitle alongside canonicalTitle for forecast blocks', () => {
+    const base = buildFiveYearPlanState();
+    const derived = setHorizonMode(base, 'full_horizon');
+    const shortened = getForecastBlocks(derived).find(
+      (block) => String(block.displayTitle || '').length < String(block.canonicalTitle || '').length && block.dayKey
+    );
+
+    expect(shortened).toBeDefined();
+    const monthDays = projectMonthDays({
+      monthKey: shortened.dayKey.slice(0, 7),
+      blocks: derived.calendarDisplayBlocks,
+      includePadding: false,
+    });
+    const day = monthDays.find((entry) => entry.date === shortened.dayKey);
+    const projected = (day?.blocks || []).find((block) => block.id === shortened.id);
+
+    expect(projected.displayTitle).toBe(shortened.displayTitle);
+    expect(projected.canonicalTitle).toBe(shortened.canonicalTitle);
+    expect(projected.detailTitle).toBe(shortened.canonicalTitle);
+  });
+
   it('getBlockDayKey normalizes date/dayKey/start/startISO shapes consistently', () => {
     expect(getBlockDayKey({ date: '2029-04-05' })).toBe('2029-04-05');
     expect(getBlockDayKey({ dayKey: '2029-04-06' })).toBe('2029-04-06');

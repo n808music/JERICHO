@@ -88,6 +88,14 @@ function titleCaseWords(value) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function getBlockLabel(block) {
+  return block?.displayTitle || block?.title || block?.label || 'Untitled block';
+}
+
+function getBlockDetailLabel(block) {
+  return block?.detailTitle || block?.canonicalTitle || block?.title || block?.label || 'Untitled block';
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export default function TimelineGrid({
@@ -367,10 +375,10 @@ export default function TimelineGrid({
                           <div
                             key={block.id}
                             className="max-w-full rounded-md border border-green-500/30 bg-green-500/10 px-1.5 py-0.5 text-[9px] leading-tight text-green-700 text-center"
-                            title={`${block.title} · ${block.dayKey || block.startISO}`}
+                            title={`${getBlockDetailLabel(block)} · ${block.dayKey || block.startISO}`}
                             data-testid={`planned-block-${block.id}`}
                           >
-                            {block.title}
+                            {getBlockLabel(block)}
                           </div>
                         ))}
                       {displayMode !== 'committed_only' &&
@@ -378,10 +386,10 @@ export default function TimelineGrid({
                           <div
                             key={block.id}
                             className="max-w-full rounded-md border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[9px] leading-tight text-sky-700 text-center"
-                            title={`${block.title} · ${block.dayKey}${block.dependencyStatus ? ` · ${block.dependencyStatus}` : ''}`}
+                            title={`${getBlockDetailLabel(block)} · ${block.dayKey}${block.dependencyStatus ? ` · ${block.dependencyStatus}` : ''}`}
                             data-testid={`forecast-block-${block.id}`}
                           >
-                            {block.title}
+                            {getBlockLabel(block)}
                           </div>
                         ))}
                       {displayMode !== 'committed_only' &&
@@ -389,10 +397,10 @@ export default function TimelineGrid({
                           <div
                             key={block.id}
                             className="max-w-full rounded-md border border-amber-400/40 bg-amber-400/10 px-1.5 py-0.5 text-[9px] leading-tight text-amber-700 text-center"
-                            title={`${block.title} · ${block.dayKey}${block.dependencyStatus ? ` · ${block.dependencyStatus}` : ''}`}
+                            title={`${getBlockDetailLabel(block)} · ${block.dayKey}${block.dependencyStatus ? ` · ${block.dependencyStatus}` : ''}`}
                             data-testid={`gated-block-${block.id}`}
                           >
-                            {block.title}
+                            {getBlockLabel(block)}
                           </div>
                         ))}
                     </div>

@@ -249,13 +249,25 @@ function FirstCycleSection({ blocks }) {
       <ul className="space-y-1.5">
         {blocks.map((block) => (
           <li key={block.id} className="rounded-md border border-green-500/20 bg-green-500/5 px-2.5 py-2">
-            <p className="text-[11px] text-jericho-text leading-snug font-medium">{block.title}</p>
+            <p
+              className="text-[11px] text-jericho-text leading-snug font-medium"
+              title={block.detailTitle || block.canonicalTitle || block.title}
+            >
+              {block.displayTitle || block.title}
+            </p>
             <p className="text-[10px] text-muted mt-0.5">
               {block.dayKey || block.startISO?.slice(0, 10) || 'undated'}
               {block.durationMinutes ? ` · ${block.durationMinutes} min` : ''}
             </p>
+            {block.expectedOutput ? (
+              <p className="text-[10px] text-muted mt-0.5">Expected output: {block.expectedOutput}</p>
+            ) : null}
             {block.missConsequence ? <p className="text-[10px] text-amber-500 mt-0.5">{block.missConsequence}</p> : null}
-            {block.derivedFrom ? <p className="text-[10px] text-muted/70 mt-0.5 italic">{block.derivedFrom}</p> : null}
+            {block.derivationReason ? (
+              <p className="text-[10px] text-muted/70 mt-0.5 italic">{block.derivationReason}</p>
+            ) : block.derivedFrom ? (
+              <p className="text-[10px] text-muted/70 mt-0.5 italic">{block.derivedFrom}</p>
+            ) : null}
           </li>
         ))}
       </ul>

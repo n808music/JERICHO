@@ -1554,7 +1554,9 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
                             </>
                           ) : null}
                           <td className="px-2 py-2 text-jericho-text whitespace-normal break-words leading-4">
-                            {block.title}
+                            <span title={block.detailTitle || block.canonicalTitle || block.title}>
+                              {block.displayTitle || block.title}
+                            </span>
                           </td>
                           <td className="px-2 py-2 text-muted/80 whitespace-normal break-words leading-4">
                             {block.actionTitle || '—'}

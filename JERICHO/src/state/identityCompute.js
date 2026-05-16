@@ -23,6 +23,7 @@ import { inferHorizonYearsFromText } from '../domain/masterPlan/masterPlanIntake
 import { expandFullHorizonSchedule } from '../domain/masterPlan/fullHorizonScheduleExpansion.js';
 import { auditFullHorizonCoverage } from '../domain/masterPlan/fullHorizonCoverageAudit.js';
 import { evaluateFullHorizonPlanQuality } from '../domain/masterPlan/fullHorizonPlanQuality.js';
+import { projectBlocksForDisplay } from '../domain/masterPlan/blockDisplayProjection.js';
 import { buildGoalIntakeContract, getIntakeGateCode } from '../domain/goal/GoalIntakeContract.ts';
 import { buildGoalPolicySnapshot } from '../domain/goal/GoalPolicy.ts';
 import { evaluatePlanQualityGate } from '../domain/planQuality/evaluatePlanQualityGate.ts';
@@ -5775,8 +5776,11 @@ function applyLongHorizonCalendarBlocks(state) {
       ...coverageAudit,
       fullHorizonQualityTrusted: planQuality?.state === 'trusted',
     };
-    state.fullHorizonScheduleBlocks = fullHorizonScheduleBlocks;
-    state.calendarDisplayBlocks = fullHorizonScheduleBlocks;
+    const projectedFullHorizonScheduleBlocks = projectBlocksForDisplay(fullHorizonScheduleBlocks, {
+      surface: 'full_horizon',
+    });
+    state.fullHorizonScheduleBlocks = projectedFullHorizonScheduleBlocks;
+    state.calendarDisplayBlocks = projectedFullHorizonScheduleBlocks;
 
     // Emit reason codes for coverage issues even when expansion succeeds
     if (!fullHorizonScheduleBlocks || fullHorizonScheduleBlocks.length === 0) {
@@ -5819,8 +5823,9 @@ function applyLongHorizonCalendarBlocks(state) {
     }
   } catch (err) {
     // Fallback to the derived forecast markers if expansion fails for safety.
-    state.fullHorizonScheduleBlocks = allForecastBlocks;
-    state.calendarDisplayBlocks = allForecastBlocks;
+    const projectedForecastBlocks = projectBlocksForDisplay(allForecastBlocks, { surface: 'full_horizon_fallback' });
+    state.fullHorizonScheduleBlocks = projectedForecastBlocks;
+    state.calendarDisplayBlocks = projectedForecastBlocks;
     if (!IS_PRODUCTION) console.warn('Full-horizon expansion failed:', err && err.message);
     coverageFailureReasonCodes.push('FULL_HORIZON_SCHEDULE_EXPANSION_MISSING');
     
