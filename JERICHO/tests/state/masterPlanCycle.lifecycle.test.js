@@ -103,6 +103,7 @@ describe('master-plan cycle lifecycle semantics', () => {
     expect(started.cyclesById[started.activeCycleId].goalContract.fullHorizonEndDayKey).toBe('2026-11-01');
     expect(started.cyclesById[started.activeCycleId].goalContract.endDayKey).toBe('2026-10-17');
     expect(started.scheduleLifecycle).toBe('no_schedule');
+    expect(started.scheduleLifecycleState).toBe('inter_cycle');
     expect(started.cyclesById[started.activeCycleId].scheduleLifecycle).toBe('no_schedule');
     expect(started.proposedBlocks).toHaveLength(0);
     expect(started.scheduleReviewBlocks).toHaveLength(0);
@@ -123,6 +124,7 @@ describe('master-plan cycle lifecycle semantics', () => {
 
     expect(blocked.lastPlanError?.code).toBe('CURRENT_STATE_REASSESSMENT_REQUIRED');
     expect(blocked.scheduleLifecycle).toBe('no_schedule');
+    expect(blocked.scheduleLifecycleState).toBe('inter_cycle');
     expect(blocked.proposedBlocks).toHaveLength(0);
   });
 
@@ -144,6 +146,7 @@ describe('master-plan cycle lifecycle semantics', () => {
     expect(archived.masterPlansById[planId]).toBeDefined();
     expect(archived.cyclesById[cycleId].status).toBe('ended');
     expect(archived.scheduleLifecycle).toBe('no_schedule');
+    expect(archived.scheduleLifecycleState).toBe('inter_cycle');
   });
 
   it('resets the active cycle execution state without removing the cycle shell or master plan', () => {
@@ -174,6 +177,7 @@ describe('master-plan cycle lifecycle semantics', () => {
     expect(reset.cyclesById[cycleId]).toBeDefined();
     expect(reset.cyclesById[cycleId].masterPlanId).toBe(planId);
     expect(reset.scheduleLifecycle).toBe('no_schedule');
+    expect(reset.scheduleLifecycleState).toBe('inter_cycle');
     expect(reset.cyclesById[cycleId].scheduleLifecycle).toBe('no_schedule');
     expect(reset.cyclesById[cycleId].reassessmentStatus).toBe('required');
     expect(reset.proposedBlocks).toHaveLength(0);
@@ -196,12 +200,14 @@ describe('master-plan cycle lifecycle semantics', () => {
     const rehydrated = rehydratePersistedState(JSON.parse(JSON.stringify(deleted)));
 
     expect(deleted.activeCycleId).toBeNull();
+    expect(deleted.scheduleLifecycleState).toBe('inter_cycle');
     expect(deleted.selectedHorizonMode).toBe('current_cycle');
     expect(deleted.calendarDisplayBlocks).toEqual([]);
     expect(deleted.masterPlansById[planId]).toBeDefined();
     expect(deleted.profilesById[DEFAULT_PROFILE_ID].activeMasterPlanId).toBe(planId);
     expect(deleted.cyclesById[cycleId]).toBeUndefined();
     expect(rehydrated.activeCycleId).toBeNull();
+    expect(rehydrated.scheduleLifecycleState).toBe('inter_cycle');
     expect(rehydrated.selectedHorizonMode).toBe('current_cycle');
     expect(rehydrated.calendarDisplayBlocks).toEqual([]);
     expect(rehydrated.cyclesById[cycleId]).toBeUndefined();

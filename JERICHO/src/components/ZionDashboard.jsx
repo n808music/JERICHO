@@ -682,6 +682,7 @@ function useZionState() {
     selectedHorizonMode,
     calendarDisplayBlocks,
     fullHorizonScheduleBlocks,
+    scheduleLifecycleState,
     setSelectedHorizonMode,
   } = useIdentityStore();
   return {
@@ -730,6 +731,8 @@ function useZionState() {
     coreMissionContractsById,
     selectedHorizonMode,
     calendarDisplayBlocks,
+    fullHorizonScheduleBlocks,
+    scheduleLifecycleState,
     actions: {
       completeBlock,
       missBlock,
@@ -830,6 +833,7 @@ export default function ZionDashboard({
     scheduleApplied,
     coreContinuity,
     coreMissionContractsById,
+    scheduleLifecycleState,
     selectedHorizonMode,
     calendarDisplayBlocks: forecastCalendarBlocks = [],
     fullHorizonScheduleBlocks: fullHorizon = [],
@@ -1171,6 +1175,9 @@ export default function ZionDashboard({
   const normalizedScheduleLifecycle = String(activeCycle?.scheduleLifecycle || '')
     .trim()
     .toLowerCase();
+  const normalizedScheduleLifecycleState = String(scheduleLifecycleState || 'no_goal')
+    .trim()
+    .toLowerCase();
   const reviewScheduleBlocks = (
     Array.isArray(activeCycle?.scheduleReviewBlocks) ? activeCycle.scheduleReviewBlocks : []
   ).filter((block) => {
@@ -1184,6 +1191,7 @@ export default function ZionDashboard({
   });
   const hasAppliedReviewSchedule = normalizedScheduleLifecycle === 'applied_review' && reviewScheduleBlocks.length > 0;
   const hasActiveSchedule = normalizedScheduleLifecycle === 'active_schedule';
+  const isInterCycle = normalizedScheduleLifecycleState === 'inter_cycle';
   const hasGeneratedCycleSchedule =
     hasActiveSchedule ||
     hasAppliedReviewSchedule ||
@@ -1401,6 +1409,9 @@ export default function ZionDashboard({
     hasActiveSchedule ||
     (Boolean(scheduleApplied) && !pendingPlanConfirmation && proposedScheduleItemsAll.length === 0);
   const scheduleDisplayFallbackItemsAll = useMemo(() => {
+    if (isInterCycle) {
+      return [];
+    }
     // If the user has selected an expanded horizon and the canonical full-horizon
     // substrate exists, prefer it as the Plan overview workload source.
     if (selectedHorizonMode && selectedHorizonMode !== 'current_cycle' && Array.isArray(fullHorizon) && fullHorizon.length > 0) {
@@ -1450,6 +1461,7 @@ export default function ZionDashboard({
     contractStartDayKey,
     deadlineDayKey,
     visibleScheduleEndDayKey,
+    isInterCycle,
     timeZone,
   ]);
   const scheduleDisplayItemsAllResolved = scheduleDisplayFallbackItemsAll;
@@ -1464,14 +1476,17 @@ export default function ZionDashboard({
   );
   const calendarSurfaceBlocks = useMemo(() => {
     const committed = normalizeScheduleSurfaceBlocks(scheduleDisplayItemsAllResolved);
+    if (isInterCycle) {
+      return !selectedHorizonMode || selectedHorizonMode === 'current_cycle' ? committed : [];
+    }
     if (!selectedHorizonMode || selectedHorizonMode === 'current_cycle') return committed;
     const forecast = Array.isArray(forecastCalendarBlocks) ? forecastCalendarBlocks : [];
     return [...committed, ...forecast];
-  }, [scheduleDisplayItemsAllResolved, selectedHorizonMode, forecastCalendarBlocks]);
+  }, [scheduleDisplayItemsAllResolved, selectedHorizonMode, forecastCalendarBlocks, isInterCycle]);
   const shouldShowMasterPlanForecastInspectionNotice =
     view === 'today' &&
     Boolean(selectedHorizonMode && selectedHorizonMode !== 'current_cycle') &&
-    !hasGeneratedCycleSchedule &&
+    isInterCycle &&
     Array.isArray(fullHorizon) &&
     fullHorizon.length > 0;
   const calendarDayBlocksMap = useMemo(() => {
@@ -2836,7 +2851,7 @@ export default function ZionDashboard({
                       {tab.label}
                     </button>
                   ))}
-                  {selectedHorizonMode !== 'current_cycle' && forecastCalendarBlocks.length > 0 ? (
+                  {selectedHorizonMode !== 'current_cycle' && !isInterCycle && forecastCalendarBlocks.length > 0 ? (
                     <span className="text-[10px] text-muted ml-1">
                       {forecastCalendarBlocks.length} forecast block{forecastCalendarBlocks.length === 1 ? '' : 's'} visible
                     </span>
@@ -2946,10 +2961,14 @@ export default function ZionDashboard({
                             ? 'This schedule is authoritative. Reschedule specific blocks instead of regenerating.'
                             : hasAppliedReviewSchedule
                               ? 'Blocks are on the calendar for review. Activate when ready to start accountability.'
-                              : 'Preview only. The master plan keeps its long horizon; Today schedules the active phase through its hard deadline before applying it to the calendar.'}
+                              : isInterCycle
+                                ? 'No execution cycle schedule is generated yet. Reassess current state, then generate a new cycle schedule.'
+                                : 'Preview only. The master plan keeps its long horizon; Today schedules the active phase through its hard deadline before applying it to the calendar.'}
                         </p>
                         <p className="text-[11px] text-muted">
-                          Today shows committed execution work. Future roadmap and forecast work remain visible in Plan.
+                          {isInterCycle
+                            ? 'Today stays blank for execution until a new cycle schedule is generated. Strategic forecast remains available in Plan.'
+                            : 'Today shows committed execution work. Future roadmap and forecast work remain visible in Plan.'}
                         </p>
                       </div>
                       <div className="grid gap-2 text-[11px] text-muted sm:grid-cols-2">

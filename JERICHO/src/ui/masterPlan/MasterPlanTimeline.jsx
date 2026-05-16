@@ -612,6 +612,10 @@ function MasterPlanTimelineView({ plan, store }) {
       })
     );
   }, [store, canonicalFullHorizonBlocks, strategicPhaseModel, plan, activeMissionContract, lanes]);
+  const scheduleLifecycleState = String(store?.scheduleLifecycleState || 'no_goal')
+    .trim()
+    .toLowerCase();
+  const isInterCycle = scheduleLifecycleState === 'inter_cycle';
   const layerHorizonEnd = useMemo(() => {
     if (commitmentView === 'committed_only') {
       return commitmentLayers.committedWindowEnd || strategicCoverage.executionCycleWindow?.end || strategicCoverage.horizonStart;
@@ -846,6 +850,7 @@ function MasterPlanTimelineView({ plan, store }) {
         horizonView={horizonView}
         onHorizonViewChange={setHorizonView}
         visibleHorizonEnd={visibleHorizonEnd}
+        scheduleLifecycleState={scheduleLifecycleState}
       />
       <TimelineGrid
         plan={gridPlan}
@@ -890,7 +895,11 @@ function StrategicCoveragePanel({
   horizonView,
   onHorizonViewChange,
   visibleHorizonEnd,
+  scheduleLifecycleState = 'no_goal',
 }) {
+  const normalizedScheduleLifecycleState = String(scheduleLifecycleState || '').trim().toLowerCase();
+  const isForecastOnlyLifecycle =
+    normalizedScheduleLifecycleState === 'inter_cycle' || normalizedScheduleLifecycleState === 'goal_admitted';
   const coverageStatusLabel = getFullHorizonCoverageLabel(strategicCoverageAudit);
   const coverageTone = getFullHorizonCoverageTone(strategicCoverageAudit);
   const qualityStatusLabel = getFullHorizonPlanQualityLabel(strategicPlanQuality);
@@ -1005,11 +1014,11 @@ function StrategicCoveragePanel({
           value={formatDateLabel(strategicAgenda.resolvedStrategicHorizonEndDayKey || strategicCoverage.horizonEnd)}
         />
         <CoverageItem
-          label="Last meaningful work"
+          label={isForecastOnlyLifecycle ? 'Last meaningful forecast work' : 'Last meaningful work'}
           value={formatDateLabel(strategicCoverageAudit?.lastMeaningfulWorkDate)}
         />
         <CoverageItem
-          label="Expected terminal date"
+          label={isForecastOnlyLifecycle ? 'Expected strategic terminal date' : 'Expected terminal date'}
           value={formatDateLabel(strategicCoverageAudit?.expectedTerminalDate || strategicCoverage.horizonEnd)}
         />
         <CoverageItem
@@ -1021,7 +1030,7 @@ function StrategicCoveragePanel({
           }
         />
         <CoverageItem
-          label="Forecast schedule"
+          label={isForecastOnlyLifecycle ? 'Strategic forecast work' : 'Forecast schedule'}
           value={
             commitmentLayers.forecastCoverageEnd
               ? formatRangeLabel(
@@ -1032,11 +1041,13 @@ function StrategicCoveragePanel({
           }
         />
         <CoverageItem
-          label="Committed schedule"
+          label={isForecastOnlyLifecycle ? 'Current scheduled work' : 'Committed schedule'}
           value={
             strategicCoverage.scheduledWindow
               ? formatRangeLabel(strategicCoverage.scheduledWindow.start, strategicCoverage.scheduledWindow.end)
-              : 'No committed schedule yet'
+              : isForecastOnlyLifecycle
+                ? 'No execution cycle schedule yet'
+                : 'No committed schedule yet'
           }
         />
         <CoverageItem label="Next reassessment gate" value={commitmentLayers.nextReassessmentGate} />
@@ -1116,6 +1127,7 @@ function StrategicCoveragePanel({
             const visibleMilestoneCount = phase.visibleMilestones?.length || 0;
             const totalMilestoneCount = phase.milestones?.length || 0;
             const scheduledWorkCount = Number(fullHorizonBlockCountsByPhase[String(phase.label || '').trim()] || 0);
+            const scheduledWorkLabel = isForecastOnlyLifecycle ? 'Forecast workload recognized:' : 'Scheduled work:';
             
             return (
             <div
@@ -1149,8 +1161,13 @@ function StrategicCoveragePanel({
                   <span className="font-semibold text-jericho-text">Milestones:</span> {visibleMilestoneCount}{totalMilestoneCount > visibleMilestoneCount ? ` / ${totalMilestoneCount} (${totalMilestoneCount - visibleMilestoneCount} future)` : ''}
                 </p>
                 <p>
-                  <span className="font-semibold text-jericho-text">Scheduled work:</span> {scheduledWorkCount}
+                  <span className="font-semibold text-jericho-text">{scheduledWorkLabel}</span> {scheduledWorkCount}
                 </p>
+                {isForecastOnlyLifecycle ? (
+                  <p>
+                    <span className="font-semibold text-jericho-text">Current cycle:</span> Not scheduled for execution
+                  </p>
+                ) : null}
                 <p>
                   <span className="font-semibold text-jericho-text">Unlock criteria:</span>{' '}
                   {phase.unlockCriteria.slice(0, 2).join(' · ')}

@@ -249,6 +249,7 @@ describe('long-horizon calendar — horizon mode transitions', () => {
 
     expect(fresh.selectedHorizonMode).toBe('current_cycle');
     expect(fresh.scheduleLifecycle).toBe('no_schedule');
+    expect(fresh.scheduleLifecycleState).toBe('inter_cycle');
     expect(fresh.calendarDisplayBlocks).toEqual([]);
   });
 
@@ -257,10 +258,13 @@ describe('long-horizon calendar — horizon mode transitions', () => {
     const expanded = setHorizonMode(fresh, 'full_horizon');
 
     expect(expanded.scheduleLifecycle).toBe('no_schedule');
+    expect(expanded.scheduleLifecycleState).toBe('inter_cycle');
     expect(expanded.calendarDisplayBlocks).toEqual([]);
     expect((expanded.fullHorizonScheduleBlocks || []).length).toBeGreaterThan(0);
-    expect((expanded.fullHorizonScheduleBlocks || []).every((block) => block.ownerScope === 'master_plan')).toBe(true);
+    expect((expanded.fullHorizonScheduleBlocks || []).every((block) => block.ownerScope === 'master_plan_forecast')).toBe(true);
     expect((expanded.fullHorizonScheduleBlocks || []).every((block) => block.cycleId === null)).toBe(true);
+    expect((expanded.fullHorizonScheduleBlocks || []).every((block) => block.scheduleCommitment === 'none')).toBe(true);
+    expect((expanded.fullHorizonScheduleBlocks || []).every((block) => block.calendarEligible === false)).toBe(true);
   });
 
   it('deleting an active master-plan cycle resets horizon mode and clears Today calendar blocks', () => {
@@ -268,6 +272,7 @@ describe('long-horizon calendar — horizon mode transitions', () => {
     const expanded = setHorizonMode(fresh, 'full_horizon');
     const deleted = computeDerivedState(expanded, { type: 'DELETE_CYCLE', cycleId: expanded.activeCycleId });
 
+    expect(deleted.scheduleLifecycleState).toBe('inter_cycle');
     expect(deleted.selectedHorizonMode).toBe('current_cycle');
     expect(deleted.calendarDisplayBlocks).toEqual([]);
     expect(deleted.activeCycleId).toBeNull();
@@ -283,6 +288,7 @@ describe('long-horizon calendar — horizon mode transitions', () => {
     });
 
     expect(restarted.activeCycleId).toBeTruthy();
+    expect(restarted.scheduleLifecycleState).toBe('inter_cycle');
     expect(restarted.calendarDisplayBlocks).toEqual([]);
   });
 

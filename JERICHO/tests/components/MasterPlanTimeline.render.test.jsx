@@ -1,7 +1,7 @@
 import React from 'react';
 import '@testing-library/jest-dom';
-import { describe, expect, it, vi } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { buildBlankIdentityState, DEFAULT_PROFILE_ID } from '../../src/state/identityStore.js';
@@ -221,6 +221,37 @@ function buildEmptyMasterPlanState() {
   });
 }
 
+function clearBrowserStorage() {
+  for (const storage of [window.localStorage, window.sessionStorage]) {
+    if (!storage) {
+      continue;
+    }
+    if (typeof storage.clear === 'function') {
+      storage.clear();
+      continue;
+    }
+    if (typeof storage.removeItem === 'function') {
+      for (const key of Object.keys(storage)) {
+        storage.removeItem(key);
+      }
+    }
+  }
+}
+
+beforeEach(() => {
+  mockStore = buildEmptyMasterPlanState();
+  clearBrowserStorage();
+  vi.clearAllMocks();
+});
+
+afterEach(() => {
+  cleanup();
+  mockStore = buildEmptyMasterPlanState();
+  clearBrowserStorage();
+  vi.clearAllMocks();
+  vi.restoreAllMocks();
+});
+
 describe('MasterPlanTimeline rendering', () => {
   it('stays read-only and points users back to Structure when no master plan exists', async () => {
     mockStore = buildEmptyMasterPlanState();
@@ -270,8 +301,8 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByTestId('phase-card-p1')).toBeInTheDocument();
     expect(screen.getByTestId('phase-card-p2')).toBeInTheDocument();
     expect(screen.getByTestId('phase-card-p3')).toBeInTheDocument();
-    expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Scheduled work:/i);
-    expect(screen.getByTestId('phase-card-p3')).toHaveTextContent(/Scheduled work:/i);
+    expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Forecast workload recognized:/i);
+    expect(screen.getByTestId('phase-card-p3')).toHaveTextContent(/Forecast workload recognized:/i);
     expect(screen.getByText(/^Roadmap coverage$/i)).toBeInTheDocument();
     expect(screen.getAllByText(/^Forecast schedule$/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/^Committed schedule$/i).length).toBeGreaterThan(0);
@@ -467,5 +498,24 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.queryByText(/First executable cycle preview/i)).not.toBeInTheDocument();
     expect(screen.getByText('Album rollout')).toBeInTheDocument();
     expect(screen.getAllByTestId(/milestone-dot-/i).length).toBeGreaterThan(0);
+  });
+
+  it('labels full-horizon substrate as forecast work instead of scheduled work in inter-cycle state', async () => {
+    mockStore = buildFinalizedMasterPlanState({
+      strategicMissionYears: 5,
+      strategicMissionText: 'Build and execute Operation Endgame: a 5-year master plan through May 2031.',
+    });
+
+    await act(async () => {
+      render(<MasterPlanTimeline />);
+    });
+
+    expect(mockStore.scheduleLifecycleState).toBe('goal_admitted');
+    expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Forecast workload recognized:/i);
+    expect(screen.getByTestId('phase-card-p3')).toHaveTextContent(/Forecast workload recognized:/i);
+    expect(screen.getByTestId('phase-card-p2')).not.toHaveTextContent(/Scheduled work:/i);
+    expect(screen.getByText(/^Strategic forecast work$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Current scheduled work$/i)).toBeInTheDocument();
+    expect(screen.getByText(/No execution cycle schedule yet/i)).toBeInTheDocument();
   });
 });

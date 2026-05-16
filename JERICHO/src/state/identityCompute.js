@@ -973,7 +973,9 @@ export function computeDerivedState(state, action) {
   applySystemShotClock(next);
   applyExecutionCorrection(next);
   applyGoalPolicy(next);
+  applyScheduleLifecycleState(next);
   applyLongHorizonCalendarBlocks(next);
+  applyInterCycleConsistencyDiagnostics(next);
   applyGoalLifecycleState(next);
   next.correctionSignals = computeCorrectionSignals(next, 14);
   mergePriorTodayBlocks(next, previousTodayBlocks);
@@ -1428,6 +1430,73 @@ function normalizeScheduleLifecycle(value) {
 
 function getCycleScheduleLifecycle(cycle = null, state = null) {
   return normalizeScheduleLifecycle(cycle?.scheduleLifecycle || state?.scheduleLifecycle || 'no_schedule');
+}
+
+function deriveScheduleLifecycleState(state) {
+  const activeProfileId = String(state?.activeProfileId || '').trim();
+  const activeProfile = activeProfileId ? state?.profilesById?.[activeProfileId] || null : null;
+  const activeCycle = state?.activeCycleId ? state?.cyclesById?.[state.activeCycleId] || null : null;
+  const activeMasterPlanId = String(activeProfile?.activeMasterPlanId || '').trim();
+  const hasStrategicGoalContext = Boolean(
+    activeCycle?.goalContract ||
+      state?.goalExecutionContract ||
+      state?.activeGoalId ||
+      activeProfile?.activeGoalId ||
+      activeMasterPlanId
+  );
+  if (!hasStrategicGoalContext) {
+    return 'no_goal';
+  }
+  if (!activeCycle) {
+    return state?.scheduleLifecycleState === 'inter_cycle' ? 'inter_cycle' : 'goal_admitted';
+  }
+  const cycleStatus = String(activeCycle?.status || activeCycle?.state || '')
+    .trim()
+    .toLowerCase();
+  if (['completed', 'ended', 'archived', 'deleted', 'abandoned'].includes(cycleStatus)) {
+    return 'terminal';
+  }
+  const lifecycle = getCycleScheduleLifecycle(activeCycle, state);
+  if (lifecycle === 'active_schedule') {
+    return hasMeaningfulExecutionEvidence(activeCycle?.executionEvents || state?.executionEvents || [])
+      ? 'in_execution'
+      : 'activated';
+  }
+  if (lifecycle === 'applied_review') {
+    return 'schedule_applied';
+  }
+  if (
+    lifecycle === 'draft_schedule_ready' ||
+    (Array.isArray(activeCycle?.proposedBlocks) && activeCycle.proposedBlocks.length > 0) ||
+    (Array.isArray(state?.proposedBlocksByCycleId?.[activeCycle?.id || '']) &&
+      state.proposedBlocksByCycleId[activeCycle.id].length > 0)
+  ) {
+    return 'schedule_preview_ready';
+  }
+  return 'inter_cycle';
+}
+
+function applyScheduleLifecycleState(state) {
+  state.scheduleLifecycleState = deriveScheduleLifecycleState(state);
+}
+
+function applyInterCycleConsistencyDiagnostics(state) {
+  const reasonCodes = [];
+  const scheduleLifecycleState = String(state?.scheduleLifecycleState || '').trim().toLowerCase();
+  const selectedHorizonMode = String(state?.selectedHorizonMode || 'current_cycle').trim().toLowerCase();
+  const calendarDisplayBlocks = Array.isArray(state?.calendarDisplayBlocks) ? state.calendarDisplayBlocks : [];
+  if (scheduleLifecycleState === 'inter_cycle' && calendarDisplayBlocks.length > 0) {
+    reasonCodes.push(
+      'INTER_CYCLE_SCHEDULE_ARTIFACT_LEAK',
+      'DELETED_CYCLE_BLOCKS_VISIBLE',
+      'TODAY_SHOWS_BLOCKS_WITHOUT_GENERATED_SCHEDULE',
+      'CALENDAR_DISPLAY_BLOCKS_NOT_CLEARED_ON_CYCLE_DELETE'
+    );
+    if (selectedHorizonMode !== 'current_cycle') {
+      reasonCodes.push('FORECAST_SUBSTRATE_MISLABELED_AS_SCHEDULED');
+    }
+  }
+  state.interCycleConsistencyReasonCodes = [...new Set(reasonCodes)];
 }
 
 function buildScheduleDraftHash(items = []) {
@@ -5696,6 +5765,7 @@ function applyLongHorizonCalendarBlocks(state) {
 
   // Expose strategic horizon end for Plan/Today agreement
   state.strategicHorizonEndDayKey = plan?.fullHorizonEndDayKey || plan?.horizonEnd || null;
+  const scheduleLifecycleState = String(state?.scheduleLifecycleState || deriveScheduleLifecycleState(state)).trim().toLowerCase();
 
   const mode = String(state?.selectedHorizonMode || 'current_cycle').trim();
 
@@ -5731,7 +5801,9 @@ function applyLongHorizonCalendarBlocks(state) {
   const activeCycleId = String(state?.activeCycleId || '').trim();
   const activeCycle = activeCycleId ? state?.cyclesById?.[activeCycleId] || null : null;
   const activeCycleScheduleStatePresent = hasCycleOwnedScheduleState(activeCycle);
-  const suppressTodayForecastForFreshCycle = Boolean(activeCycle && !activeCycleScheduleStatePresent);
+  const suppressTodayForecastForFreshCycle = Boolean(
+    scheduleLifecycleState === 'inter_cycle' || (activeCycle && !activeCycleScheduleStatePresent)
+  );
   const rawCycleDeadline =
     activeCycle?.deadlineDayKey ||
     activeCycle?.contract?.deadlineISO?.slice(0, 10) ||
@@ -5806,9 +5878,12 @@ function applyLongHorizonCalendarBlocks(state) {
       surface: 'full_horizon',
     });
     projectedFullHorizonScheduleBlocks.forEach((block) => {
-      block.ownerScope = 'master_plan';
+      block.ownerScope = 'master_plan_forecast';
       block.cycleId = null;
       block.masterPlanId = block.masterPlanId || plan.id;
+      block.scheduleCommitment = 'none';
+      block.calendarEligible = false;
+      block.executionEligible = false;
       block.forecastInspectionOnly = true;
     });
     state.fullHorizonScheduleBlocks = projectedFullHorizonScheduleBlocks;
@@ -5868,9 +5943,12 @@ function applyLongHorizonCalendarBlocks(state) {
     // Fallback to the derived forecast markers if expansion fails for safety.
     const projectedForecastBlocks = projectBlocksForDisplay(allForecastBlocks, { surface: 'full_horizon_fallback' });
     projectedForecastBlocks.forEach((block) => {
-      block.ownerScope = 'master_plan';
+      block.ownerScope = 'master_plan_forecast';
       block.cycleId = null;
       block.masterPlanId = block.masterPlanId || plan.id;
+      block.scheduleCommitment = 'none';
+      block.calendarEligible = false;
+      block.executionEligible = false;
       block.forecastInspectionOnly = true;
     });
     state.fullHorizonScheduleBlocks = projectedForecastBlocks;
@@ -9830,6 +9908,8 @@ function deleteCycle(state, cycleId) {
     if (!hasMasterPlan) {
       startNewCycle(state, { goalText: ' ', narrative: '', successDefinition: '', minimumDaysPerWeek: 4 });
       resetCycleToGoalEntryReady(state, state.activeCycleId);
+    } else {
+      state.scheduleLifecycleState = 'inter_cycle';
     }
     state.meta = {
       ...(state.meta || {}),
@@ -9971,6 +10051,9 @@ function hardDeleteCycle(state, cycleId) {
       ...(state.meta || {}),
       goalEntryRequestedAtISO: state.appTime?.nowISO || null,
     };
+    if (getActiveMasterPlanRecord(state, null)) {
+      state.scheduleLifecycleState = 'inter_cycle';
+    }
   }
 }
 

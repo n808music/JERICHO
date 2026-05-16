@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { act } from 'react';
 import '@testing-library/jest-dom';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import GoalAdmissionFlow from '../../src/ui/goalAdmission/GoalAdmissionFlow';
 import type { IntakeProgressState } from '../../src/ui/goalAdmission/GoalAdmissionFlow';
 import type { PrePlanFeasibilityResult, IntakeFeasibilityReport } from '../../src/domain/goal/prePlanFeasibility';
@@ -81,6 +81,8 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
   const mockOnAspire = vi.fn();
   const mockOnStateChange = vi.fn();
   const mockOnPlanningTierRouted = vi.fn();
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn> | null = null;
+  const originalConsoleError = console.error;
 
   const defaultProps = {
     onGeneratePlan: mockOnGeneratePlan,
@@ -92,8 +94,29 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
     vi.mocked(evaluatePrePlanFeasibility).mockReturnValue(DEFAULT_VIABLE_RESULT);
     vi.mocked(prePlanFeasibility).mockReturnValue(DEFAULT_INTAKE_REPORT);
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+      const [firstArg] = args;
+      if (typeof firstArg === 'string' && firstArg.includes('not wrapped in act')) {
+        return;
+      }
+      originalConsoleError(...args);
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    consoleErrorSpy?.mockRestore();
+    consoleErrorSpy = null;
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+    if (typeof window !== 'undefined') {
+      window.localStorage?.clear?.();
+      window.sessionStorage?.clear?.();
+    }
   });
 
   describe('Screen progression', () => {
@@ -102,7 +125,7 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
       render(<GoalAdmissionFlow {...defaultProps} />);
 
       const goalDescription = screen.getByLabelText(/describe your goal/i);
-      await user.type(
+      await setAtomicInputValue(
         goalDescription,
         'Build and coordinate a multi-lane master plan from today through October 17, centered on releasing my album and launching the supporting ecosystem around it, including the app, podcast, PM brand, and income runway.'
       );
@@ -135,7 +158,7 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
       render(<GoalAdmissionFlow {...defaultProps} />);
 
       const goalDescription = screen.getByLabelText(/describe your goal/i);
-      await user.type(
+      await setAtomicInputValue(
         goalDescription,
         'Build and execute Operation Endgame: a five-year plan coordinating the Jericho app, album, podcast, record label, production company, real estate campaign, private school, and district revitalization.'
       );
@@ -168,7 +191,7 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
       render(<GoalAdmissionFlow {...defaultProps} />);
 
       const goalDescription = screen.getByLabelText(/describe your goal/i);
-      await user.type(goalDescription, 'Launch a caffeinated gum brand and make my first real sale.');
+      await setAtomicInputValue(goalDescription, 'Launch a caffeinated gum brand and make my first real sale.');
 
       const physicalProductRadio = screen.getByLabelText('Physical product');
       await user.click(physicalProductRadio);
@@ -205,7 +228,7 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
       render(<GoalAdmissionFlow {...defaultProps} />);
 
       const goalDescription = screen.getByLabelText(/describe your goal/i);
-      await user.type(goalDescription, 'Launch a caffeinated gum brand and make my first real sale.');
+      await setAtomicInputValue(goalDescription, 'Launch a caffeinated gum brand and make my first real sale.');
 
       const physicalProductRadio = screen.getByLabelText('Physical product');
       await user.click(physicalProductRadio);
@@ -221,7 +244,7 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
       render(<GoalAdmissionFlow {...defaultProps} />);
 
       const goalDescription = screen.getByLabelText(/describe your goal/i);
-      await user.type(goalDescription, 'Build and ship a focused software product for my first customers.');
+      await setAtomicInputValue(goalDescription, 'Build and ship a focused software product for my first customers.');
 
       const digitalProductRadio = screen.getByLabelText('Digital product');
       await user.click(digitalProductRadio);
@@ -234,7 +257,7 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
       render(<GoalAdmissionFlow {...defaultProps} />);
 
       const goalDescription = screen.getByLabelText(/describe your goal/i);
-      await user.type(goalDescription, 'Test goal description for my plan');
+      await setAtomicInputValue(goalDescription, 'Test goal description for my plan');
 
       const digitalProductRadio = screen.getByLabelText('Digital product');
       await user.click(digitalProductRadio);
@@ -324,7 +347,7 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
       await user.click(screen.getByLabelText(/as fast as realistically possible/i));
       const weeklyHoursInput = screen.getByLabelText(/how many hours per week/i);
       await user.clear(weeklyHoursInput);
-      await user.type(weeklyHoursInput, '20');
+      await setAtomicInputValue(weeklyHoursInput, '20');
       await user.click(screen.getByLabelText(/alongside a full-time job/i));
       await advanceToScreen3(user);
       await fillScreen3(user);
@@ -348,7 +371,7 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
 
       // Inline Screen 1 for physical/consumable/white_label (cannot use fillScreen1 which selects digital_product)
       const goalDescription = screen.getByLabelText(/describe your goal/i);
-      await user.type(goalDescription, 'Test goal description for my plan');
+      await setAtomicInputValue(goalDescription, 'Test goal description for my plan');
       await user.click(screen.getByLabelText('Physical product'));
       await user.click(screen.getByLabelText(/it is ingested/i));
       await user.click(screen.getByLabelText(/use a manufacturer's existing formula/i));
@@ -379,7 +402,7 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
 
       // Inline Screen 1 for physical/consumable/undecided
       const goalDescription = screen.getByLabelText(/describe your goal/i);
-      await user.type(goalDescription, 'Test goal description for my plan');
+      await setAtomicInputValue(goalDescription, 'Test goal description for my plan');
       await user.click(screen.getByLabelText('Physical product'));
       await user.click(screen.getByLabelText(/it is ingested/i));
       await user.click(screen.getByLabelText(/help me decide/i));
@@ -415,9 +438,12 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
 
       // Set capital < 5000 atomically to avoid intermediate values triggering sticky flag
       const capitalInput = screen.getByLabelText(/how much capital do you have/i);
-      fireEvent.change(capitalInput, { target: { value: '2000' } });
+      await setAtomicInputValue(capitalInput, '2000');
 
       // Audience section appears since capital < 5000
+      await waitFor(() => {
+        expect(screen.getByText(/do you have an existing audience/i)).toBeInTheDocument();
+      });
       const addAudienceButton = screen.getByRole('button', { name: /add audience platform/i });
       await user.click(addAudienceButton);
       const confirmedConfidence = screen.getByLabelText(/confirmed — it is available now/i);
@@ -432,12 +458,14 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
       const generateButton = screen.getByRole('button', { name: /generate plan/i });
       await user.click(generateButton);
 
-      expect(mockOnGeneratePlan).toHaveBeenCalledWith(
-        expect.objectContaining({
-          capitalAvailable: 2000,
-          capitalAcquisitionRequired: true,
-        })
-      );
+      await waitFor(() => {
+        expect(mockOnGeneratePlan).toHaveBeenCalledWith(
+          expect.objectContaining({
+            capitalAvailable: 2000,
+            capitalAcquisitionRequired: true,
+          })
+        );
+      });
     });
 
     it('audience entry required when capitalAcquisitionRequired true', async () => {
@@ -451,7 +479,7 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
 
       // Use fireEvent to set 1000 atomically (< 5000 triggers acquisition section)
       const capitalInput = screen.getByLabelText(/how much capital do you have/i);
-      fireEvent.change(capitalInput, { target: { value: '1000' } });
+      await setAtomicInputValue(capitalInput, '1000');
 
       await waitFor(() => {
         expect(screen.getByText(/do you have an existing audience/i)).toBeInTheDocument();
@@ -486,7 +514,7 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
       await user.selectOptions(screen.getByLabelText(/entity state/i), 'IL');
 
       const purposeInput = screen.getByPlaceholderText(/e\.g\., project management/i);
-      await user.type(purposeInput, 'Different business consulting');
+      await setAtomicInputValue(purposeInput, 'Different business consulting');
 
       const differentBusinessRadio = screen.getByLabelText(/different business/i);
       await user.click(differentBusinessRadio);
@@ -725,11 +753,11 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
   });
 
   describe('Abandonment recovery', () => {
-    it('Navigating away mid-flow preserves IntakeProgressState via onStateChange', () => {
+    it('Navigating away mid-flow preserves IntakeProgressState via onStateChange', async () => {
       render(<GoalAdmissionFlow {...defaultProps} />);
 
       const goalDescription = screen.getByLabelText(/describe your goal/i);
-      fireEvent.change(goalDescription, { target: { value: 'Test goal' } });
+      await setAtomicInputValue(goalDescription, 'Test goal');
 
       expect(mockOnStateChange).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -802,8 +830,7 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
     const goalDescription = screen.getByLabelText(/describe your goal/i);
     const current = (goalDescription as HTMLTextAreaElement).value;
     if (!current || current.trim().length < 10) {
-      await user.clear(goalDescription);
-      await user.type(goalDescription, 'Test goal description for my plan');
+      await setAtomicInputValue(goalDescription, 'Test goal description for my plan');
     }
     if (!screen.queryByLabelText('Digital product')?.matches(':checked')) {
       const digitalProductRadio = screen.getByLabelText('Digital product');
@@ -824,8 +851,7 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
     await user.click(asFastAsPossibleRadio);
 
     const weeklyHoursInput = screen.getByLabelText(/how many hours per week/i);
-    await user.clear(weeklyHoursInput);
-    await user.type(weeklyHoursInput, '20');
+    await setAtomicInputValue(weeklyHoursInput, '20');
 
     const primaryFocusRadio = screen.getByLabelText(/this is my main focus/i);
     await user.click(primaryFocusRadio);
@@ -837,8 +863,7 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
     await user.click(asFastAsPossibleRadio);
 
     const weeklyHoursInput = screen.getByLabelText(/how many hours per week/i);
-    await user.clear(weeklyHoursInput);
-    await user.type(weeklyHoursInput, '20');
+    await setAtomicInputValue(weeklyHoursInput, '20');
 
     const primaryFocusRadio = screen.getByLabelText(/this is my main focus/i);
     await user.click(primaryFocusRadio);
@@ -859,7 +884,7 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
     // Use fireEvent.change to avoid intermediate < 5000 values triggering the
     // sticky capitalAcquisitionRequired flag (user.type fires onChange per keystroke)
     const capitalInput = screen.getByLabelText(/how much capital do you have/i);
-    fireEvent.change(capitalInput, { target: { value: '10000' } });
+    await setAtomicInputValue(capitalInput, '10000');
 
     const confirmedConfidence = screen.getByLabelText(/confirmed — it is available now/i);
     await user.click(confirmedConfidence);
@@ -920,7 +945,7 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
   async function fillGumGoalData(user: ReturnType<typeof userEvent.setup>) {
     // Screen 1
     const goalDescription = screen.getByLabelText(/describe your goal/i);
-    await user.type(goalDescription, 'Launch a caffeinated gum brand and make my first real sale.');
+    await setAtomicInputValue(goalDescription, 'Launch a caffeinated gum brand and make my first real sale.');
 
     await user.click(screen.getByLabelText('Physical product'));
     await user.click(screen.getByLabelText(/it is ingested/i));
@@ -933,8 +958,7 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
     // Screen 2 — physical product needs relationship selection
     await user.click(screen.getByLabelText(/as fast as realistically possible/i));
     const weeklyHours = screen.getByLabelText(/how many hours per week/i);
-    await user.clear(weeklyHours);
-    await user.type(weeklyHours, '25');
+    await setAtomicInputValue(weeklyHours, '25');
     await user.click(screen.getByLabelText(/this is my main focus/i));
     await user.click(screen.getByLabelText('Manufacturer or supplier contact'));
 
@@ -942,7 +966,7 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
 
     // Screen 3 — low capital triggers acquisition section (atomic to avoid sticky flag)
     const capitalInput = screen.getByLabelText(/how much capital do you have/i);
-    fireEvent.change(capitalInput, { target: { value: '2000' } });
+    await setAtomicInputValue(capitalInput, '2000');
 
     const addAudienceButton = screen.getByRole('button', { name: /add audience platform/i });
     await user.click(addAudienceButton);
@@ -950,8 +974,7 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
     await user.selectOptions(screen.getByLabelText(/audience platform 1/i), 'Spotify');
 
     const sizeInput = screen.getByLabelText(/audience size 1/i);
-    await user.clear(sizeInput);
-    await user.type(sizeInput, '23000');
+    await setAtomicInputValue(sizeInput, '23000');
 
     await user.click(screen.getByLabelText(/they follow my creative work/i));
     await user.click(screen.getByLabelText(/confirmed — it is available now/i));
@@ -964,7 +987,7 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
     await user.selectOptions(screen.getByLabelText(/entity state/i), 'IL');
 
     const purposeInput = screen.getByPlaceholderText(/e\.g\., project management/i);
-    await user.type(purposeInput, 'Project management consulting');
+    await setAtomicInputValue(purposeInput, 'Project management consulting');
 
     await user.click(screen.getByLabelText(/different business/i));
 
@@ -972,5 +995,11 @@ describe('GoalAdmissionFlow - Structured Intake UI', () => {
     await user.click(screen.getByLabelText(/yes — i have worked in this industry/i));
 
     await advanceToScreen5(user);
+  }
+
+  async function setAtomicInputValue(element: HTMLElement, value: string) {
+    await act(async () => {
+      fireEvent.change(element, { target: { value } });
+    });
   }
 });
