@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { buildBlankIdentityState, DEFAULT_PROFILE_ID } from '../../src/state/identityStore.js';
+import { buildBlankIdentityState, DEFAULT_PROFILE_ID, rehydratePersistedState } from '../../src/state/identityStore.js';
 import { applyMasterPlanAction } from '../../src/state/masterPlanStore.js';
 import { computeDerivedState } from '../../src/state/identityCompute.js';
 import { createMinimalCoreMissionContract } from '../../src/domain/core/CoreMissionContractMinimal';
@@ -517,5 +517,18 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByText(/^Strategic forecast work$/i)).toBeInTheDocument();
     expect(screen.getByText(/^Current scheduled work$/i)).toBeInTheDocument();
     expect(screen.getByText(/No execution cycle schedule yet/i)).toBeInTheDocument();
+  });
+
+  it('renders the persisted plan view after rehydration instead of falling back to the empty state', async () => {
+    const persisted = JSON.parse(JSON.stringify(buildFinalizedMasterPlanState({ strategicMissionYears: 5 })));
+    mockStore = rehydratePersistedState(persisted);
+
+    await act(async () => {
+      render(<MasterPlanTimeline />);
+    });
+
+    expect(screen.queryByText(/No master plan established yet/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/^Full Phase Plan$/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Full horizon/i })).toBeInTheDocument();
   });
 });

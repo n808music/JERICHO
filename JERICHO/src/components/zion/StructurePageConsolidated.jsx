@@ -118,6 +118,39 @@ const formatPhaseMode = (value) => {
   return 'Unknown';
 };
 
+function PersistenceRecoveryNotice({ planRecovery }) {
+  const reasonCodes = Array.isArray(planRecovery?.persistenceFailure?.reasonCodes)
+    ? planRecovery.persistenceFailure.reasonCodes
+    : [];
+  const orphanedCycleId = planRecovery?.persistenceFailure?.orphanedCycleId || null;
+
+  return (
+    <div className="rounded-lg border border-amber-500/40 bg-amber-50 px-4 py-3 space-y-2">
+      <p className="text-sm font-semibold text-amber-950">Profile found, but active plan is missing</p>
+      <p className="text-xs text-amber-900">
+        Jericho preserved profile residue but quarantined invalid active execution state because the owning
+        goal or master plan could not be restored safely.
+      </p>
+      {orphanedCycleId ? (
+        <p className="text-xs text-amber-900">Quarantined cycle: {orphanedCycleId}</p>
+      ) : null}
+      {reasonCodes.length > 0 ? (
+        <p className="text-xs text-amber-800">
+          Recovery reasons:{' '}
+          {reasonCodes
+            .map((code) =>
+              String(code || '')
+                .replace(/^ACTIVE_/i, '')
+                .replace(/_/g, ' ')
+                .toLowerCase()
+            )
+            .join(' · ')}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 const formatTemporalCertainty = (value) => {
   if (value === 'firm') return 'Firm';
   if (value === 'provisional') return 'Provisional';
@@ -621,6 +654,10 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
     String(planRecovery?.required || '')
       .trim()
       .toUpperCase() === 'GOAL_DRAFT_CONTEXT';
+  const hasPersistenceRecovery =
+    String(planRecovery?.required || '')
+      .trim()
+      .toUpperCase() === 'PERSISTED_PLAN_MISSING';
   const workspace = activeCycleId ? store?.deliverablesByCycleId?.[activeCycleId] || null : null;
   const deliverables = Array.isArray(workspace?.deliverables) ? workspace.deliverables : [];
   const reviewBlocks = Array.isArray(activeCycle?.scheduleReviewBlocks) ? activeCycle.scheduleReviewBlocks : [];
@@ -980,6 +1017,8 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
             <p className="text-sm text-muted">Master Plan Establishment</p>
           </div>
 
+          {hasPersistenceRecovery ? <PersistenceRecoveryNotice planRecovery={planRecovery} /> : null}
+
           <MasterPlanStructureSection
             hasActiveMasterPlan={hasActiveMasterPlan}
             masterPlanIntakeStatus={masterPlanIntake?.status || 'idle'}
@@ -1028,6 +1067,8 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
           <h1 className="text-2xl font-bold text-jericho-text mb-2">Structure</h1>
           <p className="text-sm text-muted">Contract Admission</p>
         </div>
+
+        {hasPersistenceRecovery ? <PersistenceRecoveryNotice planRecovery={planRecovery} /> : null}
 
         {startDayMessage ? (
           <div className="rounded-lg border border-red-600/40 bg-red-50 p-4 text-sm text-red-900">

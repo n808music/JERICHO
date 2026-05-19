@@ -207,6 +207,8 @@ export function computeDerivedState(state, action) {
   ensureAdmissionStores(next);
   ensureDeliverablesStore(next);
   ensureProfileOwnership(next);
+  ensureMasterPlanOwnership(next);
+  quarantineOrphanedActiveExecution(next);
   deriveProfileExecutionContainment(next);
   hydrateActiveCycleState(next);
   const hadCycleRecords = Boolean(next.cyclesById && Object.keys(next.cyclesById).length);
@@ -984,6 +986,8 @@ export function computeDerivedState(state, action) {
   syncSuggestedBlocksMirror(next);
   flagDraftBlocks(next);
   ensureProfileOwnership(next);
+  ensureMasterPlanOwnership(next);
+  quarantineOrphanedActiveExecution(next);
   deriveProfileExecutionContainment(next);
   persistActiveCycleState(next);
   enforceActiveCycleTodayBlocks(next, hadCycleRecords);
@@ -1165,6 +1169,197 @@ function ensureProfileOwnership(state) {
         activeCycle.goalContract.capacityValidation || state.goalExecutionContract.capacityValidation || null;
     }
   }
+}
+
+function getMasterPlanIdFromGoalId(goalId) {
+  const normalizedGoalId = String(goalId || '').trim();
+  if (!normalizedGoalId.startsWith('masterplan:')) {
+    return null;
+  }
+  return normalizedGoalId.slice('masterplan:'.length) || null;
+}
+
+function ensureMasterPlanOwnership(state) {
+  const requestedProfileId = String(state?.activeProfileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
+  state.masterPlansById =
+    state?.masterPlansById && typeof state.masterPlansById === 'object' && !Array.isArray(state.masterPlansById)
+      ? state.masterPlansById
+      : {};
+
+  Object.values(state.profilesById || {}).forEach((profile) => {
+    if (!profile?.id) {
+      return;
+    }
+    profile.masterPlanIds = Array.isArray(profile.masterPlanIds)
+      ? [...new Set(profile.masterPlanIds.filter(Boolean).map(String))]
+      : [];
+    if (!('activeMasterPlanId' in profile)) {
+      profile.activeMasterPlanId = null;
+    }
+  });
+
+  Object.entries(state.masterPlansById || {}).forEach(([planId, planRecord]) => {
+    if (!planId || !planRecord) {
+      return;
+    }
+    const profileId = String(planRecord.profileId || requestedProfileId).trim() || requestedProfileId;
+    planRecord.id = String(planId);
+    planRecord.profileId = profileId;
+    const profile = state.profilesById?.[profileId];
+    if (!profile) {
+      return;
+    }
+    if (!profile.masterPlanIds.includes(planRecord.id)) {
+      profile.masterPlanIds.push(planRecord.id);
+    }
+  });
+
+  const activeCycle = state.activeCycleId ? state.cyclesById?.[state.activeCycleId] || null : null;
+  const inferredPlanIdCandidate =
+    activeCycle?.masterPlanId ||
+    getMasterPlanIdFromGoalId(activeCycle?.goalId) ||
+    getMasterPlanIdFromGoalId(activeCycle?.goalGovernanceContract?.goalId) ||
+    getMasterPlanIdFromGoalId(activeCycle?.goalContract?.goalId) ||
+    getMasterPlanIdFromGoalId(state?.activeGoalId) ||
+    null;
+  const inferredPlanIdFromCycle = inferredPlanIdCandidate ? String(inferredPlanIdCandidate).trim() || null : null;
+
+  Object.values(state.profilesById || {}).forEach((profile) => {
+    if (!profile?.id) {
+      return;
+    }
+    const validPlanIds = profile.masterPlanIds.filter((planId) => {
+      const plan = state.masterPlansById?.[planId] || null;
+      return Boolean(plan && plan.profileId === profile.id);
+    });
+    profile.masterPlanIds = validPlanIds;
+    const activeMasterPlanId = String(profile.activeMasterPlanId || '').trim() || null;
+    if (activeMasterPlanId && validPlanIds.includes(activeMasterPlanId)) {
+      return;
+    }
+    if (profile.id === requestedProfileId && inferredPlanIdFromCycle && validPlanIds.includes(inferredPlanIdFromCycle)) {
+      profile.activeMasterPlanId = inferredPlanIdFromCycle;
+      return;
+    }
+    profile.activeMasterPlanId = validPlanIds.length === 1 ? validPlanIds[0] : null;
+  });
+}
+
+function setPersistenceRecovery(state, details = {}) {
+  const required = details.required || 'PERSISTED_PLAN_MISSING';
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  state.planRecovery = {
+    required,
+    route: details.route || 'STRUCTURE_INTAKE',
+    sourceErrorCode: details.sourceErrorCode || required,
+    createdAtISO: nowISO,
+    persistenceFailure: {
+      profileFound: Boolean(state?.activeProfileId),
+      activeProfileId: state?.activeProfileId || null,
+      orphanedCycleId: details.orphanedCycleId || null,
+      missingGoalId: details.missingGoalId || null,
+      missingMasterPlanId: details.missingMasterPlanId || null,
+      reasonCodes: Array.isArray(details.reasonCodes) ? details.reasonCodes : [],
+    },
+  };
+}
+
+function clearExecutionResidue(state) {
+  state.activeCycleId = null;
+  state.activeGoalId = null;
+  if (state?.activeProfileId && state?.profilesById?.[state.activeProfileId]) {
+    state.profilesById[state.activeProfileId].activeGoalId = null;
+  }
+  state.goalExecutionContract = null;
+  state.proposedBlocks = [];
+  state.suggestedBlocks = [];
+  state.executionEvents = [];
+  state.externalEvidenceEvents = [];
+  state.planMutationEvents = [];
+  state.truthEntries = [];
+  state.planDraft = null;
+  state.planPreview = null;
+  state.correctionSignals = null;
+  state.scheduleApplied = false;
+  state.scheduleLifecycle = 'no_schedule';
+  state.scheduleReviewBlocks = [];
+}
+
+function quarantineOrphanedActiveExecution(state) {
+  const activeProfileId = String(state?.activeProfileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
+  const activeProfile = state?.profilesById?.[activeProfileId] || null;
+  const activeCycleId = String(state?.activeCycleId || '').trim() || null;
+  if (!activeCycleId) {
+    if (
+      activeProfile &&
+      !activeProfile.activeMasterPlanId &&
+      !state.activeGoalId &&
+      Array.isArray(activeProfile.masterPlanIds) &&
+      activeProfile.masterPlanIds.length === 0 &&
+      state.planRecovery?.required === 'PERSISTED_PLAN_MISSING'
+    ) {
+      return;
+    }
+    return;
+  }
+
+  const activeCycle = state?.cyclesById?.[activeCycleId] || null;
+  const activeGoalId =
+    String(
+      activeCycle?.goalId ||
+        activeCycle?.goalGovernanceContract?.goalId ||
+        activeCycle?.goalContract?.goalId ||
+        activeCycle?.contract?.goalId ||
+        state?.activeGoalId
+    ).trim() || null;
+  const activeGoal = activeGoalId ? state?.goalsById?.[activeGoalId] || null : null;
+  const masterPlanIdCandidate =
+    activeCycle?.masterPlanId ||
+    getMasterPlanIdFromGoalId(activeGoalId) ||
+    getMasterPlanIdFromGoalId(state?.activeGoalId) ||
+    null;
+  const masterPlanId = masterPlanIdCandidate ? String(masterPlanIdCandidate).trim() || null : null;
+  const activeMasterPlan = masterPlanId ? state?.masterPlansById?.[masterPlanId] || null : null;
+  const reasonCodes = [];
+
+  if (!activeCycle) {
+    reasonCodes.push('ACTIVE_CYCLE_RECORD_MISSING');
+  }
+  if (activeCycle && !activeGoal) {
+    reasonCodes.push('ACTIVE_CYCLE_GOAL_MISSING');
+  }
+  if (activeGoal && activeGoal.profileId && activeGoal.profileId !== activeProfileId) {
+    reasonCodes.push('ACTIVE_GOAL_PROFILE_MISMATCH');
+  }
+  if (masterPlanId && !activeMasterPlan) {
+    reasonCodes.push('ACTIVE_MASTER_PLAN_MISSING');
+  }
+  if (activeMasterPlan && activeMasterPlan.profileId && activeMasterPlan.profileId !== activeProfileId) {
+    reasonCodes.push('ACTIVE_MASTER_PLAN_PROFILE_MISMATCH');
+  }
+
+  if (reasonCodes.length === 0) {
+    if (state.planRecovery?.required === 'PERSISTED_PLAN_MISSING') {
+      state.planRecovery = null;
+    }
+    return;
+  }
+
+  if (activeCycle) {
+    activeCycle.status = 'orphaned';
+    activeCycle.orphanedAtISO = state?.appTime?.nowISO || new Date().toISOString();
+    activeCycle.orphanedReasonCodes = reasonCodes;
+  }
+
+  clearExecutionResidue(state);
+  setPersistenceRecovery(state, {
+    required: 'PERSISTED_PLAN_MISSING',
+    sourceErrorCode: 'PERSISTED_PLAN_MISSING',
+    orphanedCycleId: activeCycleId,
+    missingGoalId: !activeGoal ? activeGoalId : null,
+    missingMasterPlanId: masterPlanId && !activeMasterPlan ? masterPlanId : null,
+    reasonCodes,
+  });
 }
 
 export function hydrateActiveCycleState(state) {

@@ -441,15 +441,38 @@ export default function MasterPlanTimeline() {
     return <MasterPlanTimelineView plan={plan} store={store} />;
   }
 
-  return <NoMasterPlanState />;
+  return <NoMasterPlanState store={store} />;
 }
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
 
-function NoMasterPlanState() {
+function NoMasterPlanState({ store }) {
+  const hasPersistenceRecovery =
+    String(store?.planRecovery?.required || '')
+      .trim()
+      .toUpperCase() === 'PERSISTED_PLAN_MISSING';
+  const reasonCodes = Array.isArray(store?.planRecovery?.persistenceFailure?.reasonCodes)
+    ? store.planRecovery.persistenceFailure.reasonCodes
+    : [];
+
   return (
     <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
-      <p className="text-muted text-sm">No master plan established yet. Complete Structure intake first.</p>
+      {hasPersistenceRecovery ? (
+        <>
+          <p className="text-sm font-semibold text-amber-900">Profile found, but active plan is missing.</p>
+          <p className="text-muted text-sm max-w-xl">
+            Jericho quarantined invalid execution residue because the owning goal or master plan could not be
+            restored safely. Return to Structure to recover or recreate the plan.
+          </p>
+          {reasonCodes.length > 0 ? (
+            <p className="text-[11px] uppercase tracking-[0.14em] text-amber-700">
+              {reasonCodes.join(' · ')}
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <p className="text-muted text-sm">No master plan established yet. Complete Structure intake first.</p>
+      )}
     </div>
   );
 }

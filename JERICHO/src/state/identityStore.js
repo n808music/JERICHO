@@ -268,7 +268,7 @@ export function buildBlankIdentityState(options = {}) {
       id: requestedProfileId,
       label: baseProfiles[requestedProfileId].label || options.profileLabel || DEFAULT_PROFILE_LABEL,
       goalIds: Array.isArray(baseProfiles[requestedProfileId].goalIds) ? baseProfiles[requestedProfileId].goalIds : [],
-      activeGoalId: null,
+      activeGoalId: baseProfiles[requestedProfileId].activeGoalId || null,
       masterCalendarId:
         baseProfiles[requestedProfileId].masterCalendarId || `calendar-${requestedProfileId}`,
       strategicClusterIds: Array.isArray(baseProfiles[requestedProfileId].strategicClusterIds)

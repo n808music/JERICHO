@@ -129,6 +129,25 @@ describe('StructurePageConsolidated unified intake ownership', () => {
     expect(screen.queryByRole('button', { name: /Reset master plan/i })).not.toBeInTheDocument();
   });
 
+  it('surfaces a persistence recovery notice instead of silently implying a clean blank state', () => {
+    mockStore = {
+      ...buildPreAdmissionStore(),
+      planRecovery: {
+        required: 'PERSISTED_PLAN_MISSING',
+        route: 'STRUCTURE_INTAKE',
+        persistenceFailure: {
+          orphanedCycleId: 'cycle-2026-05-19-1',
+          reasonCodes: ['ACTIVE_CYCLE_GOAL_MISSING', 'ACTIVE_MASTER_PLAN_MISSING'],
+        },
+      },
+    };
+
+    render(<StructurePageConsolidated />);
+
+    expect(screen.getByText(/Profile found, but active plan is missing/i)).toBeInTheDocument();
+    expect(screen.getByText(/Quarantined cycle: cycle-2026-05-19-1/i)).toBeInTheDocument();
+  });
+
   it('starts a new cycle directly when a master plan exists without an active cycle', () => {
     const startNewCycleWithDecision = vi.fn();
     mockStore = {
