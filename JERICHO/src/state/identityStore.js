@@ -1436,6 +1436,26 @@ export function IdentityProvider({ children, initialState }) {
     archiveAndCloneCycle,
     ...coreMissionContractActions,
   };
+
+  React.useEffect(() => {
+    if (IS_PRODUCTION || typeof window === 'undefined') {
+      return undefined;
+    }
+    let active = true;
+    import('../dev/operationEndgameRestore.js')
+      .then(({ installOperationEndgameRestore }) => {
+        if (active) {
+          installOperationEndgameRestore(window);
+        }
+      })
+      .catch(() => {
+        // Dev-only helper should never block the app if it fails to load.
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   if (typeof window !== 'undefined') {
     window.__jerichoDebug__ = store;
     window.__jerichoResetIntake = () => dispatch({ type: 'MASTER_PLAN_INTAKE_RESET' });
