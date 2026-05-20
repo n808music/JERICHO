@@ -48,27 +48,31 @@ describe('Operation Endgame dev restore fixture', () => {
     const profile = state.profilesById[DEFAULT_PROFILE_ID];
     const plan = state.masterPlansById[summary.activeMasterPlanId];
     const goal = state.goalsById[summary.activeGoalId];
-    const cycle = state.cyclesById[summary.activeCycleId];
 
     expect(summary.activeProfileId).toBe(DEFAULT_PROFILE_ID);
     expect(summary.activeGoalId).toBeTruthy();
     expect(summary.activeMasterPlanId).toBeTruthy();
-    expect(summary.activeCycleId).toBeTruthy();
+    expect(summary.activeCycleId).toBeNull();
     expect(summary.masterPlanCount).toBe(1);
     expect(summary.horizonEnd).toBe('2031-05-19');
     expect(summary.fullHorizonEndDayKey).toBe('2031-05-19');
+    expect(summary.fullHorizonBlockCount).toBeGreaterThan(0);
+    expect(summary.coverageState).toMatch(/covered|trusted/);
+    expect(summary.planQualityState).toBeTruthy();
     expect(profile.activeGoalId).toBe(summary.activeGoalId);
     expect(profile.activeMasterPlanId).toBe(summary.activeMasterPlanId);
     expect(profile.masterPlanIds).toContain(summary.activeMasterPlanId);
     expect(profile.goalIds).toContain(summary.activeGoalId);
     expect(goal.profileId).toBe(DEFAULT_PROFILE_ID);
-    expect(goal.activeCycleId).toBe(summary.activeCycleId);
-    expect(cycle.masterPlanId).toBe(summary.activeMasterPlanId);
-    expect(cycle.goalId).toBe(summary.activeGoalId);
-    expect(cycle.status).toBe('active');
+    expect(goal.activeCycleId || null).toBeNull();
     expect(plan.coreMission).toMatch(/Operation Endgame/i);
     expect(plan.declaredHorizonMonths).toBe(60);
     expect(plan.horizonEnd).toBe('2031-05-19');
+    expect(state.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
+    expect(['trusted', 'provisional']).toContain(state.fullHorizonPlanQuality?.state);
+    expect(state.fullHorizonCoverageAudit?.coverageByPhase?.P2?.blockCount || 0).toBeGreaterThan(0);
+    expect(state.fullHorizonCoverageAudit?.coverageByPhase?.P3?.blockCount || 0).toBeGreaterThan(0);
+    expect(state.fullHorizonCoverageAudit?.coverageByYear?.['2031']?.blockCount || 0).toBeGreaterThan(0);
     expect(state.planRecovery).toBeNull();
   });
 
@@ -86,7 +90,8 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(JSON.parse(storage.getItem('jericho-identity-backup-latest'))).toEqual({ existing: true });
     expect(written.activeProfileId).toBe(DEFAULT_PROFILE_ID);
     expect(written.activeGoalId).toBeTruthy();
-    expect(written.activeCycleId).toBeTruthy();
+    expect(written.activeCycleId).toBeNull();
+    expect((written.fullHorizonScheduleBlocks || []).length).toBeGreaterThan(0);
   });
 
   it('is unavailable when explicitly installed in production mode', () => {
@@ -113,5 +118,9 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(screen.getByText(/^Full Phase Plan$/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Full horizon/i })).toBeInTheDocument();
     expect(screen.getByText(/Full horizon view: complete strategic architecture through 2031\./i)).toBeInTheDocument();
+    expect(screen.getByTestId('masterplan-coverage-status')).toHaveTextContent(/Full horizon/i);
+    expect(screen.getByTestId('masterplan-quality-status')).not.toHaveTextContent(/unavailable/i);
+    expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Forecast workload recognized:/i);
+    expect(screen.getByTestId('phase-card-p3')).toHaveTextContent(/Forecast workload recognized:/i);
   });
 });

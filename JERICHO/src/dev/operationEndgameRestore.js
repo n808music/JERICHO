@@ -16,7 +16,9 @@ const DEFAULT_NOW_ISO = '2026-05-19T12:00:00.000Z';
 const DEFAULT_TODAY_DATE = '2026-05-19';
 const DEFAULT_HORIZON_END = '2031-05-19';
 const DEFAULT_HORIZON_MONTHS = 60;
+const FOUNDATION_ANCHOR_DATE = '2026-06-15';
 const PRIMARY_ANCHOR_DATE = '2026-10-17';
+const P2_GATE_DATE = '2028-06-15';
 const STORAGE_KEY = 'jericho-identity';
 const BACKUP_LATEST_KEY = 'jericho-identity-backup-latest';
 const BACKUP_LATEST_POINTER_KEY = 'jericho-identity-backup-latest-key';
@@ -143,12 +145,28 @@ export function buildOperationEndgameFixtureState({
     extractedLanes: laneConfigs.map(({ title, domain, role }) => ({ title, domain, role })),
     anchors: [
       {
+        id: 'anchor-foundation-review',
+        date: FOUNDATION_ANCHOR_DATE,
+        label: 'Foundation substrate review',
+        isFixed: true,
+        affectedLaneIds: [],
+        priority: 0,
+      },
+      {
         id: 'anchor-oct17-album-drop',
         date: PRIMARY_ANCHOR_DATE,
         label: 'October 17 album drop',
         isFixed: true,
         affectedLaneIds: [],
-        priority: 0,
+        priority: 1,
+      },
+      {
+        id: 'anchor-p2-gate',
+        date: P2_GATE_DATE,
+        label: 'P2 operating-system review gate',
+        isFixed: true,
+        affectedLaneIds: [],
+        priority: 2,
       },
       {
         id: 'anchor-terminal-review',
@@ -156,7 +174,7 @@ export function buildOperationEndgameFixtureState({
         label: '2031 terminal review',
         isFixed: true,
         affectedLaneIds: [],
-        priority: 1,
+        priority: 3,
       },
     ],
     currentLaneIdx: 0,
@@ -190,23 +208,53 @@ export function buildOperationEndgameFixtureState({
     plan.nonNegotiables = [OPERATION_ENDGAME_NON_NEGOTIABLE];
   }
 
-  next = computeDerivedState(next, { type: 'NO_OP' });
   next = computeDerivedState(next, { type: 'START_NEW_CYCLE_WITH_DECISION', payload: { mode: 'archive' } });
 
-  const activeCycle = next?.activeCycleId ? next?.cyclesById?.[next.activeCycleId] || null : null;
-  if (activeCycle && planId) {
-    activeCycle.masterPlanId = planId;
-    activeCycle.status = 'active';
-    if (activeCycle.goalContract) {
-      activeCycle.goalContract.goalText = OPERATION_ENDGAME_GOAL_TEXT;
-      activeCycle.goalContract.goalLabel = 'Operation Endgame';
-      activeCycle.goalContract.declaredHorizonMonths = declaredHorizonMonths;
-      activeCycle.goalContract.fullHorizonEndDayKey = horizonEnd;
-      activeCycle.goalContract.nonNegotiables = [OPERATION_ENDGAME_NON_NEGOTIABLE];
-    }
+  const seededGoalId = next?.activeGoalId || next?.profilesById?.[DEFAULT_PROFILE_ID]?.activeGoalId || null;
+  const seededCycleId = next?.activeCycleId || null;
+  const seededGoal = seededGoalId ? next?.goalsById?.[seededGoalId] || null : null;
+  const seededCycle = seededCycleId ? next?.cyclesById?.[seededCycleId] || null : null;
+
+  if (seededGoalId && next?.profilesById?.[DEFAULT_PROFILE_ID]) {
+    next.profilesById[DEFAULT_PROFILE_ID].activeGoalId = seededGoalId;
+  }
+  if (seededGoal) {
+    seededGoal.activeCycleId = null;
+    seededGoal.title = 'Operation Endgame';
+  }
+  if (seededCycle) {
+    seededCycle.status = 'archived';
+    seededCycle.scheduleLifecycle = 'no_schedule';
+    seededCycle.endedAtISO = nowISO;
+    seededCycle.archivedAtISO = nowISO;
+    seededCycle.goalId = seededGoalId;
+    seededCycle.masterPlanId = planId;
   }
 
-  return computeDerivedState(next, { type: 'NO_OP' });
+  next.activeCycleId = null;
+  next.scheduleLifecycleState = 'goal_admitted';
+  next = computeDerivedState(next, { type: 'SET_SELECTED_HORIZON_MODE', mode: 'full_horizon' });
+
+  if (planId && next?.profilesById?.[DEFAULT_PROFILE_ID]) {
+    next.profilesById[DEFAULT_PROFILE_ID].activeMasterPlanId = planId;
+  }
+
+  next.proposedBlocks = [];
+  next.scheduleReviewBlocks = [];
+  next.scheduleApplied = false;
+  next.pendingPlanConfirmation = false;
+  next = computeDerivedState(next, { type: 'NO_OP' });
+
+  const restoredGoalId = next?.activeGoalId || seededGoalId || null;
+  if (restoredGoalId && next?.goalsById?.[restoredGoalId]) {
+    next.goalsById[restoredGoalId].activeCycleId = null;
+  }
+  next.activeCycleId = null;
+  next.scheduleLifecycleState = 'goal_admitted';
+  next.proposedBlocks = [];
+  next.scheduleReviewBlocks = [];
+
+  return next;
 }
 
 export function summarizeOperationEndgameFixtureState(state) {
@@ -223,8 +271,27 @@ export function summarizeOperationEndgameFixtureState(state) {
     profileGoalIds: Array.isArray(profile?.goalIds) ? profile.goalIds : [],
     masterPlanIds: Array.isArray(profile?.masterPlanIds) ? profile.masterPlanIds : [],
     horizonEnd: plan?.horizonEnd || null,
-    fullHorizonEndDayKey: activeCycle?.goalContract?.fullHorizonEndDayKey || plan?.horizonEnd || null,
+    fullHorizonEndDayKey: activeCycle?.goalContract?.fullHorizonEndDayKey || plan?.fullHorizonEndDayKey || plan?.horizonEnd || null,
+    fullHorizonBlockCount: Array.isArray(state?.fullHorizonScheduleBlocks) ? state.fullHorizonScheduleBlocks.length : 0,
+    coverageState: state?.fullHorizonCoverageAudit?.fullHorizonCovered ? 'covered' : getCoverageState(state),
+    planQualityState: state?.fullHorizonPlanQuality?.state || null,
   };
+}
+
+function getCoverageState(state) {
+  if (state?.fullHorizonCoverageAudit?.fullHorizonQualityTrusted) {
+    return 'trusted';
+  }
+  if (state?.fullHorizonCoverageAudit?.fullHorizonCovered) {
+    return 'covered';
+  }
+  if (state?.fullHorizonCoverageAudit?.horizonExpanded) {
+    return 'expanded';
+  }
+  if (state?.fullHorizonCoverageAudit?.horizonResolved) {
+    return 'resolved';
+  }
+  return 'unresolved';
 }
 
 export function previewOperationEndgameFixture(options = {}) {

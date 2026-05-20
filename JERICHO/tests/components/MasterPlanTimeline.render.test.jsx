@@ -8,6 +8,7 @@ import { buildBlankIdentityState, DEFAULT_PROFILE_ID, rehydratePersistedState } 
 import { applyMasterPlanAction } from '../../src/state/masterPlanStore.js';
 import { computeDerivedState } from '../../src/state/identityCompute.js';
 import { createMinimalCoreMissionContract } from '../../src/domain/core/CoreMissionContractMinimal';
+import { buildOperationEndgameFixtureState } from '../../src/dev/operationEndgameRestore.js';
 import MasterPlanTimeline from '../../src/ui/masterPlan/MasterPlanTimeline.jsx';
 
 let mockStore = {};
@@ -520,7 +521,7 @@ describe('MasterPlanTimeline rendering', () => {
   });
 
   it('renders the persisted plan view after rehydration instead of falling back to the empty state', async () => {
-    const persisted = JSON.parse(JSON.stringify(buildFinalizedMasterPlanState({ strategicMissionYears: 5 })));
+    const persisted = JSON.parse(JSON.stringify(buildOperationEndgameFixtureState()));
     mockStore = rehydratePersistedState(persisted);
 
     await act(async () => {
@@ -530,5 +531,10 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.queryByText(/No master plan established yet/i)).not.toBeInTheDocument();
     expect(screen.getByText(/^Full Phase Plan$/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Full horizon/i })).toBeInTheDocument();
+    expect(screen.getByTestId('masterplan-coverage-status')).toHaveTextContent(/Full horizon/i);
+    expect(screen.getByTestId('masterplan-quality-status')).not.toHaveTextContent(/unavailable/i);
+    expect(screen.getAllByText(/P1 · Foundation \/ Launch Proof/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/P2 · Conversion \/ Operating System/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/P3 · Scale \/ Terminal Readiness/i).length).toBeGreaterThan(0);
   });
 });
