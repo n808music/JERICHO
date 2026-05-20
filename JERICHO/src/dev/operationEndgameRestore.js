@@ -22,6 +22,7 @@ const P2_GATE_DATE = '2028-06-15';
 const STORAGE_KEY = 'jericho-identity';
 const BACKUP_LATEST_KEY = 'jericho-identity-backup-latest';
 const BACKUP_LATEST_POINTER_KEY = 'jericho-identity-backup-latest-key';
+const BACKUP_PREFIX = 'jericho-identity-backup:';
 
 function buildLaneAnswers(index, config) {
   return {
@@ -113,7 +114,133 @@ function getFixturePlan(state) {
 }
 
 function buildBackupKey(nowISO = new Date().toISOString()) {
-  return `jericho-identity-backup:${String(nowISO).replace(/[:.]/g, '-')}`;
+  return `${BACKUP_PREFIX}${String(nowISO).replace(/[:.]/g, '-')}`;
+}
+
+function isQuotaExceededError(error) {
+  return Boolean(
+    error &&
+      (error.name === 'QuotaExceededError' ||
+        error.code === 22 ||
+        error.code === 1014 ||
+        /quota/i.test(String(error.message || '')))
+  );
+}
+
+function listStorageKeys(storage) {
+  if (!storage) {
+    return [];
+  }
+  if (typeof storage.length === 'number' && typeof storage.key === 'function') {
+    const keys = [];
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
+      if (typeof key === 'string' && key) {
+        keys.push(key);
+      }
+    }
+    return keys;
+  }
+  return Object.keys(storage).filter((key) => typeof storage?.getItem === 'function' && storage.getItem(key) !== null);
+}
+
+function removeStorageKey(storage, key) {
+  if (!storage || !key) {
+    return;
+  }
+  if (typeof storage.removeItem === 'function') {
+    storage.removeItem(key);
+  }
+}
+
+function pruneBackupKeys(storage) {
+  const prunedKeys = [];
+  listStorageKeys(storage)
+    .filter((key) => key.startsWith(BACKUP_PREFIX) || key === BACKUP_LATEST_KEY || key === BACKUP_LATEST_POINTER_KEY)
+    .forEach((key) => {
+      removeStorageKey(storage, key);
+      prunedKeys.push(key);
+    });
+  return prunedKeys;
+}
+
+function buildCompactBackupMetadata(previousRaw, nowISO) {
+  let parsed = null;
+  try {
+    parsed = previousRaw ? JSON.parse(previousRaw) : null;
+  } catch {
+    parsed = null;
+  }
+  const profileId = parsed?.activeProfileId || null;
+  const profile = profileId ? parsed?.profilesById?.[profileId] || null : null;
+  return {
+    type: 'compact-backup-metadata',
+    createdAtISO: nowISO,
+    approxBytes: String(previousRaw || '').length,
+    activeProfileId: profileId,
+    activeGoalId: parsed?.activeGoalId || profile?.activeGoalId || null,
+    activeMasterPlanId: profile?.activeMasterPlanId || null,
+    activeCycleId: parsed?.activeCycleId || null,
+    masterPlanCount: Object.keys(parsed?.masterPlansById || {}).length,
+    goalCount: Object.keys(parsed?.goalsById || {}).length,
+  };
+}
+
+function writeBackupSnapshot(storage, previousRaw, nowISO) {
+  const prunedKeys = pruneBackupKeys(storage);
+  if (!previousRaw) {
+    return {
+      backupStatus: 'skipped',
+      backupKey: null,
+      backupPointer: null,
+      prunedKeys,
+      backupError: null,
+    };
+  }
+
+  const backupKey = buildBackupKey(nowISO);
+  try {
+    storage.setItem(backupKey, previousRaw);
+    storage.setItem(BACKUP_LATEST_KEY, previousRaw);
+    storage.setItem(BACKUP_LATEST_POINTER_KEY, backupKey);
+    return {
+      backupStatus: 'full',
+      backupKey,
+      backupPointer: backupKey,
+      prunedKeys,
+      backupError: null,
+    };
+  } catch (error) {
+    removeStorageKey(storage, backupKey);
+    removeStorageKey(storage, BACKUP_LATEST_KEY);
+    removeStorageKey(storage, BACKUP_LATEST_POINTER_KEY);
+
+    const compactKey = `${backupKey}:compact`;
+    const compactMetadata = JSON.stringify(buildCompactBackupMetadata(previousRaw, nowISO));
+    try {
+      storage.setItem(BACKUP_LATEST_KEY, compactMetadata);
+      storage.setItem(BACKUP_LATEST_POINTER_KEY, compactKey);
+      return {
+        backupStatus: 'compact',
+        backupKey: null,
+        backupPointer: compactKey,
+        prunedKeys,
+        backupError: isQuotaExceededError(error) ? 'quota-exceeded' : String(error?.message || error || 'backup-write-failed'),
+      };
+    } catch (compactError) {
+      removeStorageKey(storage, BACKUP_LATEST_KEY);
+      removeStorageKey(storage, BACKUP_LATEST_POINTER_KEY);
+      return {
+        backupStatus: 'failed',
+        backupKey: null,
+        backupPointer: null,
+        prunedKeys,
+        backupError: isQuotaExceededError(compactError)
+          ? 'quota-exceeded'
+          : String(compactError?.message || compactError || 'backup-write-failed'),
+      };
+    }
+  }
 }
 
 export function buildOperationEndgameFixtureState({
@@ -319,19 +446,26 @@ export function restoreOperationEndgameFixture({
   }
 
   const previousRaw = storage.getItem(STORAGE_KEY);
-  let backupKey = null;
-  if (backup && previousRaw) {
-    backupKey = buildBackupKey(fixtureOptions.nowISO || new Date().toISOString());
-    storage.setItem(backupKey, previousRaw);
-    storage.setItem(BACKUP_LATEST_KEY, previousRaw);
-    storage.setItem(BACKUP_LATEST_POINTER_KEY, backupKey);
-  }
+  const backupTimestamp = fixtureOptions.nowISO || new Date().toISOString();
+  const backupSummary = backup
+    ? writeBackupSnapshot(storage, previousRaw, backupTimestamp)
+    : {
+        backupStatus: 'skipped',
+        backupKey: null,
+        backupPointer: null,
+        prunedKeys: [],
+        backupError: null,
+      };
 
   const state = buildOperationEndgameFixtureState(fixtureOptions);
   storage.setItem(STORAGE_KEY, JSON.stringify(state));
   const summary = {
     wroteKey: STORAGE_KEY,
-    backupKey,
+    backupKey: backupSummary.backupKey,
+    backupStatus: backupSummary.backupStatus,
+    backupPointer: backupSummary.backupPointer,
+    backupError: backupSummary.backupError,
+    prunedBackupKeys: backupSummary.prunedKeys,
     ...summarizeOperationEndgameFixtureState(state),
   };
   console.info('[Jericho] Operation Endgame restore fixture written', summary);

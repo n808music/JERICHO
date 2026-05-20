@@ -17,9 +17,16 @@ let mockStore = {};
 function createStorageMock() {
   const data = new Map();
   return {
+    get length() {
+      return data.size;
+    },
+    key: (index) => [...data.keys()][index] || null,
     getItem: (key) => (data.has(key) ? data.get(key) : null),
     setItem: (key, value) => {
       data.set(String(key), String(value));
+    },
+    removeItem: (key) => {
+      data.delete(String(key));
     },
     clear: () => data.clear(),
   };
@@ -79,19 +86,78 @@ describe('Operation Endgame dev restore fixture', () => {
   it('writes the fixture to localStorage with a backup of the prior identity blob', () => {
     const storage = createStorageMock();
     storage.setItem('jericho-identity', JSON.stringify({ existing: true }));
+    storage.setItem('jericho-identity-backup:old-1', JSON.stringify({ old: 1 }));
+    storage.setItem('jericho-identity-backup:old-2', JSON.stringify({ old: 2 }));
 
     const summary = restoreOperationEndgameFixture({ reload: false, storage });
     const written = JSON.parse(storage.getItem('jericho-identity'));
     const backupRaw = summary.backupKey ? storage.getItem(summary.backupKey) : null;
 
     expect(summary.wroteKey).toBe('jericho-identity');
+    expect(summary.backupStatus).toBe('full');
     expect(summary.backupKey).toMatch(/^jericho-identity-backup:/);
+    expect(summary.prunedBackupKeys).toEqual(
+      expect.arrayContaining(['jericho-identity-backup:old-1', 'jericho-identity-backup:old-2'])
+    );
+    expect(storage.getItem('jericho-identity-backup:old-1')).toBeNull();
+    expect(storage.getItem('jericho-identity-backup:old-2')).toBeNull();
     expect(JSON.parse(backupRaw)).toEqual({ existing: true });
     expect(JSON.parse(storage.getItem('jericho-identity-backup-latest'))).toEqual({ existing: true });
     expect(written.activeProfileId).toBe(DEFAULT_PROFILE_ID);
     expect(written.activeGoalId).toBeTruthy();
     expect(written.activeCycleId).toBeNull();
     expect((written.fullHorizonScheduleBlocks || []).length).toBeGreaterThan(0);
+  });
+
+  it('still writes the active identity when full backup storage hits QuotaExceededError', () => {
+    const writes = new Map([['jericho-identity', JSON.stringify({ existing: true })]]);
+    const storage = {
+      get length() {
+        return writes.size;
+      },
+      key(index) {
+        return [...writes.keys()][index] || null;
+      },
+      getItem(key) {
+        return writes.has(key) ? writes.get(key) : null;
+      },
+      setItem(key, value) {
+        const normalizedKey = String(key);
+        const normalizedValue = String(value);
+        if (
+          normalizedKey.startsWith('jericho-identity-backup:') ||
+          (normalizedKey === 'jericho-identity-backup-latest' && normalizedValue.includes('"existing":true'))
+        ) {
+          const error = new Error('Quota exceeded');
+          error.name = 'QuotaExceededError';
+          throw error;
+        }
+        writes.set(normalizedKey, normalizedValue);
+      },
+      removeItem(key) {
+        writes.delete(String(key));
+      },
+      clear() {
+        writes.clear();
+      },
+    };
+
+    const summary = restoreOperationEndgameFixture({ reload: false, storage, nowISO: '2026-05-20T00:00:00.000Z' });
+    const written = JSON.parse(storage.getItem('jericho-identity'));
+    const compactBackup = JSON.parse(storage.getItem('jericho-identity-backup-latest'));
+
+    expect(summary.backupStatus).toBe('compact');
+    expect(summary.backupError).toBe('quota-exceeded');
+    expect(summary.backupKey).toBeNull();
+    expect(summary.backupPointer).toMatch(/:compact$/);
+    expect(written.activeProfileId).toBe(DEFAULT_PROFILE_ID);
+    expect(written.activeGoalId).toBeTruthy();
+    expect(written.activeCycleId).toBeNull();
+    expect((written.fullHorizonScheduleBlocks || []).length).toBeGreaterThan(0);
+    expect(written.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
+    expect(['trusted', 'provisional']).toContain(written.fullHorizonPlanQuality?.state);
+    expect(compactBackup.type).toBe('compact-backup-metadata');
+    expect(compactBackup.activeProfileId).toBeNull();
   });
 
   it('is unavailable when explicitly installed in production mode', () => {
