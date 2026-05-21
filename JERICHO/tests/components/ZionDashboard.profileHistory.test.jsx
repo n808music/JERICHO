@@ -1,7 +1,7 @@
 import React from 'react';
 import '@testing-library/jest-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 
 import ZionDashboard from '../../src/components/ZionDashboard.jsx';
 
@@ -178,6 +178,9 @@ describe('ZionDashboard profile history shell', () => {
 
     expect(screen.getByText(/Profile Container/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Founder \/ Operator/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/History: 2 goals/i)).toBeInTheDocument();
+    expect(screen.getByText(/^1 plan$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^2 cycles$/i)).toBeInTheDocument();
     expect(screen.getByText(/Profile id: profile-local-default/i)).toBeInTheDocument();
     expect(screen.getByText(/^Master Plans$/i)).toBeInTheDocument();
     expect(screen.getByText(/^Goal History$/i)).toBeInTheDocument();
@@ -186,6 +189,10 @@ describe('ZionDashboard profile history shell', () => {
     expect(screen.getAllByText(/Grow revenue to \$10k\/month/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/May 19, 2026 → May 19, 2031/i)).toBeInTheDocument();
     expect(screen.getByText(/Archived · Apr 1, 2026 → Apr 30, 2026/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Active Goal$/i).nextElementSibling?.textContent).toBe('Operation Endgame');
+    expect(screen.getByText(/^Active Plan$/i).nextElementSibling?.textContent).toBe('Operation Endgame');
+    expect(screen.getByText(/^Active Cycle$/i).nextElementSibling?.textContent).toBe('Operation Endgame');
+    expect(screen.getByTestId('profile-history-menu').querySelector('#profile-history-panel')?.className).toMatch(/fixed/);
   });
 
   it('routes cycle selection through the existing setActiveCycle action', () => {
@@ -225,5 +232,94 @@ describe('ZionDashboard profile history shell', () => {
 
     expect(screen.getByLabelText(/Display name/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Save Profile/i })).toBeInTheDocument();
+  });
+
+  it('does not invent active goal or cycle state from history when pointers are missing', () => {
+    mockStore = buildStore();
+    mockStore.activeGoalId = null;
+    mockStore.activeCycleId = null;
+    mockStore.profilesById['profile-local-default'].activeGoalId = null;
+    mockStore.profilesById['profile-local-default'].activeMasterPlanId = null;
+
+    render(<ZionDashboard initialView="structure" />);
+
+    fireEvent.click(screen.getByRole('button', { name: /James Dotson/i }));
+
+    expect(screen.getByText(/^Active Goal$/i).nextElementSibling?.textContent).toBe('None');
+    expect(screen.getByText(/^Active Plan$/i).nextElementSibling?.textContent).toBe('None');
+    expect(screen.getByText(/^Active Cycle$/i).nextElementSibling?.textContent).toBe('None');
+    expect(screen.queryByText(/^Open$/i)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Operation Endgame/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Grow revenue to \$10k\/month/i).length).toBeGreaterThan(0);
+  });
+
+  it('does not show an active badge for invalid stale cycle pointers', () => {
+    mockStore = buildStore();
+    mockStore.activeCycleId = 'cycle-stale';
+    mockStore.cyclesById['cycle-stale'] = {
+      id: 'cycle-stale',
+      profileId: 'profile-local-default',
+      goalId: 'goal-missing',
+      status: 'active',
+      startedAtDayKey: '2026-05-10',
+    };
+
+    render(<ZionDashboard initialView="structure" />);
+
+    fireEvent.click(screen.getByRole('button', { name: /James Dotson/i }));
+
+    expect(screen.getByText(/^Active Cycle$/i).nextElementSibling?.textContent).toBe('None');
+    expect(screen.queryByText(/^Open$/i)).not.toBeInTheDocument();
+  });
+
+  it('does not show the bootstrap placeholder goal or cycle as profile history', () => {
+    mockStore = buildStore();
+    mockStore.activeGoalId = 'goal-1';
+    mockStore.activeCycleId = 'cycle-1';
+    mockStore.profilesById['profile-local-default'].goalIds = ['goal-1'];
+    mockStore.profilesById['profile-local-default'].activeGoalId = 'goal-1';
+    mockStore.profilesById['profile-local-default'].activeMasterPlanId = null;
+    mockStore.goalsById = {
+      'goal-1': {
+        id: 'goal-1',
+        profileId: 'profile-local-default',
+        title: null,
+        activeCycleId: 'cycle-1',
+        status: 'active',
+      },
+    };
+    mockStore.cyclesById = {
+      'cycle-1': {
+        id: 'cycle-1',
+        profileId: 'profile-local-default',
+        goalId: 'goal-1',
+        status: 'active',
+        startedAtDayKey: '2026-05-20',
+        definiteGoal: { outcome: 'Grow revenue to $10k/month' },
+        goalContract: {
+          goalId: 'goal-1',
+          goalText: 'Grow revenue to $10k/month',
+          startDayKey: '2026-05-20',
+          endDayKey: '2026-06-19',
+        },
+      },
+    };
+
+    render(<ZionDashboard initialView="structure" />);
+
+    fireEvent.click(screen.getByRole('button', { name: /James Dotson/i }));
+
+    expect(screen.getByText(/History: 0 goals/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Active Goal$/i).nextElementSibling?.textContent).toBe('None');
+    expect(screen.getByText(/^0 cycles$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Active Cycle$/i).nextElementSibling?.textContent).toBe('None');
+    const goalHistoryHeader = screen.getByText(/^Goal History$/i);
+    const goalHistorySection = goalHistoryHeader.parentElement;
+    expect(within(goalHistorySection).getByText(/No goal records stored under this profile yet\./i)).toBeInTheDocument();
+    expect(within(goalHistorySection).queryByText(/goal-1/i)).not.toBeInTheDocument();
+    const cycleHistoryHeader = screen.getByText(/^Cycle History$/i);
+    const cycleHistorySection = cycleHistoryHeader.parentElement;
+    expect(within(cycleHistorySection).getByText(/No cycle history stored under this profile yet\./i)).toBeInTheDocument();
+    expect(within(cycleHistorySection).queryByText(/Grow revenue to \$10k\/month/i)).not.toBeInTheDocument();
   });
 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 const DEFAULT_PROFILE_DISPLAY_NAME = 'Local Profile';
 
@@ -79,6 +79,78 @@ function getProfileDisplayName(profile) {
   return String(profile?.displayName || profile?.label || DEFAULT_PROFILE_DISPLAY_NAME).trim() || DEFAULT_PROFILE_DISPLAY_NAME;
 }
 
+function isGoalOwnedByProfile(profile, goalId) {
+  return Boolean(goalId) && Array.isArray(profile?.goalIds) && profile.goalIds.includes(goalId);
+}
+
+function isPlanOwnedByProfile(profile, planId) {
+  return Boolean(planId) && Array.isArray(profile?.masterPlanIds) && profile.masterPlanIds.includes(planId);
+}
+
+function isCycleValidForProfile({ cycle, profile, goalsById, masterPlansById }) {
+  if (!cycle?.id) {
+    return false;
+  }
+  const ownsByProfileId = cycle.profileId && profile?.id && cycle.profileId === profile.id;
+  const ownsByGoal = cycle.goalId && isGoalOwnedByProfile(profile, cycle.goalId) && Boolean(goalsById?.[cycle.goalId]);
+  const ownsByPlan =
+    cycle.masterPlanId && isPlanOwnedByProfile(profile, cycle.masterPlanId) && Boolean(masterPlansById?.[cycle.masterPlanId]);
+  if (!ownsByProfileId && !ownsByGoal && !ownsByPlan) {
+    return false;
+  }
+  if (cycle.goalId && !goalsById?.[cycle.goalId]) {
+    return false;
+  }
+  if (cycle.masterPlanId && !masterPlansById?.[cycle.masterPlanId]) {
+    return false;
+  }
+  return true;
+}
+
+function isBootstrapPlaceholderCycle(cycle, goal) {
+  if (!cycle?.id) {
+    return false;
+  }
+  const cycleId = String(cycle.id || '').trim();
+  const goalId = String(cycle.goalId || goal?.id || '').trim();
+  if (cycleId !== 'cycle-1' || goalId !== 'goal-1') {
+    return false;
+  }
+  if (cycle.masterPlanId) {
+    return false;
+  }
+  const placeholderText = String(
+    cycle?.definiteGoal?.outcome ||
+      cycle?.goalContract?.goalLabel ||
+      cycle?.goalContract?.goalText ||
+      goal?.title ||
+      ''
+  )
+    .trim()
+    .toLowerCase();
+  return placeholderText.includes('grow revenue to $10k/month');
+}
+
+function isBootstrapPlaceholderGoal(goal, cycle) {
+  const goalId = String(goal?.id || cycle?.goalId || '').trim();
+  if (goalId !== 'goal-1') {
+    return false;
+  }
+  if (cycle?.masterPlanId) {
+    return false;
+  }
+  const placeholderText = String(
+    goal?.title ||
+      cycle?.definiteGoal?.outcome ||
+      cycle?.goalContract?.goalLabel ||
+      cycle?.goalContract?.goalText ||
+      ''
+  )
+    .trim()
+    .toLowerCase();
+  return placeholderText.includes('grow revenue to $10k/month');
+}
+
 function SummaryPill({ label, value }) {
   return (
     <div className="rounded-lg border border-line/50 bg-white px-3 py-2">
@@ -118,6 +190,7 @@ export default function ProfileHistoryMenu({
   onSelectCycle = null,
   onUpdateProfile = null,
 }) {
+  const containerRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [displayNameDraft, setDisplayNameDraft] = useState('');
@@ -138,6 +211,19 @@ export default function ProfileHistoryMenu({
     }
   }, [isOpen, needsProfileSetup]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+    const handlePointerDown = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [isOpen]);
+
   const profileGoalIds = Array.isArray(profile?.goalIds) ? profile.goalIds.filter(Boolean) : [];
   const profileMasterPlanIds = Array.isArray(profile?.masterPlanIds) ? profile.masterPlanIds.filter(Boolean) : [];
 
@@ -151,10 +237,15 @@ export default function ProfileHistoryMenu({
           goal,
           cycle,
           label: getGoalDisplayLabel(goal, cycle),
-          isActive: goalId === activeGoalId || goalId === profile?.activeGoalId,
+          isActive:
+            goalId === activeGoalId &&
+            isGoalOwnedByProfile(profile, goalId) &&
+            Boolean(goal) &&
+            !isBootstrapPlaceholderGoal(goal, cycle),
+          isValid: Boolean(goal) && !isBootstrapPlaceholderGoal(goal, cycle),
         };
-      }),
-    [profileGoalIds, goalsById, cyclesById, activeGoalId, profile?.activeGoalId]
+      }).filter((record) => record.isValid),
+    [profileGoalIds, goalsById, cyclesById, activeGoalId, profile]
   );
 
   const masterPlanRecords = useMemo(
@@ -162,9 +253,9 @@ export default function ProfileHistoryMenu({
       profileMasterPlanIds.map((planId) => ({
         id: planId,
         plan: masterPlansById?.[planId] || null,
-        isActive: planId === activeMasterPlanId || planId === profile?.activeMasterPlanId,
+        isActive: planId === activeMasterPlanId && isPlanOwnedByProfile(profile, planId) && Boolean(masterPlansById?.[planId]),
       })),
-    [profileMasterPlanIds, masterPlansById, activeMasterPlanId, profile?.activeMasterPlanId]
+    [profileMasterPlanIds, masterPlansById, activeMasterPlanId, profile]
   );
 
   const cycleRecords = useMemo(() => {
@@ -188,16 +279,23 @@ export default function ProfileHistoryMenu({
           cycle,
           goal,
           label: getCycleLabel(cycle, goal),
-          isActive: cycleId === activeCycleId,
+          isActive:
+            cycleId === activeCycleId &&
+            isCycleValidForProfile({ cycle, profile, goalsById, masterPlansById }) &&
+            !isBootstrapPlaceholderCycle(cycle, goal),
           sortKey: resolveCycleSortKey(cycle),
+          isValid:
+            isCycleValidForProfile({ cycle, profile, goalsById, masterPlansById }) &&
+            !isBootstrapPlaceholderCycle(cycle, goal),
         };
       })
+      .filter((record) => record.isValid)
       .sort((left, right) => String(right.sortKey || '').localeCompare(String(left.sortKey || '')));
-  }, [cyclesById, goalsById, activeProfileId, profileGoalIds, profileMasterPlanIds, activeCycleId]);
+  }, [cyclesById, goalsById, activeProfileId, profileGoalIds, profileMasterPlanIds, activeCycleId, profile, masterPlansById]);
 
-  const activeGoalRecord = goalRecords.find((record) => record.isActive) || goalRecords[0] || null;
-  const activePlanRecord = masterPlanRecords.find((record) => record.isActive) || masterPlanRecords[0] || null;
-  const activeCycleRecord = cycleRecords.find((record) => record.isActive) || cycleRecords[0] || null;
+  const activeGoalRecord = goalRecords.find((record) => record.isActive) || null;
+  const activePlanRecord = masterPlanRecords.find((record) => record.isActive) || null;
+  const activeCycleRecord = cycleRecords.find((record) => record.isActive) || null;
   const visibleCycleCount = cycleRecords.length;
 
   const handleSaveProfile = () => {
@@ -217,7 +315,7 @@ export default function ProfileHistoryMenu({
   };
 
   return (
-    <div className="relative" data-testid="profile-history-menu">
+    <div ref={containerRef} className="relative" data-testid="profile-history-menu">
       <button
         type="button"
         onClick={() => setIsOpen((current) => !current)}
@@ -232,13 +330,13 @@ export default function ProfileHistoryMenu({
               {needsProfileSetup ? 'Create profile' : profileDisplayName}
             </p>
             <p className="truncate text-[11px] text-muted">
-              {roleLabel || activePlanRecord?.plan?.title || activeGoalRecord?.label || 'Profile owns goals, plans, and cycles'}
+              {roleLabel || activePlanRecord?.plan?.title || 'Profile owns goals, plans, and cycles'}
             </p>
           </div>
           <div className="text-right text-[11px] text-muted">
-            <p>{goalRecords.length} goals</p>
-            <p>{masterPlanRecords.length} plans</p>
-            <p>{visibleCycleCount} cycles</p>
+            <p>History: {goalRecords.length} goal{goalRecords.length === 1 ? '' : 's'}</p>
+            <p>{masterPlanRecords.length} plan{masterPlanRecords.length === 1 ? '' : 's'}</p>
+            <p>{visibleCycleCount} cycle{visibleCycleCount === 1 ? '' : 's'}</p>
           </div>
         </div>
       </button>
@@ -246,7 +344,7 @@ export default function ProfileHistoryMenu({
       {isOpen ? (
         <div
           id="profile-history-panel"
-          className="absolute right-0 z-30 mt-2 w-[min(94vw,36rem)] rounded-2xl border border-line/70 bg-jericho-surface/95 p-4 shadow-2xl backdrop-blur"
+          className="fixed inset-x-4 top-24 z-30 max-h-[calc(100vh-8rem)] overflow-y-auto rounded-2xl border border-line/70 bg-jericho-surface/95 p-4 shadow-2xl backdrop-blur sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-3 sm:max-h-[min(80vh,40rem)] sm:w-[min(90vw,30rem)]"
         >
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-3">
@@ -402,7 +500,7 @@ export default function ProfileHistoryMenu({
                       subtitle={`${formatCycleState(cycle?.status)} · ${formatDay(
                         cycle?.startedAtDayKey || cycle?.goalContract?.startDayKey
                       )}${cycle?.endedAtDayKey || cycle?.goalContract?.endDayKey ? ` → ${formatDay(cycle?.endedAtDayKey || cycle?.goalContract?.endDayKey)}` : ''}`}
-                      meta={cycle?.masterPlanId ? `Linked plan: ${cycle.masterPlanId}` : null}
+                      meta={cycle?.masterPlanId && masterPlansById?.[cycle.masterPlanId] ? `Linked plan: ${masterPlansById[cycle.masterPlanId].title || cycle.masterPlanId}` : null}
                       badge={
                         isActive ? (
                           <span className="rounded-full border border-jericho-accent px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-jericho-accent">
