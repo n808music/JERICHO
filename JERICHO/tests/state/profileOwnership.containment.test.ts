@@ -88,6 +88,7 @@ describe('profile ownership containment', () => {
 
     expect(state.activeProfileId).toBe(DEFAULT_PROFILE_ID);
     expect(state.profilesById[DEFAULT_PROFILE_ID]).toBeDefined();
+    expect(state.profilesById[DEFAULT_PROFILE_ID].displayName).toBe('Local Profile');
     expect(state.profilesById[DEFAULT_PROFILE_ID].goalIds).toEqual([]);
     expect(state.activeGoalId).toBeNull();
     expect(state.activeCycleId).toBeNull();
@@ -117,11 +118,37 @@ describe('profile ownership containment', () => {
     expect(rehydrated.goalsById[goalId].activeCycleId).toBe(cycleId);
   });
 
+  it('persists profile display-name edits without disturbing ownership pointers', () => {
+    const edited = identityReducer(
+      buildProfileOwnedState(),
+      {
+        type: 'UPSERT_PROFILE_DETAILS',
+        profileId: DEFAULT_PROFILE_ID,
+        displayName: 'James Dotson',
+        roleLabel: 'Founder / Operator',
+      } as any
+    ) as any;
+
+    expect(edited.profilesById[DEFAULT_PROFILE_ID].displayName).toBe('James Dotson');
+    expect(edited.profilesById[DEFAULT_PROFILE_ID].roleLabel).toBe('Founder / Operator');
+    expect(edited.profilesById[DEFAULT_PROFILE_ID].label).toBe('James Dotson');
+    expect(edited.activeGoalId).toBe(goalId);
+    expect(edited.activeCycleId).toBe(cycleId);
+    expect(edited.profilesById[DEFAULT_PROFILE_ID].goalIds).toContain(goalId);
+
+    const rehydrated = rehydratePersistedState(JSON.parse(JSON.stringify(edited))) as any;
+    expect(rehydrated.profilesById[DEFAULT_PROFILE_ID].displayName).toBe('James Dotson');
+    expect(rehydrated.profilesById[DEFAULT_PROFILE_ID].roleLabel).toBe('Founder / Operator');
+    expect(rehydrated.activeGoalId).toBe(goalId);
+    expect(rehydrated.activeCycleId).toBe(cycleId);
+  });
+
   it('reset preserves the profile while clearing active goal state', () => {
     const reset = identityReducer(buildProfileOwnedState(), { type: 'RESET_IDENTITY' } as any);
 
     expect(reset.activeProfileId).toBe(DEFAULT_PROFILE_ID);
     expect(reset.profilesById[DEFAULT_PROFILE_ID]).toBeDefined();
+    expect(reset.profilesById[DEFAULT_PROFILE_ID].displayName).toBe('Local Profile');
     expect(reset.activeGoalId).toBeNull();
     expect(reset.activeCycleId).toBeNull();
     expect(reset.profilesById[DEFAULT_PROFILE_ID].activeGoalId).toBeNull();

@@ -1007,10 +1007,14 @@ function ensureProfileOwnership(state) {
   const ensureProfileRecord = (profileId, fallbackLabel = DEFAULT_PROFILE_LABEL) => {
     const normalizedProfileId = String(profileId || requestedProfileId).trim() || requestedProfileId;
     const existing = state.profilesById[normalizedProfileId] || {};
+    const displayName = String(existing.displayName || existing.label || fallbackLabel).trim() || fallbackLabel;
+    const roleLabel = String(existing.roleLabel || existing.profileRole || '').trim();
     state.profilesById[normalizedProfileId] = {
       ...existing,
       id: normalizedProfileId,
-      label: existing.label || fallbackLabel,
+      label: existing.label || displayName,
+      displayName,
+      roleLabel: roleLabel || null,
       goalIds: Array.isArray(existing.goalIds) ? [...new Set(existing.goalIds.filter(Boolean).map(String))] : [],
       activeGoalId: existing.activeGoalId || null,
       createdAtISO: existing.createdAtISO || state?.meta?.createdAtISO || state?.appTime?.nowISO || new Date().toISOString(),

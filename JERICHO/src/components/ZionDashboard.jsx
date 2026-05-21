@@ -11,6 +11,7 @@ import HorizonResolutionPanel from './zion/HorizonResolutionPanel.jsx';
 import DailyCheckInPanel from './zion/DailyCheckInPanel.jsx';
 import { StructurePageConsolidated } from './zion/StructurePageConsolidated.jsx';
 import CycleTransitionModal from './zion/CycleTransitionModal.jsx';
+import ProfileHistoryMenu from './zion/ProfileHistoryMenu.jsx';
 import { REDUCE_UI } from '../ui/reduceUIConfig.js';
 import ZionWeekView from './zion/views/ZionWeekView.jsx';
 import ZionMonthView from './zion/views/ZionMonthView.jsx';
@@ -677,6 +678,7 @@ function useZionState() {
     activateSchedule,
     applyRenegotiationOption,
     resetIdentity,
+    upsertProfileDetails,
     addFrictionEvent,
     completeCycleReassessment,
     selectedHorizonMode,
@@ -772,6 +774,7 @@ function useZionState() {
       activateSchedule,
       applyRenegotiationOption,
       resetIdentity,
+      upsertProfileDetails,
       addFrictionEvent,
       completeCycleReassessment,
       setSelectedHorizonMode,
@@ -2761,6 +2764,18 @@ export default function ZionDashboard({
           ))}
         </div>
         <div className="flex items-center gap-3">
+          <ProfileHistoryMenu
+            profile={activeProfile}
+            activeProfileId={activeProfileId}
+            activeGoalId={activeGoalId}
+            activeMasterPlanId={activeProfile?.activeMasterPlanId || null}
+            activeCycleId={activeCycleId}
+            goalsById={goalsById}
+            masterPlansById={masterPlansById}
+            cyclesById={cyclesById}
+            onSelectCycle={(cycleId) => actions.setActiveCycle?.(cycleId)}
+            onUpdateProfile={(payload) => actions.upsertProfileDetails?.(payload)}
+          />
           {!REDUCE_UI ? (
             <button className="text-xs text-muted hover:text-jericho-accent" onClick={() => setAssistantVisible(true)}>
               Assistant

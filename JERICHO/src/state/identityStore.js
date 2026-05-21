@@ -36,7 +36,8 @@ import {
 
 const STATE_VERSION = '1.0.0';
 export const DEFAULT_PROFILE_ID = 'profile-local-default';
-const DEFAULT_PROFILE_LABEL = 'Local Profile';
+export const DEFAULT_PROFILE_DISPLAY_NAME = 'Local Profile';
+const DEFAULT_PROFILE_LABEL = DEFAULT_PROFILE_DISPLAY_NAME;
 
 const IdentityContext = createContext(null);
 
@@ -142,6 +143,21 @@ function buildDefaultSeedGoalArtifacts(todayDate) {
   };
 
   return { contractDeadline, goalContract, goalGovernanceContract, goalWorkById };
+}
+
+function normalizeProfileIdentity(profile = {}, options = {}) {
+  const fallbackDisplayName = String(
+    options.displayName || options.profileLabel || profile?.displayName || profile?.label || DEFAULT_PROFILE_DISPLAY_NAME
+  ).trim() || DEFAULT_PROFILE_DISPLAY_NAME;
+  const roleLabel = String(
+    profile?.roleLabel || profile?.profileRole || options.roleLabel || options.profileRole || ''
+  ).trim();
+  return {
+    ...profile,
+    displayName: fallbackDisplayName,
+    label: String(profile?.label || fallbackDisplayName).trim() || fallbackDisplayName,
+    roleLabel: roleLabel || null,
+  };
 }
 
 function getCanonicalActionsForBlock(state, block) {
@@ -254,7 +270,7 @@ export function buildBlankIdentityState(options = {}) {
   if (!baseProfiles[requestedProfileId]) {
     baseProfiles[requestedProfileId] = {
       id: requestedProfileId,
-      label: options.profileLabel || DEFAULT_PROFILE_LABEL,
+      ...normalizeProfileIdentity({}, options),
       goalIds: [],
       activeGoalId: null,
       masterCalendarId: `calendar-${requestedProfileId}`,
@@ -266,7 +282,7 @@ export function buildBlankIdentityState(options = {}) {
     baseProfiles[requestedProfileId] = {
       ...baseProfiles[requestedProfileId],
       id: requestedProfileId,
-      label: baseProfiles[requestedProfileId].label || options.profileLabel || DEFAULT_PROFILE_LABEL,
+      ...normalizeProfileIdentity(baseProfiles[requestedProfileId], options),
       goalIds: Array.isArray(baseProfiles[requestedProfileId].goalIds) ? baseProfiles[requestedProfileId].goalIds : [],
       activeGoalId: baseProfiles[requestedProfileId].activeGoalId || null,
       masterCalendarId:
@@ -488,7 +504,7 @@ function buildInitialIdentityState() {
     profilesById: {
       [DEFAULT_PROFILE_ID]: {
         id: DEFAULT_PROFILE_ID,
-        label: DEFAULT_PROFILE_LABEL,
+        ...normalizeProfileIdentity({ label: DEFAULT_PROFILE_LABEL }),
         goalIds: [goalGovernanceContract.goalId],
         activeGoalId: goalGovernanceContract.goalId,
         masterCalendarId: `calendar-${DEFAULT_PROFILE_ID}`,
@@ -808,10 +824,23 @@ function identityReducer(state, action) {
     const activeProfileId = String(state?.activeProfileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
     const currentProfile = state?.profilesById?.[activeProfileId] || {};
     const profileLabel = currentProfile?.label || DEFAULT_PROFILE_LABEL;
+    const profileDisplayName = currentProfile?.displayName || profileLabel || DEFAULT_PROFILE_DISPLAY_NAME;
+    const roleLabel = currentProfile?.roleLabel || null;
     const sanitizedProfiles = {
       [activeProfileId]: {
         id: activeProfileId,
-        label: profileLabel,
+        ...normalizeProfileIdentity(
+          {
+            label: profileLabel,
+            displayName: profileDisplayName,
+            roleLabel,
+          },
+          {
+            profileLabel,
+            displayName: profileDisplayName,
+            roleLabel,
+          }
+        ),
         masterCalendarId: currentProfile?.masterCalendarId || `calendar-${activeProfileId}`,
         strategicClusterIds: [],
         goalIds: [],
@@ -823,6 +852,8 @@ function identityReducer(state, action) {
       buildBlankIdentityState({
         activeProfileId,
         profileLabel,
+        displayName: profileDisplayName,
+        roleLabel,
         profilesById: sanitizedProfiles,
         timeZone: state?.appTime?.timeZone || 'UTC',
       }),
@@ -878,6 +909,27 @@ function identityReducer(state, action) {
     const mode = VALID_MODES.has(action.mode) ? action.mode : 'current_cycle';
     const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
     draft.selectedHorizonMode = mode;
+    return computeDerivedState(draft, { type: 'NO_OP' });
+  }
+
+  if (action.type === 'UPSERT_PROFILE_DETAILS') {
+    const profileId = String(action.profileId || state?.activeProfileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
+    const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
+    draft.profilesById = draft.profilesById && typeof draft.profilesById === 'object' ? draft.profilesById : {};
+    const existingProfile = draft.profilesById[profileId] || { id: profileId };
+    const nextDisplayName = String(action.displayName || existingProfile.displayName || existingProfile.label || '').trim();
+    const nextRoleLabel = String(action.roleLabel || '').trim();
+    draft.profilesById[profileId] = {
+      ...existingProfile,
+      ...normalizeProfileIdentity(existingProfile, {
+        displayName: nextDisplayName || DEFAULT_PROFILE_DISPLAY_NAME,
+        profileLabel: nextDisplayName || existingProfile.label || DEFAULT_PROFILE_LABEL,
+        roleLabel: nextRoleLabel,
+      }),
+      id: profileId,
+      label: nextDisplayName || DEFAULT_PROFILE_DISPLAY_NAME,
+    };
+    draft.activeProfileId = profileId;
     return computeDerivedState(draft, { type: 'NO_OP' });
   }
 
@@ -1342,6 +1394,10 @@ export function IdentityProvider({ children, initialState }) {
     dispatch({ type: 'UPDATE_BLOCK', payload: { ...(payload || {}), id: `blk-${proposalId}` } });
   }, []);
   const resetIdentity = useCallback(() => dispatch({ type: 'RESET_IDENTITY' }), []);
+  const upsertProfileDetails = useCallback(
+    (payload = {}) => dispatch({ type: 'UPSERT_PROFILE_DETAILS', ...payload }),
+    []
+  );
 
   const attemptGoalAdmission = useCallback(
     (payload) => {
@@ -1429,6 +1485,7 @@ export function IdentityProvider({ children, initialState }) {
     assignSuggestionLink,
     compileGoalEquation,
     resetIdentity,
+    upsertProfileDetails,
     setDefiniteGoal,
     setAim,
     setPatternTargets,
@@ -2104,7 +2161,7 @@ export function attemptGoalAdmissionPure(state, admissionInput) {
   if (!draft.profilesById[activeProfileId]) {
     draft.profilesById[activeProfileId] = {
       id: activeProfileId,
-      label: DEFAULT_PROFILE_LABEL,
+      ...normalizeProfileIdentity({ label: DEFAULT_PROFILE_LABEL }),
       goalIds: [],
       activeGoalId: null,
       createdAtISO: nowISO,
