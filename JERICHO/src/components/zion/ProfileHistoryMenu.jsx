@@ -220,8 +220,17 @@ export default function ProfileHistoryMenu({
         setIsOpen(false);
       }
     };
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
     document.addEventListener('mousedown', handlePointerDown);
-    return () => document.removeEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
   }, [isOpen]);
 
   const profileGoalIds = Array.isArray(profile?.goalIds) ? profile.goalIds.filter(Boolean) : [];
@@ -344,7 +353,8 @@ export default function ProfileHistoryMenu({
       {isOpen ? (
         <div
           id="profile-history-panel"
-          className="fixed inset-x-4 top-24 z-30 max-h-[calc(100vh-8rem)] overflow-y-auto rounded-2xl border border-line/70 bg-jericho-surface/95 p-4 shadow-2xl backdrop-blur sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-3 sm:max-h-[min(80vh,40rem)] sm:w-[min(90vw,30rem)]"
+          data-testid="profile-history-drawer"
+          className="fixed right-4 top-24 z-30 h-[calc(100vh-8rem)] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-line/70 bg-jericho-surface/95 p-4 shadow-2xl backdrop-blur"
         >
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-3">

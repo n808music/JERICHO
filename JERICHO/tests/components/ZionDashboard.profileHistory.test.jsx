@@ -192,7 +192,9 @@ describe('ZionDashboard profile history shell', () => {
     expect(screen.getByText(/^Active Goal$/i).nextElementSibling?.textContent).toBe('Operation Endgame');
     expect(screen.getByText(/^Active Plan$/i).nextElementSibling?.textContent).toBe('Operation Endgame');
     expect(screen.getByText(/^Active Cycle$/i).nextElementSibling?.textContent).toBe('Operation Endgame');
-    expect(screen.getByTestId('profile-history-menu').querySelector('#profile-history-panel')?.className).toMatch(/fixed/);
+    expect(screen.getByTestId('profile-history-drawer').className).toMatch(/fixed/);
+    expect(screen.getByTestId('profile-history-drawer').className).toMatch(/right-4/);
+    expect(screen.getByTestId('profile-history-drawer').className).toMatch(/w-\[min\(24rem,calc\(100vw-2rem\)\)\]/);
   });
 
   it('routes cycle selection through the existing setActiveCycle action', () => {
@@ -321,5 +323,27 @@ describe('ZionDashboard profile history shell', () => {
     const cycleHistorySection = cycleHistoryHeader.parentElement;
     expect(within(cycleHistorySection).getByText(/No cycle history stored under this profile yet\./i)).toBeInTheDocument();
     expect(within(cycleHistorySection).queryByText(/Grow revenue to \$10k\/month/i)).not.toBeInTheDocument();
+  });
+
+  it('closes the profile drawer on outside click', () => {
+    render(<ZionDashboard initialView="structure" />);
+
+    fireEvent.click(screen.getByRole('button', { name: /James Dotson/i }));
+    expect(screen.getByTestId('profile-history-drawer')).toBeInTheDocument();
+
+    fireEvent.mouseDown(document.body);
+
+    expect(screen.queryByTestId('profile-history-drawer')).not.toBeInTheDocument();
+  });
+
+  it('closes the profile drawer on Escape', () => {
+    render(<ZionDashboard initialView="structure" />);
+
+    fireEvent.click(screen.getByRole('button', { name: /James Dotson/i }));
+    expect(screen.getByTestId('profile-history-drawer')).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(screen.queryByTestId('profile-history-drawer')).not.toBeInTheDocument();
   });
 });
