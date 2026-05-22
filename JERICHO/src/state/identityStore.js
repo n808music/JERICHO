@@ -43,6 +43,7 @@ const DERIVED_PERSISTENCE_KEYS = [
   'fullHorizonScheduleBlocks',
   'fullHorizonCoverageAudit',
   'fullHorizonPlanQuality',
+  'fullHorizonBlockQuality',
   'fullHorizonRenderTruthAudit',
   'fullHorizonCoverageFailureCodes',
 ];

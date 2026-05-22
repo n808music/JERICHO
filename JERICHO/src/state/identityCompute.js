@@ -23,6 +23,7 @@ import { inferHorizonYearsFromText } from '../domain/masterPlan/masterPlanIntake
 import { expandFullHorizonSchedule } from '../domain/masterPlan/fullHorizonScheduleExpansion.js';
 import { auditFullHorizonCoverage } from '../domain/masterPlan/fullHorizonCoverageAudit.js';
 import { evaluateFullHorizonPlanQuality } from '../domain/masterPlan/fullHorizonPlanQuality.js';
+import { evaluateFullHorizonBlockQuality } from '../domain/masterPlan/fullHorizonBlockQuality.js';
 import {
   auditFullHorizonRenderTruth,
   applyRenderTruthToCoverageAudit,
@@ -6185,6 +6186,13 @@ function applyLongHorizonCalendarBlocks(state) {
       constraints: plan?.financialConstraint || plan?.constraints || null,
     });
   }
+  let blockQuality = state.fullHorizonBlockQuality || null;
+  if (!blockQuality && Array.isArray(state.fullHorizonScheduleBlocks) && state.fullHorizonScheduleBlocks.length > 0) {
+    blockQuality = evaluateFullHorizonBlockQuality({
+      fullHorizonScheduleBlocks: state.fullHorizonScheduleBlocks,
+      phaseModel,
+    });
+  }
   if (coverageAudit) {
     coverageAudit = {
       ...coverageAudit,
@@ -6196,6 +6204,7 @@ function applyLongHorizonCalendarBlocks(state) {
   }
   state.fullHorizonCoverageAudit = coverageAudit;
   state.fullHorizonPlanQuality = planQuality;
+  state.fullHorizonBlockQuality = blockQuality;
   state.fullHorizonRenderTruthAudit = renderTruthAudit;
   state.fullHorizonCoverageFailureCodes = [
     ...new Set([

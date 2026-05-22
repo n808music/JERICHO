@@ -82,6 +82,8 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(plan.horizonEnd).toBe('2031-05-19');
     expect(state.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
     expect(state.fullHorizonPlanQuality?.state).toBe('provisional');
+    expect(state.fullHorizonBlockQuality?.state).toBeTruthy();
+    expect(state.fullHorizonBlockQuality?.summary?.totalBlocks).toBeGreaterThan(0);
     expect(state.fullHorizonPlanQuality?.reasonCodes || []).not.toContain('PHASE_NAMED_MILESTONES_MISSING');
     expect(state.fullHorizonPlanQuality?.reasonCodes || []).not.toContain('PHASE_NAMED_MILESTONES_MISSING_P2');
     expect(state.fullHorizonPlanQuality?.reasonCodes || []).toContain('PHASE_MILESTONE_DENSITY_THIN');
@@ -158,6 +160,7 @@ describe('Operation Endgame dev restore fixture', () => {
     expect((rehydrated.fullHorizonScheduleBlocks || []).length).toBeGreaterThan(0);
     expect(rehydrated.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
     expect(rehydrated.fullHorizonPlanQuality?.state).toBe('provisional');
+    expect(rehydrated.fullHorizonBlockQuality?.state).toBeTruthy();
   });
 
   it('still writes the active identity when full backup storage hits QuotaExceededError', () => {
@@ -210,6 +213,7 @@ describe('Operation Endgame dev restore fixture', () => {
     expect((rehydrated.fullHorizonScheduleBlocks || []).length).toBeGreaterThan(0);
     expect(rehydrated.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
     expect(rehydrated.fullHorizonPlanQuality?.state).toBe('provisional');
+    expect(rehydrated.fullHorizonBlockQuality?.state).toBeTruthy();
     expect(compactBackup.type).toBe('compact-backup-metadata');
     expect(compactBackup.activeProfileId).toBeNull();
   });
@@ -254,6 +258,7 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(rehydrated.activeCycleId).toBeNull();
     expect(rehydrated.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
     expect(rehydrated.fullHorizonPlanQuality?.state).toBe('provisional');
+    expect(rehydrated.fullHorizonBlockQuality?.state).toBeTruthy();
   });
 
   it('writes a compact persisted payload when the fully derived fixture would exceed the active identity quota', () => {
@@ -311,6 +316,7 @@ describe('Operation Endgame dev restore fixture', () => {
     expect((rehydrated.fullHorizonScheduleBlocks || []).length).toBeGreaterThan(0);
     expect(rehydrated.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
     expect(rehydrated.fullHorizonPlanQuality?.state).toBe('provisional');
+    expect(rehydrated.fullHorizonBlockQuality?.state).toBeTruthy();
   });
 
   it('is unavailable when explicitly installed in production mode', () => {

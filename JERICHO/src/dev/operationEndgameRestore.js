@@ -23,6 +23,43 @@ const DEFAULT_HORIZON_MONTHS = 60;
 const FOUNDATION_ANCHOR_DATE = '2026-06-15';
 const PRIMARY_ANCHOR_DATE = '2026-10-17';
 const P2_GATE_DATE = '2028-06-15';
+const P2_MILESTONES = [
+  {
+    laneDomain: 'product',
+    title: 'Validate repeatable conversion path',
+    targetDate: '2027-05-15',
+    derivedFrom: 'anchorId:anchor-p2-gate - 13 months',
+    missConsequence: 'P2 cannot scale product acquisition without a repeatable conversion path.',
+  },
+  {
+    laneDomain: 'brand',
+    title: 'Establish operating cadence dashboard',
+    targetDate: '2027-09-15',
+    derivedFrom: 'anchorId:anchor-p2-gate - 9 months',
+    missConsequence: 'Execution system remains reactive without a stable operating cadence.',
+  },
+  {
+    laneDomain: 'income',
+    title: 'Prove revenue conversion architecture',
+    targetDate: '2027-12-15',
+    derivedFrom: 'anchorId:anchor-p2-gate - 6 months',
+    missConsequence: 'Revenue bridge stays provisional without a tested conversion architecture.',
+  },
+  {
+    laneDomain: 'media',
+    title: 'Widen channel distribution loop',
+    targetDate: '2028-03-15',
+    derivedFrom: 'anchorId:anchor-p2-gate - 3 months',
+    missConsequence: 'Audience growth remains narrow without a widened distribution loop.',
+  },
+  {
+    laneDomain: 'brand',
+    title: 'Stabilize cross-lane execution loop',
+    targetDate: '2028-05-15',
+    derivedFrom: 'anchorId:anchor-p2-gate - 1 month',
+    missConsequence: 'P2 review gate cannot pass without a stable cross-lane execution loop.',
+  },
+];
 const STORAGE_KEY = 'jericho-identity';
 const BACKUP_LATEST_KEY = 'jericho-identity-backup-latest';
 const BACKUP_LATEST_POINTER_KEY = 'jericho-identity-backup-latest-key';
@@ -299,6 +336,54 @@ function preserveExistingProfileMetadata(state, previousState) {
   return state;
 }
 
+function addP2Milestones(state, nowISO) {
+  const { planId, plan } = getFixturePlan(state);
+  if (!planId || !plan) {
+    return state;
+  }
+
+  const laneByDomain = new Map(
+    (Array.isArray(plan?.laneIds) ? plan.laneIds : [])
+      .map((laneId) => state?.masterPlanLanesById?.[laneId] || null)
+      .filter(Boolean)
+      .map((lane) => [String(lane?.domain || '').trim().toLowerCase(), lane])
+  );
+
+  const existingMilestones = Object.values(state?.masterPlanMilestonesById || {});
+  P2_MILESTONES.forEach((entry) => {
+    const lane = laneByDomain.get(entry.laneDomain);
+    if (!lane) {
+      return;
+    }
+    const alreadyExists = existingMilestones.some(
+      (milestone) =>
+        milestone?.laneId === lane.id &&
+        String(milestone?.title || '').trim().toLowerCase() === entry.title.toLowerCase()
+    );
+    if (alreadyExists) {
+      return;
+    }
+    applyMasterPlanAction(state, {
+      type: 'ADD_MASTER_PLAN_MILESTONE',
+      laneId: lane.id,
+      nowISO,
+      payload: {
+        anchorId: 'anchor-p2-gate',
+        title: entry.title,
+        description: entry.title,
+        milestoneType: 'checkpoint',
+        targetDate: entry.targetDate,
+        derivedFrom: entry.derivedFrom,
+        flex: 'medium',
+        missConsequence: entry.missConsequence,
+        origin: 'system',
+      },
+    });
+  });
+
+  return state;
+}
+
 export function buildPersistableOperationEndgameFixtureState(state) {
   return buildPersistableIdentityState(state);
 }
@@ -395,6 +480,9 @@ export function buildOperationEndgameFixtureState({
     plan.nonNegotiables = [OPERATION_ENDGAME_NON_NEGOTIABLE];
   }
 
+  addP2Milestones(next, nowISO);
+  next = computeDerivedState(next, { type: 'NO_OP' });
+
   next = computeDerivedState(next, { type: 'START_NEW_CYCLE_WITH_DECISION', payload: { mode: 'archive' } });
 
   const seededGoalId = next?.activeGoalId || next?.profilesById?.[DEFAULT_PROFILE_ID]?.activeGoalId || null;
@@ -462,6 +550,7 @@ export function summarizeOperationEndgameFixtureState(state) {
     fullHorizonBlockCount: Array.isArray(state?.fullHorizonScheduleBlocks) ? state.fullHorizonScheduleBlocks.length : 0,
     coverageState: state?.fullHorizonCoverageAudit?.fullHorizonCovered ? 'covered' : getCoverageState(state),
     planQualityState: state?.fullHorizonPlanQuality?.state || null,
+    blockQualityState: state?.fullHorizonBlockQuality?.state || null,
   };
 }
 

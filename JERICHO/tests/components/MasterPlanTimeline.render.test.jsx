@@ -291,6 +291,7 @@ describe('MasterPlanTimeline rendering', () => {
     ).toBeInTheDocument();
     expect(screen.getByTestId('masterplan-coverage-status')).toHaveTextContent(/Horizon resolved/i);
     expect(screen.getByTestId('masterplan-quality-status')).toHaveTextContent(/Plan quality unavailable/i);
+    expect(screen.getByTestId('masterplan-block-quality-status')).toHaveTextContent(/Forecast block quality unavailable/i);
     expect(screen.getByText(/Coverage must pass before the plan-quality gate can trust the long-horizon workload\./i)).toBeInTheDocument();
     expect(screen.getByText(/Only the first execution cycle is scheduled\./i)).toBeInTheDocument();
     expect(screen.getByText(/Not yet scheduled does not mean not recognized\./i)).toBeInTheDocument();
@@ -443,6 +444,7 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByTestId('phase-card-p3')).toHaveTextContent(/2031/);
     expect(screen.getByTestId('masterplan-coverage-status')).toHaveTextContent(/Horizon resolved/i);
     expect(screen.getByTestId('masterplan-quality-status')).toHaveTextContent(/Plan quality unavailable/i);
+    expect(screen.getByTestId('masterplan-block-quality-status')).toHaveTextContent(/Forecast block quality unavailable/i);
     expect(screen.getByText(/Coverage must pass before the plan-quality gate can trust the long-horizon workload\./i)).toBeInTheDocument();
 
     await act(async () => {
@@ -537,8 +539,10 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByRole('button', { name: /Full horizon/i })).toBeInTheDocument();
     expect(screen.getByTestId('masterplan-coverage-status')).toHaveTextContent(/Full horizon/i);
     expect(screen.getByTestId('masterplan-quality-status')).toHaveTextContent(/Plan quality provisional/i);
+    expect(screen.getByTestId('masterplan-block-quality-status')).not.toHaveTextContent(/unavailable/i);
     expect(screen.getByText(/Full horizon covered; plan quality provisional\./i)).toBeInTheDocument();
     expect(screen.getByText(/ACTIVE LANE MILESTONE COVERAGE THIN\./i)).toBeInTheDocument();
+    expect(screen.getByTestId('masterplan-block-quality-status')).toBeInTheDocument();
     expect(screen.getAllByText(/P1 · Foundation \/ Launch Proof/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/P2 · Conversion \/ Operating System/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/P3 · Scale \/ Terminal Readiness/i).length).toBeGreaterThan(0);

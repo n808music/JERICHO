@@ -15,6 +15,10 @@ import {
   getFullHorizonPlanQualityLabel,
   getFullHorizonPlanQualityTone,
 } from '../../domain/masterPlan/fullHorizonPlanQuality.js';
+import {
+  getFullHorizonBlockQualityLabel,
+  getFullHorizonBlockQualityTone,
+} from '../../domain/masterPlan/fullHorizonBlockQuality.js';
 import { deriveMasterPlanPhaseModel } from '../../domain/masterPlan/masterPlanPhaseModel.js';
 import { clampDayKeyToRange, normalizeStrategicDayKey, resolveStrategicAgendaHorizon } from '../../domain/masterPlan/strategicHorizon.js';
 import TimelineGrid from './TimelineGrid.jsx';
@@ -24,6 +28,14 @@ function titleCaseWords(value) {
   return String(value || '')
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function humanizeReasonCode(value) {
+  return String(value || '')
+    .replace(/:[^:]+$/, '')
+    .replace(/^[A-Z0-9]+_/, '')
+    .replace(/_/g, ' ')
+    .trim();
 }
 
 function getGoalDisplayLabel(store, goalId) {
@@ -863,6 +875,7 @@ function MasterPlanTimelineView({ plan, store }) {
         strategicCoverage={strategicCoverage}
         strategicCoverageAudit={strategicCoverageAudit}
         strategicPlanQuality={store?.fullHorizonPlanQuality || null}
+        strategicBlockQuality={store?.fullHorizonBlockQuality || null}
         strategicPhases={displayedPhaseModel.phases}
         phaseModel={displayedPhaseModel}
         fullHorizonBlockCountsByPhase={fullHorizonBlockCountsByPhase}
@@ -908,6 +921,7 @@ function StrategicCoveragePanel({
   strategicCoverage,
   strategicCoverageAudit,
   strategicPlanQuality,
+  strategicBlockQuality,
   strategicPhases,
   phaseModel,
   fullHorizonBlockCountsByPhase = {},
@@ -927,9 +941,14 @@ function StrategicCoveragePanel({
   const coverageTone = getFullHorizonCoverageTone(strategicCoverageAudit);
   const qualityStatusLabel = getFullHorizonPlanQualityLabel(strategicPlanQuality);
   const qualityTone = getFullHorizonPlanQualityTone(strategicPlanQuality);
+  const blockQualityStatusLabel = getFullHorizonBlockQualityLabel(strategicBlockQuality);
+  const blockQualityTone = getFullHorizonBlockQualityTone(strategicBlockQuality);
   const hasInsufficientCoverage = coverageTone !== 'positive';
   const qualityFinding = strategicPlanQuality?.reasonCodes?.[0]
     ? titleCaseWords(String(strategicPlanQuality.reasonCodes[0]).replace(/^[A-Z0-9]+_/, ''))
+    : null;
+  const blockQualityFinding = strategicBlockQuality?.reasonCodes?.[0]
+    ? humanizeReasonCode(strategicBlockQuality.reasonCodes[0]).toUpperCase()
     : null;
   const selectedLayerLabel =
     commitmentView === 'committed_only'
@@ -994,6 +1013,44 @@ function StrategicCoveragePanel({
           }`}
         >
           {qualityStatusLabel}
+        </span>
+      </div>
+
+      <div className="flex items-start justify-between gap-3 rounded-lg border border-line/50 bg-jericho-surface/60 px-3 py-2">
+        <div>
+          <p className="text-[11px] font-medium text-body">Forecast block quality</p>
+          <p className="text-[11px] text-muted">
+            {strategicBlockQuality?.state === 'trusted'
+              ? 'Forecast roadmap is coherent enough to inspect block by block without turning it into a live schedule.'
+              : strategicBlockQuality?.state === 'provisional'
+                ? 'Forecast roadmap is visible, but block-by-block quality still has meaningful audit issues.'
+                : strategicBlockQuality?.state === 'degraded'
+                  ? 'Forecast roadmap is visible, but block quality is materially undermining long-horizon trust.'
+                  : strategicBlockQuality?.state === 'withheld'
+                    ? 'Forecast roadmap is present, but block quality is not reliable enough to score yet.'
+                    : 'Forecast block audit has not yet produced a usable quality result.'}
+          </p>
+          {strategicBlockQuality?.summary ? (
+            <p className="text-[11px] text-muted">
+              {strategicBlockQuality.summary.totalBlocks} forecast blocks · P1 {strategicBlockQuality.summary.byPhase?.P1 || 0} ·
+              P2 {strategicBlockQuality.summary.byPhase?.P2 || 0} · P3 {strategicBlockQuality.summary.byPhase?.P3 || 0}
+            </p>
+          ) : null}
+          {blockQualityFinding ? <p className="text-[11px] text-muted">{blockQualityFinding}.</p> : null}
+        </div>
+        <span
+          data-testid="masterplan-block-quality-status"
+          className={`rounded-full border px-2 py-0.5 text-[11px] ${
+            blockQualityTone === 'positive'
+              ? 'border-green-500/40 text-green-600'
+              : blockQualityTone === 'warning'
+                ? 'border-amber-400/40 text-amber-600'
+                : blockQualityTone === 'critical'
+                  ? 'border-rose-500/40 text-rose-600'
+                  : 'border-line/50 text-muted'
+          }`}
+        >
+          {blockQualityStatusLabel}
         </span>
       </div>
 
