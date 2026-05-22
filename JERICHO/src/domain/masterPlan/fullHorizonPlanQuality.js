@@ -301,23 +301,79 @@ function evaluateProfessionalism({ blocks, laneModel = [] }) {
   };
 }
 
+function evaluateMilestoneCompleteness({ blocks, phaseModel }) {
+  const reasonCodes = [];
+  const findings = [];
+  const phases = Array.isArray(phaseModel?.phases) ? phaseModel.phases : [];
+
+  phases.forEach((phase) => {
+    const label = String(phase?.label || '').trim();
+    if (!['P1', 'P2', 'P3'].includes(label)) {
+      return;
+    }
+    const phaseBlocks = blocksForPhase(blocks, label);
+    if (!phaseBlocks.length) {
+      return;
+    }
+    const namedMilestoneCount = Array.isArray(phase?.milestones) ? phase.milestones.length : 0;
+    const anchorCount = Array.isArray(phase?.anchorsInPhase) ? phase.anchorsInPhase.length : 0;
+    if (namedMilestoneCount > 0) {
+      return;
+    }
+    reasonCodes.push('PHASE_NAMED_MILESTONES_MISSING');
+    reasonCodes.push(`PHASE_NAMED_MILESTONES_MISSING_${label}`);
+    findings.push(
+      `${label} has ${phaseBlocks.length} forecast blocks and ${anchorCount} major anchor${
+        anchorCount === 1 ? '' : 's'
+      }, but no named milestones.`
+    );
+  });
+
+  return {
+    score: scoreFromReasonCount(94, [...new Set(reasonCodes)].length, 10),
+    reasonCodes: [...new Set(reasonCodes)],
+    findings,
+    summary: Object.fromEntries(
+      phases
+        .filter((phase) => ['P1', 'P2', 'P3'].includes(String(phase?.label || '').trim()))
+        .map((phase) => {
+          const label = String(phase?.label || '').trim();
+          return [
+            label,
+            {
+              namedMilestoneCount: Array.isArray(phase?.milestones) ? phase.milestones.length : 0,
+              anchorCount: Array.isArray(phase?.anchorsInPhase) ? phase.anchorsInPhase.length : 0,
+              forecastBlockCount: blocksForPhase(blocks, label).length,
+            },
+          ];
+        })
+    ),
+  };
+}
+
 function buildPhaseFindings(blocks, dimensions) {
   return {
     P1: {
       blockCount: blocksForPhase(blocks, 'P1').length,
-      state: 'reference',
+      state: dimensions.completeness.reasonCodes.includes('PHASE_NAMED_MILESTONES_MISSING_P1')
+        ? 'milestone_incomplete'
+        : 'reference',
     },
     P2: {
       blockCount: blocksForPhase(blocks, 'P2').length,
-      state: dimensions.progression.reasonCodes.some((code) => code.startsWith('PROGRESSION_P2'))
-        ? 'degraded'
-        : 'acceptable',
+      state: dimensions.completeness.reasonCodes.includes('PHASE_NAMED_MILESTONES_MISSING_P2')
+        ? 'milestone_incomplete'
+        : dimensions.progression.reasonCodes.some((code) => code.startsWith('PROGRESSION_P2'))
+          ? 'degraded'
+          : 'acceptable',
     },
     P3: {
       blockCount: blocksForPhase(blocks, 'P3').length,
-      state: dimensions.progression.reasonCodes.some((code) => code.startsWith('PROGRESSION_P3'))
-        ? 'degraded'
-        : 'acceptable',
+      state: dimensions.completeness.reasonCodes.includes('PHASE_NAMED_MILESTONES_MISSING_P3')
+        ? 'milestone_incomplete'
+        : dimensions.progression.reasonCodes.some((code) => code.startsWith('PROGRESSION_P3'))
+          ? 'degraded'
+          : 'acceptable',
     },
   };
 }
@@ -367,6 +423,7 @@ export function evaluateFullHorizonPlanQuality({
     precision: evaluatePrecision({ blocks }),
     progression: evaluateProgression({ blocks }),
     professionalism: evaluateProfessionalism({ blocks, laneModel }),
+    completeness: evaluateMilestoneCompleteness({ blocks, phaseModel }),
   };
 
   const aggregateReasonCodes = [
@@ -374,6 +431,7 @@ export function evaluateFullHorizonPlanQuality({
     ...dimensions.precision.reasonCodes,
     ...dimensions.progression.reasonCodes,
     ...dimensions.professionalism.reasonCodes,
+    ...dimensions.completeness.reasonCodes,
   ];
 
   if (!coveragePassed) {
@@ -386,6 +444,7 @@ export function evaluateFullHorizonPlanQuality({
       dimensions.precision.score,
       dimensions.progression.score,
       dimensions.professionalism.score,
+      dimensions.completeness.score,
     ])
   );
 

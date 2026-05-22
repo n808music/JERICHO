@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { auditFullHorizonCoverage } from '../../src/domain/masterPlan/fullHorizonCoverageAudit.js';
 import { evaluateFullHorizonPlanQuality } from '../../src/domain/masterPlan/fullHorizonPlanQuality.js';
 import { deriveMasterPlanPhaseModel } from '../../src/domain/masterPlan/masterPlanPhaseModel.js';
+import { buildOperationEndgameFixtureState } from '../../src/dev/operationEndgameRestore.js';
 import { buildOperationEndgameState, getActivePlan, setHorizonMode } from '../helpers/masterPlanFullHorizonScenario.js';
 
 function buildGeneratedState(options = {}) {
@@ -60,15 +61,16 @@ function cloneBlocks(blocks) {
 }
 
 describe('master-plan full-horizon quality gate', () => {
-  it('lets the baseline Operation Endgame schedule reach trusted quality', () => {
+  it('keeps the baseline Operation Endgame schedule covered but provisional when a major phase lacks named milestones', () => {
     const state = buildGeneratedState();
     const quality = state.fullHorizonPlanQuality;
 
     expect(state.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
-    expect(state.fullHorizonCoverageAudit?.fullHorizonQualityTrusted).toBe(true);
-    expect(quality?.state).toBe('trusted');
-    expect(Number(quality?.score || 0)).toBeGreaterThanOrEqual(90);
-    expect(quality?.reasonCodes || []).toEqual([]);
+    expect(state.fullHorizonCoverageAudit?.fullHorizonQualityTrusted).toBe(false);
+    expect(quality?.state).toBe('provisional');
+    expect(Number(quality?.score || 0)).toBeGreaterThanOrEqual(80);
+    expect(quality?.reasonCodes || []).toContain('PHASE_NAMED_MILESTONES_MISSING');
+    expect(quality?.reasonCodes || []).toContain('PHASE_NAMED_MILESTONES_MISSING_P2');
   });
 
   it('keeps expectedOutput populated across the trusted baseline schedule', () => {
@@ -300,5 +302,45 @@ describe('master-plan full-horizon quality gate', () => {
     expect(quality.state).not.toBe('trusted');
     expect(audit.fullHorizonQualityTrusted).toBe(false);
     expect(quality.reasonCodes).toContain('COVERAGE_PASSED_BUT_QUALITY_DEGRADED');
+  });
+
+  it('does not silently trust a major middle phase with zero named milestones', () => {
+    const state = buildOperationEndgameFixtureState();
+    const plan = state.masterPlansById[state.profilesById[state.activeProfileId].activeMasterPlanId];
+    const lanes = Array.isArray(plan?.laneIds)
+      ? plan.laneIds.map((laneId) => state?.masterPlanLanesById?.[laneId]).filter(Boolean)
+      : [];
+    const milestones = lanes.flatMap((lane) =>
+      Array.isArray(lane?.milestoneIds)
+        ? lane.milestoneIds.map((milestoneId) => state?.masterPlanMilestonesById?.[milestoneId]).filter(Boolean)
+        : []
+    );
+    const phaseModel = deriveMasterPlanPhaseModel({
+      plan,
+      lanes,
+      milestones,
+      anchors: Array.isArray(plan?.anchors) ? plan.anchors : [],
+      planCycle: null,
+      committedBlocks: [],
+      criticQuestionsByLane: {},
+    });
+    const quality = evaluateFullHorizonPlanQuality({
+      fullHorizonScheduleBlocks: state.fullHorizonScheduleBlocks || [],
+      fullHorizonCoverageAudit: state.fullHorizonCoverageAudit,
+      phaseModel,
+      laneModel: lanes,
+      masterPlanContract: plan,
+      anchors: plan?.anchors || [],
+      successStandard: plan?.successStandard || null,
+      outcomeTarget: plan?.outcomeTarget || null,
+      constraints: plan?.financialConstraint || plan?.constraints || null,
+    });
+
+    expect(phaseModel.phases.find((phase) => phase.label === 'P2')?.milestones || []).toHaveLength(0);
+    expect(phaseModel.phases.find((phase) => phase.label === 'P2')?.anchorsInPhase || []).toHaveLength(1);
+    expect((state.fullHorizonCoverageAudit?.coverageByPhase?.P2?.blockCount || 0)).toBeGreaterThan(0);
+    expect(quality.state).toBe('provisional');
+    expect(quality.reasonCodes).toContain('PHASE_NAMED_MILESTONES_MISSING');
+    expect(quality.reasonCodes).toContain('PHASE_NAMED_MILESTONES_MISSING_P2');
   });
 });

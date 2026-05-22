@@ -536,7 +536,9 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByText(/^Full Phase Plan$/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Full horizon/i })).toBeInTheDocument();
     expect(screen.getByTestId('masterplan-coverage-status')).toHaveTextContent(/Full horizon/i);
-    expect(screen.getByTestId('masterplan-quality-status')).not.toHaveTextContent(/unavailable/i);
+    expect(screen.getByTestId('masterplan-quality-status')).toHaveTextContent(/Plan quality provisional/i);
+    expect(screen.getByText(/Full horizon covered; plan quality provisional\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Named Milestones Missing\./i)).toBeInTheDocument();
     expect(screen.getAllByText(/P1 · Foundation \/ Launch Proof/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/P2 · Conversion \/ Operating System/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/P3 · Scale \/ Terminal Readiness/i).length).toBeGreaterThan(0);

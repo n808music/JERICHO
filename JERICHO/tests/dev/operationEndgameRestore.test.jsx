@@ -66,7 +66,7 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(summary.fullHorizonEndDayKey).toBe('2031-05-19');
     expect(summary.fullHorizonBlockCount).toBeGreaterThan(0);
     expect(summary.coverageState).toMatch(/covered|trusted/);
-    expect(summary.planQualityState).toBeTruthy();
+    expect(summary.planQualityState).toBe('provisional');
     expect(profile.activeGoalId).toBe(summary.activeGoalId);
     expect(profile.activeMasterPlanId).toBe(summary.activeMasterPlanId);
     expect(profile.masterPlanIds).toContain(summary.activeMasterPlanId);
@@ -77,7 +77,9 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(plan.declaredHorizonMonths).toBe(60);
     expect(plan.horizonEnd).toBe('2031-05-19');
     expect(state.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
-    expect(['trusted', 'provisional']).toContain(state.fullHorizonPlanQuality?.state);
+    expect(state.fullHorizonPlanQuality?.state).toBe('provisional');
+    expect(state.fullHorizonPlanQuality?.reasonCodes || []).toContain('PHASE_NAMED_MILESTONES_MISSING');
+    expect(state.fullHorizonPlanQuality?.reasonCodes || []).toContain('PHASE_NAMED_MILESTONES_MISSING_P2');
     expect(state.fullHorizonCoverageAudit?.coverageByPhase?.P2?.blockCount || 0).toBeGreaterThan(0);
     expect(state.fullHorizonCoverageAudit?.coverageByPhase?.P3?.blockCount || 0).toBeGreaterThan(0);
     expect(state.fullHorizonCoverageAudit?.coverageByYear?.['2031']?.blockCount || 0).toBeGreaterThan(0);
@@ -138,7 +140,7 @@ describe('Operation Endgame dev restore fixture', () => {
     const rehydrated = rehydratePersistedState(written);
     expect((rehydrated.fullHorizonScheduleBlocks || []).length).toBeGreaterThan(0);
     expect(rehydrated.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
-    expect(['trusted', 'provisional']).toContain(rehydrated.fullHorizonPlanQuality?.state);
+    expect(rehydrated.fullHorizonPlanQuality?.state).toBe('provisional');
   });
 
   it('still writes the active identity when full backup storage hits QuotaExceededError', () => {
@@ -190,7 +192,7 @@ describe('Operation Endgame dev restore fixture', () => {
     const rehydrated = rehydratePersistedState(written);
     expect((rehydrated.fullHorizonScheduleBlocks || []).length).toBeGreaterThan(0);
     expect(rehydrated.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
-    expect(['trusted', 'provisional']).toContain(rehydrated.fullHorizonPlanQuality?.state);
+    expect(rehydrated.fullHorizonPlanQuality?.state).toBe('provisional');
     expect(compactBackup.type).toBe('compact-backup-metadata');
     expect(compactBackup.activeProfileId).toBeNull();
   });
@@ -234,7 +236,7 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(profile.masterPlanIds.length).toBeGreaterThan(0);
     expect(rehydrated.activeCycleId).toBeNull();
     expect(rehydrated.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
-    expect(['trusted', 'provisional']).toContain(rehydrated.fullHorizonPlanQuality?.state);
+    expect(rehydrated.fullHorizonPlanQuality?.state).toBe('provisional');
   });
 
   it('writes a compact persisted payload when the fully derived fixture would exceed the active identity quota', () => {
@@ -291,7 +293,7 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(rehydrated.activeCycleId).toBeNull();
     expect((rehydrated.fullHorizonScheduleBlocks || []).length).toBeGreaterThan(0);
     expect(rehydrated.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
-    expect(['trusted', 'provisional']).toContain(rehydrated.fullHorizonPlanQuality?.state);
+    expect(rehydrated.fullHorizonPlanQuality?.state).toBe('provisional');
   });
 
   it('is unavailable when explicitly installed in production mode', () => {
