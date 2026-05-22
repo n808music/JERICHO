@@ -61,7 +61,7 @@ function cloneBlocks(blocks) {
 }
 
 describe('master-plan full-horizon quality gate', () => {
-  it('keeps the baseline Operation Endgame schedule covered but provisional when a major phase lacks named milestones', () => {
+  it('keeps the baseline Operation Endgame schedule covered but provisional when P2 milestone density and spacing remain thin', () => {
     const state = buildGeneratedState();
     const quality = state.fullHorizonPlanQuality;
 
@@ -69,8 +69,12 @@ describe('master-plan full-horizon quality gate', () => {
     expect(state.fullHorizonCoverageAudit?.fullHorizonQualityTrusted).toBe(false);
     expect(quality?.state).toBe('provisional');
     expect(Number(quality?.score || 0)).toBeGreaterThanOrEqual(80);
-    expect(quality?.reasonCodes || []).toContain('PHASE_NAMED_MILESTONES_MISSING');
-    expect(quality?.reasonCodes || []).toContain('PHASE_NAMED_MILESTONES_MISSING_P2');
+    expect(quality?.reasonCodes || []).not.toContain('PHASE_NAMED_MILESTONES_MISSING');
+    expect(quality?.reasonCodes || []).not.toContain('PHASE_NAMED_MILESTONES_MISSING_P2');
+    expect(quality?.reasonCodes || []).toContain('PHASE_MILESTONE_DENSITY_THIN');
+    expect(quality?.reasonCodes || []).toContain('PHASE_MILESTONE_DENSITY_THIN_P2');
+    expect(quality?.reasonCodes || []).toContain('PHASE_MILESTONE_TIME_DISTRIBUTION_THIN');
+    expect(quality?.reasonCodes || []).toContain('PHASE_MILESTONE_TIME_DISTRIBUTION_THIN_P2');
   });
 
   it('keeps expectedOutput populated across the trusted baseline schedule', () => {
@@ -307,6 +311,39 @@ describe('master-plan full-horizon quality gate', () => {
   it('does not silently trust a major middle phase with zero named milestones', () => {
     const state = buildOperationEndgameFixtureState();
     const plan = state.masterPlansById[state.profilesById[state.activeProfileId].activeMasterPlanId];
+    const p2LaneIds = (plan?.laneIds || []).filter((laneId) => {
+      const lane = state?.masterPlanLanesById?.[laneId];
+      const domain = String(lane?.domain || '').trim().toLowerCase();
+      return ['product', 'media', 'brand', 'income'].includes(domain);
+    });
+    p2LaneIds.forEach((laneId) => {
+      const lane = state?.masterPlanLanesById?.[laneId];
+      if (!lane) {
+        return;
+      }
+      const remainingIds = [];
+      (lane.milestoneIds || []).forEach((milestoneId) => {
+        const milestone = state?.masterPlanMilestonesById?.[milestoneId];
+        const targetDate = String(milestone?.targetDate || '').trim();
+        if (targetDate >= '2027-01-01' && targetDate <= '2028-06-14') {
+          delete state.masterPlanMilestonesById[milestoneId];
+          return;
+        }
+        remainingIds.push(milestoneId);
+      });
+      lane.milestoneIds = remainingIds;
+    });
+    state.fullHorizonCoverageAudit = null;
+    state.fullHorizonPlanQuality = null;
+    const recomputed = buildContext(state);
+    const coverageAudit = auditFullHorizonCoverage({
+      fullHorizonScheduleBlocks: state.fullHorizonScheduleBlocks || [],
+      phaseModel: recomputed.phaseModel,
+      fullHorizonStartDayKey: plan?.horizonStart,
+      fullHorizonEndDayKey: plan?.fullHorizonEndDayKey || plan?.horizonEnd,
+      laneModel: recomputed.lanes,
+      selectedHorizonMode: state?.selectedHorizonMode || 'full_horizon',
+    });
     const lanes = Array.isArray(plan?.laneIds)
       ? plan.laneIds.map((laneId) => state?.masterPlanLanesById?.[laneId]).filter(Boolean)
       : [];
@@ -326,7 +363,7 @@ describe('master-plan full-horizon quality gate', () => {
     });
     const quality = evaluateFullHorizonPlanQuality({
       fullHorizonScheduleBlocks: state.fullHorizonScheduleBlocks || [],
-      fullHorizonCoverageAudit: state.fullHorizonCoverageAudit,
+      fullHorizonCoverageAudit: coverageAudit,
       phaseModel,
       laneModel: lanes,
       masterPlanContract: plan,
@@ -338,9 +375,80 @@ describe('master-plan full-horizon quality gate', () => {
 
     expect(phaseModel.phases.find((phase) => phase.label === 'P2')?.milestones || []).toHaveLength(0);
     expect(phaseModel.phases.find((phase) => phase.label === 'P2')?.anchorsInPhase || []).toHaveLength(1);
-    expect((state.fullHorizonCoverageAudit?.coverageByPhase?.P2?.blockCount || 0)).toBeGreaterThan(0);
+    expect((coverageAudit?.coverageByPhase?.P2?.blockCount || 0)).toBeGreaterThan(0);
     expect(quality.state).toBe('provisional');
     expect(quality.reasonCodes).toContain('PHASE_NAMED_MILESTONES_MISSING');
     expect(quality.reasonCodes).toContain('PHASE_NAMED_MILESTONES_MISSING_P2');
+  });
+
+  it('flags active-lane milestone coverage gaps when only a minority of active P2 lanes have named milestones', () => {
+    const state = buildOperationEndgameFixtureState();
+    const plan = state.masterPlansById[state.profilesById[state.activeProfileId].activeMasterPlanId];
+    const p2LaneIds = (plan?.laneIds || []).filter((laneId) => {
+      const lane = state?.masterPlanLanesById?.[laneId];
+      const domain = String(lane?.domain || '').trim().toLowerCase();
+      return ['product', 'creative', 'media', 'brand', 'income'].includes(domain);
+    });
+    p2LaneIds.forEach((laneId) => {
+      const lane = state?.masterPlanLanesById?.[laneId];
+      if (!lane) {
+        return;
+      }
+      if (String(lane?.domain || '').trim().toLowerCase() === 'brand') {
+        return;
+      }
+      const remainingIds = [];
+      (lane.milestoneIds || []).forEach((milestoneId) => {
+        const milestone = state?.masterPlanMilestonesById?.[milestoneId];
+        const targetDate = String(milestone?.targetDate || '').trim();
+        if (targetDate >= '2027-01-01' && targetDate <= '2028-06-14') {
+          delete state.masterPlanMilestonesById[milestoneId];
+          return;
+        }
+        remainingIds.push(milestoneId);
+      });
+      lane.milestoneIds = remainingIds;
+    });
+
+    const planAfter = state.masterPlansById[state.profilesById[state.activeProfileId].activeMasterPlanId];
+    const lanes = Array.isArray(planAfter?.laneIds)
+      ? planAfter.laneIds.map((laneId) => state?.masterPlanLanesById?.[laneId]).filter(Boolean)
+      : [];
+    const milestones = lanes.flatMap((lane) =>
+      Array.isArray(lane?.milestoneIds)
+        ? lane.milestoneIds.map((milestoneId) => state?.masterPlanMilestonesById?.[milestoneId]).filter(Boolean)
+        : []
+    );
+    const phaseModel = deriveMasterPlanPhaseModel({
+      plan: planAfter,
+      lanes,
+      milestones,
+      anchors: Array.isArray(planAfter?.anchors) ? planAfter.anchors : [],
+      planCycle: null,
+      committedBlocks: [],
+      criticQuestionsByLane: {},
+    });
+    const coverageAudit = auditFullHorizonCoverage({
+      fullHorizonScheduleBlocks: state.fullHorizonScheduleBlocks || [],
+      phaseModel,
+      fullHorizonStartDayKey: planAfter?.horizonStart,
+      fullHorizonEndDayKey: planAfter?.fullHorizonEndDayKey || planAfter?.horizonEnd,
+      laneModel: lanes,
+      selectedHorizonMode: state?.selectedHorizonMode || 'full_horizon',
+    });
+    const quality = evaluateFullHorizonPlanQuality({
+      fullHorizonScheduleBlocks: state.fullHorizonScheduleBlocks || [],
+      fullHorizonCoverageAudit: coverageAudit,
+      phaseModel,
+      laneModel: lanes,
+      masterPlanContract: planAfter,
+      anchors: planAfter?.anchors || [],
+      successStandard: planAfter?.successStandard || null,
+      outcomeTarget: planAfter?.outcomeTarget || null,
+      constraints: planAfter?.financialConstraint || planAfter?.constraints || null,
+    });
+
+    expect(quality.reasonCodes).toContain('PHASE_ACTIVE_LANE_MILESTONE_COVERAGE_THIN');
+    expect(quality.reasonCodes).toContain('PHASE_ACTIVE_LANE_MILESTONE_COVERAGE_THIN_P2');
   });
 });

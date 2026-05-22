@@ -538,11 +538,11 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByTestId('masterplan-coverage-status')).toHaveTextContent(/Full horizon/i);
     expect(screen.getByTestId('masterplan-quality-status')).toHaveTextContent(/Plan quality provisional/i);
     expect(screen.getByText(/Full horizon covered; plan quality provisional\./i)).toBeInTheDocument();
-    expect(screen.getByText(/Named Milestones Missing\./i)).toBeInTheDocument();
+    expect(screen.getByText(/ACTIVE LANE MILESTONE COVERAGE THIN\./i)).toBeInTheDocument();
     expect(screen.getAllByText(/P1 · Foundation \/ Launch Proof/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/P2 · Conversion \/ Operating System/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/P3 · Scale \/ Terminal Readiness/i).length).toBeGreaterThan(0);
-    expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Named milestones:\s*0/i);
+    expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Named milestones:\s*5/i);
     expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Major anchors:\s*1/i);
     expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/P2 operating-system review gate/i);
     expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Forecast workload recognized:/i);

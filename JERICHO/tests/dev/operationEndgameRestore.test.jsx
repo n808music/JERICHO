@@ -56,6 +56,10 @@ describe('Operation Endgame dev restore fixture', () => {
     const profile = state.profilesById[DEFAULT_PROFILE_ID];
     const plan = state.masterPlansById[summary.activeMasterPlanId];
     const goal = state.goalsById[summary.activeGoalId];
+    const p2Milestones = Object.values(state.masterPlanMilestonesById || {}).filter((milestone) => {
+      const targetDate = String(milestone?.targetDate || '').trim();
+      return targetDate >= '2027-01-01' && targetDate <= '2028-06-14';
+    });
 
     expect(summary.activeProfileId).toBe(DEFAULT_PROFILE_ID);
     expect(summary.activeGoalId).toBeTruthy();
@@ -78,8 +82,21 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(plan.horizonEnd).toBe('2031-05-19');
     expect(state.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
     expect(state.fullHorizonPlanQuality?.state).toBe('provisional');
-    expect(state.fullHorizonPlanQuality?.reasonCodes || []).toContain('PHASE_NAMED_MILESTONES_MISSING');
-    expect(state.fullHorizonPlanQuality?.reasonCodes || []).toContain('PHASE_NAMED_MILESTONES_MISSING_P2');
+    expect(state.fullHorizonPlanQuality?.reasonCodes || []).not.toContain('PHASE_NAMED_MILESTONES_MISSING');
+    expect(state.fullHorizonPlanQuality?.reasonCodes || []).not.toContain('PHASE_NAMED_MILESTONES_MISSING_P2');
+    expect(state.fullHorizonPlanQuality?.reasonCodes || []).toContain('PHASE_MILESTONE_DENSITY_THIN');
+    expect(state.fullHorizonPlanQuality?.reasonCodes || []).toContain('PHASE_MILESTONE_DENSITY_THIN_P2');
+    expect(state.fullHorizonPlanQuality?.reasonCodes || []).toContain('PHASE_MILESTONE_TIME_DISTRIBUTION_THIN');
+    expect(state.fullHorizonPlanQuality?.reasonCodes || []).toContain('PHASE_MILESTONE_TIME_DISTRIBUTION_THIN_P2');
+    expect(p2Milestones.map((milestone) => milestone.title)).toEqual(
+      expect.arrayContaining([
+        'Validate repeatable conversion path',
+        'Establish operating cadence dashboard',
+        'Prove revenue conversion architecture',
+        'Widen channel distribution loop',
+        'Stabilize cross-lane execution loop',
+      ])
+    );
     expect(state.fullHorizonCoverageAudit?.coverageByPhase?.P2?.blockCount || 0).toBeGreaterThan(0);
     expect(state.fullHorizonCoverageAudit?.coverageByPhase?.P3?.blockCount || 0).toBeGreaterThan(0);
     expect(state.fullHorizonCoverageAudit?.coverageByYear?.['2031']?.blockCount || 0).toBeGreaterThan(0);

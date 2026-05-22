@@ -27,6 +27,23 @@ function diffDays(left, right) {
   return Math.round((rightDate.getTime() - leftDate.getTime()) / 86400000);
 }
 
+function dayDistanceInclusive(left, right) {
+  const distance = diffDays(left, right);
+  return distance > 0 ? distance + 1 : 0;
+}
+
+function getTemporalDayKey(item) {
+  return normalizeDayKey(
+    item?.targetDate ||
+      item?.dayKey ||
+      item?.date ||
+      item?.startDayKey ||
+      item?.startDate ||
+      item?.targetDayKey ||
+      null
+  );
+}
+
 function collectBlocks(fullHorizonScheduleBlocks = []) {
   return [...(Array.isArray(fullHorizonScheduleBlocks) ? fullHorizonScheduleBlocks : [])]
     .filter((block) => normalizeDayKey(block?.dayKey || block?.date))
@@ -50,6 +67,14 @@ function average(values = []) {
     return 0;
   }
   return values.reduce((sum, value) => sum + Number(value || 0), 0) / values.length;
+}
+
+function getReasonCodeFamily(code) {
+  const text = String(code || '').trim();
+  if (!text) {
+    return null;
+  }
+  return text.replace(/_P[123]$/, '');
 }
 
 function scoreFromReasonCount(baseScore, count, penaltyPerReason = 8) {
@@ -351,18 +376,103 @@ function evaluateMilestoneCompleteness({ blocks, phaseModel }) {
   };
 }
 
+function evaluatePhaseBalance({ blocks, phaseModel }) {
+  const reasonCodes = [];
+  const findings = [];
+  const phases = Array.isArray(phaseModel?.phases) ? phaseModel.phases : [];
+
+  phases.forEach((phase) => {
+    const label = String(phase?.label || '').trim();
+    if (!['P1', 'P2', 'P3'].includes(label)) {
+      return;
+    }
+    const phaseBlocks = blocksForPhase(blocks, label);
+    if (!phaseBlocks.length) {
+      return;
+    }
+
+    const milestones = [...(Array.isArray(phase?.milestones) ? phase.milestones : [])]
+      .filter((milestone) => getTemporalDayKey(milestone))
+      .sort((left, right) => String(getTemporalDayKey(left) || '').localeCompare(String(getTemporalDayKey(right) || '')));
+    const namedMilestoneCount = milestones.length;
+    if (namedMilestoneCount === 0) {
+      return;
+    }
+
+    const activeLaneIds = new Set(
+      (Array.isArray(phase?.laneParticipation) ? phase.laneParticipation : [])
+        .filter((lane) => String(lane?.status || '').trim().toLowerCase() === 'active')
+        .map((lane) => String(lane?.laneId || '').trim())
+        .filter(Boolean)
+    );
+    const milestoneLaneIds = new Set(
+      milestones.map((milestone) => String(milestone?.laneId || '').trim()).filter(Boolean)
+    );
+    const activeLanesWithMilestones = [...activeLaneIds].filter((laneId) => milestoneLaneIds.has(laneId)).length;
+    const activeLaneCoverageRatio = activeLaneIds.size > 0 ? activeLanesWithMilestones / activeLaneIds.size : 1;
+
+    const durationDays = dayDistanceInclusive(phase?.startBoundary, phase?.endBoundary);
+    const requiredMilestones = Math.max(3, Math.ceil(durationDays / 120));
+
+    if (namedMilestoneCount < requiredMilestones) {
+      reasonCodes.push('PHASE_MILESTONE_DENSITY_THIN');
+      reasonCodes.push(`PHASE_MILESTONE_DENSITY_THIN_${label}`);
+      findings.push(
+        `${label} spans ${durationDays} days with ${phaseBlocks.length} forecast blocks but only ${namedMilestoneCount} named milestones; ${requiredMilestones} are expected for this phase length.`
+      );
+    }
+
+    if (activeLaneIds.size >= 4 && activeLaneCoverageRatio < 0.8) {
+      reasonCodes.push('PHASE_ACTIVE_LANE_MILESTONE_COVERAGE_THIN');
+      reasonCodes.push(`PHASE_ACTIVE_LANE_MILESTONE_COVERAGE_THIN_${label}`);
+      findings.push(
+        `${label} only gives named milestone coverage to ${activeLanesWithMilestones}/${activeLaneIds.size} active lanes.`
+      );
+    }
+
+    const temporalPoints = [
+      normalizeDayKey(phase?.startBoundary),
+      ...milestones.map((milestone) => getTemporalDayKey(milestone)).filter(Boolean),
+      normalizeDayKey(phase?.endBoundary),
+    ].filter(Boolean);
+    const gaps = [];
+    for (let index = 1; index < temporalPoints.length; index += 1) {
+      gaps.push(diffDays(temporalPoints[index - 1], temporalPoints[index]));
+    }
+    const largestGapDays = Math.max(0, ...gaps);
+    const maxAllowedGapDays = Math.max(180, Math.round(durationDays * 0.4));
+    if (largestGapDays > maxAllowedGapDays) {
+      reasonCodes.push('PHASE_MILESTONE_TIME_DISTRIBUTION_THIN');
+      reasonCodes.push(`PHASE_MILESTONE_TIME_DISTRIBUTION_THIN_${label}`);
+      findings.push(
+        `${label} has a ${largestGapDays}-day milestone gap inside a ${durationDays}-day phase, leaving long stretches with only forecast workload.`
+      );
+    }
+  });
+
+  return {
+    score: scoreFromReasonCount(94, [...new Set(reasonCodes)].length, 8),
+    reasonCodes: [...new Set(reasonCodes)],
+    findings,
+  };
+}
+
 function buildPhaseFindings(blocks, dimensions) {
   return {
     P1: {
       blockCount: blocksForPhase(blocks, 'P1').length,
       state: dimensions.completeness.reasonCodes.includes('PHASE_NAMED_MILESTONES_MISSING_P1')
         ? 'milestone_incomplete'
+        : dimensions.balance.reasonCodes.some((code) => code.endsWith('_P1'))
+          ? 'milestone_thin'
         : 'reference',
     },
     P2: {
       blockCount: blocksForPhase(blocks, 'P2').length,
       state: dimensions.completeness.reasonCodes.includes('PHASE_NAMED_MILESTONES_MISSING_P2')
         ? 'milestone_incomplete'
+        : dimensions.balance.reasonCodes.some((code) => code.endsWith('_P2'))
+          ? 'milestone_thin'
         : dimensions.progression.reasonCodes.some((code) => code.startsWith('PROGRESSION_P2'))
           ? 'degraded'
           : 'acceptable',
@@ -371,6 +481,8 @@ function buildPhaseFindings(blocks, dimensions) {
       blockCount: blocksForPhase(blocks, 'P3').length,
       state: dimensions.completeness.reasonCodes.includes('PHASE_NAMED_MILESTONES_MISSING_P3')
         ? 'milestone_incomplete'
+        : dimensions.balance.reasonCodes.some((code) => code.endsWith('_P3'))
+          ? 'milestone_thin'
         : dimensions.progression.reasonCodes.some((code) => code.startsWith('PROGRESSION_P3'))
           ? 'degraded'
           : 'acceptable',
@@ -424,6 +536,7 @@ export function evaluateFullHorizonPlanQuality({
     progression: evaluateProgression({ blocks }),
     professionalism: evaluateProfessionalism({ blocks, laneModel }),
     completeness: evaluateMilestoneCompleteness({ blocks, phaseModel }),
+    balance: evaluatePhaseBalance({ blocks, phaseModel }),
   };
 
   const aggregateReasonCodes = [
@@ -432,6 +545,10 @@ export function evaluateFullHorizonPlanQuality({
     ...dimensions.progression.reasonCodes,
     ...dimensions.professionalism.reasonCodes,
     ...dimensions.completeness.reasonCodes,
+    ...dimensions.balance.reasonCodes,
+  ];
+  const aggregateReasonFamilies = [
+    ...new Set(aggregateReasonCodes.map((code) => getReasonCodeFamily(code)).filter(Boolean)),
   ];
 
   if (!coveragePassed) {
@@ -445,15 +562,16 @@ export function evaluateFullHorizonPlanQuality({
       dimensions.progression.score,
       dimensions.professionalism.score,
       dimensions.completeness.score,
+      dimensions.balance.score,
     ])
   );
 
   let state = 'trusted';
   if (!coveragePassed || score < 55) {
     state = 'failed';
-  } else if (score < 72 || aggregateReasonCodes.length >= 5) {
+  } else if (score < 72 || aggregateReasonFamilies.length >= 5) {
     state = 'degraded';
-  } else if (score < 88 || aggregateReasonCodes.length > 0) {
+  } else if (score < 88 || aggregateReasonFamilies.length > 0) {
     state = 'provisional';
   }
 
