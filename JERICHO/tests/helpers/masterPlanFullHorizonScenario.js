@@ -2,9 +2,6 @@ import { buildBlankIdentityState, DEFAULT_PROFILE_ID } from '../../src/state/ide
 import { computeDerivedState } from '../../src/state/identityCompute.js';
 import { applyMasterPlanAction } from '../../src/state/masterPlanStore.js';
 
-const DEFAULT_SUCCESS_STANDARD =
-  'Build an active scaling ecosystem with validated product, creative, media, operations, revenue, capital, institution, and civic pathways.';
-
 function buildLaneAnswers(index, activation, description, assessedStage) {
   return {
     [`lane_${index}_description`]: description,
@@ -23,12 +20,12 @@ export function buildOperationEndgameState({
   todayDate = '2026-05-11',
   horizonEnd = '2031-05-11',
   horizonMonths = 60,
-  goalText = 'Build a 5-year multi-venture platform reaching 10k users and coordinate Operation Endgame through a multi-lane master plan',
+  goalText = 'Coordinate Operation Endgame as a 5-year multi-lane master plan across product, creative, media, operations, revenue, capital, institution, and civic pathways.',
   includeCreativeLane = true,
   includeProductLane = true,
   creativeAnchor = true,
   anchorDate = '2026-10-17',
-  successStandard = DEFAULT_SUCCESS_STANDARD,
+  successStandard = 'Build an active scaling ecosystem with validated product, creative, media, operations, revenue, capital, institution, and civic pathways through the 2031 strategic horizon.',
   capitalAvailable = 0,
 } = {}) {
   const state = buildBlankIdentityState({ timeZone: 'UTC', nowISO, todayDate });

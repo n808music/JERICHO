@@ -1,12 +1,16 @@
-import { buildBlankIdentityState, DEFAULT_PROFILE_ID } from '../state/identityStore.js';
+import {
+  buildBlankIdentityState,
+  buildPersistableIdentityState,
+  DEFAULT_PROFILE_ID,
+} from '../state/identityStore.js';
 import { computeDerivedState } from '../state/identityCompute.js';
 import { applyMasterPlanAction } from '../state/masterPlanStore.js';
 import { IS_PRODUCTION } from '../utils/runtimeEnv.js';
 
 export const OPERATION_ENDGAME_GOAL_TEXT =
-  'Build a 5-year multi-venture platform reaching 10k users and coordinate Operation Endgame through a multi-lane master plan.';
+  'Coordinate Operation Endgame as a 5-year multi-lane master plan across product, creative, media, operations, revenue, capital, institution, and civic pathways.';
 export const OPERATION_ENDGAME_SUCCESS_STATE =
-  'Build an active scaling ecosystem with validated product, creative, media, operations, revenue, capital, institution, and civic pathways.';
+  'Build an active scaling ecosystem with validated product, creative, media, operations, revenue, capital, institution, and civic pathways through the 2031 strategic horizon.';
 export const OPERATION_ENDGAME_CONSTRAINT =
   'Capital is constrained and near-term revenue matters. The system must coordinate multiple lanes without losing full-horizon truth.';
 export const OPERATION_ENDGAME_NON_NEGOTIABLE =
@@ -243,6 +247,62 @@ function writeBackupSnapshot(storage, previousRaw, nowISO) {
   }
 }
 
+function parsePersistedState(raw) {
+  if (!raw) {
+    return null;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function hasNamedProfile(profile) {
+  const displayName = String(profile?.displayName || profile?.label || '').trim();
+  if (!displayName) {
+    return false;
+  }
+  return displayName.toLowerCase() !== 'local profile';
+}
+
+function preserveExistingProfileMetadata(state, previousState) {
+  if (!state?.profilesById || !previousState?.profilesById) {
+    return state;
+  }
+  const previousActiveProfileId = String(previousState?.activeProfileId || '').trim() || DEFAULT_PROFILE_ID;
+  const previousActiveProfile = previousState?.profilesById?.[previousActiveProfileId] || null;
+  if (!hasNamedProfile(previousActiveProfile)) {
+    return state;
+  }
+
+  const targetProfileId = String(state?.activeProfileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
+  const targetProfile = state.profilesById?.[targetProfileId] || null;
+  if (!targetProfile) {
+    return state;
+  }
+
+  const preservedDisplayName = String(previousActiveProfile.displayName || previousActiveProfile.label || '').trim();
+  const preservedRoleLabel = String(
+    previousActiveProfile.roleLabel || previousActiveProfile.profileRole || ''
+  ).trim();
+  const preservedLabel = String(previousActiveProfile.label || preservedDisplayName).trim() || preservedDisplayName;
+
+  state.profilesById[targetProfileId] = {
+    ...targetProfile,
+    displayName: preservedDisplayName || targetProfile.displayName || targetProfile.label || 'Local Profile',
+    label: preservedLabel || targetProfile.label || targetProfile.displayName || 'Local Profile',
+    roleLabel: preservedRoleLabel || targetProfile.roleLabel || null,
+    profileRole: preservedRoleLabel || targetProfile.profileRole || null,
+  };
+  state.activeProfileId = targetProfileId;
+  return state;
+}
+
+export function buildPersistableOperationEndgameFixtureState(state) {
+  return buildPersistableIdentityState(state);
+}
+
 export function buildOperationEndgameFixtureState({
   nowISO = DEFAULT_NOW_ISO,
   todayDate = DEFAULT_TODAY_DATE,
@@ -320,7 +380,7 @@ export function buildOperationEndgameFixtureState({
     plan.coreMission = OPERATION_ENDGAME_GOAL_TEXT;
     plan.masterPlanSummary = OPERATION_ENDGAME_GOAL_TEXT;
     plan.northStarOutcome = OPERATION_ENDGAME_SUCCESS_STATE;
-    plan.outcomeTarget = 'Reach 10k users by the 2031 strategic horizon.';
+    plan.outcomeTarget = null;
     plan.successStandard = OPERATION_ENDGAME_SUCCESS_STATE;
     plan.executionHorizon = '60 months through 2031';
     plan.horizonStart = todayDate;
@@ -446,6 +506,7 @@ export function restoreOperationEndgameFixture({
   }
 
   const previousRaw = storage.getItem(STORAGE_KEY);
+  const previousState = parsePersistedState(previousRaw);
   const backupTimestamp = fixtureOptions.nowISO || new Date().toISOString();
   const backupSummary = backup
     ? writeBackupSnapshot(storage, previousRaw, backupTimestamp)
@@ -457,8 +518,9 @@ export function restoreOperationEndgameFixture({
         backupError: null,
       };
 
-  const state = buildOperationEndgameFixtureState(fixtureOptions);
-  storage.setItem(STORAGE_KEY, JSON.stringify(state));
+  const state = preserveExistingProfileMetadata(buildOperationEndgameFixtureState(fixtureOptions), previousState);
+  const persistableState = buildPersistableOperationEndgameFixtureState(state);
+  storage.setItem(STORAGE_KEY, JSON.stringify(persistableState));
   const summary = {
     wroteKey: STORAGE_KEY,
     backupKey: backupSummary.backupKey,

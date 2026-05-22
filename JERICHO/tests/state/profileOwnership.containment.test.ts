@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { computeDerivedState } from '../../src/state/identityCompute.js';
 import {
   buildBlankIdentityState,
+  buildPersistableIdentityState,
   DEFAULT_PROFILE_ID,
   identityReducer,
   rehydratePersistedState,
@@ -136,7 +137,14 @@ describe('profile ownership containment', () => {
     expect(edited.activeCycleId).toBe(cycleId);
     expect(edited.profilesById[DEFAULT_PROFILE_ID].goalIds).toContain(goalId);
 
-    const rehydrated = rehydratePersistedState(JSON.parse(JSON.stringify(edited))) as any;
+    const persisted = buildPersistableIdentityState({
+      ...edited,
+      fullHorizonScheduleBlocks: [{ id: 'forecast-1', dayKey: '2031-05-19', title: 'Terminal review' }],
+      calendarDisplayBlocks: [{ id: 'forecast-1', dayKey: '2031-05-19', title: 'Terminal review' }],
+      fullHorizonCoverageAudit: { fullHorizonCovered: true },
+      fullHorizonPlanQuality: { state: 'trusted' },
+    } as any);
+    const rehydrated = rehydratePersistedState(JSON.parse(JSON.stringify(persisted))) as any;
     expect(rehydrated.profilesById[DEFAULT_PROFILE_ID].displayName).toBe('James Dotson');
     expect(rehydrated.profilesById[DEFAULT_PROFILE_ID].roleLabel).toBe('Founder / Operator');
     expect(rehydrated.activeGoalId).toBe(goalId);

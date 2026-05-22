@@ -5,12 +5,13 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 
 import {
   buildOperationEndgameFixtureState,
+  buildPersistableOperationEndgameFixtureState,
   installOperationEndgameRestore,
   restoreOperationEndgameFixture,
   summarizeOperationEndgameFixtureState,
 } from '../../src/dev/operationEndgameRestore.js';
 import MasterPlanTimeline from '../../src/ui/masterPlan/MasterPlanTimeline.jsx';
-import { DEFAULT_PROFILE_ID } from '../../src/state/identityStore.js';
+import { DEFAULT_PROFILE_ID, rehydratePersistedState } from '../../src/state/identityStore.js';
 
 let mockStore = {};
 
@@ -83,6 +84,30 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(state.planRecovery).toBeNull();
   });
 
+  it('keeps canonical Operation Endgame mission text free of demo revenue and fixture user-target contamination', () => {
+    const state = buildOperationEndgameFixtureState();
+    const summary = summarizeOperationEndgameFixtureState(state);
+    const plan = state.masterPlansById[summary.activeMasterPlanId];
+    const goal = state.goalsById[summary.activeGoalId];
+    const canonicalTexts = [
+      plan?.coreMission,
+      plan?.masterPlanSummary,
+      plan?.northStarOutcome,
+      plan?.successStandard,
+      plan?.outcomeTarget,
+      goal?.title,
+      state?.masterPlanIntake?.answers?.step_1,
+      state?.masterPlanIntake?.answers?.step_2,
+    ]
+      .filter((value) => typeof value === 'string')
+      .join(' || ');
+
+    expect(canonicalTexts).toContain('Coordinate Operation Endgame as a 5-year multi-lane master plan');
+    expect(canonicalTexts).not.toMatch(/10k users|10,000 users/i);
+    expect(canonicalTexts).not.toMatch(/grow revenue to \$10k\/month/i);
+    expect(plan?.outcomeTarget || null).toBeNull();
+  });
+
   it('writes the fixture to localStorage with a backup of the prior identity blob', () => {
     const storage = createStorageMock();
     storage.setItem('jericho-identity', JSON.stringify({ existing: true }));
@@ -106,7 +131,14 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(written.activeProfileId).toBe(DEFAULT_PROFILE_ID);
     expect(written.activeGoalId).toBeTruthy();
     expect(written.activeCycleId).toBeNull();
-    expect((written.fullHorizonScheduleBlocks || []).length).toBeGreaterThan(0);
+    expect(Array.isArray(written.fullHorizonScheduleBlocks)).toBe(false);
+    expect(Array.isArray(written.calendarDisplayBlocks)).toBe(false);
+    expect(Object.keys(written.cyclesById || {})).toHaveLength(0);
+
+    const rehydrated = rehydratePersistedState(written);
+    expect((rehydrated.fullHorizonScheduleBlocks || []).length).toBeGreaterThan(0);
+    expect(rehydrated.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
+    expect(['trusted', 'provisional']).toContain(rehydrated.fullHorizonPlanQuality?.state);
   });
 
   it('still writes the active identity when full backup storage hits QuotaExceededError', () => {
@@ -153,11 +185,113 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(written.activeProfileId).toBe(DEFAULT_PROFILE_ID);
     expect(written.activeGoalId).toBeTruthy();
     expect(written.activeCycleId).toBeNull();
-    expect((written.fullHorizonScheduleBlocks || []).length).toBeGreaterThan(0);
-    expect(written.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
-    expect(['trusted', 'provisional']).toContain(written.fullHorizonPlanQuality?.state);
+    expect(Array.isArray(written.fullHorizonScheduleBlocks)).toBe(false);
+
+    const rehydrated = rehydratePersistedState(written);
+    expect((rehydrated.fullHorizonScheduleBlocks || []).length).toBeGreaterThan(0);
+    expect(rehydrated.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
+    expect(['trusted', 'provisional']).toContain(rehydrated.fullHorizonPlanQuality?.state);
     expect(compactBackup.type).toBe('compact-backup-metadata');
     expect(compactBackup.activeProfileId).toBeNull();
+  });
+
+  it('preserves existing named profile metadata while restoring Operation Endgame', () => {
+    const storage = createStorageMock();
+    storage.setItem(
+      'jericho-identity',
+      JSON.stringify({
+        meta: { version: 2 },
+        activeProfileId: DEFAULT_PROFILE_ID,
+        profilesById: {
+          [DEFAULT_PROFILE_ID]: {
+            id: DEFAULT_PROFILE_ID,
+            displayName: 'James Dotson',
+            label: 'James Dotson',
+            roleLabel: 'founder',
+            goalIds: [],
+            masterPlanIds: [],
+            activeGoalId: null,
+            activeMasterPlanId: null,
+          },
+        },
+        goalsById: {},
+        masterPlansById: {},
+        cyclesById: {},
+      })
+    );
+
+    restoreOperationEndgameFixture({ reload: false, storage });
+    const written = JSON.parse(storage.getItem('jericho-identity'));
+    const rehydrated = rehydratePersistedState(written);
+    const profile = rehydrated.profilesById[DEFAULT_PROFILE_ID];
+
+    expect(profile.displayName).toBe('James Dotson');
+    expect(profile.label).toBe('James Dotson');
+    expect(profile.roleLabel).toBe('founder');
+    expect(rehydrated.activeProfileId).toBe(DEFAULT_PROFILE_ID);
+    expect(rehydrated.activeGoalId).toBeTruthy();
+    expect(profile.activeMasterPlanId).toBeTruthy();
+    expect(profile.masterPlanIds.length).toBeGreaterThan(0);
+    expect(rehydrated.activeCycleId).toBeNull();
+    expect(rehydrated.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
+    expect(['trusted', 'provisional']).toContain(rehydrated.fullHorizonPlanQuality?.state);
+  });
+
+  it('writes a compact persisted payload when the fully derived fixture would exceed the active identity quota', () => {
+    const fullState = buildOperationEndgameFixtureState();
+    const persistableState = buildPersistableOperationEndgameFixtureState(fullState);
+    const fullRaw = JSON.stringify(fullState);
+    const persistableRaw = JSON.stringify(persistableState);
+    const quotaThreshold = Math.floor((fullRaw.length + persistableRaw.length) / 2);
+    const writes = new Map();
+    const storage = {
+      get length() {
+        return writes.size;
+      },
+      key(index) {
+        return [...writes.keys()][index] || null;
+      },
+      getItem(key) {
+        return writes.has(key) ? writes.get(key) : null;
+      },
+      setItem(key, value) {
+        const normalizedKey = String(key);
+        const normalizedValue = String(value);
+        if (normalizedKey === 'jericho-identity' && normalizedValue.length > quotaThreshold) {
+          const error = new Error('Quota exceeded');
+          error.name = 'QuotaExceededError';
+          throw error;
+        }
+        writes.set(normalizedKey, normalizedValue);
+      },
+      removeItem(key) {
+        writes.delete(String(key));
+      },
+      clear() {
+        writes.clear();
+      },
+    };
+
+    expect(persistableRaw.length).toBeLessThan(fullRaw.length);
+
+    const summary = restoreOperationEndgameFixture({ reload: false, storage });
+    const writtenRaw = storage.getItem('jericho-identity');
+    const written = JSON.parse(writtenRaw);
+    const rehydrated = rehydratePersistedState(written);
+
+    expect(summary.activeProfileId).toBe(DEFAULT_PROFILE_ID);
+    expect(summary.activeGoalId).toBeTruthy();
+    expect(summary.activeMasterPlanId).toBeTruthy();
+    expect(summary.activeCycleId).toBeNull();
+    expect(writtenRaw.length).toBeLessThanOrEqual(quotaThreshold);
+    expect((written.fullHorizonScheduleBlocks || []).length).toBe(0);
+    expect(Object.keys(written.cyclesById || {})).toHaveLength(0);
+    expect(rehydrated.activeGoalId).toBeTruthy();
+    expect(rehydrated.profilesById?.[DEFAULT_PROFILE_ID]?.activeMasterPlanId).toBeTruthy();
+    expect(rehydrated.activeCycleId).toBeNull();
+    expect((rehydrated.fullHorizonScheduleBlocks || []).length).toBeGreaterThan(0);
+    expect(rehydrated.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
+    expect(['trusted', 'provisional']).toContain(rehydrated.fullHorizonPlanQuality?.state);
   });
 
   it('is unavailable when explicitly installed in production mode', () => {

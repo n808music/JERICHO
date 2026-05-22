@@ -196,6 +196,11 @@ export default function ProfileHistoryMenu({
   const [displayNameDraft, setDisplayNameDraft] = useState('');
   const [roleLabelDraft, setRoleLabelDraft] = useState('');
 
+  const closeMenu = () => {
+    setIsOpen(false);
+    setIsEditingProfile(false);
+  };
+
   const profileDisplayName = getProfileDisplayName(profile);
   const roleLabel = String(profile?.roleLabel || '').trim();
   const needsProfileSetup = !profile?.displayName || profileDisplayName === DEFAULT_PROFILE_DISPLAY_NAME;
@@ -217,12 +222,12 @@ export default function ProfileHistoryMenu({
     }
     const handlePointerDown = (event) => {
       if (containerRef.current && !containerRef.current.contains(event.target)) {
-        setIsOpen(false);
+        closeMenu();
       }
     };
     const handleEscape = (event) => {
       if (event.key === 'Escape') {
-        setIsOpen(false);
+        closeMenu();
       }
     };
     document.addEventListener('mousedown', handlePointerDown);
@@ -327,7 +332,17 @@ export default function ProfileHistoryMenu({
     <div ref={containerRef} className="relative" data-testid="profile-history-menu">
       <button
         type="button"
-        onClick={() => setIsOpen((current) => !current)}
+        onClick={() => {
+          setIsOpen((current) => {
+            const next = !current;
+            if (next) {
+              setIsEditingProfile(needsProfileSetup);
+            } else {
+              setIsEditingProfile(false);
+            }
+            return next;
+          });
+        }}
         className="min-w-[280px] rounded-xl border border-line/60 bg-white px-4 py-3 text-left shadow-sm hover:border-jericho-accent/50"
         aria-expanded={isOpen}
         aria-controls="profile-history-panel"
@@ -369,7 +384,11 @@ export default function ProfileHistoryMenu({
                 <button
                   type="button"
                   className="rounded-full border border-line/60 px-3 py-1 text-[11px] text-muted hover:border-jericho-accent hover:text-jericho-accent"
-                  onClick={() => setIsEditingProfile((current) => !current)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setIsOpen(true);
+                    setIsEditingProfile((current) => !current);
+                  }}
                 >
                   {needsProfileSetup ? 'Create Profile' : isEditingProfile ? 'Close Editor' : 'Edit Profile'}
                 </button>

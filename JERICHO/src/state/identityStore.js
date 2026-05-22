@@ -38,6 +38,14 @@ const STATE_VERSION = '1.0.0';
 export const DEFAULT_PROFILE_ID = 'profile-local-default';
 export const DEFAULT_PROFILE_DISPLAY_NAME = 'Local Profile';
 const DEFAULT_PROFILE_LABEL = DEFAULT_PROFILE_DISPLAY_NAME;
+const DERIVED_PERSISTENCE_KEYS = [
+  'calendarDisplayBlocks',
+  'fullHorizonScheduleBlocks',
+  'fullHorizonCoverageAudit',
+  'fullHorizonPlanQuality',
+  'fullHorizonRenderTruthAudit',
+  'fullHorizonCoverageFailureCodes',
+];
 
 const IdentityContext = createContext(null);
 
@@ -416,6 +424,66 @@ export function rehydratePersistedState(persisted) {
     type: 'SET_VIEW_DATE',
     date: withTemplates.viewDate || withTemplates.today?.date || withTemplates.cycle?.[0]?.date,
   });
+}
+
+function isLiveCycleStatus(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return !['archived', 'ended', 'deleted'].includes(normalized);
+}
+
+export function buildPersistableIdentityState(state) {
+  const snapshot = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
+
+  DERIVED_PERSISTENCE_KEYS.forEach((key) => {
+    delete snapshot[key];
+  });
+
+  if (!snapshot.activeCycleId) {
+    snapshot.executionEvents = [];
+    snapshot.externalEvidenceEvents = [];
+    snapshot.proposedBlocks = [];
+    snapshot.scheduleReviewBlocks = [];
+    snapshot.proposedBlocksByCycleId = {};
+    snapshot.scheduleApplied = false;
+    snapshot.pendingPlanConfirmation = false;
+  }
+
+  const retainedCyclesById = Object.fromEntries(
+    Object.entries(snapshot?.cyclesById || {}).filter(([, cycle]) => {
+      if (!cycle?.id) {
+        return false;
+      }
+      if (snapshot.activeCycleId && cycle.id === snapshot.activeCycleId) {
+        return true;
+      }
+      return isLiveCycleStatus(cycle?.status || cycle?.state);
+    })
+  );
+
+  snapshot.cyclesById = retainedCyclesById;
+  snapshot.cycleOrder = (Array.isArray(snapshot.cycleOrder) ? snapshot.cycleOrder : []).filter(
+    (cycleId) => Boolean(retainedCyclesById[cycleId])
+  );
+  if (!snapshot.activeCycleId || !retainedCyclesById[snapshot.activeCycleId]) {
+    snapshot.activeCycleId = null;
+  }
+
+  Object.values(snapshot?.goalsById || {}).forEach((goal) => {
+    if (!goal) {
+      return;
+    }
+    if (!goal.activeCycleId || retainedCyclesById[goal.activeCycleId]) {
+      return;
+    }
+    goal.activeCycleId = null;
+  });
+
+  return snapshot;
 }
 
 function buildInitialIdentityState() {
@@ -1567,7 +1635,8 @@ function persistState(state) {
     return;
   }
   try {
-    localStorage.setItem('jericho-identity', JSON.stringify(state));
+    const persistableState = buildPersistableIdentityState(state);
+    localStorage.setItem('jericho-identity', JSON.stringify(persistableState));
   } catch {
     // ignore
   }

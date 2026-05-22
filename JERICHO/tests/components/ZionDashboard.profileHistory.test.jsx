@@ -233,7 +233,21 @@ describe('ZionDashboard profile history shell', () => {
     fireEvent.click(screen.getByRole('button', { name: /Create profile/i }));
 
     expect(screen.getByLabelText(/Display name/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Profile label \/ role/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Save Profile/i })).toBeInTheDocument();
+  });
+
+  it('keeps the drawer open when toggling the profile editor', () => {
+    render(<ZionDashboard initialView="structure" />);
+
+    fireEvent.click(screen.getByRole('button', { name: /James Dotson/i }));
+    expect(screen.getByTestId('profile-history-drawer')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Edit Profile/i }));
+
+    expect(screen.getByTestId('profile-history-drawer')).toBeInTheDocument();
+    expect(screen.getByLabelText(/Display name/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Profile label \/ role/i)).toBeInTheDocument();
   });
 
   it('does not invent active goal or cycle state from history when pointers are missing', () => {
