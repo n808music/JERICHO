@@ -25,6 +25,10 @@ import { auditFullHorizonCoverage } from '../domain/masterPlan/fullHorizonCovera
 import { evaluateFullHorizonPlanQuality } from '../domain/masterPlan/fullHorizonPlanQuality.js';
 import { evaluateFullHorizonBlockQuality } from '../domain/masterPlan/fullHorizonBlockQuality.js';
 import {
+  buildFullHorizonAgendaVersion,
+  buildFullHorizonConstraintVersion,
+} from '../domain/masterPlan/fullHorizonScheduledAgenda.js';
+import {
   auditFullHorizonRenderTruth,
   applyRenderTruthToCoverageAudit,
 } from '../domain/masterPlan/fullHorizonRenderTruthAudit.js';
@@ -1020,6 +1024,9 @@ function ensureProfileOwnership(state) {
       activeGoalId: existing.activeGoalId || null,
       createdAtISO: existing.createdAtISO || state?.meta?.createdAtISO || state?.appTime?.nowISO || new Date().toISOString(),
       status: existing.status || 'active',
+      // Agenda metadata ownership
+      agendaVersionIds: Array.isArray(existing.agendaVersionIds) ? [...new Set(existing.agendaVersionIds.filter(Boolean).map(String))] : [],
+      agendaConstraintVersionIds: Array.isArray(existing.agendaConstraintVersionIds) ? [...new Set(existing.agendaConstraintVersionIds.filter(Boolean).map(String))] : [],
     };
     return state.profilesById[normalizedProfileId];
   };
@@ -3933,6 +3940,90 @@ function buildMasterPlanWorkWindows(masterCalendar = null) {
   };
 }
 
+function attachFullHorizonAgendaMetadata(state, plan, descriptors, qualitySnapshot = {}) {
+  if (!state || !plan?.id || !plan?.profileId) {
+    return;
+  }
+  const blocks = Array.isArray(state.fullHorizonScheduleBlocks) ? state.fullHorizonScheduleBlocks : [];
+  if (blocks.length === 0) {
+    return;
+  }
+
+  const profileId = String(plan.profileId || '').trim();
+  const profile = profileId ? state?.profilesById?.[profileId] || null : null;
+  if (!profile) {
+    return;
+  }
+
+  const createdAtISO = state?.appTime?.nowISO || new Date().toISOString();
+  const workWindows =
+    descriptors?.masterCalendar?.workWindows ||
+    descriptors?.masterCalendar?.savedWorkWindows ||
+    buildMasterPlanWorkWindows(descriptors?.masterCalendar);
+  const weeklyCapacityMinutes = Math.max(
+    0,
+    Math.round(Number(descriptors?.weeklyCapacityHours || 0) * 60)
+  );
+  const constraintsStatus =
+    descriptors?.masterCalendar?.constraintsStatus ||
+    descriptors?.masterCalendar?.availabilityStatus ||
+    (descriptors?.masterCalendar ? 'master_calendar_inferred' : 'no_saved_constraints');
+  const constraintSource = descriptors?.masterCalendarId ? 'master_calendar' : 'manual';
+  const constraintVersion = buildFullHorizonConstraintVersion({
+    profileId,
+    masterPlanId: plan.id,
+    createdAtISO,
+    officialStartDayKey: descriptors?.startDayKey || plan?.officialStartDate || plan?.horizonStart || null,
+    weeklyCapacityMinutes,
+    workWindows,
+    source: constraintSource,
+    masterCalendarId: descriptors?.masterCalendarId || null,
+    constraintsStatus,
+  });
+
+  state.scheduleConstraintVersionsById = state.scheduleConstraintVersionsById || {};
+  state.scheduleConstraintVersionsById[constraintVersion.id] = {
+    ...(state.scheduleConstraintVersionsById[constraintVersion.id] || {}),
+    ...constraintVersion,
+  };
+
+  const { agendaVersion, agendaVersionsById } = buildFullHorizonAgendaVersion({
+    profileId,
+    masterPlanId: plan.id,
+    createdAtISO,
+    range: {
+      startDayKey: descriptors?.startDayKey || plan?.horizonStart || null,
+      endDayKey: descriptors?.fullHorizonEndDayKey || plan?.fullHorizonEndDayKey || plan?.horizonEnd || null,
+    },
+    blocks,
+    sourceConstraintVersionId: constraintVersion.id,
+    strategicCoverageState: qualitySnapshot?.strategicCoverageState || null,
+    planQualityState: qualitySnapshot?.planQualityState || null,
+    blockQualityState: qualitySnapshot?.blockQualityState || null,
+    existingAgendaVersionsById: state.masterPlanAgendaVersionsById || {},
+    existingCurrentAgendaVersionId: plan?.currentAgendaVersionId || null,
+  });
+
+  state.masterPlanAgendaVersionsById = agendaVersionsById;
+  plan.currentAgendaVersionId = agendaVersion.id;
+  plan.agendaVersionIds = Array.from(new Set([...(Array.isArray(plan.agendaVersionIds) ? plan.agendaVersionIds : []), agendaVersion.id]));
+  plan.currentScheduleConstraintVersionId = constraintVersion.id;
+  plan.scheduleConstraintVersionIds = Array.from(
+    new Set([...(Array.isArray(plan.scheduleConstraintVersionIds) ? plan.scheduleConstraintVersionIds : []), constraintVersion.id])
+  );
+  plan.fullHorizonAgendaState = agendaVersion.state;
+
+  profile.agendaVersionIds = Array.from(
+    new Set([...(Array.isArray(profile.agendaVersionIds) ? profile.agendaVersionIds : []), agendaVersion.id])
+  );
+  profile.scheduleConstraintVersionIds = Array.from(
+    new Set([
+      ...(Array.isArray(profile.scheduleConstraintVersionIds) ? profile.scheduleConstraintVersionIds : []),
+      constraintVersion.id,
+    ])
+  );
+}
+
 function inferMasterPlanOutcomeAuthority(lanes = []) {
   const domains = new Set(
     lanes
@@ -5962,6 +6053,7 @@ function applyLongHorizonCalendarBlocks(state) {
   const activeProfile = state?.profilesById?.[activeProfileId] || null;
   const activeMasterPlanId = String(activeProfile?.activeMasterPlanId || '').trim();
   const plan = activeMasterPlanId ? state?.masterPlansById?.[activeMasterPlanId] || null : null;
+  const operationalDescriptors = plan ? buildMasterPlanOperationalDescriptors(state, plan) : null;
 
   // Expose strategic horizon end for Plan/Today agreement
   state.strategicHorizonEndDayKey = plan?.fullHorizonEndDayKey || plan?.horizonEnd || null;
@@ -6213,6 +6305,11 @@ function applyLongHorizonCalendarBlocks(state) {
       ...((coverageAudit?.reasonCodes || []).filter(Boolean)),
     ]),
   ];
+  attachFullHorizonAgendaMetadata(state, plan, operationalDescriptors, {
+    strategicCoverageState: coverageAudit?.fullHorizonCovered ? 'covered' : coverageAudit?.horizonExpanded ? 'expanded' : 'unresolved',
+    planQualityState: planQuality?.state || null,
+    blockQualityState: blockQuality?.state || null,
+  });
 }
 
 function applyExecutionCorrection(state) {

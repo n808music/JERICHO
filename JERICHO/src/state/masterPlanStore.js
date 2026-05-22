@@ -716,8 +716,81 @@ export function applyMasterPlanAction(draft, action) {
     case 'DELETE_MASTER_PLAN':
       applyDeleteMasterPlan(draft, action);
       return true;
+    case 'CREATE_SCHEDULE_CONSTRAINT_VERSION':
+      applyCreateScheduleConstraintVersion(draft, action);
+      return true;
+    case 'CREATE_AGENDA_VERSION':
+      applyCreateAgendaVersion(draft, action);
+      return true;
     default:
       return false;
+  }
+}
+
+function applyCreateScheduleConstraintVersion(draft, action) {
+  const payload = action.payload || {};
+  const profileId = String(action.profileId || payload.profileId || '').trim();
+  if (!profileId) return;
+  const profile = draft.profilesById?.[profileId];
+  if (!profile) return;
+  const id = `schedule-constraint-${Math.random().toString(36).slice(2,9)}`;
+  const constraint = {
+    id,
+    profileId,
+    masterPlanId: action.masterPlanId || payload.masterPlanId || profile.activeMasterPlanId || null,
+    constraintHash: payload.constraintHash || null,
+    source: payload.source || null,
+    officialStartDayKey: payload.officialStartDayKey || null,
+    weeklyCapacityMinutes: payload.weeklyCapacityMinutes || null,
+    createdAtISO: action.nowISO || new Date().toISOString(),
+  };
+  draft.scheduleConstraintVersionsById = draft.scheduleConstraintVersionsById || {};
+  draft.scheduleConstraintVersionsById[id] = constraint;
+  profile.agendaConstraintVersionIds = Array.from(
+    new Set([...(Array.isArray(profile.agendaConstraintVersionIds) ? profile.agendaConstraintVersionIds : []), id])
+  );
+  const mpId = constraint.masterPlanId;
+  if (mpId && draft.masterPlansById?.[mpId]) {
+    const plan = draft.masterPlansById[mpId];
+    plan.scheduleConstraintVersionIds = Array.from(
+      new Set([...(Array.isArray(plan.scheduleConstraintVersionIds) ? plan.scheduleConstraintVersionIds : []), id])
+    );
+    plan.currentScheduleConstraintVersionId = id;
+  }
+}
+
+function applyCreateAgendaVersion(draft, action) {
+  const payload = action.payload || {};
+  const profileId = String(action.profileId || payload.profileId || '').trim();
+  const masterPlanId = action.masterPlanId || payload.masterPlanId || null;
+  if (!profileId || !masterPlanId) return;
+  const profile = draft.profilesById?.[profileId];
+  const plan = draft.masterPlansById?.[masterPlanId];
+  if (!profile || !plan) return;
+  const id = `agenda-${Math.random().toString(36).slice(2,9)}`;
+  const agenda = {
+    id,
+    profileId,
+    masterPlanId,
+    state: payload.state || 'draft',
+    range: payload.range || null,
+    blockCount: Number.isFinite(payload.blockCount) ? payload.blockCount : (Array.isArray(payload.blockIds) ? payload.blockIds.length : 0),
+    blockIds: Array.isArray(payload.blockIds) ? payload.blockIds : [],
+    summary: payload.summary || {},
+    quality: payload.quality || {},
+    sourceConstraintVersionId: payload.sourceConstraintVersionId || null,
+    createdAtISO: action.nowISO || new Date().toISOString(),
+  };
+  draft.masterPlanAgendaVersionsById = draft.masterPlanAgendaVersionsById || {};
+  draft.masterPlanAgendaVersionsById[id] = agenda;
+  profile.agendaVersionIds = Array.from(
+    new Set([...(Array.isArray(profile.agendaVersionIds) ? profile.agendaVersionIds : []), id])
+  );
+  plan.agendaVersionIds = Array.from(
+    new Set([...(Array.isArray(plan.agendaVersionIds) ? plan.agendaVersionIds : []), id])
+  );
+  if (agenda.state === 'current') {
+    plan.activeAgendaVersionId = agenda.id;
   }
 }
 
@@ -836,9 +909,23 @@ export function useMasterPlanActions(dispatch) {
     [dispatch]
   );
 
+  const createScheduleConstraintVersion = useCallback(
+    (payload, profileId, masterPlanId) =>
+      dispatch({ type: 'CREATE_SCHEDULE_CONSTRAINT_VERSION', payload, profileId, masterPlanId, nowISO: new Date().toISOString() }),
+    [dispatch]
+  );
+
+  const createAgendaVersion = useCallback(
+    (masterPlanId, payload, profileId) =>
+      dispatch({ type: 'CREATE_AGENDA_VERSION', masterPlanId, payload, profileId, nowISO: new Date().toISOString() }),
+    [dispatch]
+  );
+
   return {
     createMasterPlan,
     updateMasterPlan,
+    createScheduleConstraintVersion,
+    createAgendaVersion,
     setActiveMasterPlan,
     addMasterPlanAnchor,
     updateMasterPlanAnchor,
