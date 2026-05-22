@@ -302,6 +302,8 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByTestId('phase-card-p1')).toBeInTheDocument();
     expect(screen.getByTestId('phase-card-p2')).toBeInTheDocument();
     expect(screen.getByTestId('phase-card-p3')).toBeInTheDocument();
+    expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Named milestones:/i);
+    expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Major anchors:/i);
     expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Forecast workload recognized:/i);
     expect(screen.getByTestId('phase-card-p3')).toHaveTextContent(/Forecast workload recognized:/i);
     expect(screen.getByText(/^Roadmap coverage$/i)).toBeInTheDocument();
@@ -512,6 +514,8 @@ describe('MasterPlanTimeline rendering', () => {
     });
 
     expect(mockStore.scheduleLifecycleState).toBe('goal_admitted');
+    expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Named milestones:/i);
+    expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Major anchors:/i);
     expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Forecast workload recognized:/i);
     expect(screen.getByTestId('phase-card-p3')).toHaveTextContent(/Forecast workload recognized:/i);
     expect(screen.getByTestId('phase-card-p2')).not.toHaveTextContent(/Scheduled work:/i);
@@ -536,5 +540,9 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getAllByText(/P1 · Foundation \/ Launch Proof/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/P2 · Conversion \/ Operating System/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/P3 · Scale \/ Terminal Readiness/i).length).toBeGreaterThan(0);
+    expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Named milestones:\s*0/i);
+    expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Major anchors:\s*1/i);
+    expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/P2 operating-system review gate/i);
+    expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Forecast workload recognized:/i);
   });
 });

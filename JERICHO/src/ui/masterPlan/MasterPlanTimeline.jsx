@@ -1149,6 +1149,7 @@ function StrategicCoveragePanel({
             const isSparseCoverage = phase.visibilityStatus === 'visible_but_sparse';
             const visibleMilestoneCount = phase.visibleMilestones?.length || 0;
             const totalMilestoneCount = phase.milestones?.length || 0;
+            const anchorCount = phase.anchorsInPhase?.length || 0;
             const scheduledWorkCount = Number(fullHorizonBlockCountsByPhase[String(phase.label || '').trim()] || 0);
             const scheduledWorkLabel = isForecastOnlyLifecycle ? 'Forecast workload recognized:' : 'Scheduled work:';
             
@@ -1181,7 +1182,13 @@ function StrategicCoveragePanel({
               <p className="text-[11px] text-muted">{phase.phaseObjective}</p>
               <div className="space-y-1 text-[11px] text-muted">
                 <p>
-                  <span className="font-semibold text-jericho-text">Milestones:</span> {visibleMilestoneCount}{totalMilestoneCount > visibleMilestoneCount ? ` / ${totalMilestoneCount} (${totalMilestoneCount - visibleMilestoneCount} future)` : ''}
+                  <span className="font-semibold text-jericho-text">Named milestones:</span> {visibleMilestoneCount}
+                  {totalMilestoneCount > visibleMilestoneCount
+                    ? ` / ${totalMilestoneCount} (${totalMilestoneCount - visibleMilestoneCount} future)`
+                    : ''}
+                </p>
+                <p>
+                  <span className="font-semibold text-jericho-text">Major anchors:</span> {anchorCount}
                 </p>
                 <p>
                   <span className="font-semibold text-jericho-text">{scheduledWorkLabel}</span> {scheduledWorkCount}
@@ -1211,6 +1218,10 @@ function StrategicCoveragePanel({
                   <p>
                     <span className="font-semibold text-jericho-text">Major anchors:</span>{' '}
                     {phase.anchorsInPhase.map((anchor) => `${anchor.label} (${titleCaseWords(anchor.role)})`).join(' · ')}
+                  </p>
+                ) : totalMilestoneCount === 0 ? (
+                  <p>
+                    <span className="font-semibold text-jericho-text">Major anchors:</span> None named for this phase yet.
                   </p>
                 ) : null}
               </div>
