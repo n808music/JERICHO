@@ -256,6 +256,10 @@ describe('long-horizon calendar — horizon mode transitions', () => {
   it('fresh master-plan cycle does not surface forecast blocks in Today even when full_horizon is reselected', () => {
     const fresh = buildFreshMasterPlanCycleState();
     const expanded = setHorizonMode(fresh, 'full_horizon');
+    const plan = expanded.masterPlansById?.[expanded.profilesById?.[DEFAULT_PROFILE_ID]?.activeMasterPlanId];
+    const agenda = plan?.currentAgendaVersionId
+      ? expanded.masterPlanAgendaVersionsById?.[plan.currentAgendaVersionId] || null
+      : null;
 
     expect(expanded.scheduleLifecycle).toBe('no_schedule');
     expect(expanded.scheduleLifecycleState).toBe('inter_cycle');
@@ -265,6 +269,8 @@ describe('long-horizon calendar — horizon mode transitions', () => {
     expect((expanded.fullHorizonScheduleBlocks || []).every((block) => block.cycleId === null)).toBe(true);
     expect((expanded.fullHorizonScheduleBlocks || []).every((block) => block.scheduleCommitment === 'none')).toBe(true);
     expect((expanded.fullHorizonScheduleBlocks || []).every((block) => block.calendarEligible === false)).toBe(true);
+    expect(agenda?.state).toBe('current');
+    expect(agenda?.blockCount).toBe((expanded.fullHorizonScheduleBlocks || []).length);
   });
 
   it('deleting an active master-plan cycle resets horizon mode and clears Today calendar blocks', () => {

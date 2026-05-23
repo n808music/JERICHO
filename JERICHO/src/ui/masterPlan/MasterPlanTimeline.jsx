@@ -562,6 +562,20 @@ function MasterPlanTimelineView({ plan, store }) {
       }, {}),
     [canonicalFullHorizonBlocks]
   );
+  const currentAgendaVersion = useMemo(() => {
+    const agendaId = String(plan?.currentAgendaVersionId || '').trim();
+    if (!agendaId) {
+      return null;
+    }
+    return store?.masterPlanAgendaVersionsById?.[agendaId] || null;
+  }, [plan?.currentAgendaVersionId, store]);
+  const currentConstraintVersion = useMemo(() => {
+    const constraintId = String(plan?.currentScheduleConstraintVersionId || '').trim();
+    if (!constraintId) {
+      return null;
+    }
+    return store?.scheduleConstraintVersionsById?.[constraintId] || null;
+  }, [plan?.currentScheduleConstraintVersionId, store]);
   const strategicCoverage = useMemo(
     () => {
       const resolvedHorizon = resolveStrategicAgendaHorizon(plan, activeMissionContract).resolvedStrategicHorizonEndDayKey;
@@ -876,6 +890,8 @@ function MasterPlanTimelineView({ plan, store }) {
         strategicCoverageAudit={strategicCoverageAudit}
         strategicPlanQuality={store?.fullHorizonPlanQuality || null}
         strategicBlockQuality={store?.fullHorizonBlockQuality || null}
+        scheduledAgendaVersion={currentAgendaVersion}
+        scheduledAgendaConstraintVersion={currentConstraintVersion}
         strategicPhases={displayedPhaseModel.phases}
         phaseModel={displayedPhaseModel}
         fullHorizonBlockCountsByPhase={fullHorizonBlockCountsByPhase}
@@ -922,6 +938,8 @@ function StrategicCoveragePanel({
   strategicCoverageAudit,
   strategicPlanQuality,
   strategicBlockQuality,
+  scheduledAgendaVersion,
+  scheduledAgendaConstraintVersion,
   strategicPhases,
   phaseModel,
   fullHorizonBlockCountsByPhase = {},
@@ -1051,6 +1069,63 @@ function StrategicCoveragePanel({
           }`}
         >
           {blockQualityStatusLabel}
+        </span>
+      </div>
+
+      <div className="flex items-start justify-between gap-3 rounded-lg border border-line/50 bg-jericho-surface/60 px-3 py-2">
+        <div>
+          <p className="text-[11px] font-medium text-body">Scheduled agenda</p>
+          <p className="text-[11px] text-muted">
+            Full-horizon scheduled agenda — planned, not live execution.
+          </p>
+          {scheduledAgendaVersion ? (
+            <>
+              <p className="text-[11px] text-muted">
+                {scheduledAgendaVersion.state === 'current'
+                  ? 'Current agenda snapshot is aligned to the latest saved constraints context.'
+                  : scheduledAgendaVersion.state === 'stale'
+                    ? 'Agenda snapshot is stale and should be reflowed against newer constraints.'
+                    : scheduledAgendaVersion.state === 'draft'
+                      ? 'Agenda snapshot is draft and not yet adopted as the current planning baseline.'
+                      : 'Agenda snapshot is retained for lineage but no longer current.'}
+              </p>
+              <p className="text-[11px] text-muted">
+                {formatRangeLabel(
+                  scheduledAgendaVersion?.range?.startDayKey,
+                  scheduledAgendaVersion?.range?.endDayKey
+                )} · {scheduledAgendaVersion.blockCount} planned blocks
+              </p>
+              <p className="text-[11px] text-muted">
+                Constraints: {scheduledAgendaConstraintVersion?.source || 'manual'} ·{' '}
+                {scheduledAgendaConstraintVersion?.constraintHash || 'unversioned'}
+              </p>
+              <p className="text-[11px] text-muted">
+                P1 {scheduledAgendaVersion.summary?.byPhase?.P1 || 0} · P2 {scheduledAgendaVersion.summary?.byPhase?.P2 || 0} ·
+                P3 {scheduledAgendaVersion.summary?.byPhase?.P3 || 0}
+              </p>
+              <p className="text-[11px] text-muted">
+                {Object.keys(scheduledAgendaVersion.summary?.byLane || {}).length} lanes represented ·{' '}
+                {scheduledAgendaVersion.summary?.unscheduledCount || 0} unscheduled ·{' '}
+                {scheduledAgendaVersion.summary?.overloadCount || 0} overload warnings
+              </p>
+            </>
+          ) : (
+            <p className="text-[11px] text-muted">
+              Long-horizon agenda metadata has not been generated yet.
+            </p>
+          )}
+        </div>
+        <span
+          data-testid="masterplan-agenda-status"
+          className={`rounded-full border px-2 py-0.5 text-[11px] ${
+            scheduledAgendaVersion?.state === 'current'
+              ? 'border-green-500/40 text-green-600'
+              : scheduledAgendaVersion?.state === 'stale'
+                ? 'border-amber-400/40 text-amber-600'
+                : 'border-line/50 text-muted'
+          }`}
+        >
+          {scheduledAgendaVersion?.state ? titleCaseWords(scheduledAgendaVersion.state) : 'Unavailable'}
         </span>
       </div>
 

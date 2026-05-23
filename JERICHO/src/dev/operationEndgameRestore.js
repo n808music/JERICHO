@@ -535,6 +535,10 @@ export function buildOperationEndgameFixtureState({
 export function summarizeOperationEndgameFixtureState(state) {
   const { profile, planId, plan } = getFixturePlan(state);
   const activeCycle = state?.activeCycleId ? state?.cyclesById?.[state.activeCycleId] || null : null;
+  const agendaVersionId = String(plan?.currentAgendaVersionId || '').trim() || null;
+  const agendaVersion = agendaVersionId ? state?.masterPlanAgendaVersionsById?.[agendaVersionId] || null : null;
+  const constraintVersionId = String(plan?.currentScheduleConstraintVersionId || '').trim() || null;
+  const constraintVersion = constraintVersionId ? state?.scheduleConstraintVersionsById?.[constraintVersionId] || null : null;
 
   return {
     activeProfileId: state?.activeProfileId || null,
@@ -551,6 +555,11 @@ export function summarizeOperationEndgameFixtureState(state) {
     coverageState: state?.fullHorizonCoverageAudit?.fullHorizonCovered ? 'covered' : getCoverageState(state),
     planQualityState: state?.fullHorizonPlanQuality?.state || null,
     blockQualityState: state?.fullHorizonBlockQuality?.state || null,
+    agendaVersionId,
+    agendaState: agendaVersion?.state || null,
+    agendaBlockCount: agendaVersion?.blockCount || 0,
+    constraintVersionId,
+    constraintHash: constraintVersion?.constraintHash || null,
   };
 }
 

@@ -56,6 +56,10 @@ describe('Operation Endgame dev restore fixture', () => {
     const profile = state.profilesById[DEFAULT_PROFILE_ID];
     const plan = state.masterPlansById[summary.activeMasterPlanId];
     const goal = state.goalsById[summary.activeGoalId];
+    const agenda = summary.agendaVersionId ? state.masterPlanAgendaVersionsById?.[summary.agendaVersionId] || null : null;
+    const constraintVersion = summary.constraintVersionId
+      ? state.scheduleConstraintVersionsById?.[summary.constraintVersionId] || null
+      : null;
     const p2Milestones = Object.values(state.masterPlanMilestonesById || {}).filter((milestone) => {
       const targetDate = String(milestone?.targetDate || '').trim();
       return targetDate >= '2027-01-01' && targetDate <= '2028-06-14';
@@ -71,19 +75,35 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(summary.fullHorizonBlockCount).toBeGreaterThan(0);
     expect(summary.coverageState).toMatch(/covered|trusted/);
     expect(summary.planQualityState).toBe('provisional');
+    expect(summary.agendaState).toBe('current');
+    expect(summary.agendaBlockCount).toBe(summary.fullHorizonBlockCount);
+    expect(summary.constraintHash).toBeTruthy();
     expect(profile.activeGoalId).toBe(summary.activeGoalId);
     expect(profile.activeMasterPlanId).toBe(summary.activeMasterPlanId);
     expect(profile.masterPlanIds).toContain(summary.activeMasterPlanId);
     expect(profile.goalIds).toContain(summary.activeGoalId);
+    expect(profile.agendaVersionIds || []).toContain(summary.agendaVersionId);
+    expect(profile.scheduleConstraintVersionIds || []).toContain(summary.constraintVersionId);
     expect(goal.profileId).toBe(DEFAULT_PROFILE_ID);
     expect(goal.activeCycleId || null).toBeNull();
     expect(plan.coreMission).toMatch(/Operation Endgame/i);
     expect(plan.declaredHorizonMonths).toBe(60);
     expect(plan.horizonEnd).toBe('2031-05-19');
+    expect(plan.currentAgendaVersionId).toBe(summary.agendaVersionId);
+    expect(plan.currentScheduleConstraintVersionId).toBe(summary.constraintVersionId);
     expect(state.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
     expect(state.fullHorizonPlanQuality?.state).toBe('provisional');
     expect(state.fullHorizonBlockQuality?.state).toBeTruthy();
     expect(state.fullHorizonBlockQuality?.summary?.totalBlocks).toBeGreaterThan(0);
+    expect(agenda?.profileId).toBe(DEFAULT_PROFILE_ID);
+    expect(agenda?.masterPlanId).toBe(summary.activeMasterPlanId);
+    expect(agenda?.range?.endDayKey).toBe('2031-05-19');
+    expect(agenda?.summary?.byPhase?.P1 || 0).toBeGreaterThan(0);
+    expect(agenda?.summary?.byPhase?.P2 || 0).toBeGreaterThan(0);
+    expect(agenda?.summary?.byPhase?.P3 || 0).toBeGreaterThan(0);
+    expect(agenda?.quality?.strategicCoverageState).toBe('covered');
+    expect(constraintVersion?.constraintHash).toBe(summary.constraintHash);
+    expect(constraintVersion?.weeklyCapacityMinutes || 0).toBeGreaterThan(0);
     expect(state.fullHorizonPlanQuality?.reasonCodes || []).not.toContain('PHASE_NAMED_MILESTONES_MISSING');
     expect(state.fullHorizonPlanQuality?.reasonCodes || []).not.toContain('PHASE_NAMED_MILESTONES_MISSING_P2');
     expect(state.fullHorizonPlanQuality?.reasonCodes || []).toContain('PHASE_MILESTONE_DENSITY_THIN');
@@ -161,6 +181,12 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(rehydrated.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
     expect(rehydrated.fullHorizonPlanQuality?.state).toBe('provisional');
     expect(rehydrated.fullHorizonBlockQuality?.state).toBeTruthy();
+    const rehydratedPlan = rehydrated.masterPlansById?.[written.profilesById?.[DEFAULT_PROFILE_ID]?.activeMasterPlanId];
+    const rehydratedAgenda =
+      rehydratedPlan?.currentAgendaVersionId &&
+      rehydrated.masterPlanAgendaVersionsById?.[rehydratedPlan.currentAgendaVersionId];
+    expect(rehydratedAgenda?.state).toBe('current');
+    expect(rehydratedAgenda?.blockCount).toBe((rehydrated.fullHorizonScheduleBlocks || []).length);
   });
 
   it('still writes the active identity when full backup storage hits QuotaExceededError', () => {
@@ -214,6 +240,7 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(rehydrated.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
     expect(rehydrated.fullHorizonPlanQuality?.state).toBe('provisional');
     expect(rehydrated.fullHorizonBlockQuality?.state).toBeTruthy();
+    expect(Object.keys(rehydrated.masterPlanAgendaVersionsById || {})).toHaveLength(1);
     expect(compactBackup.type).toBe('compact-backup-metadata');
     expect(compactBackup.activeProfileId).toBeNull();
   });
