@@ -42,6 +42,14 @@ function cloneBlocks(blocks) {
   return JSON.parse(JSON.stringify(blocks || []));
 }
 
+function findFirstDay(blocks, matcher) {
+  return [...(blocks || [])]
+    .filter(matcher)
+    .map((block) => String(block.dayKey || ''))
+    .filter(Boolean)
+    .sort()[0];
+}
+
 function summarizeP3FamilyRatios(blocks = []) {
   const byLane = blocks.reduce((acc, block) => {
     if (block?.phaseLabel !== 'P3' || !block?.laneId) {
@@ -86,6 +94,124 @@ describe('master-plan full-horizon block quality audit', () => {
 
     expect(state.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
     expect(['trusted', 'provisional', 'degraded']).toContain(state.fullHorizonBlockQuality?.state);
+  });
+
+  it('does not flag early capital readiness or dependency-audit work as capital expansion', () => {
+    const quality = evaluateForState(buildGeneratedState());
+
+    expect(quality.reasonCodes).not.toContain('CAPITAL_BEFORE_CONVERSION_EVIDENCE');
+  });
+
+  it('adds explicit sequencing metadata for early capital and distribution proof blocks', () => {
+    const state = buildGeneratedState();
+    const capitalBlock = (state.fullHorizonScheduleBlocks || []).find(
+      (block) => /capital|real estate/i.test(`${block.laneId} ${block.laneLabel}`) && /criteria|dependency gates|direct expansion/i.test(block.title)
+    );
+    const mediaBlock = (state.fullHorizonScheduleBlocks || []).find(
+      (block) => /media|content/i.test(`${block.laneId} ${block.laneLabel}`) && /content pipeline proof sequence|distribution consistency|capture-to-conversion/i.test(block.title)
+    );
+
+    expect(capitalBlock?.sequencingRole).toBeTruthy();
+    expect(capitalBlock?.dependencyGate).toBe('conversion_evidence');
+    expect(capitalBlock?.evidenceRequired).toBe('conversion_evidence');
+    expect(capitalBlock?.isReadinessOnly).toBe(true);
+    expect(mediaBlock?.sequencingRole).toBeTruthy();
+    expect(mediaBlock?.evidenceRequired).toBe('offer_clarity');
+    expect(mediaBlock?.isProofSeeking).toBe(true);
+  });
+
+  it('flags early capital deployment or expansion before conversion evidence', () => {
+    const state = buildGeneratedState();
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks);
+    const capitalBlock = blocks.find((block) => block?.laneId && /capital|real estate/i.test(`${block.laneId} ${block.laneLabel}`));
+    expect(capitalBlock).toBeTruthy();
+
+    capitalBlock.title = 'Deploy capital toward real estate expansion after capital approval';
+    capitalBlock.sequencingRole = 'capital_deployment_action';
+    capitalBlock.isReadinessOnly = false;
+    capitalBlock.isExpansionAction = true;
+    capitalBlock.isProofSeeking = false;
+    capitalBlock.isScaleAction = true;
+    capitalBlock.dayKey = '2026-05-01';
+
+    const quality = evaluateForState(state, blocks);
+    expect(quality.reasonCodes).toContain('CAPITAL_BEFORE_CONVERSION_EVIDENCE');
+  });
+
+  it('does not flag capital expansion when it occurs after conversion evidence', () => {
+    const state = buildGeneratedState();
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks);
+    const capitalBlock = blocks.find((block) => block?.laneId && /capital|real estate/i.test(`${block.laneId} ${block.laneLabel}`));
+    const firstConversionDay = findFirstDay(
+      blocks,
+      (block) => /conversion|offer bridge|capture-to-conversion|revenue architecture/i.test(`${block.title} ${block.expectedOutput || ''}`)
+    );
+    expect(capitalBlock).toBeTruthy();
+    expect(firstConversionDay).toBeTruthy();
+
+    capitalBlock.title = 'Deploy capital toward real estate expansion after conversion proof';
+    capitalBlock.sequencingRole = 'capital_deployment_action';
+    capitalBlock.isReadinessOnly = false;
+    capitalBlock.isExpansionAction = true;
+    capitalBlock.isProofSeeking = false;
+    capitalBlock.isScaleAction = true;
+    const shifted = new Date(`${firstConversionDay}T12:00:00.000Z`);
+    shifted.setUTCDate(shifted.getUTCDate() + 30);
+    capitalBlock.dayKey = shifted.toISOString().slice(0, 10);
+
+    const quality = evaluateForState(state, blocks);
+    expect(quality.reasonCodes).not.toContain('CAPITAL_BEFORE_CONVERSION_EVIDENCE');
+  });
+
+  it('does not flag early audience or channel proof as scaled distribution expansion', () => {
+    const quality = evaluateForState(buildGeneratedState());
+
+    expect(quality.reasonCodes).not.toContain('DISTRIBUTION_BEFORE_OFFER_CLARITY');
+  });
+
+  it('flags scaled distribution expansion before offer clarity', () => {
+    const state = buildGeneratedState();
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks);
+    const mediaBlock = blocks.find((block) => block?.laneId && /media|content/i.test(`${block.laneId} ${block.laneLabel}`));
+    expect(mediaBlock).toBeTruthy();
+
+    mediaBlock.title = 'Widen channel distribution for scaled audience expansion';
+    mediaBlock.sequencingRole = 'distribution_scale_action';
+    mediaBlock.isReadinessOnly = false;
+    mediaBlock.isProofSeeking = false;
+    mediaBlock.isExpansionAction = true;
+    mediaBlock.isScaleAction = true;
+    mediaBlock.dayKey = '2026-05-01';
+
+    const quality = evaluateForState(state, blocks);
+    expect(quality.reasonCodes).toContain('DISTRIBUTION_BEFORE_OFFER_CLARITY');
+  });
+
+  it('does not flag scaled distribution when it follows offer clarity', () => {
+    const state = buildGeneratedState();
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks);
+    const mediaBlock = blocks.find((block) => block?.laneId && /media|content/i.test(`${block.laneId} ${block.laneLabel}`));
+    const firstOfferDay = findFirstDay(
+      blocks,
+      (block) => /offer|conversion|feedback loop|revenue architecture|capture-to-conversion|offer bridge/i.test(
+        `${block.title} ${block.expectedOutput || ''}`
+      )
+    );
+    expect(mediaBlock).toBeTruthy();
+    expect(firstOfferDay).toBeTruthy();
+
+    mediaBlock.title = 'Widen channel distribution for scaled audience expansion';
+    mediaBlock.sequencingRole = 'distribution_scale_action';
+    mediaBlock.isReadinessOnly = false;
+    mediaBlock.isProofSeeking = false;
+    mediaBlock.isExpansionAction = true;
+    mediaBlock.isScaleAction = true;
+    const shifted = new Date(`${firstOfferDay}T12:00:00.000Z`);
+    shifted.setUTCDate(shifted.getUTCDate() + 30);
+    mediaBlock.dayKey = shifted.toISOString().slice(0, 10);
+
+    const quality = evaluateForState(state, blocks);
+    expect(quality.reasonCodes).not.toContain('DISTRIBUTION_BEFORE_OFFER_CLARITY');
   });
 
   it('keeps at least four distinct P3 title families per heavy lane without one family dominating above 40%', () => {

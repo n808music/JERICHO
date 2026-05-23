@@ -139,6 +139,7 @@ const ACTIONABLE_VERBS = [
   'map',
   'package',
   'delegate',
+  'deploy',
   'expand',
   'gate',
   'ship',
@@ -456,11 +457,41 @@ function analyzeTemporalSpacing(blocks, phaseModel, issues, reasonCodes) {
 }
 
 function analyzePrioritization(blocks, issues, reasonCodes) {
-  const firstByMatch = (predicate) =>
-    blocks.find((block) => predicate(`${block?.title || ''} ${block?.expectedOutput || ''} ${block?.laneLabel || ''}`.toLowerCase()));
+  const toText = (block) =>
+    `${block?.title || ''} ${block?.expectedOutput || ''} ${block?.laneLabel || ''} ${block?.sequencingRole || ''}`.toLowerCase();
+  const firstByMatch = (predicate) => blocks.find((block) => predicate(block, toText(block)));
 
-  const firstConversion = firstByMatch((text) => /conversion|revenue architecture|repeatable conversion|operating cadence|feedback loop/.test(text));
-  const firstCapital = firstByMatch((text) => /capital|real estate|asset-path|capital readiness/.test(text));
+  const isReadinessCapitalBlock = (block, text) =>
+    block?.isReadinessOnly === true ||
+    /(readiness|prerequisite|thesis|dependency|gate|criteria)/.test(text) &&
+      /(capital|real estate|property|financing|acquisition|asset)/.test(text) &&
+      !/(deployment|deploy|expand|expansion)/.test(text);
+
+  const isProofSeekingDistributionBlock = (block, text) =>
+    block?.isProofSeeking === true ||
+    /(proof|testing|pipeline|consistency|capture|bridge|narrative)/.test(text) &&
+      /(distribution|channel|audience)/.test(text) &&
+      !/(widen|scale distribution|distribution expansion|audience expansion)/.test(text);
+
+  const firstConversion = firstByMatch(
+    (_block, text) =>
+      /conversion|revenue architecture|repeatable conversion|operating cadence|feedback loop|offer bridge|capture-to-conversion|onboarding path/.test(
+        text
+      )
+  );
+  const firstCapital = firstByMatch((block, text) => {
+    const capitalish = /capital|real estate|asset-path|capital readiness|financing|acquisition|property|asset/.test(text);
+    if (!capitalish) {
+      return false;
+    }
+    if (block?.isExpansionAction === true) {
+      return true;
+    }
+    if (isReadinessCapitalBlock(block, text) || block?.isProofSeeking === true) {
+      return false;
+    }
+    return /(deployment|deploy|expand|expansion|capital movement|asset expansion)/.test(text);
+  });
   if (firstCapital && firstConversion && normalizeDayKey(firstCapital?.dayKey) < normalizeDayKey(firstConversion?.dayKey)) {
     addIssue(issues, reasonCodes, {
       code: 'CAPITAL_BEFORE_CONVERSION_EVIDENCE',
@@ -474,8 +505,22 @@ function analyzePrioritization(blocks, issues, reasonCodes) {
     });
   }
 
-  const firstDistribution = firstByMatch((text) => /distribution|widen channel|audience expansion/.test(text));
-  const firstOffer = firstByMatch((text) => /offer|conversion|feedback loop|revenue architecture/.test(text));
+  const firstDistribution = firstByMatch((block, text) => {
+    const distributionish = /distribution|widen channel|audience expansion|scale distribution/.test(text);
+    if (!distributionish) {
+      return false;
+    }
+    if (block?.isScaleAction === true || block?.isExpansionAction === true) {
+      return true;
+    }
+    if (isProofSeekingDistributionBlock(block, text) || block?.isReadinessOnly === true) {
+      return false;
+    }
+    return /(widen channel|audience expansion|scale distribution|distribution expansion)/.test(text);
+  });
+  const firstOffer = firstByMatch(
+    (_block, text) => /offer|conversion|feedback loop|revenue architecture|capture-to-conversion|offer bridge/.test(text)
+  );
   if (firstDistribution && firstOffer && normalizeDayKey(firstDistribution?.dayKey) < normalizeDayKey(firstOffer?.dayKey)) {
     addIssue(issues, reasonCodes, {
       code: 'DISTRIBUTION_BEFORE_OFFER_CLARITY',
