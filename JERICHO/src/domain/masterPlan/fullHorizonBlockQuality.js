@@ -73,13 +73,15 @@ function scoreState(issues, families) {
   const highCount = issues.filter((issue) => issue.severity === 'high').length;
   const mediumCount = issues.filter((issue) => issue.severity === 'medium').length;
   const lowCount = issues.filter((issue) => issue.severity === 'low').length;
-  const criticalFamilies = families.filter((family) => family === 'FUTURE_PHASE_EXECUTION_LEAK');
+  const hasFutureLeak = families.includes('FUTURE_PHASE_EXECUTION_LEAK');
   const score = Math.max(0, 100 - highCount * 12 - mediumCount * 5 - lowCount * 1);
 
   let state = 'trusted';
   if (!issues.length) {
     state = 'trusted';
-  } else if (criticalFamilies.length > 0 || highCount >= 2 || families.length >= 6 || score < 50) {
+  } else if (hasFutureLeak) {
+    state = 'withheld';
+  } else if (highCount >= 2 || families.length >= 6 || score < 50) {
     state = 'degraded';
   } else {
     state = 'provisional';
@@ -154,6 +156,112 @@ function hasObjectContext(title) {
   return /(conversion|cadence|dashboard|architecture|loop|platform|engine|pipeline|system|bridge|stack|design|path|package|model|review|handoff|feedback|distribution|readiness|proof|launch)/i.test(
     String(title || '')
   );
+}
+
+function analyzePhaseWorkloadCompression(blocks, issues, reasonCodes) {
+  const byYear = countBy(blocks, (block) => String(block?.dayKey || block?.date || '').slice(0, 4) || 'unknown');
+  const yearCounts = Object.entries(byYear)
+    .map(([year, count]) => ({ year, count }))
+    .filter((entry) => entry.year !== 'unknown')
+    .sort((left, right) => Number(left.year) - Number(right.year));
+  if (yearCounts.length < 2) {
+    return;
+  }
+  const peakYearCount = Math.max(...yearCounts.map((entry) => entry.count));
+  const terminalYear = yearCounts[yearCounts.length - 1];
+  if (peakYearCount > 0 && terminalYear.count / peakYearCount < 0.35) {
+    addIssue(issues, reasonCodes, {
+      code: 'PHASE_WORKLOAD_COMPRESSION',
+      severity: 'medium',
+      blockId: null,
+      phaseLabel: 'P3',
+      laneId: null,
+      dayKey: `${terminalYear.year}-01-01`,
+      title: 'Terminal year workload compression',
+      explanation: `Terminal year ${terminalYear.year} has only ${terminalYear.count} blocks vs peak year ${peakYearCount}.`,
+    });
+  }
+}
+
+function analyzeDuplicateTitleRatioByLanePhase(blocks, issues, reasonCodes) {
+  const lanePhaseGroups = blocks.reduce((acc, block) => {
+    const laneKey = String(block?.laneId || block?.laneLabel || 'unassigned').trim();
+    const phaseLabel = String(block?.phaseLabel || '').trim();
+    if (!phaseLabel || !['P2', 'P3'].includes(phaseLabel)) {
+      return acc;
+    }
+    const groupKey = `${laneKey}||${phaseLabel}`;
+    if (!acc[groupKey]) {
+      acc[groupKey] = { laneKey, phaseLabel, blocks: [] };
+    }
+    acc[groupKey].blocks.push(block);
+    return acc;
+  }, {});
+
+  Object.values(lanePhaseGroups).forEach(({ laneKey, phaseLabel, blocks: groupBlocks }) => {
+    if (groupBlocks.length < 8) {
+      return;
+    }
+    const titleCounts = countBy(groupBlocks, (block) => String(block?.title || '').trim());
+    const duplicateBlockCount = Object.entries(titleCounts).reduce(
+      (sum, [, count]) => sum + (count > 1 ? count : 0),
+      0
+    );
+    const duplicateRatio = groupBlocks.length > 0 ? duplicateBlockCount / groupBlocks.length : 0;
+    if (duplicateRatio > 0.4) {
+      addIssue(issues, reasonCodes, {
+        code: 'DUPLICATE_FORECAST_BLOCK_TITLE_BY_LANE_PHASE',
+        severity: 'medium',
+        blockId: null,
+        phaseLabel,
+        laneId: laneKey === 'unassigned' ? null : laneKey,
+        dayKey: null,
+        title: `${phaseLabel} duplicate titles`,
+        explanation: `${phaseLabel} on lane ${laneKey} has ${Math.round(duplicateRatio * 100)}% duplicate titles.`,
+      });
+    }
+  });
+}
+
+function analyzePhaseTransitionCompression(blocks, issues, reasonCodes) {
+  const blocksByLane = blocks.reduce((acc, block) => {
+    const laneKey = String(block?.laneId || block?.laneLabel || 'unassigned').trim();
+    if (!laneKey) {
+      return acc;
+    }
+    if (!acc[laneKey]) {
+      acc[laneKey] = [];
+    }
+    acc[laneKey].push(block);
+    return acc;
+  }, {});
+
+  Object.entries(blocksByLane).forEach(([laneKey, laneBlocks]) => {
+    const p2Blocks = laneBlocks
+      .filter((block) => String(block?.phaseLabel || '').trim() === 'P2')
+      .sort((left, right) => String(normalizeDayKey(left?.dayKey || left?.date || '')).localeCompare(String(normalizeDayKey(right?.dayKey || right?.date || ''))));
+    const p3Blocks = laneBlocks
+      .filter((block) => String(block?.phaseLabel || '').trim() === 'P3')
+      .sort((left, right) => String(normalizeDayKey(left?.dayKey || left?.date || '')).localeCompare(String(normalizeDayKey(right?.dayKey || right?.date || ''))));
+    if (!p2Blocks.length || !p3Blocks.length) {
+      return;
+    }
+    const lastP2 = p2Blocks[p2Blocks.length - 1];
+    const firstP3 = p3Blocks[0];
+    const bufferDays = diffDays(lastP2?.dayKey || lastP2?.date, firstP3?.dayKey || firstP3?.date);
+    if (bufferDays >= 0 && bufferDays < 7) {
+      addIssue(issues, reasonCodes, {
+        code: 'PHASE_TRANSITION_COMPRESSED',
+        severity: 'medium',
+        blockId: firstP3?.id || null,
+        phaseLabel: 'P3',
+        laneId: laneKey === 'unassigned' ? null : laneKey,
+        dayKey: normalizeDayKey(firstP3?.dayKey || firstP3?.date),
+        title: 'Compressed P2→P3 transition',
+        explanation: `Last P2 and first P3 blocks on lane ${laneKey} are separated by only ${bufferDays} days.`,
+      });
+    }
+  });
 }
 
 function analyzeLanguageAndOwnership(blocks, issues, reasonCodes) {
@@ -236,6 +344,30 @@ function analyzeLanguageAndOwnership(blocks, issues, reasonCodes) {
       });
     }
   });
+}
+
+function analyzePhaseUnlockCriteria(blocks, issues, reasonCodes) {
+  const counted = blocks.filter((block) => {
+    const phaseLabel = String(block?.phaseLabel || '').trim();
+    return phaseLabel === 'P2' || phaseLabel === 'P3';
+  });
+  const unresolved = counted.filter((block) => {
+    const dependsOn = Array.isArray(block?.dependsOn) ? block.dependsOn : [];
+    const dependencyStatus = String(block?.dependencyStatus || '').trim().toLowerCase();
+    return dependsOn.length === 0 && !dependencyStatus;
+  });
+  if (unresolved.length > 0) {
+    addIssue(issues, reasonCodes, {
+      code: 'PHASE_UNLOCK_CRITERIA_THIN',
+      severity: 'high',
+      blockId: null,
+      phaseLabel: null,
+      laneId: null,
+      dayKey: null,
+      title: 'Thin phase unlock criteria',
+      explanation: `${unresolved.length} P2/P3 blocks lack explicit dependency or unlock criteria markers.`,
+    });
+  }
 }
 
 function analyzeTemporalSpacing(blocks, phaseModel, issues, reasonCodes) {
@@ -415,6 +547,10 @@ export function evaluateFullHorizonBlockQuality({
   const reasonCodes = [];
 
   analyzeLanguageAndOwnership(blocks, issues, reasonCodes);
+  analyzeDuplicateTitleRatioByLanePhase(blocks, issues, reasonCodes);
+  analyzePhaseTransitionCompression(blocks, issues, reasonCodes);
+  analyzePhaseWorkloadCompression(blocks, issues, reasonCodes);
+  analyzePhaseUnlockCriteria(blocks, issues, reasonCodes);
   analyzeTemporalSpacing(blocks, phaseModel, issues, reasonCodes);
   analyzePrioritization(blocks, issues, reasonCodes);
   analyzePhaseUnlockIntegrity(blocks, issues, reasonCodes);

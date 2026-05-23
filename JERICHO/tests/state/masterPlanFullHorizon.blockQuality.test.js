@@ -103,7 +103,7 @@ describe('master-plan full-horizon block quality audit', () => {
     expect(quality.reasonCodes).toContain('BLOCK_PHASE_MISSING');
   });
 
-  it('flags future phase execution leakage', () => {
+  it('withholds trust for future phase execution leakage', () => {
     const state = buildGeneratedState();
     const blocks = cloneBlocks(state.fullHorizonScheduleBlocks).map((block) =>
       block.phaseLabel === 'P2' ? { ...block, executionEligibility: 'ready' } : block
@@ -111,6 +111,73 @@ describe('master-plan full-horizon block quality audit', () => {
 
     const quality = evaluateForState(state, blocks);
     expect(quality.reasonCodes).toContain('FUTURE_PHASE_EXECUTION_LEAK');
+    expect(quality.state).toBe('withheld');
+  });
+
+  it('flags terminal year workload compression', () => {
+    const state = buildGeneratedState();
+    let keptTerminalYear = false;
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks).filter((block) => {
+      const year = String(block.dayKey || '').slice(0, 4);
+      if (year !== '2031') {
+        return true;
+      }
+      if (!keptTerminalYear) {
+        keptTerminalYear = true;
+        return true;
+      }
+      return false;
+    });
+
+    const quality = evaluateForState(state, blocks);
+    expect(quality.reasonCodes).toContain('PHASE_WORKLOAD_COMPRESSION');
+  });
+
+  it('flags thin unlock criteria on P2/P3 blocks', () => {
+    const state = buildGeneratedState();
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks).map((block) =>
+      ['P2', 'P3'].includes(block.phaseLabel) ? { ...block, dependsOn: [], dependencyStatus: '' } : block
+    );
+
+    const quality = evaluateForState(state, blocks);
+    expect(quality.reasonCodes).toContain('PHASE_UNLOCK_CRITERIA_THIN');
+  });
+
+  it('flags compressed P2→P3 handoff under 7 days for a lane', () => {
+    const state = buildGeneratedState();
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks);
+    const laneId = blocks.find((block) => block.phaseLabel === 'P2')?.laneId;
+    const p2Blocks = blocks
+      .filter((block) => block.phaseLabel === 'P2' && block.laneId === laneId)
+      .sort((a, b) => String(a.dayKey || '').localeCompare(String(b.dayKey || '')));
+    const p3Blocks = blocks
+      .filter((block) => block.phaseLabel === 'P3' && block.laneId === laneId)
+      .sort((a, b) => String(a.dayKey || '').localeCompare(String(b.dayKey || '')));
+
+    if (p2Blocks.length > 0 && p3Blocks.length > 0) {
+      const lastP2 = p2Blocks[p2Blocks.length - 1];
+      const compressedDate = new Date(`${lastP2.dayKey}T12:00:00.000Z`);
+      compressedDate.setUTCDate(compressedDate.getUTCDate() + 5);
+      p3Blocks[0].dayKey = compressedDate.toISOString().slice(0, 10);
+    }
+
+    const quality = evaluateForState(state, blocks);
+    expect(quality.reasonCodes).toContain('PHASE_TRANSITION_COMPRESSED');
+  });
+
+  it('flags duplicate title ratio by lane-phase above 40%', () => {
+    const state = buildGeneratedState();
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks);
+    const laneId = blocks.find((block) => block.phaseLabel === 'P3')?.laneId;
+    const p3Blocks = blocks.filter((block) => block.phaseLabel === 'P3' && block.laneId === laneId);
+    const repeatedTitle = 'Terminal readiness review';
+
+    p3Blocks.slice(0, Math.ceil(p3Blocks.length * 0.5)).forEach((block) => {
+      block.title = repeatedTitle;
+    });
+
+    const quality = evaluateForState(state, blocks);
+    expect(quality.reasonCodes).toContain('DUPLICATE_FORECAST_BLOCK_TITLE_BY_LANE_PHASE');
   });
 
   it('flags a long temporal gap inside a phase', () => {
