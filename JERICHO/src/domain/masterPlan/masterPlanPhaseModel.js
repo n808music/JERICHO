@@ -337,12 +337,18 @@ function derivePhaseSegments({ plan, anchorClassifications, horizonEndDayKey = n
       ].filter((segment) => segment.start && segment.end && segment.start <= segment.end);
     }
     const remainingDays = dayDistanceInclusive(remainingStart, horizonEnd);
-    const p2Days = remainingDays <= 2 ? 1 : clamp(Math.round(remainingDays * 0.45), 1, remainingDays - 1);
+    const longHorizonP2Share = remainingDays > 900 ? 0.70 : 0.55;
+    const requestedBufferDays = remainingDays > 365 ? 7 : remainingDays > 120 ? 3 : 1;
+    const minP3Days = Math.max(45, Math.round(remainingDays * 0.20));
+    const phaseBufferDays = clamp(requestedBufferDays, 0, Math.max(0, remainingDays - minP3Days - 1));
+    const maxP2Days = Math.max(1, remainingDays - minP3Days - phaseBufferDays);
+    const p2Days = remainingDays <= 2 ? 1 : clamp(Math.round(remainingDays * longHorizonP2Share), 1, maxP2Days);
     const p2End = remainingDays > 1 ? addDaysToDayKey(remainingStart, p2Days - 1) : horizonEnd;
+    const p3Start = addDaysToDayKey(p2End || horizonEnd, phaseBufferDays + 1) || horizonEnd;
     return [
       { start: horizonStart, end: normalizedP1End, containsPrimaryAnchor: true },
       { start: remainingStart, end: p2End || horizonEnd },
-      { start: addDaysToDayKey(p2End || horizonEnd, 1) || horizonEnd, end: horizonEnd },
+      { start: p3Start, end: horizonEnd },
     ].filter((segment) => segment.start && segment.end && segment.start <= segment.end);
   }
 

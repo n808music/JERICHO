@@ -86,12 +86,20 @@ function inferPlanOrientation(plan) {
   return 'balanced';
 }
 
-function resolveCadenceDays(phaseLabel, laneStatus, planOrientation, laneFamily) {
+function isSupportExpansionLane(laneFamily) {
+  return ['capital_real_estate', 'institution_education', 'civic_development'].includes(laneFamily);
+}
+
+function resolveCadenceDays(phaseLabel, laneStatus, planOrientation, laneFamily, dayKey, horizonEndDayKey) {
+  const narrowSupportLane = planOrientation === 'single_product' && isSupportExpansionLane(laneFamily);
+
   if (phaseLabel === 'P1') {
+    if (narrowSupportLane) return 28;
     if (laneStatus === 'gated' || laneStatus === 'dependent') return 14;
     return 7;
   }
   if (phaseLabel === 'P2') {
+    if (narrowSupportLane) return laneStatus === 'gated' || laneStatus === 'dependent' ? 75 : 60;
     if (laneStatus === 'gated') return 30;
     if (planOrientation === 'single_product' && !['product_software', 'income_stream', 'company_operations'].includes(laneFamily)) {
       return 42;
@@ -99,7 +107,14 @@ function resolveCadenceDays(phaseLabel, laneStatus, planOrientation, laneFamily)
     return 14;
   }
   if (phaseLabel === 'P3') {
+    if (narrowSupportLane) return 60;
     if (laneStatus === 'gated') return 90;
+    const remainingDays = dayKey && horizonEndDayKey ? Math.max(0, Math.round((new Date(`${horizonEndDayKey}T12:00:00.000Z`) - new Date(`${dayKey}T12:00:00.000Z`)) / (1000 * 60 * 60 * 24))) : null;
+    if (remainingDays !== null) {
+      if (remainingDays <= 180) return 12;
+      if (remainingDays <= 365) return 14;
+      if (remainingDays <= 730) return 20;
+    }
     if (planOrientation === 'single_product' && ['institution_education', 'civic_development'].includes(laneFamily)) {
       return 120;
     }
@@ -550,18 +565,20 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
     descriptors = descriptors.filter((item) => item[1] !== 'action');
   }
 
-  if (narrowPlan && ['institution_education', 'civic_development'].includes(family)) {
-    descriptors = descriptors.filter((item) => item[1] !== 'action').slice(0, 2);
+  if (narrowPlan && ['institution_education', 'civic_development', 'capital_real_estate'].includes(family)) {
+    descriptors = descriptors.filter((item) => item[1] !== 'action').slice(0, 1);
   }
+
+  const supportException = laneStatus !== 'active' ? ` This occurrence is generated for a support lane with ${laneStatus} status and preserves documented density exception.` : '';
 
   return descriptors.map(([title, blockType, expectedOutput]) => ({
     title,
     blockType,
     expectedOutput,
-    derivationReason: `${phaseLabel} ${blockType} derived for ${laneLabel} from phase objective and lane role.`,
+    derivationReason: `${phaseLabel} ${blockType} derived for ${laneLabel} from phase objective and lane role.${supportException}`,
     riskOrConstraintAddressed: gated
-      ? `Execution remains gated for ${laneLabel} until prior proof, dependency, or capital constraints clear.`
-      : `Protects ${laneLabel} against vague long-horizon filler by tying work to the active phase objective.`,
+      ? `Execution remains gated for ${laneLabel} until prior proof, dependency, or capital constraints clear.${supportException}`
+      : `Protects ${laneLabel} against vague long-horizon filler by tying work to the active phase objective.${supportException}`,
     successCriterionServed:
       phaseLabel === 'P1'
         ? 'Launch proof and post-anchor evidence'
@@ -724,13 +741,13 @@ export function expandFullHorizonSchedule({
       if (laneStatus === 'deferred') continue;
 
       const laneFamily = inferLaneFamily(lane);
-      const cadenceDays = resolveCadenceDays(phaseLabel, laneStatus, planOrientation, laneFamily);
       const descriptors = createDescriptor({ phaseLabel, lane, laneStatus, planOrientation });
       if (!descriptors.length) continue;
 
       let cursor = phaseStart;
       let idx = 0;
       while (cursor && cursor <= visiblePhaseEnd) {
+        const cadenceDays = resolveCadenceDays(phaseLabel, laneStatus, planOrientation, laneFamily, cursor, visiblePhaseEnd);
         const descriptor = descriptors[idx % descriptors.length];
         result.push(
           buildBlock({
