@@ -372,6 +372,8 @@ export function buildBlankIdentityState(options = {}) {
     viewDate: todayDate,
     selectedHorizonMode: 'current_cycle',
     calendarDisplayBlocks: [],
+    masterPlanAgendaVersionsById: {},
+    scheduleConstraintVersionsById: {},
     scheduleLifecycleState: 'no_goal',
     templates: { objectives: {} },
     lastAdaptedDate: null,
