@@ -81,6 +81,77 @@ function getAgendaSummaryCounts(summary = {}) {
   return { total, scheduled, unscheduled };
 }
 
+const AGENDA_RANGE_OPTIONS = ['1Y', '2Y', '3Y', '4Y', '5Y'];
+const AGENDA_LANE_OPTIONS = [
+  { value: 'all', label: 'All lanes' },
+  { value: 'product', label: 'Product' },
+  { value: 'creative', label: 'Creative' },
+  { value: 'media', label: 'Media' },
+  { value: 'brand/operations', label: 'Brand/Operations' },
+  { value: 'income/revenue', label: 'Income/Revenue' },
+  { value: 'capital', label: 'Capital' },
+  { value: 'institution', label: 'Institution' },
+  { value: 'civic', label: 'Civic' },
+];
+
+function getAgendaLaneFilterValue(label) {
+  return String(label || 'all').trim().toLowerCase();
+}
+
+function getAgendaLaneFilterLabel(value) {
+  const filter = AGENDA_LANE_OPTIONS.find((option) => option.value === String(value || 'all').trim().toLowerCase());
+  return filter ? filter.label : 'All lanes';
+}
+
+function getScheduledAgendaRangeEnd(startDayKey, selectedRange) {
+  const normalizedStart = normalizeDayKey(startDayKey);
+  if (!normalizedStart) return null;
+  const years = Number(String(selectedRange || '5Y').replace(/[^0-9]/g, '')) || 5;
+  return addDaysToDayKey(normalizedStart, 365 * years - 1);
+}
+
+function summarizeFilteredScheduledAgenda(blocks = [], selectedRange = '5Y', selectedLane = 'all', lanes = [], agendaRangeStartDayKey = null) {
+  const rangeStart = normalizeDayKey(agendaRangeStartDayKey) ||
+    (Array.isArray(blocks) ? blocks.map((block) => normalizeDayKey(block?.dayKey || block?.date || block?.startISO)).filter(Boolean).sort()[0] : null);
+  const rangeEnd = getScheduledAgendaRangeEnd(rangeStart, selectedRange);
+  const filterDomain = String(selectedLane || 'all').trim().toLowerCase();
+  const selectedDomain =
+    filterDomain === 'brand/operations' ? 'brand' : filterDomain === 'income/revenue' ? 'income' : filterDomain;
+
+  const filteredBlocks = (Array.isArray(blocks) ? blocks : []).filter((block) => {
+    const dayKey = normalizeDayKey(block?.dayKey || block?.date || block?.startISO);
+    if (!dayKey) return false;
+    if (rangeEnd && dayKey > rangeEnd) return false;
+    if (selectedDomain === 'all') return true;
+    const lane = lanes.find((laneItem) => laneItem?.id === block?.masterPlanLaneId);
+    return String(lane?.domain || '').trim().toLowerCase() === selectedDomain;
+  });
+
+  const byPhase = filteredBlocks.reduce((acc, block) => {
+    const phase = String(block?.phaseLabel || block?.phase || '').trim() || 'Unknown';
+    acc[phase] = (acc[phase] || 0) + 1;
+    return acc;
+  }, {});
+
+  const byLane = filteredBlocks.reduce((acc, block) => {
+    const lane = lanes.find((laneItem) => laneItem?.id === block?.masterPlanLaneId);
+    const domain = String(lane?.domain || '').trim().toLowerCase();
+    const label = AGENDA_LANE_OPTIONS.find((option) => option.value === domain)?.label || lane?.title || 'Unassigned';
+    acc[label] = (acc[label] || 0) + 1;
+    return acc;
+  }, {});
+
+  return {
+    totalBlocks: filteredBlocks.length,
+    byPhase,
+    byLane,
+    selectedRange: selectedRange || '5Y',
+    selectedLane: selectedLane || 'all',
+    rangeStart,
+    rangeEnd,
+  };
+}
+
 function getGoalDisplayLabel(store, goalId) {
   const goal = store?.goalsById?.[goalId] || null;
   const cycle = goal?.activeCycleId ? store?.cyclesById?.[goal.activeCycleId] || null : null;
@@ -537,6 +608,8 @@ function NoMasterPlanState({ store }) {
 
 function MasterPlanTimelineView({ plan, store }) {
   const [selectedLaneId, setSelectedLaneId] = useState(null);
+  const [selectedAgendaRange, setSelectedAgendaRange] = useState('5Y');
+  const [selectedAgendaLane, setSelectedAgendaLane] = useState('all');
   const [commitmentView, setCommitmentView] = useState('committed_forecast');
   const [horizonView, setHorizonView] = useState('full');
 
@@ -619,6 +692,17 @@ function MasterPlanTimelineView({ plan, store }) {
     }
     return store?.scheduleConstraintVersionsById?.[constraintId] || null;
   }, [plan?.currentScheduleConstraintVersionId, store]);
+  const filteredScheduledAgendaSummary = useMemo(
+    () =>
+      summarizeFilteredScheduledAgenda(
+        canonicalFullHorizonBlocks,
+        selectedAgendaRange,
+        selectedAgendaLane,
+        lanes,
+        currentAgendaVersion?.range?.startDayKey
+      ),
+    [canonicalFullHorizonBlocks, selectedAgendaRange, selectedAgendaLane, lanes, currentAgendaVersion?.range?.startDayKey]
+  );
   const strategicCoverage = useMemo(
     () => {
       const resolvedHorizon = resolveStrategicAgendaHorizon(plan, activeMissionContract).resolvedStrategicHorizonEndDayKey;
@@ -929,12 +1013,18 @@ function MasterPlanTimelineView({ plan, store }) {
       ) : null}
       <StrategicCoveragePanel
         plan={plan}
+        lanes={lanes}
         strategicCoverage={strategicCoverage}
         strategicCoverageAudit={strategicCoverageAudit}
         strategicPlanQuality={store?.fullHorizonPlanQuality || null}
         strategicBlockQuality={store?.fullHorizonBlockQuality || null}
         scheduledAgendaVersion={currentAgendaVersion}
         scheduledAgendaConstraintVersion={currentConstraintVersion}
+        scheduledAgendaSummary={filteredScheduledAgendaSummary}
+        selectedAgendaRange={selectedAgendaRange}
+        onAgendaRangeChange={setSelectedAgendaRange}
+        selectedAgendaLane={selectedAgendaLane}
+        onAgendaLaneChange={setSelectedAgendaLane}
         strategicPhases={displayedPhaseModel.phases}
         phaseModel={displayedPhaseModel}
         fullHorizonBlockCountsByPhase={fullHorizonBlockCountsByPhase}
@@ -984,6 +1074,11 @@ function StrategicCoveragePanel({
   strategicBlockQuality,
   scheduledAgendaVersion,
   scheduledAgendaConstraintVersion,
+  scheduledAgendaSummary,
+  selectedAgendaRange,
+  onAgendaRangeChange,
+  selectedAgendaLane,
+  onAgendaLaneChange,
   strategicPhases,
   phaseModel,
   fullHorizonBlockCountsByPhase = {},
@@ -1124,6 +1219,54 @@ function StrategicCoveragePanel({
           </p>
           {scheduledAgendaVersion ? (
             <>
+              <div className="flex flex-wrap gap-2 py-2">
+                {AGENDA_RANGE_OPTIONS.map((rangeOption) => (
+                  <button
+                    key={rangeOption}
+                    type="button"
+                    data-testid={`scheduled-agenda-range-${rangeOption}`}
+                    className={`rounded-full border px-2 py-1 text-[11px] ${
+                      selectedAgendaRange === rangeOption
+                        ? 'border-jericho-500 bg-jericho-surface text-jericho-text'
+                        : 'border-line/50 bg-transparent text-muted'
+                    }`}
+                    onClick={() => onAgendaRangeChange(rangeOption)}
+                  >
+                    {rangeOption}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2 pb-2">
+                {AGENDA_LANE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    data-testid={`scheduled-agenda-lane-${option.value}`}
+                    className={`rounded-full border px-2 py-1 text-[11px] ${
+                      selectedAgendaLane === option.value
+                        ? 'border-jericho-500 bg-jericho-surface text-jericho-text'
+                        : 'border-line/50 bg-transparent text-muted'
+                    }`}
+                    onClick={() => onAgendaLaneChange(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted">
+                {selectedAgendaRange} horizon · {getAgendaLaneFilterLabel(selectedAgendaLane)}
+              </p>
+              <p className="text-[11px] text-muted">
+                {scheduledAgendaSummary?.totalBlocks ?? 0} visible planned blocks
+              </p>
+              <p className="text-[11px] text-muted">
+                {Object.entries(scheduledAgendaSummary?.byPhase || {}).map(([phase, count]) => `${phase} ${count}`).join(' · ') || 'Phase counts unavailable'}
+              </p>
+              {selectedAgendaLane === 'all' ? (
+                <p className="text-[11px] text-muted">
+                  {Object.entries(scheduledAgendaSummary?.byLane || {}).map(([label, count]) => `${label} ${count}`).join(' · ') || 'By-lane counts unavailable'}
+                </p>
+              ) : null}
               <p className="text-[11px] text-muted">
                 {scheduledAgendaVersion.state === 'current'
                   ? 'Current agenda snapshot is aligned to the latest saved constraints context.'
@@ -1147,23 +1290,9 @@ function StrategicCoveragePanel({
                 {scheduledAgendaConstraintVersion?.constraintHash || 'unversioned'}
               </p>
               <p className="text-[11px] text-muted">
-                P1 {scheduledAgendaVersion.summary?.byPhase?.P1 || 0} · P2 {scheduledAgendaVersion.summary?.byPhase?.P2 || 0} ·
-                P3 {scheduledAgendaVersion.summary?.byPhase?.P3 || 0}
-              </p>
-              {Object.keys(scheduledAgendaVersion.summary?.byLane || {}).length > 0 ? (
-                <p className="text-[11px] text-muted">
-                  By lane: {Object.entries(aggregateAgendaLaneCategoryCounts(scheduledAgendaVersion.summary?.byLane, lanes)).map(([label, count]) => `${label} ${count}`).join(' · ') || `${Object.keys(scheduledAgendaVersion.summary.byLane).length} lanes represented`}
-                </p>
-              ) : (
-                <p className="text-[11px] text-muted">
-                  {Object.keys(scheduledAgendaVersion.summary?.byLane || {}).length} lanes represented ·{' '}
-                  {scheduledAgendaVersion.summary?.unscheduledCount || 0} unscheduled ·{' '}
-                  {scheduledAgendaVersion.summary?.overloadCount || 0} overload warnings
-                </p>
-              )}
-              <p className="text-[11px] text-muted">
                 These blocks are future work: the active execution cycle is still the only live schedule.
               </p>
+              <p className="text-[11px] text-muted">Filtered view only. Execution remains cycle-gated.</p>
             </>
           ) : (
             <p className="text-[11px] text-muted">

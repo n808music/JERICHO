@@ -547,7 +547,6 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByText(/Constraints:\s*master_calendar/i)).toBeInTheDocument();
     expect(screen.getByText(/\d+ planned blocks/i)).toBeInTheDocument();
     expect(screen.getByText(/\d+ scheduled · \d+ unscheduled/i)).toBeInTheDocument();
-    expect(screen.getByText(/By lane:/i)).toBeInTheDocument();
     expect(screen.getByTestId('masterplan-block-quality-status')).toBeInTheDocument();
     expect(screen.getAllByText(/P1 · Foundation \/ Launch Proof/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/P2 · Conversion \/ Operating System/i).length).toBeGreaterThan(0);
@@ -556,6 +555,39 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Major anchors:\s*1/i);
     expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/P2 operating-system review gate/i);
     expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Forecast workload recognized:/i);
+  });
+
+  it('renders scheduled agenda horizon and lane filters and preserves the first-cycle preview', async () => {
+    const persisted = JSON.parse(JSON.stringify(buildOperationEndgameFixtureState()));
+    mockStore = rehydratePersistedState(persisted);
+
+    await act(async () => {
+      render(<MasterPlanTimeline />);
+    });
+
+    const user = userEvent.setup();
+    expect(screen.getByTestId('scheduled-agenda-range-5Y')).toBeInTheDocument();
+    expect(screen.getByTestId('scheduled-agenda-lane-product')).toBeInTheDocument();
+    expect(screen.getByText(/5Y horizon · All lanes/i)).toBeInTheDocument();
+
+    const initialCountText = screen.getByText(/\d+ visible planned blocks/i).textContent;
+    const initialCount = Number(initialCountText.match(/\d+/)?.[0] || 0);
+
+    await act(async () => {
+      await user.click(screen.getByTestId('scheduled-agenda-range-1Y'));
+    });
+    expect(screen.getByText(/^1Y horizon · All lanes$/i)).toBeInTheDocument();
+    const oneYearCount = Number(screen.getByText(/\d+ visible planned blocks/i).textContent.match(/\d+/)?.[0] || 0);
+    expect(oneYearCount).toBeLessThanOrEqual(initialCount);
+
+    await act(async () => {
+      await user.click(screen.getByTestId('scheduled-agenda-lane-product'));
+    });
+    expect(screen.getByText(/^1Y horizon · Product$/i)).toBeInTheDocument();
+    const productLaneCount = Number(screen.getByText(/\d+ visible planned blocks/i).textContent.match(/\d+/)?.[0] || 0);
+    expect(productLaneCount).toBeLessThanOrEqual(oneYearCount);
+    expect(screen.getByText(/Filtered view only\. Execution remains cycle-gated\./i)).toBeInTheDocument();
+    expect(screen.getByText(/No first-cycle preview generated yet\./i)).toBeInTheDocument();
   });
 
   it('shows an empty scheduled agenda state when no agenda version exists', async () => {
