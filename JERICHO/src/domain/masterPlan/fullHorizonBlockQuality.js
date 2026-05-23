@@ -127,6 +127,7 @@ const ACTIONABLE_VERBS = [
   'compare',
   'audit',
   'assess',
+  'reassess',
   'define',
   'plan',
   'design',
@@ -142,6 +143,9 @@ const ACTIONABLE_VERBS = [
   'gate',
   'ship',
   'launch',
+  'stress-test',
+  'reconcile',
+  'confirm',
 ];
 
 function isActionableTitle(title) {
@@ -153,7 +157,7 @@ function isActionableTitle(title) {
 }
 
 function hasObjectContext(title) {
-  return /(conversion|cadence|dashboard|architecture|loop|platform|engine|pipeline|system|bridge|stack|design|path|package|model|review|handoff|feedback|distribution|readiness|proof|launch)/i.test(
+  return /(conversion|cadence|dashboard|architecture|loop|platform|engine|pipeline|system|bridge|stack|design|path|package|packet|model|handoff|feedback|distribution|readiness|proof|launch|scope|milestone|progress|consistency|capacity|cashflow|compliance|partner|coalition|economics|durability|prerequisite|trajectory|instrumentation|blocker|controls?|evidence|property|dependency gates?)/i.test(
     String(title || '')
   );
 }

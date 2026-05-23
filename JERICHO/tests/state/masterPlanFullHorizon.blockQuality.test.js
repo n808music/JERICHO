@@ -108,6 +108,20 @@ describe('master-plan full-horizon block quality audit', () => {
     expect(quality.reasonCodes).toContain('BLOCK_TITLE_NOT_ACTIONABLE');
   });
 
+  it('accepts object-specific review and validation titles', () => {
+    const state = buildGeneratedState();
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks);
+    const blockId = blocks[0].id;
+    blocks[0].title = 'Validate terminal revenue evidence packet against 2031 success standard';
+
+    const quality = evaluateForState(state, blocks);
+    const titleIssues = quality.issues.filter(
+      (issue) => issue.blockId === blockId && ['BLOCK_TITLE_NOT_ACTIONABLE', 'BLOCK_OBJECT_UNSPECIFIED'].includes(issue.code)
+    );
+
+    expect(titleIssues).toHaveLength(0);
+  });
+
   it('flags missing expected outputs', () => {
     const state = buildGeneratedState();
     const blocks = cloneBlocks(state.fullHorizonScheduleBlocks);
@@ -115,6 +129,18 @@ describe('master-plan full-horizon block quality audit', () => {
 
     const quality = evaluateForState(state, blocks);
     expect(quality.reasonCodes).toContain('BLOCK_OUTPUT_MISSING');
+  });
+
+  it('requires expectedOutput on terminal-readiness blocks', () => {
+    const state = buildGeneratedState();
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks);
+    const terminalBlock = blocks.find((block) => block.phaseLabel === 'P3' && block.blockType === 'terminal-readiness');
+    expect(terminalBlock).toBeTruthy();
+    terminalBlock.expectedOutput = '';
+
+    const quality = evaluateForState(state, blocks);
+    expect(quality.reasonCodes).toContain('BLOCK_OUTPUT_MISSING');
+    expect(quality.state).not.toBe('trusted');
   });
 
   it('flags duplicate forecast block titles', () => {
@@ -138,6 +164,19 @@ describe('master-plan full-horizon block quality audit', () => {
     const quality = evaluateForState(state, blocks);
     expect(quality.reasonCodes).toContain('BLOCK_LANE_MISSING');
     expect(quality.reasonCodes).toContain('BLOCK_PHASE_MISSING');
+  });
+
+  it('keeps generated P3 blocks owned and output-contracted', () => {
+    const state = buildGeneratedState();
+    const p3Blocks = (state.fullHorizonScheduleBlocks || []).filter((block) => block.phaseLabel === 'P3');
+
+    expect(p3Blocks.length).toBeGreaterThan(0);
+    p3Blocks.forEach((block) => {
+      expect(String(block.expectedOutput || '').trim()).not.toBe('');
+      expect(String(block.laneId || '').trim()).not.toBe('');
+      expect(String(block.laneLabel || '').trim()).not.toBe('');
+      expect(String(block.phaseLabel || '').trim()).toBe('P3');
+    });
   });
 
   it('withholds trust for future phase execution leakage', () => {

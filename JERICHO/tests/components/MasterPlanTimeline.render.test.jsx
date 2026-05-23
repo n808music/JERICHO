@@ -542,7 +542,7 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByTestId('masterplan-block-quality-status')).not.toHaveTextContent(/unavailable/i);
     expect(screen.getByTestId('masterplan-agenda-status')).toHaveTextContent(/current/i);
     expect(screen.getByText(/Full horizon covered; plan quality provisional\./i)).toBeInTheDocument();
-    expect(screen.getByText(/ACTIVE LANE MILESTONE COVERAGE THIN\./i)).toBeInTheDocument();
+    expect(screen.getByText(/LANE PHASE MISMATCH\./i)).toBeInTheDocument();
     expect(screen.getByText(/Full-horizon scheduled agenda — planned, not live execution\./i)).toBeInTheDocument();
     expect(screen.getByText(/Constraints:\s*master_calendar/i)).toBeInTheDocument();
     expect(screen.getByText(/\d+ planned blocks/i)).toBeInTheDocument();

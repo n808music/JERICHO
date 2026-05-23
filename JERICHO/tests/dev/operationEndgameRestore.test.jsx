@@ -60,6 +60,7 @@ describe('Operation Endgame dev restore fixture', () => {
     const constraintVersion = summary.constraintVersionId
       ? state.scheduleConstraintVersionsById?.[summary.constraintVersionId] || null
       : null;
+    const p3Blocks = (state.fullHorizonScheduleBlocks || []).filter((block) => block.phaseLabel === 'P3');
     const p2Milestones = Object.values(state.masterPlanMilestonesById || {}).filter((milestone) => {
       const targetDate = String(milestone?.targetDate || '').trim();
       return targetDate >= '2027-01-01' && targetDate <= '2028-06-14';
@@ -122,6 +123,11 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(state.fullHorizonCoverageAudit?.coverageByPhase?.P2?.blockCount || 0).toBeGreaterThan(0);
     expect(state.fullHorizonCoverageAudit?.coverageByPhase?.P3?.blockCount || 0).toBeGreaterThan(0);
     expect(state.fullHorizonCoverageAudit?.coverageByYear?.['2031']?.blockCount || 0).toBeGreaterThan(0);
+    expect(p3Blocks.length).toBeGreaterThan(0);
+    expect(p3Blocks.every((block) => String(block?.expectedOutput || '').trim())).toBe(true);
+    expect(p3Blocks.every((block) => String(block?.laneId || '').trim())).toBe(true);
+    expect(p3Blocks.every((block) => String(block?.laneLabel || '').trim())).toBe(true);
+    expect(p3Blocks.every((block) => String(block?.phaseLabel || '').trim() === 'P3')).toBe(true);
     expect(state.planRecovery).toBeNull();
   });
 

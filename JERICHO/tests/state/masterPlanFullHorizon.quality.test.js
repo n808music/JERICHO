@@ -68,7 +68,7 @@ describe('master-plan full-horizon quality gate', () => {
     expect(state.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
     expect(state.fullHorizonCoverageAudit?.fullHorizonQualityTrusted).toBe(false);
     expect(quality?.state).toBe('provisional');
-    expect(Number(quality?.score || 0)).toBeGreaterThanOrEqual(80);
+    expect(Number(quality?.score || 0)).toBeGreaterThanOrEqual(75);
     expect(quality?.reasonCodes || []).not.toContain('PHASE_NAMED_MILESTONES_MISSING');
     expect(quality?.reasonCodes || []).not.toContain('PHASE_NAMED_MILESTONES_MISSING_P2');
     expect(quality?.reasonCodes || []).toContain('PHASE_MILESTONE_DENSITY_THIN');

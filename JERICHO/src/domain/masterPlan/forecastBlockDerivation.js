@@ -72,11 +72,11 @@ function p2TitleTemplates(lane) {
 function p3TitleTemplates(lane) {
   const ll = laneLabel(lane);
   return [
-    `Review P3 scale readiness against validated evidence from P2 for ${ll}`,
-    `Audit validated pathway and operating system health for ${ll}`,
-    `Assess capital/partnership gate clearance requirements for ${ll}`,
-    `Compare trajectory against outcome target for ${ll}`,
-    `Review institutionalization and delegation readiness for ${ll}`,
+    `Review scale-readiness evidence packet against validated P2 proof for ${ll}`,
+    `Audit validated pathway and operating-system health evidence for ${ll}`,
+    `Assess capital and partnership gate-clearance packet for ${ll}`,
+    `Compare trajectory evidence packet against outcome target for ${ll}`,
+    `Review institutionalization and delegation readiness packet for ${ll}`,
   ];
 }
 
@@ -92,7 +92,7 @@ function buildForecastExpectedOutput({ blockType, lane, phase, title }) {
     return `Gate decision for ${laneContext} recorded with pass/fail criteria, blocked dependencies, and next unlock timing.`;
   }
   if (blockType === 'terminal-readiness') {
-    return `Terminal-readiness evidence package for ${laneContext} updated with current proof, remaining gaps, and final horizon decision.`;
+    return `Terminal-readiness evidence package for ${laneContext} updated with success-standard alignment, outcome evidence, unresolved gaps, final horizon decision, and next proof owner.`;
   }
   if (blockType === 'readiness') {
     return `Readiness decision for ${laneContext} documented with owner, threshold, and next evidence requirement for ${phaseLabel}.`;
@@ -115,13 +115,13 @@ function buildForecastExpectedOutput({ blockType, lane, phase, title }) {
 function p1PostCycleTitleTemplates(lane) {
   const ll = laneLabel(lane);
   return [
-    `Audit post-anchor conversion evidence for ${ll}`,
-    `Validate first-proof cadence and operating rhythm for ${ll}`,
-    `Compare post-launch evidence against P1 unlock criteria for ${ll}`,
-    `Prepare next-cycle commitment scope based on current execution evidence for ${ll}`,
-    `Assess ${ll} milestone progress and schedule consistency before P2 transition`,
-    `Reassess lane readiness for P1-to-P2 expansion for ${ll}`,
-    `Review execution evidence density before unlocking next-phase commitment for ${ll}`,
+    `Audit post-anchor conversion evidence packet for ${ll}`,
+    `Validate first-proof cadence and operating-rhythm evidence for ${ll}`,
+    `Compare post-launch evidence packet against P1 unlock criteria for ${ll}`,
+    `Prepare next-cycle commitment scope packet from current execution evidence for ${ll}`,
+    `Assess milestone progress packet and schedule-consistency risks for ${ll} before P2 transition`,
+    `Reassess P1-to-P2 expansion readiness packet for ${ll}`,
+    `Review execution evidence-density packet before unlocking next-phase commitment for ${ll}`,
   ];
 }
 
@@ -164,8 +164,23 @@ function forecastBlockId(planId, phaseLabel, dayKey, index) {
 
 // ─── Block factory ────────────────────────────────────────────────────────────
 
-function buildForecastBlock({ planId, phase, lane, dayKey, title, commitmentState, index, blockType = 'review' }) {
-  const laneId = lane?.laneId || null;
+function buildForecastBlock({
+  planId,
+  phase,
+  lane,
+  dayKey,
+  title,
+  commitmentState,
+  index,
+  blockType = 'review',
+  laneIdOverride = null,
+  laneLabelOverride = null,
+  titleFamily = null,
+}) {
+  const laneId = laneIdOverride || lane?.laneId || null;
+  const resolvedLaneLabel =
+    laneLabelOverride || (lane ? laneLabel({ domain: lane.domain, title: lane.laneTitle }) : null);
+  const phaseName = String(phase?.phaseTitle || phase?.title || phase?.label || '').trim() || null;
   return {
     id: forecastBlockId(planId, phase.label, dayKey, index),
     title,
@@ -173,15 +188,17 @@ function buildForecastBlock({ planId, phase, lane, dayKey, title, commitmentStat
     date: dayKey,
     phaseId: phase.id,
     phaseLabel: phase.label,
+    phaseName,
     laneId,
-    laneLabel: lane ? laneLabel({ domain: lane.domain, title: lane.laneTitle }) : null,
+    laneLabel: resolvedLaneLabel,
     blockType,
+    titleFamily,
     commitmentState: commitmentState || phase.commitmentState || 'forecast',
     executionEligibility: 'locked',
     executionLockReason:
       'Forecast block visible for long-horizon inspection. Not executable until committed into an active cycle.',
     source: 'derived',
-    derivationReason: `Derived from ${phase.label} phase substrate for ${lane ? laneLabel({ domain: lane.domain, title: lane.laneTitle }) : 'cross-lane terminal review'}: ${phase.phaseObjective || 'phase objective'}`,
+    derivationReason: `Derived from ${phase.label} phase substrate for ${resolvedLaneLabel || 'cross-lane terminal review'}: ${phase.phaseObjective || 'phase objective'}`,
     expectedOutput: buildForecastExpectedOutput({ blockType, lane, phase, title }),
     timeEstimateMinutes: blockType === 'terminal-readiness' ? 90 : 60,
     sourceInputs: [
@@ -316,6 +333,9 @@ function deriveP3Blocks({ planId, phase, lane, horizonEndDayKey }) {
       commitmentState: 'terminal-readiness',
       index: blocks.length,
       blockType: 'terminal-readiness',
+      laneIdOverride: 'cross_lane_terminal_review',
+      laneLabelOverride: 'cross-lane terminal review',
+      titleFamily: 'p3_cross_lane_terminal_review',
     }));
   }
 
@@ -381,7 +401,7 @@ function deriveP1PostCycleBlocks({ planId, phase, lane, cycleEndDayKey, horizonE
     const ll = lane ? laneLabel({ domain: lane.domain, title: lane.laneTitle }) : 'primary lane';
     blocks.push(buildForecastBlock({
       planId, phase, lane, dayKey: gateKey,
-      title: `Reassess lane readiness for P1-to-P2 expansion for ${ll}`,
+      title: `Reassess P1-to-P2 expansion readiness packet for ${ll}`,
       commitmentState: 'review-required',
       index: blocks.length,
       blockType: 'gate',
