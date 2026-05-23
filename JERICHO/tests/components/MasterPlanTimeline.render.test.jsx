@@ -545,6 +545,9 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByText(/ACTIVE LANE MILESTONE COVERAGE THIN\./i)).toBeInTheDocument();
     expect(screen.getByText(/Full-horizon scheduled agenda — planned, not live execution\./i)).toBeInTheDocument();
     expect(screen.getByText(/Constraints:\s*master_calendar/i)).toBeInTheDocument();
+    expect(screen.getByText(/\d+ planned blocks/i)).toBeInTheDocument();
+    expect(screen.getByText(/\d+ scheduled · \d+ unscheduled/i)).toBeInTheDocument();
+    expect(screen.getByText(/By lane:/i)).toBeInTheDocument();
     expect(screen.getByTestId('masterplan-block-quality-status')).toBeInTheDocument();
     expect(screen.getAllByText(/P1 · Foundation \/ Launch Proof/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/P2 · Conversion \/ Operating System/i).length).toBeGreaterThan(0);
@@ -553,5 +556,24 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Major anchors:\s*1/i);
     expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/P2 operating-system review gate/i);
     expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Forecast workload recognized:/i);
+  });
+
+  it('shows an empty scheduled agenda state when no agenda version exists', async () => {
+    mockStore = buildFinalizedMasterPlanState({ withGeneratedSchedule: false });
+    const planId = mockStore.profilesById[DEFAULT_PROFILE_ID].activeMasterPlanId;
+    if (planId && mockStore.masterPlansById?.[planId]) {
+      mockStore.masterPlansById[planId].currentAgendaVersionId = null;
+      mockStore.masterPlansById[planId].currentScheduleConstraintVersionId = null;
+    }
+    mockStore.masterPlanAgendaVersionsById = {};
+    mockStore.scheduleConstraintVersionsById = {};
+
+    await act(async () => {
+      render(<MasterPlanTimeline />);
+    });
+
+    expect(screen.getByText(/No scheduled agenda version has been generated yet\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Full-horizon scheduled agenda — planned, not live execution\./i)).toBeInTheDocument();
+    expect(screen.queryByText(/Constraints:/i)).not.toBeInTheDocument();
   });
 });

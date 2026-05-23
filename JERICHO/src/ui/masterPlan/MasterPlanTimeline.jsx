@@ -38,6 +38,49 @@ function humanizeReasonCode(value) {
     .trim();
 }
 
+function aggregateAgendaLaneCategoryCounts(summaryByLane = {}, lanes = []) {
+  const domainLabels = {
+    product: 'Product',
+    creative: 'Creative',
+    media: 'Media',
+    brand: 'Brand/Operations',
+    income: 'Income/Revenue',
+    capital: 'Capital',
+    institution: 'Institution',
+    civic: 'Civic',
+  };
+
+  const laneById = (Array.isArray(lanes) ? lanes : []).reduce((acc, lane) => {
+    if (lane?.id) acc[lane.id] = lane;
+    return acc;
+  }, {});
+
+  return Object.entries(summaryByLane || {}).reduce((acc, [laneId, count]) => {
+    const lane = laneById[laneId];
+    const domain = String(lane?.domain || '').trim().toLowerCase();
+    const label = domainLabels[domain];
+    if (label) {
+      acc[label] = (acc[label] || 0) + Number(count || 0);
+    }
+    return acc;
+  }, {});
+}
+
+function getAgendaStateLabel(state) {
+  return state ? titleCaseWords(String(state).trim()) : 'Unavailable';
+}
+
+function getAgendaSummaryCounts(summary = {}) {
+  const total = Number.isFinite(Number(summary?.totalBlocks ? summary.totalBlocks : summary?.blockCount))
+    ? Number(summary?.totalBlocks ? summary.totalBlocks : summary?.blockCount)
+    : 0;
+  const unscheduled = Number.isFinite(Number(summary?.unscheduledCount)) ? Number(summary?.unscheduledCount) : 0;
+  const scheduled = Number.isFinite(Number(summary?.scheduledCount))
+    ? Number(summary?.scheduledCount)
+    : Math.max(0, total - unscheduled);
+  return { total, scheduled, unscheduled };
+}
+
 function getGoalDisplayLabel(store, goalId) {
   const goal = store?.goalsById?.[goalId] || null;
   const cycle = goal?.activeCycleId ? store?.cyclesById?.[goal.activeCycleId] || null : null;
@@ -934,6 +977,7 @@ function MasterPlanTimelineView({ plan, store }) {
 
 function StrategicCoveragePanel({
   plan,
+  lanes,
   strategicCoverage,
   strategicCoverageAudit,
   strategicPlanQuality,
@@ -1094,6 +1138,9 @@ function StrategicCoveragePanel({
                   scheduledAgendaVersion?.range?.startDayKey,
                   scheduledAgendaVersion?.range?.endDayKey
                 )} · {scheduledAgendaVersion.blockCount} planned blocks
+                {scheduledAgendaVersion.summary?.unscheduledCount != null
+                  ? ` · ${Math.max(0, (scheduledAgendaVersion.summary.scheduledCount ?? Math.max(0, scheduledAgendaVersion.blockCount - scheduledAgendaVersion.summary.unscheduledCount)))} scheduled · ${scheduledAgendaVersion.summary.unscheduledCount} unscheduled`
+                  : ''}
               </p>
               <p className="text-[11px] text-muted">
                 Constraints: {scheduledAgendaConstraintVersion?.source || 'manual'} ·{' '}
@@ -1103,15 +1150,24 @@ function StrategicCoveragePanel({
                 P1 {scheduledAgendaVersion.summary?.byPhase?.P1 || 0} · P2 {scheduledAgendaVersion.summary?.byPhase?.P2 || 0} ·
                 P3 {scheduledAgendaVersion.summary?.byPhase?.P3 || 0}
               </p>
+              {Object.keys(scheduledAgendaVersion.summary?.byLane || {}).length > 0 ? (
+                <p className="text-[11px] text-muted">
+                  By lane: {Object.entries(aggregateAgendaLaneCategoryCounts(scheduledAgendaVersion.summary?.byLane, lanes)).map(([label, count]) => `${label} ${count}`).join(' · ') || `${Object.keys(scheduledAgendaVersion.summary.byLane).length} lanes represented`}
+                </p>
+              ) : (
+                <p className="text-[11px] text-muted">
+                  {Object.keys(scheduledAgendaVersion.summary?.byLane || {}).length} lanes represented ·{' '}
+                  {scheduledAgendaVersion.summary?.unscheduledCount || 0} unscheduled ·{' '}
+                  {scheduledAgendaVersion.summary?.overloadCount || 0} overload warnings
+                </p>
+              )}
               <p className="text-[11px] text-muted">
-                {Object.keys(scheduledAgendaVersion.summary?.byLane || {}).length} lanes represented ·{' '}
-                {scheduledAgendaVersion.summary?.unscheduledCount || 0} unscheduled ·{' '}
-                {scheduledAgendaVersion.summary?.overloadCount || 0} overload warnings
+                These blocks are future work: the active execution cycle is still the only live schedule.
               </p>
             </>
           ) : (
             <p className="text-[11px] text-muted">
-              Long-horizon agenda metadata has not been generated yet.
+              No scheduled agenda version has been generated yet.
             </p>
           )}
         </div>
