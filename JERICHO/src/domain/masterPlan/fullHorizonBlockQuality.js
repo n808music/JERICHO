@@ -202,12 +202,11 @@ function analyzeDuplicateTitleRatioByLanePhase(blocks, issues, reasonCodes) {
     if (groupBlocks.length < 8) {
       return;
     }
-    const titleCounts = countBy(groupBlocks, (block) => String(block?.title || '').trim());
-    const duplicateBlockCount = Object.entries(titleCounts).reduce(
-      (sum, [, count]) => sum + (count > 1 ? count : 0),
-      0
+    const familyCounts = countBy(groupBlocks, (block) =>
+      String(block?.titleFamily || block?.title || '').trim() || '(untitled family)'
     );
-    const duplicateRatio = groupBlocks.length > 0 ? duplicateBlockCount / groupBlocks.length : 0;
+    const largestFamilyCount = Math.max(...Object.values(familyCounts), 0);
+    const duplicateRatio = groupBlocks.length > 0 ? largestFamilyCount / groupBlocks.length : 0;
     if (duplicateRatio > 0.4) {
       addIssue(issues, reasonCodes, {
         code: 'DUPLICATE_FORECAST_BLOCK_TITLE_BY_LANE_PHASE',
@@ -217,7 +216,7 @@ function analyzeDuplicateTitleRatioByLanePhase(blocks, issues, reasonCodes) {
         laneId: laneKey === 'unassigned' ? null : laneKey,
         dayKey: null,
         title: `${phaseLabel} duplicate titles`,
-        explanation: `${phaseLabel} on lane ${laneKey} has ${Math.round(duplicateRatio * 100)}% duplicate titles.`,
+        explanation: `${phaseLabel} on lane ${laneKey} is dominated by one title family across ${Math.round(duplicateRatio * 100)}% of blocks.`,
       });
     }
   });

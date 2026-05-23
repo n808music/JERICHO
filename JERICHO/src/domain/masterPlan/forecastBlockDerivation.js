@@ -31,10 +31,14 @@ const LANE_FAMILY_LABELS = {
   general: 'primary lane',
 };
 
+function hasWord(text, pattern) {
+  return new RegExp(`\\b${pattern}\\b`, 'i').test(String(text || ''));
+}
+
 function inferLaneFamily(lane) {
   const domain = String(lane?.domain || '').trim().toLowerCase();
   const title = String(lane?.title || '').trim().toLowerCase();
-  if (domain === 'product' || title.includes('app') || title.includes('software')) return 'product_software';
+  if (domain === 'product' || hasWord(title, 'app') || title.includes('software')) return 'product_software';
   if (domain === 'creative' || title.includes('album') || title.includes('release') || title.includes('music')) return 'creative_media';
   if (domain === 'media' || title.includes('podcast') || title.includes('content')) return 'media_channel';
   if (domain === 'brand' || title.includes('company') || title.includes('agency') || title.includes('studio')) return 'company_operations';

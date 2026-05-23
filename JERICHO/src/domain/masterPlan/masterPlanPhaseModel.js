@@ -40,6 +40,10 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+function hasWord(text, pattern) {
+  return new RegExp(`\\b${pattern}\\b`, 'i').test(String(text || ''));
+}
+
 function getTemporalDayKey(item) {
   return normalizeDayKey(item?.dayKey || item?.targetDate || item?.date || item?.startISO || item?.start);
 }
@@ -65,7 +69,7 @@ function inferLaneFamily(lane) {
     .trim()
     .toLowerCase();
 
-  if (domain === 'product' || title.includes('app') || title.includes('software')) {
+  if (domain === 'product' || hasWord(title, 'app') || title.includes('software')) {
     return 'product_software';
   }
   if (domain === 'creative' || title.includes('album') || title.includes('release') || title.includes('music')) {

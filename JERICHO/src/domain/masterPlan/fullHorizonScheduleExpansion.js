@@ -12,6 +12,10 @@ function nextDayKey(dayKey, days) {
   return d.toISOString().slice(0, 10);
 }
 
+function hasWord(text, pattern) {
+  return new RegExp(`\\b${pattern}\\b`, 'i').test(String(text || ''));
+}
+
 function inferLaneFamily(lane) {
   const domain = String(lane?.domain || '')
     .trim()
@@ -20,7 +24,7 @@ function inferLaneFamily(lane) {
     .trim()
     .toLowerCase();
 
-  if (domain === 'product' || title.includes('app') || title.includes('software')) return 'product_software';
+  if (domain === 'product' || hasWord(title, 'app') || title.includes('software')) return 'product_software';
   if (domain === 'creative' || title.includes('album') || title.includes('release') || title.includes('music')) {
     return 'creative_media';
   }
@@ -436,8 +440,12 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Define repeatable release cadence for ${laneTitle} in P2 product/software lane`, 'action', 'Release cadence standard with owner and review rhythm'],
       ],
       P3: [
-        [`Review scale-readiness controls for ${laneTitle} in P3 product/software lane`, 'review', 'Scale-readiness review with delegation constraints'],
-        [`Validate terminal product evidence for ${laneTitle} against success standard`, 'terminal-readiness', 'Terminal product evidence summary tied to success standard'],
+        [`Review scale-readiness controls for ${laneTitle} in P3 product/software lane`, 'review', 'Scale-readiness review with delegation constraints', 'p3_product_scale_readiness_controls'],
+        [`Validate terminal product evidence for ${laneTitle} against success standard`, 'terminal-readiness', 'Terminal product evidence summary tied to success standard', 'p3_product_terminal_evidence'],
+        [`Stress-test retention and conversion durability for ${laneTitle} in P3 product/software lane`, 'audit', 'Retention and conversion durability test with failure modes', 'p3_product_retention_durability'],
+        [`Package product proof for capital and institution review for ${laneTitle}`, 'action', 'Product proof package prepared for downstream capital and institution review', 'p3_product_proof_packaging'],
+        [`Reconcile unresolved product blockers for ${laneTitle} before horizon close`, 'review', 'Resolved product blocker register with owners and deadlines', 'p3_product_blocker_reconciliation'],
+        [`Confirm operating handoff readiness for ${laneTitle} in P3 product/software lane`, 'readiness', 'Operating handoff readiness decision with support coverage', 'p3_product_handoff_readiness'],
       ],
     },
     creative_media: {
@@ -452,8 +460,12 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Gate additional creative spend for ${laneTitle} until proof quality improves`, 'gate', 'Creative spend gate decision with evidence threshold'],
       ],
       P3: [
-        [`Review long-tail audience monetization readiness for ${laneTitle} in P3 creative project lane`, 'readiness', 'Long-tail monetization readiness decision'],
-        [`Validate terminal creative-proof package for ${laneTitle} against success standard`, 'terminal-readiness', 'Terminal creative-proof package with evidence index'],
+        [`Review long-tail audience monetization readiness for ${laneTitle} in P3 creative project lane`, 'readiness', 'Long-tail monetization readiness decision', 'p3_creative_monetization_readiness'],
+        [`Validate terminal creative-proof package for ${laneTitle} against success standard`, 'terminal-readiness', 'Terminal creative-proof package with evidence index', 'p3_creative_terminal_proof'],
+        [`Audit catalog conversion durability for ${laneTitle} in P3 creative project lane`, 'audit', 'Catalog conversion durability audit with replay risks', 'p3_creative_catalog_durability'],
+        [`Package creative and IP proof for institutional leverage for ${laneTitle}`, 'action', 'Creative and IP proof package organized for institutional leverage', 'p3_creative_ip_packaging'],
+        [`Reconcile release-to-demand evidence for ${laneTitle} before terminal review`, 'review', 'Release-to-demand evidence reconciled with remaining demand gaps', 'p3_creative_release_demand_reconciliation'],
+        [`Confirm post-release operating cadence for ${laneTitle} in P3 creative project lane`, 'validation', 'Post-release operating cadence validated for long-tail execution', 'p3_creative_operating_cadence'],
       ],
     },
     media_channel: {
@@ -468,8 +480,12 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Assess sponsor or partner readiness for ${laneTitle} in P2 media/content lane`, 'readiness', 'Sponsor readiness decision tied to proof data'],
       ],
       P3: [
-        [`Audit scale distribution resilience for ${laneTitle} in P3 media/content lane`, 'audit', 'Scale distribution resilience audit'],
-        [`Validate terminal media-proof package for ${laneTitle} against outcome target`, 'terminal-readiness', 'Terminal media-proof package mapped to outcome target'],
+        [`Audit scale distribution resilience for ${laneTitle} in P3 media/content lane`, 'audit', 'Scale distribution resilience audit', 'p3_media_distribution_resilience'],
+        [`Validate terminal media-proof package for ${laneTitle} against outcome target`, 'terminal-readiness', 'Terminal media-proof package mapped to outcome target', 'p3_media_terminal_proof'],
+        [`Stress-test audience-to-demand conversion for ${laneTitle} in P3 media/content lane`, 'validation', 'Audience-to-demand conversion stress test with weak-point list', 'p3_media_conversion_stress_test'],
+        [`Package narrative channel proof for ${laneTitle} before terminal review`, 'action', 'Narrative channel proof package assembled for terminal review', 'p3_media_channel_packaging'],
+        [`Reconcile sponsor and partner readiness for ${laneTitle} in P3 media/content lane`, 'review', 'Sponsor and partner readiness reconciled with outstanding blockers', 'p3_media_partner_readiness'],
+        [`Confirm editorial operating continuity for ${laneTitle} through horizon close`, 'readiness', 'Editorial operating continuity decision with delegated owner coverage', 'p3_media_editorial_continuity'],
       ],
     },
     company_operations: {
@@ -484,8 +500,12 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Define dashboard review cadence for ${laneTitle} in P2 company/operations lane`, 'action', 'Dashboard cadence and decision protocol'],
       ],
       P3: [
-        [`Assess delegation readiness for ${laneTitle} in P3 company/operations lane`, 'readiness', 'Delegation readiness decision with missing controls'],
-        [`Validate terminal operating-system evidence for ${laneTitle} against success standard`, 'terminal-readiness', 'Terminal operating-system evidence mapped to success standard'],
+        [`Assess delegation readiness for ${laneTitle} in P3 company/operations lane`, 'readiness', 'Delegation readiness decision with missing controls', 'p3_ops_delegation_readiness'],
+        [`Validate terminal operating-system evidence for ${laneTitle} against success standard`, 'terminal-readiness', 'Terminal operating-system evidence mapped to success standard', 'p3_ops_terminal_evidence'],
+        [`Stress-test operator capacity for ${laneTitle} in P3 company/operations lane`, 'audit', 'Operator capacity stress test with escalation paths', 'p3_ops_capacity_stress_test'],
+        [`Package SOP and control proof for ${laneTitle} before terminal review`, 'action', 'SOP and control proof package prepared for terminal review', 'p3_ops_sop_packaging'],
+        [`Reconcile handoff risks for ${laneTitle} across the operating system`, 'review', 'Handoff risk register reconciled with mitigations and owners', 'p3_ops_handoff_reconciliation'],
+        [`Confirm review cadence durability for ${laneTitle} in P3 company/operations lane`, 'validation', 'Review cadence durability validated against delegated operating load', 'p3_ops_cadence_durability'],
       ],
     },
     income_stream: {
@@ -500,8 +520,12 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Gate expansion of ${laneTitle} until revenue quality clears criteria`, 'gate', 'Revenue quality gate with criteria outcome'],
       ],
       P3: [
-        [`Review scale economics for ${laneTitle} in P3 income stream lane`, 'review', 'Scale economics review mapped to horizon target'],
-        [`Validate terminal revenue evidence for ${laneTitle} against outcome target`, 'terminal-readiness', 'Terminal revenue evidence package'],
+        [`Review scale economics for ${laneTitle} in P3 income stream lane`, 'review', 'Scale economics review mapped to horizon target', 'p3_income_scale_economics'],
+        [`Validate terminal revenue evidence for ${laneTitle} against outcome target`, 'terminal-readiness', 'Terminal revenue evidence package', 'p3_income_terminal_evidence'],
+        [`Stress-test margin durability for ${laneTitle} in P3 income stream lane`, 'audit', 'Margin durability stress test with correction plan', 'p3_income_margin_durability'],
+        [`Package recurring revenue proof for ${laneTitle} before terminal review`, 'action', 'Recurring revenue proof package assembled for terminal review', 'p3_income_recurring_revenue_packaging'],
+        [`Reconcile cashflow risk for ${laneTitle} across the scale window`, 'review', 'Cashflow risk reconciled with downside scenarios and safeguards', 'p3_income_cashflow_reconciliation'],
+        [`Confirm repeatable conversion system for ${laneTitle} in P3 income stream lane`, 'validation', 'Repeatable conversion system validated against final-horizon targets', 'p3_income_conversion_system'],
       ],
     },
     capital_real_estate: {
@@ -516,8 +540,12 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Assess asset-readiness for ${laneTitle} before widening capital commitment`, 'readiness', 'Asset-readiness decision tied to capital proof'],
       ],
       P3: [
-        [`Audit scale-entry gates for ${laneTitle} in P3 capital/real-estate lane`, 'audit', 'Scale-entry gate audit with unresolved constraints'],
-        [`Validate terminal capital-readiness evidence for ${laneTitle} against success standard`, 'terminal-readiness', 'Terminal capital-readiness evidence package'],
+        [`Audit scale-entry gates for ${laneTitle} in P3 capital/real-estate lane`, 'audit', 'Scale-entry gate audit with unresolved constraints', 'p3_capital_scale_entry_gates'],
+        [`Validate terminal capital-readiness evidence for ${laneTitle} against success standard`, 'terminal-readiness', 'Terminal capital-readiness evidence package', 'p3_capital_terminal_evidence'],
+        [`Stress-test financing prerequisites for ${laneTitle} in P3 capital/real-estate lane`, 'validation', 'Financing prerequisites stress test with blocked dependencies', 'p3_capital_financing_prerequisites'],
+        [`Package acquisition and capital proof for ${laneTitle} before terminal review`, 'review', 'Acquisition and capital proof package prepared for terminal review', 'p3_capital_proof_packaging'],
+        [`Reconcile risk controls for ${laneTitle} across the capital path`, 'review', 'Capital-path risk controls reconciled with owner coverage', 'p3_capital_risk_reconciliation'],
+        [`Confirm capital deployment readiness for ${laneTitle} in P3 capital/real-estate lane`, 'readiness', 'Capital deployment readiness decision with remaining gating criteria', 'p3_capital_deployment_readiness'],
       ],
     },
     institution_education: {
@@ -532,8 +560,12 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Validate operating charter for ${laneTitle} in P2 institution/education lane`, 'validation', 'Operating charter aligned to proof data'],
       ],
       P3: [
-        [`Review institutional scale-readiness for ${laneTitle} in P3 institution/education lane`, 'review', 'Institutional scale-readiness review'],
-        [`Validate terminal institutional evidence for ${laneTitle} against outcome target`, 'terminal-readiness', 'Terminal institutional evidence package'],
+        [`Review institutional scale-readiness for ${laneTitle} in P3 institution/education lane`, 'review', 'Institutional scale-readiness review', 'p3_institution_scale_readiness'],
+        [`Validate terminal institutional evidence for ${laneTitle} against outcome target`, 'terminal-readiness', 'Terminal institutional evidence package', 'p3_institution_terminal_evidence'],
+        [`Stress-test program and partner viability for ${laneTitle} in P3 institution/education lane`, 'audit', 'Program and partner viability stress test with gating gaps', 'p3_institution_program_viability'],
+        [`Package operating charter proof for ${laneTitle} before terminal review`, 'review', 'Operating charter proof package assembled for terminal review', 'p3_institution_charter_packaging'],
+        [`Reconcile compliance and legitimacy risks for ${laneTitle} across P3`, 'review', 'Compliance and legitimacy risks reconciled with evidence owners', 'p3_institution_compliance_reconciliation'],
+        [`Confirm institution launch readiness for ${laneTitle} in P3 institution/education lane`, 'readiness', 'Institution launch readiness decision with open prerequisites noted', 'p3_institution_launch_readiness'],
       ],
     },
     civic_development: {
@@ -548,14 +580,23 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Validate public-interest case for ${laneTitle} in P2 civic/district lane`, 'validation', 'Public-interest case validated against strategy'],
       ],
       P3: [
-        [`Review civic scale-readiness for ${laneTitle} in P3 civic/district lane`, 'review', 'Civic scale-readiness review with dependency status'],
-        [`Validate terminal civic evidence for ${laneTitle} against success standard`, 'terminal-readiness', 'Terminal civic evidence package'],
+        [`Review civic scale-readiness for ${laneTitle} in P3 civic/district lane`, 'review', 'Civic scale-readiness review with dependency status', 'p3_civic_scale_readiness'],
+        [`Validate terminal civic evidence for ${laneTitle} against success standard`, 'terminal-readiness', 'Terminal civic evidence package', 'p3_civic_terminal_evidence'],
+        [`Stress-test coalition durability for ${laneTitle} in P3 civic/district lane`, 'audit', 'Coalition durability stress test with risk conditions', 'p3_civic_coalition_durability'],
+        [`Package public-interest proof for ${laneTitle} before terminal review`, 'review', 'Public-interest proof package assembled for terminal review', 'p3_civic_public_interest_packaging'],
+        [`Reconcile partner and risk gates for ${laneTitle} across the civic path`, 'review', 'Partner and risk gates reconciled with remaining blockers', 'p3_civic_partner_gate_reconciliation'],
+        [`Confirm civic execution readiness for ${laneTitle} in P3 civic/district lane`, 'readiness', 'Civic execution readiness decision with prerequisite coverage', 'p3_civic_execution_readiness'],
       ],
     },
     general: {
-      P1: [[`Define P1 proof sequence for ${laneTitle} in ${laneLabel}`, 'action', 'P1 proof sequence defined']],
-      P2: [[`Review P2 operating cadence for ${laneTitle} in ${laneLabel}`, 'review', 'P2 operating cadence review']],
-      P3: [[`Validate terminal evidence for ${laneTitle} in ${laneLabel}`, 'terminal-readiness', 'Terminal evidence package']],
+      P1: [[`Define P1 proof sequence for ${laneTitle} in ${laneLabel}`, 'action', 'P1 proof sequence defined', 'p1_general_proof_sequence']],
+      P2: [[`Review P2 operating cadence for ${laneTitle} in ${laneLabel}`, 'review', 'P2 operating cadence review', 'p2_general_operating_cadence']],
+      P3: [
+        [`Review terminal readiness for ${laneTitle} in ${laneLabel}`, 'review', 'Terminal readiness review', 'p3_general_terminal_readiness'],
+        [`Validate terminal evidence for ${laneTitle} in ${laneLabel}`, 'terminal-readiness', 'Terminal evidence package', 'p3_general_terminal_evidence'],
+        [`Package final proof for ${laneTitle} in ${laneLabel}`, 'action', 'Final proof package assembled', 'p3_general_final_proof_packaging'],
+        [`Confirm handoff readiness for ${laneTitle} in ${laneLabel}`, 'readiness', 'Handoff readiness decision', 'p3_general_handoff_readiness'],
+      ],
     },
   };
 
@@ -571,9 +612,10 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
 
   const supportException = laneStatus !== 'active' ? ` This occurrence is generated for a support lane with ${laneStatus} status and preserves documented density exception.` : '';
 
-  return descriptors.map(([title, blockType, expectedOutput]) => ({
+  return descriptors.map(([title, blockType, expectedOutput, titleFamily = null]) => ({
     title,
     blockType,
+    titleFamily,
     expectedOutput,
     derivationReason: `${phaseLabel} ${blockType} derived for ${laneLabel} from phase objective and lane role.${supportException}`,
     riskOrConstraintAddressed: gated
@@ -637,6 +679,7 @@ function buildBlock({
     laneLabel: getLaneTitle(lane),
     deliverableId: laneId ? `masterplan-deliverable:${laneId}` : null,
     blockType: occurrenceDescriptor.blockType,
+    titleFamily: occurrenceDescriptor.titleFamily || null,
     commitmentState,
     executionEligibility: 'locked',
     executionLockReason:

@@ -42,6 +42,32 @@ function cloneBlocks(blocks) {
   return JSON.parse(JSON.stringify(blocks || []));
 }
 
+function summarizeP3FamilyRatios(blocks = []) {
+  const byLane = blocks.reduce((acc, block) => {
+    if (block?.phaseLabel !== 'P3' || !block?.laneId) {
+      return acc;
+    }
+    acc[block.laneId] = acc[block.laneId] || { laneLabel: block.laneLabel, blocks: [] };
+    acc[block.laneId].blocks.push(block);
+    return acc;
+  }, {});
+
+  return Object.values(byLane).map(({ laneLabel, blocks: laneBlocks }) => {
+    const familyCounts = laneBlocks.reduce((acc, block) => {
+      const key = String(block?.titleFamily || block?.title || '').trim();
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+    const largestFamilyCount = Math.max(...Object.values(familyCounts), 0);
+    return {
+      laneLabel,
+      total: laneBlocks.length,
+      uniqueFamilies: Object.keys(familyCounts).length,
+      duplicateRatio: laneBlocks.length > 0 ? largestFamilyCount / laneBlocks.length : 0,
+    };
+  });
+}
+
 describe('master-plan full-horizon block quality audit', () => {
   it('returns a block-quality result for the restored Operation Endgame baseline', () => {
     const state = buildGeneratedState();
@@ -60,6 +86,17 @@ describe('master-plan full-horizon block quality audit', () => {
 
     expect(state.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
     expect(['trusted', 'provisional', 'degraded']).toContain(state.fullHorizonBlockQuality?.state);
+  });
+
+  it('keeps at least four distinct P3 title families per heavy lane without one family dominating above 40%', () => {
+    const state = buildGeneratedState();
+    const familyRows = summarizeP3FamilyRatios(state.fullHorizonScheduleBlocks || []).filter((row) => row.total >= 12);
+
+    expect(familyRows.length).toBeGreaterThan(0);
+    familyRows.forEach((row) => {
+      expect(row.uniqueFamilies).toBeGreaterThanOrEqual(4);
+      expect(row.duplicateRatio).toBeLessThanOrEqual(0.4);
+    });
   });
 
   it('flags weak or vague titles', () => {
@@ -174,6 +211,7 @@ describe('master-plan full-horizon block quality audit', () => {
 
     p3Blocks.slice(0, Math.ceil(p3Blocks.length * 0.5)).forEach((block) => {
       block.title = repeatedTitle;
+      block.titleFamily = 'repeated-terminal-family';
     });
 
     const quality = evaluateForState(state, blocks);
