@@ -538,11 +538,10 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByText(/^Full Phase Plan$/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Full horizon/i })).toBeInTheDocument();
     expect(screen.getByTestId('masterplan-coverage-status')).toHaveTextContent(/Full horizon/i);
-    expect(screen.getByTestId('masterplan-quality-status')).toHaveTextContent(/Plan quality provisional/i);
+    expect(screen.getByTestId('masterplan-quality-status')).toHaveTextContent(/Plan quality trusted/i);
     expect(screen.getByTestId('masterplan-block-quality-status')).not.toHaveTextContent(/unavailable/i);
     expect(screen.getByTestId('masterplan-agenda-status')).toHaveTextContent(/current/i);
-    expect(screen.getByText(/Full horizon covered; plan quality provisional\./i)).toBeInTheDocument();
-    expect(screen.getByText(/LANE PHASE MISMATCH\./i)).toBeInTheDocument();
+    expect(screen.getByText(/generated P2\/P3 workload passes the current quality gate/i)).toBeInTheDocument();
     expect(screen.getByText(/Full-horizon scheduled agenda — planned, not live execution\./i)).toBeInTheDocument();
     expect(screen.getByText(/Constraints:\s*master_calendar/i)).toBeInTheDocument();
     expect(screen.getByText(/\d+ planned blocks/i)).toBeInTheDocument();

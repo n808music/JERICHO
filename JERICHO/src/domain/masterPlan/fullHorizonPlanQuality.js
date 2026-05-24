@@ -291,6 +291,10 @@ function evaluateProfessionalism({ blocks, laneModel = [] }) {
 
   blocks.forEach((block) => {
     const title = String(block?.title || '').trim();
+    const laneId = String(block?.laneId || '').trim();
+    const laneLabel = String(block?.laneLabel || '').trim();
+    const isExplicitCrossLaneReview =
+      laneId.startsWith('cross_lane_') || /\bcross-lane\b/i.test(laneLabel) || /\bcross-lane\b/i.test(title);
     titleCounts.set(title, (titleCounts.get(title) || 0) + 1);
     if (!String(block?.derivationReason || '').trim() || !Array.isArray(block?.sourceInputs) || block.sourceInputs.length === 0) {
       reasonCodes.push('PROFESSIONALISM_INSUFFICIENT_LINEAGE');
@@ -300,7 +304,7 @@ function evaluateProfessionalism({ blocks, laneModel = [] }) {
       reasonCodes.push('PROFESSIONALISM_STATE_MISMATCH');
       findings.push(`Unlocked future block detected: ${title || block?.id}`);
     }
-    if (block?.laneId && laneIds.size > 0 && !laneIds.has(String(block.laneId).trim())) {
+    if (laneId && laneIds.size > 0 && !laneIds.has(laneId) && !isExplicitCrossLaneReview) {
       reasonCodes.push('PROFESSIONALISM_LANE_PHASE_MISMATCH');
       findings.push(`Unknown lane assignment: ${title || block?.id}`);
     }
@@ -376,7 +380,69 @@ function evaluateMilestoneCompleteness({ blocks, phaseModel }) {
   };
 }
 
-function evaluatePhaseBalance({ blocks, phaseModel }) {
+function buildCompensatingPhaseSubstrate({
+  label,
+  phase,
+  phaseBlocks,
+  activeLaneIds,
+  maxAllowedGapDays,
+  fullHorizonBlockQuality,
+}) {
+  if (String(fullHorizonBlockQuality?.state || '').trim().toLowerCase() !== 'trusted') {
+    return { compensates: false };
+  }
+
+  const phaseIssues = (Array.isArray(fullHorizonBlockQuality?.issues) ? fullHorizonBlockQuality.issues : []).filter((issue) => {
+    const issuePhase = String(issue?.phaseLabel || '').trim();
+    return issuePhase === label && String(issue?.severity || '').trim().toLowerCase() !== 'low';
+  });
+  if (phaseIssues.length > 0) {
+    return { compensates: false };
+  }
+
+  const expectedOutputCoverage =
+    phaseBlocks.length > 0
+      ? phaseBlocks.filter((block) => String(block?.expectedOutput || '').trim()).length / phaseBlocks.length
+      : 0;
+  const activeLanesWithBlocks = [...activeLaneIds].filter((laneId) =>
+    phaseBlocks.some((block) => String(block?.laneId || '').trim() === laneId)
+  ).length;
+  const activeLaneBlockCoverageRatio = activeLaneIds.size > 0 ? activeLanesWithBlocks / activeLaneIds.size : 1;
+  const phaseQuarterCount = new Set(phaseBlocks.map((block) => getQuarterKey(block.dayKey || block.date)).filter(Boolean)).size;
+  const sortedBlocks = [...phaseBlocks].sort((left, right) =>
+    String(normalizeDayKey(left?.dayKey || left?.date || '')).localeCompare(
+      String(normalizeDayKey(right?.dayKey || right?.date || ''))
+    )
+  );
+  const blockGaps = sortedBlocks.slice(1).map((block, index) =>
+    diffDays(sortedBlocks[index]?.dayKey || sortedBlocks[index]?.date, block?.dayKey || block?.date)
+  );
+  const largestBlockGapDays = Math.max(0, ...blockGaps);
+  const durationDays = dayDistanceInclusive(phase?.startBoundary, phase?.endBoundary);
+  const minimumQuarterCoverage = Math.max(3, Math.min(6, Math.ceil(durationDays / 180)));
+  const minimumBlockCount = Math.max(activeLaneIds.size * 12, Math.ceil(durationDays / 14));
+
+  const compensates =
+    phaseBlocks.length >= minimumBlockCount &&
+    expectedOutputCoverage >= 0.95 &&
+    activeLaneBlockCoverageRatio >= 0.8 &&
+    phaseQuarterCount >= minimumQuarterCoverage &&
+    largestBlockGapDays <= maxAllowedGapDays;
+
+  return {
+    compensates,
+    summary: {
+      expectedOutputCoverage,
+      activeLaneBlockCoverageRatio,
+      phaseQuarterCount,
+      largestBlockGapDays,
+      minimumQuarterCoverage,
+      minimumBlockCount,
+    },
+  };
+}
+
+function evaluatePhaseBalance({ blocks, phaseModel, fullHorizonBlockQuality = null }) {
   const reasonCodes = [];
   const findings = [];
   const phases = Array.isArray(phaseModel?.phases) ? phaseModel.phases : [];
@@ -413,23 +479,6 @@ function evaluatePhaseBalance({ blocks, phaseModel }) {
 
     const durationDays = dayDistanceInclusive(phase?.startBoundary, phase?.endBoundary);
     const requiredMilestones = Math.max(3, Math.ceil(durationDays / 120));
-
-    if (namedMilestoneCount < requiredMilestones) {
-      reasonCodes.push('PHASE_MILESTONE_DENSITY_THIN');
-      reasonCodes.push(`PHASE_MILESTONE_DENSITY_THIN_${label}`);
-      findings.push(
-        `${label} spans ${durationDays} days with ${phaseBlocks.length} forecast blocks but only ${namedMilestoneCount} named milestones; ${requiredMilestones} are expected for this phase length.`
-      );
-    }
-
-    if (activeLaneIds.size >= 4 && activeLaneCoverageRatio < 0.8) {
-      reasonCodes.push('PHASE_ACTIVE_LANE_MILESTONE_COVERAGE_THIN');
-      reasonCodes.push(`PHASE_ACTIVE_LANE_MILESTONE_COVERAGE_THIN_${label}`);
-      findings.push(
-        `${label} only gives named milestone coverage to ${activeLanesWithMilestones}/${activeLaneIds.size} active lanes.`
-      );
-    }
-
     const temporalPoints = [
       normalizeDayKey(phase?.startBoundary),
       ...milestones.map((milestone) => getTemporalDayKey(milestone)).filter(Boolean),
@@ -441,7 +490,32 @@ function evaluatePhaseBalance({ blocks, phaseModel }) {
     }
     const largestGapDays = Math.max(0, ...gaps);
     const maxAllowedGapDays = Math.max(180, Math.round(durationDays * 0.4));
-    if (largestGapDays > maxAllowedGapDays) {
+    const compensatingSubstrate = buildCompensatingPhaseSubstrate({
+      label,
+      phase,
+      phaseBlocks,
+      activeLaneIds,
+      maxAllowedGapDays,
+      fullHorizonBlockQuality,
+    });
+
+    if (namedMilestoneCount < requiredMilestones && !compensatingSubstrate.compensates) {
+      reasonCodes.push('PHASE_MILESTONE_DENSITY_THIN');
+      reasonCodes.push(`PHASE_MILESTONE_DENSITY_THIN_${label}`);
+      findings.push(
+        `${label} spans ${durationDays} days with ${phaseBlocks.length} forecast blocks but only ${namedMilestoneCount} named milestones; ${requiredMilestones} are expected for this phase length.`
+      );
+    }
+
+    if (activeLaneIds.size >= 4 && activeLaneCoverageRatio < 0.8 && !compensatingSubstrate.compensates) {
+      reasonCodes.push('PHASE_ACTIVE_LANE_MILESTONE_COVERAGE_THIN');
+      reasonCodes.push(`PHASE_ACTIVE_LANE_MILESTONE_COVERAGE_THIN_${label}`);
+      findings.push(
+        `${label} only gives named milestone coverage to ${activeLanesWithMilestones}/${activeLaneIds.size} active lanes.`
+      );
+    }
+
+    if (largestGapDays > maxAllowedGapDays && !compensatingSubstrate.compensates) {
       reasonCodes.push('PHASE_MILESTONE_TIME_DISTRIBUTION_THIN');
       reasonCodes.push(`PHASE_MILESTONE_TIME_DISTRIBUTION_THIN_${label}`);
       findings.push(
@@ -520,6 +594,7 @@ function buildLaneFindings(blocks) {
 export function evaluateFullHorizonPlanQuality({
   fullHorizonScheduleBlocks = [],
   fullHorizonCoverageAudit = null,
+  fullHorizonBlockQuality = null,
   phaseModel = null,
   laneModel = [],
   masterPlanContract = null,
@@ -536,7 +611,7 @@ export function evaluateFullHorizonPlanQuality({
     progression: evaluateProgression({ blocks }),
     professionalism: evaluateProfessionalism({ blocks, laneModel }),
     completeness: evaluateMilestoneCompleteness({ blocks, phaseModel }),
-    balance: evaluatePhaseBalance({ blocks, phaseModel }),
+    balance: evaluatePhaseBalance({ blocks, phaseModel, fullHorizonBlockQuality }),
   };
 
   const aggregateReasonCodes = [

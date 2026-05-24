@@ -6127,6 +6127,7 @@ function applyLongHorizonCalendarBlocks(state) {
   // (Structure deliverables, Plan chart, Today calendar) should consume.
   const coverageFailureReasonCodes = [];
   const qualityFailureReasonCodes = [];
+  let blockQuality = state.fullHorizonBlockQuality || null;
   const fullHorizonStartDayKey =
     phaseModel.horizonVisibility?.horizonStart || plan.horizonStart || plan.officialStartDate || null;
   const fullHorizonEndDayKey = horizonEndForMode || plan.fullHorizonEndDayKey || plan.horizonEnd;
@@ -6151,9 +6152,14 @@ function applyLongHorizonCalendarBlocks(state) {
       laneModel: lanes,
       selectedHorizonMode: mode,
     });
+    blockQuality = evaluateFullHorizonBlockQuality({
+      fullHorizonScheduleBlocks,
+      phaseModel,
+    });
     planQuality = evaluateFullHorizonPlanQuality({
       fullHorizonScheduleBlocks,
       fullHorizonCoverageAudit: coverageAudit,
+      fullHorizonBlockQuality: blockQuality,
       phaseModel,
       laneModel: lanes,
       masterPlanContract: plan,
@@ -6266,9 +6272,16 @@ function applyLongHorizonCalendarBlocks(state) {
     });
   }
   if (!planQuality && Array.isArray(state.fullHorizonScheduleBlocks) && state.fullHorizonScheduleBlocks.length > 0) {
+    if (!blockQuality) {
+      blockQuality = evaluateFullHorizonBlockQuality({
+        fullHorizonScheduleBlocks: state.fullHorizonScheduleBlocks,
+        phaseModel,
+      });
+    }
     planQuality = evaluateFullHorizonPlanQuality({
       fullHorizonScheduleBlocks: state.fullHorizonScheduleBlocks,
       fullHorizonCoverageAudit: coverageAudit,
+      fullHorizonBlockQuality: blockQuality,
       phaseModel,
       laneModel: lanes,
       masterPlanContract: plan,
@@ -6278,7 +6291,6 @@ function applyLongHorizonCalendarBlocks(state) {
       constraints: plan?.financialConstraint || plan?.constraints || null,
     });
   }
-  let blockQuality = state.fullHorizonBlockQuality || null;
   if (!blockQuality && Array.isArray(state.fullHorizonScheduleBlocks) && state.fullHorizonScheduleBlocks.length > 0) {
     blockQuality = evaluateFullHorizonBlockQuality({
       fullHorizonScheduleBlocks: state.fullHorizonScheduleBlocks,

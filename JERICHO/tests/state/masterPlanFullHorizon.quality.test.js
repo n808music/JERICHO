@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { auditFullHorizonCoverage } from '../../src/domain/masterPlan/fullHorizonCoverageAudit.js';
+import { evaluateFullHorizonBlockQuality } from '../../src/domain/masterPlan/fullHorizonBlockQuality.js';
 import { evaluateFullHorizonPlanQuality } from '../../src/domain/masterPlan/fullHorizonPlanQuality.js';
 import { deriveMasterPlanPhaseModel } from '../../src/domain/masterPlan/masterPlanPhaseModel.js';
 import { buildOperationEndgameFixtureState } from '../../src/dev/operationEndgameRestore.js';
@@ -43,9 +44,14 @@ function evaluateForState(state = buildGeneratedState(), blocks = state.fullHori
     laneModel: lanes,
     selectedHorizonMode: state?.selectedHorizonMode || 'full_horizon',
   });
+  const blockQuality = evaluateFullHorizonBlockQuality({
+    fullHorizonScheduleBlocks: blocks,
+    phaseModel,
+  });
   return evaluateFullHorizonPlanQuality({
     fullHorizonScheduleBlocks: blocks,
     fullHorizonCoverageAudit: coverageAudit,
+    fullHorizonBlockQuality: blockQuality,
     phaseModel,
     laneModel: lanes,
     masterPlanContract: plan,
@@ -61,20 +67,21 @@ function cloneBlocks(blocks) {
 }
 
 describe('master-plan full-horizon quality gate', () => {
-  it('keeps the baseline Operation Endgame schedule covered but provisional when P2 milestone density and spacing remain thin', () => {
+  it('promotes the baseline Operation Endgame schedule to trusted when milestone-thin P2 is backed by trusted scheduled-agenda substrate', () => {
     const state = buildGeneratedState();
     const quality = state.fullHorizonPlanQuality;
 
     expect(state.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
-    expect(state.fullHorizonCoverageAudit?.fullHorizonQualityTrusted).toBe(false);
-    expect(quality?.state).toBe('provisional');
-    expect(Number(quality?.score || 0)).toBeGreaterThanOrEqual(75);
+    expect(state.fullHorizonCoverageAudit?.fullHorizonQualityTrusted).toBe(true);
+    expect(state.fullHorizonBlockQuality?.state).toBe('trusted');
+    expect(quality?.state).toBe('trusted');
+    expect(Number(quality?.score || 0)).toBeGreaterThanOrEqual(88);
     expect(quality?.reasonCodes || []).not.toContain('PHASE_NAMED_MILESTONES_MISSING');
     expect(quality?.reasonCodes || []).not.toContain('PHASE_NAMED_MILESTONES_MISSING_P2');
-    expect(quality?.reasonCodes || []).toContain('PHASE_MILESTONE_DENSITY_THIN');
-    expect(quality?.reasonCodes || []).toContain('PHASE_MILESTONE_DENSITY_THIN_P2');
-    expect(quality?.reasonCodes || []).toContain('PHASE_MILESTONE_TIME_DISTRIBUTION_THIN');
-    expect(quality?.reasonCodes || []).toContain('PHASE_MILESTONE_TIME_DISTRIBUTION_THIN_P2');
+    expect(quality?.reasonCodes || []).not.toContain('PHASE_MILESTONE_DENSITY_THIN');
+    expect(quality?.reasonCodes || []).not.toContain('PHASE_MILESTONE_DENSITY_THIN_P2');
+    expect(quality?.reasonCodes || []).not.toContain('PHASE_MILESTONE_TIME_DISTRIBUTION_THIN');
+    expect(quality?.reasonCodes || []).not.toContain('PHASE_MILESTONE_TIME_DISTRIBUTION_THIN_P2');
   });
 
   it('keeps expectedOutput populated across the trusted baseline schedule', () => {
@@ -379,6 +386,27 @@ describe('master-plan full-horizon quality gate', () => {
     expect(quality.state).toBe('provisional');
     expect(quality.reasonCodes).toContain('PHASE_NAMED_MILESTONES_MISSING');
     expect(quality.reasonCodes).toContain('PHASE_NAMED_MILESTONES_MISSING_P2');
+  });
+
+  it('keeps milestone-thin phases provisional when the block substrate is not trusted', () => {
+    const state = buildGeneratedState();
+    let strippedCount = 0;
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks).map((block) => {
+      if (block.phaseLabel === 'P2' && strippedCount < 24) {
+        strippedCount += 1;
+        return {
+          ...block,
+          expectedOutput: '',
+        };
+      }
+      return block;
+    });
+
+    const quality = evaluateForState(state, blocks);
+
+    expect(quality.state).toBe('provisional');
+    expect(quality.reasonCodes).toContain('PHASE_MILESTONE_DENSITY_THIN');
+    expect(quality.reasonCodes).toContain('PHASE_MILESTONE_DENSITY_THIN_P2');
   });
 
   it('flags active-lane milestone coverage gaps when only a minority of active P2 lanes have named milestones', () => {

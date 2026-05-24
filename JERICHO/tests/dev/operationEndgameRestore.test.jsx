@@ -75,7 +75,7 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(summary.fullHorizonEndDayKey).toBe('2031-05-19');
     expect(summary.fullHorizonBlockCount).toBeGreaterThan(0);
     expect(summary.coverageState).toMatch(/covered|trusted/);
-    expect(summary.planQualityState).toBe('provisional');
+    expect(summary.planQualityState).toBe('trusted');
     expect(summary.agendaState).toBe('current');
     expect(summary.agendaBlockCount).toBe(summary.fullHorizonBlockCount);
     expect(summary.constraintHash).toBeTruthy();
@@ -93,7 +93,7 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(plan.currentAgendaVersionId).toBe(summary.agendaVersionId);
     expect(plan.currentScheduleConstraintVersionId).toBe(summary.constraintVersionId);
     expect(state.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
-    expect(state.fullHorizonPlanQuality?.state).toBe('provisional');
+    expect(state.fullHorizonPlanQuality?.state).toBe('trusted');
     expect(state.fullHorizonBlockQuality?.state).toBeTruthy();
     expect(state.fullHorizonBlockQuality?.summary?.totalBlocks).toBeGreaterThan(0);
     expect(agenda?.profileId).toBe(DEFAULT_PROFILE_ID);
@@ -107,10 +107,10 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(constraintVersion?.weeklyCapacityMinutes || 0).toBeGreaterThan(0);
     expect(state.fullHorizonPlanQuality?.reasonCodes || []).not.toContain('PHASE_NAMED_MILESTONES_MISSING');
     expect(state.fullHorizonPlanQuality?.reasonCodes || []).not.toContain('PHASE_NAMED_MILESTONES_MISSING_P2');
-    expect(state.fullHorizonPlanQuality?.reasonCodes || []).toContain('PHASE_MILESTONE_DENSITY_THIN');
-    expect(state.fullHorizonPlanQuality?.reasonCodes || []).toContain('PHASE_MILESTONE_DENSITY_THIN_P2');
-    expect(state.fullHorizonPlanQuality?.reasonCodes || []).toContain('PHASE_MILESTONE_TIME_DISTRIBUTION_THIN');
-    expect(state.fullHorizonPlanQuality?.reasonCodes || []).toContain('PHASE_MILESTONE_TIME_DISTRIBUTION_THIN_P2');
+    expect(state.fullHorizonPlanQuality?.reasonCodes || []).not.toContain('PHASE_MILESTONE_DENSITY_THIN');
+    expect(state.fullHorizonPlanQuality?.reasonCodes || []).not.toContain('PHASE_MILESTONE_DENSITY_THIN_P2');
+    expect(state.fullHorizonPlanQuality?.reasonCodes || []).not.toContain('PHASE_MILESTONE_TIME_DISTRIBUTION_THIN');
+    expect(state.fullHorizonPlanQuality?.reasonCodes || []).not.toContain('PHASE_MILESTONE_TIME_DISTRIBUTION_THIN_P2');
     expect(p2Milestones.map((milestone) => milestone.title)).toEqual(
       expect.arrayContaining([
         'Validate repeatable conversion path',
@@ -185,7 +185,7 @@ describe('Operation Endgame dev restore fixture', () => {
     const rehydrated = rehydratePersistedState(written);
     expect((rehydrated.fullHorizonScheduleBlocks || []).length).toBeGreaterThan(0);
     expect(rehydrated.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
-    expect(rehydrated.fullHorizonPlanQuality?.state).toBe('provisional');
+    expect(rehydrated.fullHorizonPlanQuality?.state).toBe('trusted');
     expect(rehydrated.fullHorizonBlockQuality?.state).toBeTruthy();
     const rehydratedPlan = rehydrated.masterPlansById?.[written.profilesById?.[DEFAULT_PROFILE_ID]?.activeMasterPlanId];
     const rehydratedAgenda =
@@ -244,7 +244,7 @@ describe('Operation Endgame dev restore fixture', () => {
     const rehydrated = rehydratePersistedState(written);
     expect((rehydrated.fullHorizonScheduleBlocks || []).length).toBeGreaterThan(0);
     expect(rehydrated.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
-    expect(rehydrated.fullHorizonPlanQuality?.state).toBe('provisional');
+    expect(rehydrated.fullHorizonPlanQuality?.state).toBe('trusted');
     expect(rehydrated.fullHorizonBlockQuality?.state).toBeTruthy();
     expect(Object.keys(rehydrated.masterPlanAgendaVersionsById || {})).toHaveLength(1);
     expect(compactBackup.type).toBe('compact-backup-metadata');
@@ -290,7 +290,7 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(profile.masterPlanIds.length).toBeGreaterThan(0);
     expect(rehydrated.activeCycleId).toBeNull();
     expect(rehydrated.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
-    expect(rehydrated.fullHorizonPlanQuality?.state).toBe('provisional');
+    expect(rehydrated.fullHorizonPlanQuality?.state).toBe('trusted');
     expect(rehydrated.fullHorizonBlockQuality?.state).toBeTruthy();
   });
 
@@ -348,7 +348,7 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(rehydrated.activeCycleId).toBeNull();
     expect((rehydrated.fullHorizonScheduleBlocks || []).length).toBeGreaterThan(0);
     expect(rehydrated.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
-    expect(rehydrated.fullHorizonPlanQuality?.state).toBe('provisional');
+    expect(rehydrated.fullHorizonPlanQuality?.state).toBe('trusted');
     expect(rehydrated.fullHorizonBlockQuality?.state).toBeTruthy();
   });
 
