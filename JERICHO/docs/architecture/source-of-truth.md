@@ -1,4 +1,4 @@
-# Source Of Truth Ownership (Phase 1.0.6.3)
+# Source of Truth Ownership
 
 This table is the runtime ownership lock.
 

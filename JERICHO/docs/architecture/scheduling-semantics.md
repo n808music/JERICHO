@@ -1,4 +1,4 @@
-# Scheduling Contract (Jericho 1.0.6.1)
+# Scheduling Semantics
 
 This document defines the canonical `Generate -> Propose -> Apply -> Render`
 contract used for deterministic debugging and validation.
