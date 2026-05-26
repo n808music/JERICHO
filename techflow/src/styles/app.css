@@ -1,0 +1,139 @@
+/* Additional App Styles */
+
+/* List Styles */
+.tf-list-disc {
+  list-style-type: disc;
+}
+
+.tf-ml-6 {
+  margin-left: var(--tf-space-6);
+}
+
+/* Space utilities */
+.tf-space-y-1 > * + * {
+  margin-top: var(--tf-space-1);
+}
+
+.tf-space-y-2 > * + * {
+  margin-top: var(--tf-space-2);
+}
+
+.tf-space-y-4 > * + * {
+  margin-top: var(--tf-space-4);
+}
+
+.tf-space-y-6 > * + * {
+  margin-top: var(--tf-space-6);
+}
+
+/* Flex utilities */
+.tf-flex-wrap {
+  flex-wrap: wrap;
+}
+
+.tf-max-w-4xl {
+  max-width: 896px;
+}
+
+.tf-mx-auto {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.tf-block {
+  display: block;
+}
+
+/* Text utilities */
+.tf-text-lg {
+  font-size: var(--tf-text-lg);
+}
+
+.tf-text-xl {
+  font-size: var(--tf-text-xl);
+}
+
+.tf-text-4xl {
+  font-size: var(--tf-text-4xl);
+}
+
+.tf-max-w-4xl {
+  max-width: 896px;
+}
+
+.tf-resize-y {
+  resize: vertical;
+}
+
+/* Card specific styles */
+.tf-card {
+  background-color: var(--tf-neutral-50);
+  border: 1px solid var(--tf-neutral-200);
+  border-radius: var(--tf-border-radius-lg);
+  box-shadow: var(--tf-shadow-sm);
+  transition: all var(--tf-transition-normal);
+}
+
+.tf-card:hover {
+  box-shadow: var(--tf-shadow-md);
+}
+
+/* Border utilities */
+.tf-border-t {
+  border-top: 1px solid var(--tf-neutral-300);
+}
+
+.tf-border-l-4 {
+  border-left-width: 4px;
+}
+
+/* Status utilities */
+.tf-bg-success {
+  background-color: var(--tf-success-500);
+  color: white;
+}
+
+.tf-bg-warning {
+  background-color: var(--tf-warning-500);
+  color: var(--tf-neutral-900);
+}
+
+.tf-bg-error {
+  background-color: var(--tf-error-500);
+  color: white;
+}
+
+.tf-text-error {
+  color: var(--tf-error-600);
+}
+
+.tf-text-neutral {
+  color: var(--tf-neutral-600);
+}
+
+/* Padding utilities */
+.tf-px-2 {
+  padding-left: var(--tf-space-2);
+  padding-right: var(--tf-space-2);
+}
+
+.tf-py-1 {
+  padding-top: var(--tf-space-1);
+  padding-bottom: var(--tf-space-1);
+}
+
+/* Position utilities */
+.tf-relative {
+  position: relative;
+}
+
+/* App container */
+.App {
+  min-height: 100vh;
+  background-color: var(--tf-neutral-50);
+}
+
+.TechFlowApp {
+  max-width: 1200px;
+  margin: 0 auto;
+}

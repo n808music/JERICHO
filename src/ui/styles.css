@@ -702,3 +702,256 @@ button {
 .gov-task-details li {
   opacity: 0.8;
 }
+
+/* DriftMeter */
+.drift-meter {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+.drift-header {
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  opacity: 0.5;
+  margin-bottom: 10px;
+}
+.drift-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.drift-label {
+  width: 160px;
+  font-size: 11px;
+  opacity: 0.75;
+  flex-shrink: 0;
+}
+.drift-bar {
+  flex: 1;
+  height: 4px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.drift-fill {
+  height: 100%;
+  background: #4ade80;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+.drift-meta {
+  width: 36px;
+  text-align: right;
+  font-size: 11px;
+  opacity: 0.55;
+}
+
+/* ProjectionPanel */
+.projection {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+.projection-title {
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  opacity: 0.5;
+  margin-bottom: 4px;
+}
+.projection-body {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* Today panel */
+.today-panel {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.today-heading {
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  opacity: 0.5;
+  margin: 0 0 10px;
+  font-weight: 400;
+}
+.today-main-task {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.today-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  opacity: 0.5;
+}
+.today-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+.today-meta {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  font-size: 11px;
+  opacity: 0.55;
+}
+.today-empty {
+  font-size: 12px;
+  opacity: 0.45;
+  font-style: italic;
+}
+
+/* Layout helpers */
+.layout-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.layout-row > * {
+  flex: 1;
+  min-width: 180px;
+}
+
+/* Weekly timeline */
+.timeline {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  opacity: 0.6;
+}
+.integrity-band { font-size: 10px; padding: 2px 6px; border-radius: 4px; }
+.integrity-strong { background: rgba(74,222,128,0.15); color: #4ade80; }
+.integrity-medium { background: rgba(251,191,36,0.15); color: #fbbf24; }
+.integrity-weak   { background: rgba(248,113,113,0.15); color: #f87171; }
+
+.timeline-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+.timeline-day {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.timeline-day-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  opacity: 0.45;
+  margin-bottom: 2px;
+}
+.timeline-task {
+  background: rgba(255,255,255,0.06);
+  border-radius: 5px;
+  padding: 6px 8px;
+}
+.timeline-task.empty {
+  background: transparent;
+  opacity: 0.3;
+  font-size: 11px;
+  font-style: italic;
+}
+.timeline-task-title {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  margin-bottom: 2px;
+}
+.timeline-task-meta {
+  font-size: 10px;
+  opacity: 0.55;
+}
+
+/* Team alignment */
+.team-alignment {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 16px 18px;
+  flex: 1;
+  min-width: 220px;
+}
+.team-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  opacity: 0.5;
+  margin-bottom: 10px;
+}
+.team-roles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.team-role {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.team-role-name {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+.team-capability-preview {
+  font-size: 11px;
+  opacity: 0.5;
+}
+
+/* Advisor panel */
+.advisor {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 16px 18px;
+  flex: 1;
+  min-width: 220px;
+}
+
+.advisor-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.45);
+  margin-bottom: 12px;
+}
+
+.advisor-row {
+  font-size: 13px;
+  color: rgba(255,255,255,0.75);
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  line-height: 1.5;
+}
+
+.advisor-row:last-child {
+  border-bottom: none;
+}

@@ -1,0 +1,137 @@
+import './tokens.css';
+
+/* Base Styles - Reset and Foundation */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-family: var(--tf-font-sans);
+  line-height: var(--tf-leading-normal);
+  color: var(--tf-neutral-900);
+  background-color: var(--tf-neutral-50);
+}
+
+body {
+  font-size: var(--tf-text-base);
+  line-height: var(--tf-leading-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Focus Styles */
+:focus-visible {
+  outline: 2px solid var(--tf-primary-500);
+  outline-offset: 2px;
+}
+
+/* Screen Reader Only */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Skip Links */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 6px;
+  background: var(--tf-primary-500);
+  color: white;
+  padding: 8px;
+  text-decoration: none;
+  border-radius: var(--tf-border-radius-sm);
+  z-index: 9999;
+}
+
+.skip-link:focus {
+  top: 6px;
+}
+
+/* Utility Classes - Following design system */
+.tf-font-sans { font-family: var(--tf-font-sans); }
+.tf-font-mono { font-family: var(--tf-font-mono); }
+
+.tf-text-xs { font-size: var(--tf-text-xs); }
+.tf-text-sm { font-size: var(--tf-text-sm); }
+.tf-text-base { font-size: var(--tf-text-base); }
+.tf-text-lg { font-size: var(--tf-text-lg); }
+.tf-text-xl { font-size: var(--tf-text-xl); }
+.tf-text-2xl { font-size: var(--tf-text-2xl); }
+.tf-text-3xl { font-size: var(--tf-text-3xl); }
+
+.tf-font-regular { font-weight: var(--tf-font-regular); }
+.tf-font-medium { font-weight: var(--tf-font-medium); }
+.tf-font-semibold { font-weight: var(--tf-font-semibold); }
+.tf-font-bold { font-weight: var(--tf-font-bold); }
+
+.tf-leading-tight { line-height: var(--tf-leading-tight); }
+.tf-leading-normal { line-height: var(--tf-leading-normal); }
+
+.tf-text-primary { color: var(--tf-primary-600); }
+.tf-text-secondary { color: var(--tf-secondary-600); }
+.tf-text-success { color: var(--tf-success-600); }
+.tf-text-warning { color: var(--tf-warning-600); }
+.tf-text-error { color: var(--tf-error-600); }
+.tf-text-neutral { color: var(--tf-neutral-700); }
+
+.tf-bg-primary { background-color: var(--tf-primary-500); }
+.tf-bg-secondary { background-color: var(--tf-secondary-500); }
+.tf-bg-success { background-color: var(--tf-success-500); }
+.tf-bg-warning { background-color: var(--tf-warning-500); }
+.tf-bg-error { background-color: var(--tf-error-500); }
+.tf-bg-neutral { background-color: var(--tf-neutral-50); }
+
+/* Spacing Utilities */
+.tf-p-0 { padding: var(--tf-space-0); }
+.tf-p-1 { padding: var(--tf-space-1); }
+.tf-p-2 { padding: var(--tf-space-2); }
+.tf-p-3 { padding: var(--tf-space-3); }
+.tf-p-4 { padding: var(--tf-space-4); }
+.tf-p-6 { padding: var(--tf-space-6); }
+.tf-p-8 { padding: var(--tf-space-8); }
+
+.tf-m-0 { margin: var(--tf-space-0); }
+.tf-m-1 { margin: var(--tf-space-1); }
+.tf-m-2 { margin: var(--tf-space-2); }
+.tf-m-3 { margin: var(--tf-space-3); }
+.tf-m-4 { margin: var(--tf-space-4); }
+.tf-m-6 { margin: var(--tf-space-6); }
+.tf-m-8 { margin: var(--tf-space-8); }
+
+/* Layout Utilities */
+.tf-flex { display: flex; }
+.tf-inline-flex { display: inline-flex; }
+.tf-grid { display: grid; }
+
+.tf-items-center { align-items: center; }
+.tf-justify-between { justify-content: space-between; }
+.tf-justify-center { justify-content: center; }
+
+.tf-gap-2 { gap: var(--tf-space-2); }
+.tf-gap-3 { gap: var(--tf-space-3); }
+.tf-gap-4 { gap: var(--tf-space-4); }
+
+.tf-w-full { width: 100%; }
+.tf-h-full { height: 100%; }
+
+.tf-rounded { border-radius: var(--tf-border-radius-md); }
+.tf-rounded-lg { border-radius: var(--tf-border-radius-lg); }
+.tf-rounded-xl { border-radius: var(--tf-border-radius-xl); }
+
+.tf-shadow-sm { box-shadow: var(--tf-shadow-sm); }
+.tf-shadow-md { box-shadow: var(--tf-shadow-md); }
+.tf-shadow-lg { box-shadow: var(--tf-shadow-lg); }
+
+.tf-border { border: 1px solid var(--tf-neutral-300); }
+.tf-border-gray { border-color: var(--tf-neutral-300); }
+.tf-border-primary { border-color: var(--tf-primary-500); }

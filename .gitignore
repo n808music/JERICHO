@@ -1,6 +1,24 @@
+.remember/
 node_modules
 coverage
 .DS_Store
 dist
 *.log
 .worktrees
+
+# Env files (local overrides — never commit)
+.env
+backend/.env
+
+# Local model/inference directories (not versioned)
+backend/third_party/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/

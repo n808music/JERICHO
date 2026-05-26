@@ -108,9 +108,8 @@ function SimpleWeeklyTimeline({ schedule, tasks = [], integrityScore }) {
       </div>
       <div className="timeline-grid">
         {days.slice(0, 7).map((day, idx) => {
-          const dayTasks =
-            day.slots?.flatMap((slot) => slot.taskIds || []).map((id) => tasks.find((t) => t.id === id)).filter(Boolean) ||
-            [];
+          const taskIds = day.tasks || day.slots?.flatMap((slot) => slot.taskIds || []) || [];
+          const dayTasks = taskIds.map((id) => tasks.find((t) => t.id === id)).filter(Boolean);
           const renderTasks = dayTasks.length ? dayTasks : priorityTasks.slice(idx, idx + 1);
           return (
             <div key={idx} className="timeline-day">
@@ -421,6 +420,7 @@ export default function App() {
     const trimmed = (text || '').trim();
     const errors = [];
     if (!trimmed) errors.push('Goal text is required.');
+    if (!trimmed.toLowerCase().startsWith('i will')) errors.push('Goal must start with "I will".');
     if (trimmed.length < 20) errors.push('Goal must be at least 20 characters.');
     if (trimmed.length > 280) errors.push('Goal must be at most 280 characters.');
     if (!/\d/.test(trimmed)) errors.push('Goal must include a number for measurability.');
@@ -453,9 +453,11 @@ export default function App() {
   const loadPipeline = async () => {
     try {
       const data = await fetchPipeline();
-      setPipeline(data.pipeline || data);
-      setAnalysis(data.pipeline?.analysis || null);
-      setTaskBoard(data.pipeline?.taskBoard || null);
+      const pl = data.pipeline || data;
+      setPipeline(pl);
+      setAnalysis(pl.analysis || null);
+      const tasks = pl.tasks || pl.taskBoard?.tasks || [];
+      setTaskBoard(tasks.length ? { tasks, summary: pl.integrity || {} } : null);
       setState(data.state || null);
       if (data.state?.identity) {
         setIdentityDraft(extractIdentityDraft(data.state.identity));
@@ -686,7 +688,7 @@ export default function App() {
       <AnalysisStrip analysis={analysis} />
       <GovernanceAdvisories analysis={analysis} />
       <GovernanceTaskBoard taskBoard={taskBoard} onUpdateTaskStatus={updateTaskStatus} />
-      <SimpleWeeklyTimeline schedule={pipeline?.schedule} tasks={tasks} integrityScore={dashboardSummary.integrity} />
+      <SimpleWeeklyTimeline schedule={pipeline} tasks={tasks} integrityScore={dashboardSummary.integrity} />
       <div className="layout-row">
         <DriftMeter requirements={requirements} identity={currentIdentity} />
         <ProjectionPanel integrityScore={dashboardSummary.integrity} />
@@ -707,17 +709,17 @@ export default function App() {
 
       <section className="today-panel">
         <h3 className="today-heading">Today</h3>
-        {pipeline?.schedule?.todayPriorityTaskId ? (
+        {pipeline?.todayPriorityTaskId ? (
           <>
             <div className="today-main-task">
               <span className="today-label">Priority task:</span>
               <span className="today-title">
-                {taskBoard?.tasks?.find((t) => t.id === pipeline.schedule.todayPriorityTaskId)?.title ||
+                {(taskBoard?.tasks || pipeline?.tasks || []).find((t) => t.id === pipeline.todayPriorityTaskId)?.title ||
                   'Task'}
               </span>
             </div>
             <div className="today-meta">
-              <span>Overflow tasks: {pipeline.schedule.overflowTasks?.length || 0}</span>
+              <span>Overflow tasks: {pipeline.overflowTasks?.length || 0}</span>
               <span>Integrity: {Math.round(pipeline?.integrity?.score || 0)}%</span>
             </div>
           </>
@@ -731,7 +733,7 @@ export default function App() {
         <input
           type="text"
           className="goal-input"
-          placeholder='e.g. "Grow revenue to $10k/month by 2026-06-01"'
+          placeholder='e.g. "I will grow revenue to $10k/month by 2026-06-01"'
           value={goalText}
           onChange={(e) => {
             setGoalText(e.target.value);

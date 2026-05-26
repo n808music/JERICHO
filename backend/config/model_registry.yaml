@@ -1,0 +1,91 @@
+---
+# Model Capability Registry — Jyriko
+# Update via PR only. See scripts/check_registry_drift.py for drift detection.
+# OQ-08: 20% latency divergence over 50 samples triggers a review.
+#
+# User selects the active backend via DEFAULT_MODEL_ID env var.
+# Default: bitnet-2b (privacy-first, on-device).
+
+models:
+  - model_id: "bitnet-2b"
+    inference_backend: "bitnet"
+    base_url: ""
+    context_window_tokens: 2048
+    structured_output_reliability: "low"
+    reasoning_depth: "low"
+    recommended_pass_count: 2
+    self_critique_required: true
+    timeout_threshold_seconds: 15
+    latency_profile: "fast"
+    supports_tool_use: false
+    # ~/BitNet/build/bin/llama-server --port 8081
+    # model: ~/BitNet/models/BitNet-b1.58-2B-4T/ggml-model-i2_s.gguf
+
+  - model_id: "qwen2.5-7b-instruct"
+    inference_backend: "llamacpp"
+    base_url: ""
+    context_window_tokens: 8192
+    structured_output_reliability: "high"
+    reasoning_depth: "high"
+    recommended_pass_count: 2
+    self_critique_required: false
+    timeout_threshold_seconds: 60
+    latency_profile: "medium"
+    supports_tool_use: true
+    # /Volumes/Containers/ik_llama.cpp/build/bin/llama-server \
+    #   --model ~/models/Qwen2.5-7B-Instruct-Q4_K_M.gguf \
+    #   --port 8080 --ctx-size 8192
+    # LLAMACPP_BASE_URL=http://localhost:8080/v1
+    # DEFAULT_MODEL_ID=qwen2.5-7b-instruct
+
+  - model_id: "llama3-8b-instruct"
+    inference_backend: "llamacpp"
+    base_url: ""
+    context_window_tokens: 4096
+    structured_output_reliability: "medium"
+    reasoning_depth: "medium"
+    recommended_pass_count: 3
+    self_critique_required: true
+    timeout_threshold_seconds: 60
+    latency_profile: "medium"
+    supports_tool_use: false
+    # macports: /opt/local/bin/llama-server --port 8080
+    # model: Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf (~5GB)
+
+  - model_id: "vllm-placeholder"
+    inference_backend: "vllm"
+    base_url: ""
+    context_window_tokens: 8192
+    structured_output_reliability: "high"
+    reasoning_depth: "high"
+    recommended_pass_count: 2
+    self_critique_required: false
+    timeout_threshold_seconds: 30
+    latency_profile: "medium"
+    supports_tool_use: true
+    # Future: vLLM OpenAI-compatible server
+
+  - model_id: "coreml-local"
+    inference_backend: "coreml"
+    base_url: ""
+    context_window_tokens: 2048
+    structured_output_reliability: "low"
+    reasoning_depth: "low"
+    recommended_pass_count: 1
+    self_critique_required: false
+    timeout_threshold_seconds: 10
+    latency_profile: "fast"
+    supports_tool_use: false
+    # Future: CoreML on-device inference (iOS/macOS)
+
+  - model_id: "stub"
+    inference_backend: "stub"
+    base_url: ""
+    context_window_tokens: 4096
+    structured_output_reliability: "low"
+    reasoning_depth: "low"
+    recommended_pass_count: 1
+    self_critique_required: false
+    timeout_threshold_seconds: 1
+    latency_profile: "fast"
+    supports_tool_use: false

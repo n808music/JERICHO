@@ -1,0 +1,128 @@
+/* Button Component Styles - Following Design System */
+.tf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--tf-border-radius-md);
+  font-family: var(--tf-font-sans);
+  font-weight: var(--tf-font-medium);
+  text-decoration: none;
+  cursor: pointer;
+  transition: all var(--tf-transition-fast);
+  white-space: nowrap;
+  user-select: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.tf-btn:focus-visible {
+  outline: 2px solid var(--tf-primary-500);
+  outline-offset: 2px;
+}
+
+/* Sizes */
+.tf-btn--sm {
+  height: 32px;
+  padding: 0 var(--tf-space-3);
+  font-size: var(--tf-text-sm);
+  gap: var(--tf-space-1);
+}
+
+.tf-btn--md {
+  height: 40px;
+  padding: 0 var(--tf-space-4);
+  font-size: var(--tf-text-base);
+  gap: var(--tf-space-2);
+}
+
+.tf-btn--lg {
+  height: 48px;
+  padding: 0 var(--tf-space-6);
+  font-size: var(--tf-text-lg);
+  gap: var(--tf-space-2);
+}
+
+/* Primary Variant */
+.tf-btn--primary {
+  background-color: var(--tf-primary-500);
+  color: white;
+  border-color: var(--tf-primary-500);
+}
+
+.tf-btn--primary:hover:not(:disabled) {
+  background-color: var(--tf-primary-600);
+  border-color: var(--tf-primary-600);
+}
+
+.tf-btn--primary:active:not(:disabled) {
+  background-color: var(--tf-primary-700);
+  border-color: var(--tf-primary-700);
+}
+
+/* Secondary Variant */
+.tf-btn--secondary {
+  background-color: transparent;
+  color: var(--tf-primary-600);
+  border-color: var(--tf-primary-500);
+}
+
+.tf-btn--secondary:hover:not(:disabled) {
+  background-color: var(--tf-primary-50);
+  border-color: var(--tf-primary-600);
+}
+
+/* Ghost Variant */
+.tf-btn--ghost {
+  background-color: transparent;
+  color: var(--tf-neutral-600);
+  border-color: var(--tf-neutral-300);
+}
+
+.tf-btn--ghost:hover:not(:disabled) {
+  background-color: var(--tf-neutral-50);
+  color: var(--tf-neutral-700);
+  border-color: var(--tf-neutral-400);
+}
+
+/* Danger Variant */
+.tf-btn--danger {
+  background-color: var(--tf-error-500);
+  color: white;
+  border-color: var(--tf-error-500);
+}
+
+.tf-btn--danger:hover:not(:disabled) {
+  background-color: var(--tf-error-600);
+  border-color: var(--tf-error-600);
+}
+
+/* States */
+.tf-btn:disabled,
+.tf-btn--disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.tf-btn--loading {
+  color: transparent;
+  pointer-events: none;
+}
+
+.tf-btn--loading::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: tf-spin 0.8s linear infinite;
+}
+
+@keyframes tf-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

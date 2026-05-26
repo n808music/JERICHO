@@ -1,0 +1,1203 @@
+================================================================================
+PRODUCT REQUIREMENTS DOCUMENT (PRD)
+Project: JERICHO 2.0 — Assisted Planning Platform
+Version: 2.0.2
+Date: 2026-03-21
+Repository: crichalchemist/JERICHO
+Status: PRIMED FOR REFACTOR
+================================================================================
+
+REVISION NOTES
+--------------------------------------------------------------------------------
+v2.0.1 → v2.0.2 changes (resolves all five open questions from v2.0.1):
+
+  OQ-01 RESOLVED: Multi-instance accountability model specified. Separate
+    JERICHO instances communicate via scoped Accountability Link API.
+    Schema gains instance_id discriminator and accountability_links table.
+
+  OQ-02 RESOLVED: Platform roadmap established. Web client (React/Vite) is
+    current build target. macOS desktop follows via Tauri wrapper. iOS
+    follows via Swift/SwiftUI + MLX/Core ML native inference. Backend
+    becomes optional for on-device deployments.
+
+  OQ-03 RESOLVED: Model-agnostic architecture with adaptive function
+    specified. Model Capability Registry introduced. System reads loaded
+    model's capability profile and adjusts pass count, self-critique
+    behavior, and prompt complexity accordingly. OpenTelemetry integration
+    specified for LLM observability and capability registry refinement.
+
+  OQ-04 RESOLVED: Notion integration removed from scope entirely.
+    Removed from calendar_sync_state ENUM, integration list, and all
+    references. Calendar integrations now: Google Calendar + Apple CalDAV.
+
+  OQ-05 RESOLVED: Capacity Profile explainability surfaced at two mandatory
+    touch points: (1) closing section of Saturday Sundown, (2) opening
+    section of Sunday Briefing. Both LLM-generated in plain language.
+    Not a data table — a narrative of what the system learned and expects.
+
+v2.0.0 → v2.0.1 changes (prior revision):
+  - Cognitive load scoring methodology fully specified
+  - Task dependency schema (DAG) added to Phase 2 scope
+  - Calendar event ownership/mapping schema added to Phase 2 scope
+  - Capacity Profile cold start logic specified
+  - Multi-pass LLM prompting strategy specified
+  - Decision ledger promoted to core feature
+  - Day-of-week capacity vector replaces scalar capacity model
+  - Saturday Sundown promoted from UI feature to data pipeline
+  - State machine expanded to full lifecycle specification
+  - Phase sequencing adjusted to resolve critical path dependency
+  - Viability Algorithm formally specified with threshold rationale
+  - Ars Contexta pattern adoption specified
+  - Optimization target corrected from task completion rate to subjective
+    momentum signal
+
+
+================================================================================
+1. PRODUCT OVERVIEW
+================================================================================
+
+1.1 Vision
+--------------------------------------------------------------------------------
+JERICHO 2.0 evolves from a deterministic, template-based planning system into
+a dynamic, AI-assisted platform. The system intelligently decomposes high-level
+goals into feasible, psychologically manageable steps using a trauma-informed
+framework. It synchronizes with external calendars and handles dynamic,
+context-aware rescheduling to alleviate cognitive load and build momentum
+without inducing guilt or burnout.
+
+The system's core IP is not the LLM integration or calendar sync — those are
+infrastructure. The actual proprietary value is the claim that a planning system
+can maintain a user's relationship to their own goals as non-adversarial across
+time. This is a behavioral science claim. It lives or dies in the algorithm's
+optimization target.
+
+1.2 Optimization Target (Critical Correction)
+--------------------------------------------------------------------------------
+The original PRD implicitly optimized for task completion rate. This is a
+proxy metric and an incorrect optimization target for the stated population.
+
+CORRECT TARGET: User's subjective sense of momentum vs. burden over time.
+
+A productive-feeling low-completion week is a system success.
+A demoralizing high-completion week is a system failure.
+
+The primary feedback signal is a lightweight weekly axis captured at Saturday
+Sundown: "how did this week feel?" mapped to a 3-point scale (heavy / neutral /
+light). This is not a rating system — it is a behavioral signal fed into the
+Capacity Profile derivation pipeline. The system learns the difference between
+these week types and adjusts accordingly.
+
+1.3 Target Audience
+--------------------------------------------------------------------------------
+Individuals seeking to accomplish complex goals who may struggle with executive
+dysfunction, burnout, overwhelm, or cognitive fatigue.
+
+1.4 Core Philosophy — Trauma-Informed Framework
+--------------------------------------------------------------------------------
+Four pillars:
+
+  SAFETY & TRUST
+    No punitive alerts, no red text. Missed tasks are neutrally rolled over.
+    The system never frames deferment as failure.
+
+  PACING & MOMENTUM
+    Tasks are broken into micro-steps to secure quick wins. Quick wins are
+    the structural mechanism, not an aesthetic choice.
+
+  VIABILITY ASSESSMENT
+    The system actively assesses whether a goal or timeline is realistic
+    against current capacity, providing neutral recalibrations.
+
+  TRANSPARENCY OF AGENCY
+    Users with executive dysfunction or trauma histories are frequently
+    hypervigilant to feeling controlled or surveilled. Every automated
+    decision made by the algorithm must be logged to a Decision Ledger
+    visible to the user on demand. Not as a notification — as an audit
+    trail accessible from the task itself ("Why was this moved?"). This
+    is both trauma-informed and trust-building through transparency.
+    The Capacity Profile explainability surfaces (Section 3.7) are a direct
+    extension of this pillar: the user can always see what the system
+    currently believes about their capacity and why.
+
+
+================================================================================
+2. ARCHITECTURAL FOUNDATIONS
+================================================================================
+
+2.1 Three-Space Persistence Model (Adopted from Ars Contexta)
+--------------------------------------------------------------------------------
+All persistent data in JERICHO separates into three conceptual spaces. This
+separation is invariant even though the storage layer (Supabase) is unified.
+
+  SELF/   — Capacity Profile, user cognitive identity, behavioral history,
+            goal patterns. Slow-changing. This is the user's persistent model
+            within the system. Updated via derivation, not direct input.
+
+  NOTES/  — Decision Ledger, goal history, rescheduling audit trail,
+            Viability Pause logs. Steady growth. Append-mostly.
+
+  OPS/    — Task queue, scheduler state, calendar sync mappings,
+            background worker status, accountability link state.
+            Fluctuating. High write frequency.
+
+This mapping informs Supabase table design, access patterns, and backup
+priority. SELF/ tables are the most critical to preserve and version.
+
+2.2 Processing Pipeline (Adopted from Ars Contexta 6Rs Model)
+--------------------------------------------------------------------------------
+JERICHO's goal lifecycle maps to a 6-phase pipeline:
+
+  RECORD    — Goal intake (user input, zero friction)
+  REDUCE    — LLM decomposition into micro-tasks with dependency graph
+  REFLECT   — Sunday Briefing: preview, capacity check, anchor goal setting
+  REWEAVE   — Saturday Sundown: update Capacity Profile with week's evidence
+  VERIFY    — Viability Checker: pre-placement load assessment
+  RETHINK   — Viability Pause: structural challenge on deferral accumulation
+
+The Saturday Sundown is architecturally a Reweave operation. It must be
+implemented as a data pipeline with a UI surface, not a UI feature with
+data side effects.
+
+2.3 Subagent Spawning & Model-Adaptive LLM Architecture
+--------------------------------------------------------------------------------
+LLM attention degrades as context fills. For smaller models this degradation
+is faster and more pronounced than frontier models.
+
+All multi-step LLM operations in JERICHO use subagent spawning: each phase
+runs in its own fresh context window.
+
+The number of passes, self-critique behavior, and prompt complexity are not
+fixed — they are determined at runtime by reading the loaded model's entry
+in the Model Capability Registry (Section 7.3). A high-capability model may
+collapse decomposition into 2 passes; a constrained model may require 4.
+The pipeline adapts; the output schema does not change.
+
+Mandatory multi-pass operations (pass count is model-dependent):
+  - Goal decomposition: raw decomposition → dependency validation →
+    cognitive load scoring → self-critique (pass count per registry)
+  - Self-critique: after decomposition, evaluate momentum ordering and
+    dependency soundness. Mandatory for low/medium capability models.
+    Configurable for high capability models.
+  - Weekly Rhythm narrative generation: separate from scheduling logic,
+    always single-pass with tone-branch prompt selection.
+
+2.4 Platform Architecture (Multi-Target)
+--------------------------------------------------------------------------------
+JERICHO targets three deployment surfaces in sequence:
+
+  WEB (current)
+    React/Vite frontend. FastAPI backend (Python). Supabase persistence.
+    Ollama for local LLM inference. Full feature parity.
+
+  MACOS DESKTOP (next)
+    Tauri wrapper around the web client.
+    Rationale: Tauri is Rust-based, produces smaller binaries than Electron,
+    and integrates cleanly with Apple Silicon's Metal GPU stack.
+    Ollama with Metal acceleration handles inference natively.
+    Backend remains the same FastAPI service; Tauri handles OS-level
+    integration (system tray, notification center, CalDAV daemon access).
+
+  IOS / IPADOS (following)
+    Swift/SwiftUI native client.
+    Inference: MLX (Apple's framework for Apple Silicon) or Core ML.
+    Backend becomes optional — the app must function in fully on-device mode.
+    Implications:
+      - FastAPI service becomes a sync layer, not a required runtime
+      - 11:59 PM worker moves to on-device scheduled task (BGTaskScheduler)
+      - Capacity Profile persistence moves to on-device storage with
+        optional cloud sync back to Supabase
+      - Model Capability Registry must include MLX and Core ML inference
+        backends with their specific capability profiles
+
+  CROSS-PLATFORM DESIGN CONSTRAINTS:
+    - All business logic (Viability Algorithm, feathering engine, state
+      machine) must be portable. Target: shared Python library for
+      web/macOS; Swift port or FFI call for iOS.
+    - Prompt architecture must be backend-agnostic (see Section 7.3).
+    - The Accountability Link API (Section 3.8) must function across all
+      three surfaces via a common REST interface.
+
+2.5 Instance Architecture
+--------------------------------------------------------------------------------
+JERICHO is a single-user application. Each deployment is a discrete instance
+scoped to one user. There is no shared database between instances.
+
+Every record in the database carries an instance_id (UUID) as a top-level
+discriminator. Row-level security in Supabase enforces instance isolation.
+
+Cross-instance communication is handled exclusively by the Accountability
+Link API (Section 3.8) — a scoped, read-only data-sharing layer with
+explicit user consent gates. No direct database access between instances.
+
+
+================================================================================
+3. CORE FEATURES & CAPABILITIES
+================================================================================
+
+3.1 LLM-Powered Goal Chunking
+--------------------------------------------------------------------------------
+  INPUT:   User-provided broad goal (e.g., "Start a podcast")
+  ENGINE:  Local LLM via Model Adapter Layer (see Section 7.3)
+           + Instructor (Pydantic validation)
+  OUTPUT:  Ordered micro-task list with full schema (see Section 4.1)
+
+  DECOMPOSITION REQUIREMENTS:
+    - Immediate feasibility (no task requiring unavailable prerequisites)
+    - Concise execution instructions per task
+    - Estimated financial cost per task
+    - Step ordering optimized for psychological momentum (quick wins early)
+    - Explicit dependency relationships (blocking / preferred_order /
+      parallel_ok)
+    - Cognitive load score per task (see Section 3.3)
+
+  MULTI-PASS PROMPT ARCHITECTURE (pass count from Model Capability Registry):
+    Pass 1 — Raw decomposition: generate steps and instructions
+    Pass 2 — Dependency pass: identify and label inter-task dependencies
+    Pass 3 — Scoring pass: assign cognitive_load, importance_tier, cost
+    Pass 4 — Self-critique: validate momentum ordering, flag dependency errors
+             (mandatory for low/medium capability models; configurable for high)
+
+  HUMAN OVERRIDE:
+    All LLM-generated task ordering is overridable via drag-and-drop (dnd-kit).
+    LLM output is not canonical — it is a starting point.
+
+  TIMEOUT/FALLBACK:
+    Timeout threshold sourced from loaded model's capability profile entry.
+    On timeout: return template-based decomposition stub with notification
+    that full AI decomposition is queued. A spinner during a goal-setting
+    interaction degrades trust — fallback is structural, not optional.
+
+3.2 Viability & Capacity Assessment
+--------------------------------------------------------------------------------
+  FORMAL SPECIFICATION:
+
+    daily_load(d) = Σ cognitive_load(t) for all tasks t scheduled on day d
+    capacity(d)   = user_declared_capacity(d) OR capacity_profile(user, dow)
+    load_ratio(d) = daily_load(d) / capacity(d)
+
+    VIABLE      if load_ratio(d) ≤ 0.75
+    OVERLOADED  if load_ratio(d) > 0.75 and ≤ 1.0
+    INFEASIBLE  if load_ratio(d) > 1.0
+
+  THRESHOLD RATIONALE:
+    The 0.75 ceiling is the definition of "viable," not a warning threshold.
+    Research on sustained cognitive performance and executive dysfunction
+    consistently shows schedules planned at 100% capacity produce output
+    equivalent to ~60-70% capacity due to transition costs, decision fatigue,
+    and interruption. The 25% buffer is structural, not advisory.
+
+  VIABILITY PAUSE TRIGGERS:
+
+    n ≥ 3 consecutive deferrals AND no hard deadline:
+      → Viability Pause, low urgency
+
+    n ≥ 2 consecutive deferrals AND hard deadline within 7 days:
+      → Viability Pause, high urgency
+
+    n ≥ 5 deferrals regardless of deadline:
+      → Viability Pause + decompose-further or archive offer
+
+  VIABILITY PAUSE PROMPT AXIS (trauma-informed framing):
+    "This task has been moving around — let's make sure its shape still fits
+    your week. Do you want to break it down, push the date, or set it aside?"
+    Never frames deferment as failure. Never uses urgency language unless
+    deadline proximity requires it.
+
+3.3 Cognitive Load Scoring
+--------------------------------------------------------------------------------
+  SCORING FUNCTION:
+
+    cognitive_load(t) = task_type_baseline(t)
+                      × duration_multiplier(t)
+                      × dependency_position_weight(t)
+                      × user_override_factor(t)
+
+  COMPONENT DEFINITIONS:
+
+    task_type_baseline(t):
+      LLM-assigned at generation using calibrated prompt taxonomy.
+      Taxonomy anchor points:
+        Decision-making tasks   → 0.8–1.0
+        Research/synthesis      → 0.6–0.8
+        Creative output         → 0.5–0.7
+        Execution/action        → 0.3–0.5
+        Administrative          → 0.2–0.4
+      Scale: 0.0–1.0 normalized to capacity units.
+
+    duration_multiplier(t):
+      Proxy variable. Longer tasks carry higher base load.
+        ≤ 30 min  → 1.0×
+        31–60 min → 1.2×
+        61–90 min → 1.5×
+        > 90 min  → 1.8× (also triggers auto-split recommendation)
+
+    dependency_position_weight(t):
+      Tasks that block other tasks carry multiplied load.
+        No dependents          → 1.0×
+        1–2 tasks depend on t  → 1.25×
+        3+ tasks depend on t   → 1.5×
+
+    user_override_factor(t):
+      Optional soft signal. Never required.
+      "This feels heavier than it looks" → applies +0.2 to final score.
+      Capacity Profile learns correction factors from override history:
+      if a user consistently overrides upward for a task_type, the system
+      adjusts that category's baseline in task_type_corrections.
+
+  USER-FACING DESIGN CONSTRAINT:
+    Users never numerically rate cognitive load. The scoring pipeline is
+    entirely system-side. User override is binary and optional, never
+    mandatory. Requiring numerical self-assessment of cognitive load is
+    itself a high-cognitive-load meta-task — structurally contradictory.
+
+3.4 Context-Aware Auto-Rescheduling (The 11:59 PM Rule)
+--------------------------------------------------------------------------------
+  TRIGGER:
+    Web/macOS: APScheduler background worker fires at 11:59 PM local time.
+    iOS: BGTaskScheduler on-device scheduled task. Same logic, different
+    runtime.
+    "Local time" is resolved per task_timezone field, not globally.
+
+  LOOK-AHEAD ENGINE — FORMAL ALGORITHM:
+
+    INPUTS:
+      - Deferred task set {T1..Tn} with cognitive_load and importance_tier
+      - Calendar state for next 3–7 days with Anchor Events and blocks
+      - Dependency DAG G(T) where edges represent ordering requirements
+      - load_ratio(d) for each day in look-ahead window
+
+    CONSTRAINT SET (priority order):
+      1. Dependency ordering preserved (T1 → T2 means T1 placed before T2)
+      2. Hard deadline tasks placed before their deadline
+      3. No day exceeds load_ratio = 0.75 after placement
+      4. Prefer days with lowest current load_ratio (minimize concentration)
+      5. Anchor Events are immovable; their presence reduces day capacity
+         by a configurable buffer (default: 20% of declared capacity)
+
+    SORT ORDER before placement:
+      [hard_deadline_proximity DESC, dependency_blocking_factor DESC,
+       cognitive_load ASC]
+
+    PLACEMENT LOGIC (greedy with priority queue):
+      For each task in sorted order:
+        Find earliest day d in look-ahead window where:
+          - All blocking dependencies of task are placed on days before d
+          - load_ratio(d) + cognitive_load(task)/capacity(d) ≤ 0.75
+        Place task on d; update load_ratio(d)
+        If no day found: extend look-ahead by 1 day (max extension: 14 days)
+        If no day found after 14 days: trigger Viability Pause
+
+    DECISION LEDGER WRITE:
+      Every placement decision written to NOTES/ as a Decision Ledger entry.
+      Schema: {task_id, from_date, to_date, reason_code,
+      load_ratio_on_destination, model_id, timestamp}.
+      Accessible from the task via "Why was this moved?" — not a notification.
+
+  IMPORTANCE TIERS:
+    HARD_DEADLINE    — External commitment, cannot be moved past deadline
+    ROUTINE          — Regular recurring, preferred rescheduling within 3 days
+    FLEXIBLE         — No fixed deadline, can be feathered across 14 days
+
+3.5 Ecosystem Synchronization
+--------------------------------------------------------------------------------
+  SUPPORTED TARGETS:
+    - Google Calendar (Google Cloud OAuth 2.0)
+    - Apple Calendar (CalDAV)
+
+  NOTE: Notion integration has been removed from scope. The complexity of
+  Notion's object model and rate limits is not justified by the use case.
+  Future third-party integrations require reliable programmatic write-back
+  as a gate condition before inclusion.
+
+  CALENDAR EVENT OWNERSHIP:
+    JERICHO must distinguish its own events from native user events.
+    All JERICHO-created calendar events store their task_id in extended
+    properties:
+      Google:  extendedProperties.private.jericho_task_id
+      CalDAV:  X-JERICHO-TASK-ID property
+
+    Mapping table maintained in Supabase OPS/ space: calendar_sync_state
+    (see Section 4.5). This table ships in Phase 2.
+
+  WRITE-BACK OPERATIONS:
+    The sync service must support full CRUD: create, read, update, delete.
+    Read-only sync is insufficient for Phase 4 operation.
+
+3.6 Capacity Profile (SELF/ Space)
+--------------------------------------------------------------------------------
+  STRUCTURE:
+    The Capacity Profile is a derived model, not a declared one.
+    Updated via behavioral evidence, not user input.
+    7-dimensional vector — capacity tracked per day-of-week independently.
+
+    capacity_profile (
+      instance_id           UUID,
+      user_id               UUID,
+      day_of_week           SMALLINT (0=Sun, 6=Sat),
+      declared_capacity     FLOAT,
+      derived_capacity      FLOAT,
+      confidence_weight     FLOAT,
+      task_type_corrections JSONB,
+      last_updated          TIMESTAMPTZ,
+      update_source         ENUM('saturday_sundown', 'state_transition',
+                                 'viability_pause', 'cold_start')
+    )
+
+  COLD START PROTOCOL (Weeks 1–3):
+    Users with executive dysfunction frequently over-declare capacity.
+    Starting at 100% declared capacity will produce overload in week 1.
+
+    Week 1:  Apply 0.60 multiplier to declared_capacity
+    Week 2:  Apply 0.75 multiplier (adjust toward declared if W1
+             completion rate > 80%)
+    Week 3+: derived_capacity = EWA(declared, behavioral_implied, α=0.3)
+
+    EWA with α=0.3: 30% weight to recent behavior, 70% to accumulated
+    history. Prevents a single bad week from cratering the profile.
+
+  UPDATE PIPELINE — TWO CADENCES:
+
+    CONTINUOUS (micro-updates via state transitions):
+      COMPLETED on first schedule → strong positive capacity signal
+      MISSED → RESCHEDULED × n  → capacity overestimation signal
+      VIABILITY_PAUSE triggered  → systematic overload signal
+
+    WEEKLY (Saturday Sundown Reweave):
+      Heavier recompute using full week's transition history.
+      Incorporates subjective momentum signal (HEAVY/NEUTRAL/LIGHT).
+      Incorporates capacity_match flag (user's binary accuracy rating).
+      Adjusts task_type_corrections based on override history.
+
+  SUBJECTIVE MOMENTUM SIGNAL:
+    Collected at Saturday Sundown. Single 3-point: HEAVY / NEUTRAL / LIGHT.
+
+    Interpretation matrix:
+      HEAVY  + high completion → system still underestimating load
+      LIGHT  + low completion  → tasks may be misdescribed or wrong category
+      HEAVY  + low completion  → reduce capacity estimate for these days
+      LIGHT  + high completion → capacity estimate can be raised
+      NEUTRAL                  → confirm current profile, minor adjustment
+
+3.7 Weekly Rhythms
+--------------------------------------------------------------------------------
+  SUNDAY BRIEFING (Kickoff & Capacity Check):
+
+    OPENING SECTION — CAPACITY SNAPSHOT [MANDATORY]:
+      The Briefing opens with a plain-language LLM-generated summary of
+      what the system currently knows about the user's capacity for the
+      upcoming week. This section is mandatory and appears before the
+      task list. It closes the loop on the prior Sundown's Capacity Update
+      and makes the system's model legible before the system acts on it.
+
+      Content:
+        - Derived capacity per day in plain language (not raw numbers)
+        - Which days have the most available headroom this week
+        - Notable changes from last week's profile, if any
+        - Cold start / confidence status if still in Weeks 1–3
+
+      Example output:
+        "Based on your patterns, Wednesday looks like your strongest day
+        this week. Thursday has less estimated capacity — only lighter tasks
+        are scheduled there. Your Tuesday estimate dropped a bit after last
+        week; the system will be conservative with that day."
+
+      Tone: informational, non-judgmental. Never prescriptive.
+      The user is being shown the model, not told what to do with it.
+
+    MAIN CONTENT:
+      - Interactive preview of week's critical path
+      - Prompts about expected capacity/energy levels for the week
+      - Setting 1–3 Anchor Goals for the week
+
+    GATE BEHAVIOR:
+      Sunday Briefing is optional. Skipping it does not prevent the week
+      from functioning. System uses current capacity_profile without
+      modification when Briefing is skipped.
+
+  SATURDAY SUNDOWN (Retrospective, Reweave, Closure):
+    This is a data pipeline with a UI surface.
+
+    PIPELINE SEQUENCE:
+      1. Aggregate week's state transition events
+      2. Compute actual_completion_ratio and deferral_patterns
+      3. Collect subjective momentum signal (HEAVY/NEUTRAL/LIGHT)
+      4. Run Reweave: update Capacity Profile with derived evidence
+      5. Adjust task_type_corrections based on override history
+      6. Generate narrative summary via LLM (tone-branched by week type)
+      7. Present deferred tasks with next-week handling options
+      8. Generate and display Capacity Update (see closing section below)
+
+    TONE BRANCHING (LLM prompt selection):
+      completion_ratio > 0.70   → momentum celebration framing
+      completion_ratio 0.40–0.70 → balanced acknowledgment framing
+      completion_ratio < 0.40   → neutral recalibration framing
+      Forced celebration on low-completion weeks creates dissonance for
+      the target population. Tone must be computed, not assumed.
+
+    CLOSING SECTION — CAPACITY UPDATE [MANDATORY]:
+      After all other Sundown content, the session closes with a plain-
+      language LLM-generated summary of what the system learned and how
+      it adjusted the Capacity Profile. This section is mandatory.
+      It is the primary Transparency of Agency surface for the profile's
+      automated learning behavior.
+
+      Content:
+        - Which days' capacity estimates changed and in which direction
+        - The primary driver of each change (completion rate, subjective
+          signal, override history, or deferral pattern)
+        - Binary prompt: "Does this match how your week felt?"
+          Response stored as capacity_match; feeds next reweave cycle.
+
+      Example output:
+        "This week updated your profile. Your Tuesday estimate dropped
+        slightly — you deferred 3 tasks scheduled on Tuesdays. Your
+        Thursday estimate went up a bit; you completed everything there.
+        The 'heavy' signal was noted — the system will be more conservative
+        overall next week."
+
+      Tone: matter-of-fact. Not apologetic. Not celebratory.
+      The system is showing its work.
+
+    OUTPUTS:
+      - Updated Capacity Profile (SELF/ space)
+      - Decision Ledger entries for auto-moves made during week
+      - Deferred task disposition (carry forward / decompose / archive)
+      - Next week's load_ratio projections
+      - sundown_sessions record (Section 4.6)
+
+3.8 Accountability Links (Cross-Instance)
+--------------------------------------------------------------------------------
+  MODEL:
+    JERICHO is single-user per instance. Accountability is implemented as
+    a voluntary, explicitly consented data-sharing link between two
+    independent instances. No shared schema. No direct DB access between
+    instances.
+
+  SHARE SCOPES:
+    SUMMARY_ONLY   — Weekly completion_ratio and momentum signal only.
+                      No task titles, no goal content, no capacity data.
+    GOAL_PROGRESS  — Completion status per named goal (title visible,
+                      task detail not visible).
+    FULL_SUMMARY   — All of the above plus Sundown narrative summary
+                      (system-generated text, not raw task data).
+
+    Capacity Profile data is never shared regardless of share scope.
+    It is SELF/ space and treated as private cognitive data.
+
+  LINK LIFECYCLE:
+    1. User A generates a share token scoped to a specific share_scope
+    2. User B enters the token in their instance
+    3. Link established: User B can view User A's scoped data
+    4. Either user revokes at any time; revocation is immediate
+    5. On revocation: viewer's instance purges event history for that link
+
+  DELIVERY MECHANISM:
+    Cross-instance data is pulled via a lightweight REST endpoint exposed
+    by each instance. Returns only data permitted by share_scope.
+    No push; viewing instance polls daily at Sunday Briefing time.
+
+  ACCOUNTABILITY AS BRIEFING CONTEXT:
+    If a user has active Accountability Links as the viewer, Sunday Briefing
+    optionally surfaces a brief summary of linked users' prior week
+    (summary_only tier). Framing is peer-awareness, not surveillance.
+
+
+================================================================================
+4. DATA SCHEMAS
+================================================================================
+
+4.1 Core Task Schema
+--------------------------------------------------------------------------------
+  tasks (
+    id                  UUID PRIMARY KEY,
+    instance_id         UUID NOT NULL,
+    goal_id             UUID REFERENCES goals(id),
+    user_id             UUID REFERENCES users(id),
+    title               VARCHAR(255) NOT NULL,
+    instructions        TEXT,
+    estimated_cost      DECIMAL(10,2),
+    estimated_duration  INTEGER,          -- minutes
+    importance_tier     ENUM('hard_deadline', 'routine', 'flexible'),
+    cognitive_load      FLOAT,            -- 0.0–1.0
+    task_type           VARCHAR(50),
+    task_timezone       VARCHAR(50),      -- IANA timezone string
+    scheduled_date      DATE,
+    scheduled_time      TIME,
+    target_date         DATE,
+    deadline            DATE,
+    status              ENUM('created', 'scheduled', 'in_window',
+                             'completed', 'missed', 'rescheduled',
+                             'viability_pause', 'decomposed',
+                             'date_extended', 'archived'),
+    deferral_count      INTEGER DEFAULT 0,
+    parent_task_id      UUID REFERENCES tasks(id),
+    created_at          TIMESTAMPTZ,
+    updated_at          TIMESTAMPTZ
+  )
+
+4.2 Task Dependency Schema (DAG)
+--------------------------------------------------------------------------------
+  task_dependencies (
+    id                  UUID PRIMARY KEY,
+    instance_id         UUID NOT NULL,
+    task_id             UUID REFERENCES tasks(id),
+    depends_on_task_id  UUID REFERENCES tasks(id),
+    dependency_type     ENUM('blocking', 'preferred_order', 'parallel_ok'),
+    created_by          ENUM('llm', 'user'),
+    created_at          TIMESTAMPTZ
+  )
+
+  DEPENDENCY TYPE DEFINITIONS:
+    blocking        — task cannot start until dependency is complete.
+                      Hard constraint for feathering engine.
+    preferred_order — task is better after dependency but not blocked.
+                      Soft constraint — feathering can relax under load.
+    parallel_ok     — can be done simultaneously or interchangeably.
+                      Feathering engine treats as independent.
+
+4.3 Goal Schema
+--------------------------------------------------------------------------------
+  goals (
+    id                  UUID PRIMARY KEY,
+    instance_id         UUID NOT NULL,
+    user_id             UUID REFERENCES users(id),
+    title               VARCHAR(255),
+    description         TEXT,
+    status              ENUM('draft', 'active', 'partially_complete',
+                             'complete', 'abandoned', 'paused'),
+    anchor_goal         BOOLEAN DEFAULT FALSE,
+    target_date         DATE,
+    created_at          TIMESTAMPTZ,
+    updated_at          TIMESTAMPTZ
+  )
+
+4.4 Decision Ledger Schema (NOTES/ space)
+--------------------------------------------------------------------------------
+  decision_ledger (
+    id                  UUID PRIMARY KEY,
+    instance_id         UUID NOT NULL,
+    task_id             UUID REFERENCES tasks(id),
+    user_id             UUID REFERENCES users(id),
+    decision_type       ENUM('auto_reschedule', 'viability_pause_trigger',
+                             'capacity_override', 'dependency_block',
+                             'feathering_placement'),
+    from_date           DATE,
+    to_date             DATE,
+    reason_code         VARCHAR(100),
+    load_ratio_source   FLOAT,
+    load_ratio_dest     FLOAT,
+    algorithm_version   VARCHAR(20),
+    model_id            VARCHAR(100),
+    timestamp           TIMESTAMPTZ
+  )
+
+  NOTE: model_id records which loaded model influenced this decision.
+  Supports post-hoc analysis of model-specific behavioral differences.
+
+4.5 Calendar Sync State Schema (OPS/ space)
+--------------------------------------------------------------------------------
+  calendar_sync_state (
+    id                  UUID PRIMARY KEY,
+    instance_id         UUID NOT NULL,
+    task_id             UUID REFERENCES tasks(id),
+    external_event_id   VARCHAR(500),
+    calendar_type       ENUM('google', 'caldav'),
+    last_synced_at      TIMESTAMPTZ,
+    sync_status         ENUM('synced', 'pending', 'error', 'orphaned'),
+    error_detail        TEXT
+  )
+
+4.6 Saturday Sundown Session Schema
+--------------------------------------------------------------------------------
+  sundown_sessions (
+    id                  UUID PRIMARY KEY,
+    instance_id         UUID NOT NULL,
+    user_id             UUID REFERENCES users(id),
+    week_start          DATE,
+    week_end            DATE,
+    completion_ratio    FLOAT,
+    deferral_count      INTEGER,
+    subjective_signal   ENUM('heavy', 'neutral', 'light'),
+    capacity_match      BOOLEAN,
+    narrative_summary   TEXT,
+    capacity_update_text TEXT,
+    profile_delta       JSONB,
+    tone_branch_used    VARCHAR(50),
+    model_id            VARCHAR(100),
+    created_at          TIMESTAMPTZ
+  )
+
+  NOTE: capacity_update_text stores the LLM-generated Capacity Update
+  closing narrative. capacity_match stores the user's binary response
+  to "does this match how your week felt?" — secondary signal for
+  profile accuracy calibration.
+
+4.7 Accountability Link Schema (OPS/ space)
+--------------------------------------------------------------------------------
+  accountability_links (
+    id                  UUID PRIMARY KEY,
+    owner_instance_id   UUID NOT NULL,
+    viewer_instance_id  UUID,
+    share_token         VARCHAR(64) UNIQUE,
+    share_scope         ENUM('summary_only', 'goal_progress',
+                             'full_summary'),
+    status              ENUM('pending', 'active', 'revoked'),
+    created_at          TIMESTAMPTZ,
+    activated_at        TIMESTAMPTZ,
+    revoked_at          TIMESTAMPTZ
+  )
+
+  accountability_link_events (
+    id                  UUID PRIMARY KEY,
+    link_id             UUID REFERENCES accountability_links(id),
+    week_end            DATE,
+    payload             JSONB,
+    scope_at_time       ENUM('summary_only', 'goal_progress', 'full_summary'),
+    created_at          TIMESTAMPTZ
+  )
+
+  NOTE: On link revocation, accountability_link_events are purged from
+  the viewer's instance. Owner's instance retains its own records.
+  (See OQ-09 for open question on owner-side purge policy.)
+
+4.8 Model Execution Log Schema (OPS/ space)
+--------------------------------------------------------------------------------
+  model_execution_log (
+    id                  UUID PRIMARY KEY,
+    instance_id         UUID NOT NULL,
+    model_id            VARCHAR(100),
+    operation_type      VARCHAR(50),
+    pass_number         SMALLINT,
+    prompt_tokens       INTEGER,
+    completion_tokens   INTEGER,
+    latency_ms          INTEGER,
+    validation_passed   BOOLEAN,
+    error_detail        TEXT,
+    otel_trace_id       VARCHAR(64),
+    timestamp           TIMESTAMPTZ
+  )
+
+  NOTE: This table is the persistence layer for OTEL span data exported
+  to local storage. It feeds back into the Model Capability Registry to
+  refine per-model performance profiles over time.
+
+
+================================================================================
+5. STATE MACHINE (FULL SPECIFICATION)
+================================================================================
+
+  TASK-LEVEL STATES:
+
+    [CREATED]
+      └→ [SCHEDULED]          (placed on calendar)
+           └→ [IN_WINDOW]     (scheduled date has arrived)
+                ├→ [COMPLETED]             (terminal positive)
+                └→ [MISSED]               (11:59 PM trigger fires)
+                     ├→ [RESCHEDULED]     (feathering engine placed it)
+                     │    └→ [IN_WINDOW]  (loop)
+                     └→ [VIABILITY_PAUSE] (deferral threshold exceeded)
+                          ├→ [DECOMPOSED]     (broken into sub-tasks →
+                          │                    CREATED for each child)
+                          ├→ [DATE_EXTENDED]  (new target date → SCHEDULED)
+                          └→ [ARCHIVED]       (user explicitly deprioritized)
+
+  GOAL-LEVEL STATES:
+
+    [DRAFT] → [ACTIVE] → [PARTIALLY_COMPLETE] → [COMPLETE]
+                                              → [ABANDONED]
+                                              → [PAUSED]
+
+  STATE TRANSITION LOGGING:
+    Every transition writes to the Decision Ledger, emits a capacity_signal
+    event to the Capacity Profile update pipeline, and emits an OTEL span.
+
+
+================================================================================
+6. FUNCTIONAL REQUIREMENTS (USER STORIES)
+================================================================================
+
+  EPIC 1: AI GOAL BREAKDOWN
+    As a user, I want JERICHO to break my goal into micro-steps so that I
+    don't feel overwhelmed.
+    As a user, I want each step to include cost estimates, instructions, and
+    an estimated time to complete so I can execute immediately.
+    As a user, I want to reorder generated steps via drag-and-drop without
+    the system overriding my changes.
+
+  EPIC 2: TRAUMA-INFORMED ENGINE & VIABILITY
+    As a system, I need to flag if a goal is too aggressive for the user's
+    current schedule before scheduling it, not after failure.
+    As a user, I want the system to neutrally reschedule missed tasks at
+    11:59 PM without any alert or notification at the moment of deferment.
+    As a user, I want to ask "why was this moved?" and receive a plain-
+    language explanation sourced from the Decision Ledger.
+
+  EPIC 3: CONTEXT-AWARE RESCHEDULING
+    As a user, I want the system to look ahead at my week when I miss a task,
+    distributing work to days where I have available capacity.
+    As a system, I need to respect blocking dependencies during rescheduling.
+    As a system, I need to distinguish preferred_order from blocking
+    dependencies and relax preferred_order constraints when the window is tight.
+
+  EPIC 4: ECOSYSTEM SYNC
+    As a user, I want to authenticate via Google OAuth so my tasks appear
+    as time blocks in my Google Calendar.
+    As a user, I want tasks moved by the feathering engine to be automatically
+    updated in my external calendar without creating duplicate events.
+
+  EPIC 5: WEEKLY RHYTHMS
+    As a user, I want the Sunday Briefing to open by showing me what the
+    system currently thinks my capacity looks like this week, in plain
+    language, before it shows me my task list.
+    As a user, I want a Sunday Briefing to preview my week and adjust the
+    plan based on my expected energy levels.
+    As a user, I want the Sunday Briefing to be optional — skipping it should
+    not prevent the week from functioning.
+    As a user, I want a Saturday Sundown to review what I accomplished with
+    a tone that matches how my week actually went.
+    As a user, I want the Saturday Sundown to close by telling me what it
+    learned about my capacity this week and what it changed.
+    As a user, I want a single, low-friction way to tell the system how the
+    week felt so it can learn my actual capacity.
+
+  EPIC 6: CAPACITY PROFILE & LEARNING
+    As a system, I need to start conservatively with new users and learn
+    actual capacity over the first three weeks.
+    As a system, I need to maintain separate capacity estimates per day
+    of the week.
+    As a user, I want the system to get better at knowing what I can actually
+    do without me having to manually configure anything.
+
+  EPIC 7: ACCOUNTABILITY
+    As a user, I want to generate a share token so a trusted person can
+    see my weekly completion summary without seeing my task content.
+    As a user, I want to revoke an accountability link at any time and have
+    that revocation take effect immediately.
+    As a viewer, I want to see a brief summary of my accountability
+    partner's prior week in my Sunday Briefing.
+
+
+================================================================================
+7. TECHNICAL ARCHITECTURE
+================================================================================
+
+7.1 Infrastructure Stack (Borrow)
+--------------------------------------------------------------------------------
+  AI ENGINE:
+    Web/macOS (heavy tasks — decomposition, self-critique):
+      llama.cpp via macports (/opt/local/bin/llama-server, port 8080)
+      Model: Llama-3.1-8B-Instruct Q4_K_M (~4.6 GB GGUF)
+      NOTE: AMD Radeon Pro 580 / non-Apple-Silicon requires -ngl 0
+      (CPU-only; Metal backend unsupported for pre-M-series discrete GPUs)
+    Web/macOS (lightweight tasks — narrative, summaries):
+      BitNet.cpp (~/BitNet/build/bin/llama-server, port 8081)
+      Model: BitNet-b1.58-2B-4T (ggml-model-i2_s.gguf)
+    iOS:        MLX (Apple's array framework for Apple Silicon)
+    iOS fallback: Core ML model export
+    Server alt: vLLM for high-throughput server deployments
+    All backends abstracted behind Model Adapter Layer (Section 7.3)
+    [DEVIATION from original spec: Ollama replaced by llama.cpp +
+     BitNet.cpp. Both expose identical OpenAI-compatible /v1 APIs
+     consumed via openai.OpenAI(base_url=...) + Instructor. See OQ-10.]
+
+  DATA PARSING:
+    Instructor (Python) — forces LLM to return validated Pydantic schemas
+
+  BACKGROUND WORKERS:
+    Web/macOS: APScheduler or ARQ
+    iOS: BGTaskScheduler (on-device)
+
+  DATABASE & AUTH:
+    Supabase (PostgreSQL with JSONB, JWT, Google OAuth)
+    Row-level security enforced on instance_id for all tables
+    Three-space table organization: SELF/ NOTES/ OPS/
+
+  OBSERVABILITY:
+    OpenTelemetry SDK (Python for backend; Swift for iOS)
+    Collector: local OTEL collector by default (no external telemetry)
+    Persistence: model_execution_log table + local trace store
+    Optional export: any OTLP-compatible backend (Jaeger, Tempo, etc.)
+
+  DESKTOP WRAPPER:
+    Tauri (Rust) — macOS packaging
+    System tray, native notification center, CalDAV daemon access
+
+  UI COMPONENTS:
+    shadcn/ui, dnd-kit, react-big-calendar
+
+  CALENDAR INTEGRATIONS:
+    google-api-python-client (Google Calendar)
+    caldav (Apple Calendar)
+
+7.2 Proprietary Logic (Build)
+--------------------------------------------------------------------------------
+  VIABILITY ALGORITHM
+    Formal spec: Section 3.2.
+
+  COGNITIVE LOAD SCORING PIPELINE
+    Formal spec: Section 3.3. Runs at task creation and each reschedule.
+
+  TRAUMA-INFORMED LLM PROMPTS
+    Versioned prompt library: goal decomposition, Viability Pause,
+    Sunday Briefing Capacity Snapshot, Saturday Sundown narrative
+    (tone-branched), Saturday Sundown Capacity Update.
+    All prompts are model-agnostic in content; runtime parameters
+    (pass count, complexity) determined by Model Capability Registry.
+
+  LOOK-AHEAD / FEATHERING ENGINE
+    Formal spec: Section 3.4. DAG-aware. Writes to Decision Ledger.
+
+  STATE MACHINE
+    Full spec: Section 5. Every transition emits capacity_signal + OTEL span.
+
+  CAPACITY PROFILE DERIVATION PIPELINE
+    Cold start (Weeks 1–3), EWA (α=0.3), 7-day vector,
+    subjective signal integration, capacity_match incorporation.
+
+  ACCOUNTABILITY LINK API
+    Token generation, activation, scoped payload construction, revocation,
+    event history purge on revocation.
+
+7.3 Model Adapter Layer & Capability Registry
+--------------------------------------------------------------------------------
+  PURPOSE:
+    Decouple all LLM-dependent code from any specific model or inference
+    backend. System reads the loaded model's capability profile at startup
+    and configures its behavior accordingly. Swapping models requires only
+    a registry entry update — no prompt rewrites, no business logic changes.
+
+  REGISTRY ENTRY SCHEMA:
+    {
+      model_id:                      STRING
+      inference_backend:             ENUM [llamacpp|bitnet|mlx|stub]
+                                     [DEVIATION: originally ollama|mlx|coreml|vllm|api
+                                      Updated per OQ-10 resolution.]
+      context_window_tokens:         INTEGER
+      structured_output_reliability: ENUM [low|medium|high]
+      reasoning_depth:               ENUM [low|medium|high]
+      recommended_pass_count:        INTEGER
+      self_critique_required:        BOOLEAN
+      timeout_threshold_seconds:     INTEGER
+      latency_profile:               ENUM [fast|medium|slow]
+      supports_tool_use:             BOOLEAN
+      notes:                         STRING
+    }
+
+  INITIAL ENTRIES:
+
+    llama3-8b (ollama)
+      reasoning_depth: medium | structured_output: medium
+      pass_count: 4 | self_critique: true | timeout: 45s | latency: medium
+
+    llama3-70b (ollama)
+      reasoning_depth: high | structured_output: high
+      pass_count: 2 | self_critique: false | timeout: 90s | latency: slow
+
+    mlx-llama3-8b (mlx / iOS)
+      reasoning_depth: medium | structured_output: medium
+      pass_count: 4 | self_critique: true | timeout: 30s | latency: fast
+      [Apple Silicon on-device: faster per-token than server Ollama at
+       equivalent model size due to unified memory architecture]
+
+  ADAPTIVE BEHAVIORS DRIVEN BY REGISTRY:
+    - Pass count in decomposition pipeline
+    - Whether self-critique pass executes
+    - Timeout threshold (fallback trigger)
+    - Prompt verbosity (simpler prompts for lower reasoning_depth —
+      fewer simultaneous constraints per pass)
+    - Whether parallel sub-goal decomposition is attempted
+
+  REGISTRY REFINEMENT VIA OTEL:
+    model_execution_log accumulates real performance data per model_id.
+    When a model's observed latency or validation pass rate diverges from
+    its registry entry beyond a configurable threshold, the system flags
+    the entry for review. Registry updates are human-confirmed, not
+    automated. OTEL provides the signal; a human makes the call.
+
+7.4 OpenTelemetry Integration
+--------------------------------------------------------------------------------
+  INSTRUMENTED OPERATIONS:
+    LLM calls: model_id, operation_type, pass_number, prompt_tokens,
+               completion_tokens, latency_ms, validation_passed
+    State transitions: task_id, from_state, to_state, trigger_source
+    Feathering placements: task_id, from_date, to_date,
+                           constraint_satisfied, load_ratio_dest
+    Capacity Profile updates: update_source, days_affected, delta_magnitude
+    Saturday Sundown pipeline: full distributed trace across all 8 steps
+
+  COLLECTOR:
+    Default: local OTEL collector → model_execution_log + local trace store.
+    Optional: OTLP export to any compatible backend.
+    No external telemetry by default. Privacy-preserving.
+
+  DUAL PURPOSE:
+    1. Developer debugging: trace exactly why the feathering engine placed
+       a task where it did, which LLM pass failed validation, etc.
+    2. Registry refinement: empirical basis for updating capability profiles
+       rather than relying on published benchmarks.
+
+
+================================================================================
+8. IMPLEMENTATION PHASES
+================================================================================
+
+  PHASE 1: LOCAL AI INTEGRATION, MODEL ADAPTER & PROMPTING
+    - Set up Ollama + Instructor + FastAPI
+    - Implement Model Adapter Layer with initial registry entries
+      (llama3-8b active; llama3-70b stubbed)
+    - Implement multi-pass, subagent-spawned prompt architecture
+      with pass count driven by registry
+    - Integrate OpenTelemetry SDK; instrument all LLM calls
+    - Design trauma-informed prompt library for decomposition
+    - Implement LLM timeout/fallback pattern (threshold from registry)
+    - Replace deterministic template generation with LLM dynamic generation
+    - Validate: single goal → structured micro-task JSON with all required
+      fields; OTEL spans visible in local trace store
+
+  PHASE 2: SCHEMA, STATE MACHINE & VIABILITY ENGINE
+    [CRITICAL: calendar_sync_state, task_dependencies, and
+     accountability_links schemas ship here — later phases are blocked
+     without them]
+
+    - Deploy full database schema (Sections 4.1–4.8) with instance_id
+      on all tables and row-level security enforcement
+    - Implement task_dependencies DAG schema
+    - Implement calendar_sync_state schema
+    - Implement accountability_links schema (structure only; API in Phase 5)
+    - Implement full state machine (Section 5) with OTEL span per transition
+    - Implement Viability Checker (Section 3.2)
+    - Implement Cognitive Load Scoring pipeline (Section 3.3)
+    - Implement Capacity Profile cold start protocol (Week 1–3 multipliers)
+    - Implement 7-dimensional capacity vector (per day-of-week)
+    - Implement Decision Ledger write on all automated decisions
+
+  PHASE 3: CALENDAR CONNECTIVITY
+    - Implement OAuth flows in React/Vite frontend
+    - Build sync services in FastAPI for CRUD on Google Calendar + CalDAV
+    - Implement JERICHO event ownership tagging in external calendar events
+    - Populate calendar_sync_state on all create/update/delete operations
+    - Validate: task created → appears in Google Calendar with JERICHO
+      metadata; task deleted → external event removed, no orphan
+
+  PHASE 4: CONTEXT-AWARE AUTO-RESCHEDULING
+    - Implement APScheduler 11:59 PM background worker
+    - Build Look-Ahead Engine with full DAG-aware constraint set
+    - Implement Waterfall Reschedule (blocking vs. preferred_order
+      differentiation, load-balancing)
+    - Connect feathering engine write-back to calendar_sync_state
+    - Implement Viability Pause trigger logic and prompt delivery
+    - Instrument feathering engine with OTEL spans
+    - Validate: missed task → placed correctly; Decision Ledger entry
+      written; external calendar updated without duplicates
+
+  PHASE 5: WEEKLY RHYTHMS, ACCOUNTABILITY & LONGITUDINAL LEARNING
+    - Build Sunday Briefing UI with Capacity Snapshot as mandatory
+      opening section (LLM-generated, registry-adaptive)
+    - Build Saturday Sundown as data pipeline + UI surface
+    - Implement tone-branching LLM prompt selection for Sundown narrative
+    - Implement subjective momentum signal capture (HEAVY/NEUTRAL/LIGHT)
+    - Implement capacity_match capture
+    - Implement Reweave pipeline: Sundown data → Capacity Profile update
+    - Implement Capacity Update as mandatory closing section of Sundown
+    - Implement EWA capacity derivation replacing cold start protocol
+    - Implement task_type_corrections learning from override history
+    - Build Accountability Link API (token generation, activation,
+      scoped payload construction, revocation, event purge)
+    - Integrate Accountability Link summary into Sunday Briefing (optional)
+    - Instrument Sundown pipeline with full OTEL trace
+    - Validate: Week 3 Capacity Profile reflects behavioral data;
+      Sundown Capacity Update accurately narrates profile changes
+
+  PHASE 6: MACOS DESKTOP & IOS
+    - Build Tauri wrapper for macOS desktop deployment
+    - Implement system tray and native notification center integration
+    - Validate feature parity with web client
+    - Add mlx-llama3-8b and additional MLX model entries to registry
+    - Build Swift/SwiftUI iOS client with optional backend mode
+    - Port 11:59 PM worker logic to BGTaskScheduler (on-device)
+    - Implement Capacity Profile local persistence with optional Supabase
+      cloud sync
+    - Integrate OpenTelemetry Swift SDK; instrument all iOS LLM calls
+    - Define and implement Capacity Profile sync conflict resolution
+      strategy (see OQ-07)
+    - Validate: fully functional on-device mode with no backend dependency
+
+
+================================================================================
+9. RESOLVED DECISIONS
+================================================================================
+
+  OQ-01 → RESOLVED: MULTI-INSTANCE ACCOUNTABILITY
+    Architecture: separate instances with consent-gated API.
+    No shared schema. Accountability Link API with three share scopes.
+    Capacity Profile is never shared. Revocation is immediate.
+    See Sections 2.5, 3.8, 4.7.
+
+  OQ-02 → RESOLVED: PLATFORM ROADMAP
+    Web (current) → macOS via Tauri → iOS via Swift + MLX/Core ML.
+    Backend is optional for on-device deployments.
+    macOS inference via llama.cpp + BitNet.cpp (see OQ-10). iOS via MLX.
+    See Section 2.4.
+
+  OQ-03 → RESOLVED: MODEL-AGNOSTIC ARCHITECTURE WITH ADAPTIVE FUNCTION
+    Model Adapter Layer with Model Capability Registry. System reads
+    capability profile at startup and adapts behavior accordingly.
+    OpenTelemetry instruments all LLM operations; accumulated data feeds
+    registry refinement. No external telemetry by default.
+    See Sections 7.3, 7.4.
+
+  OQ-04 → RESOLVED: NOTION REMOVED
+    Removed from scope. calendar_sync_state ENUM: google | caldav only.
+    Future integrations require reliable write-back as gate condition.
+
+  OQ-05 → RESOLVED: CAPACITY PROFILE EXPLAINABILITY SURFACES
+    Two mandatory touch points:
+    (1) Saturday Sundown closes with Capacity Update section.
+    (2) Sunday Briefing opens with Capacity Snapshot section.
+    Both LLM-generated, model-adaptive, tone-calibrated.
+    See Section 3.7.
+
+  OQ-10 → RESOLVED: OLLAMA REPLACED BY LLAMA.CPP + BITNET.CPP
+    Ollama removed from scope. llama.cpp (macports) handles heavy tasks
+    (decomposition, self-critique) on port 8080. BitNet.cpp handles
+    lightweight tasks (narrative, summaries) on port 8081. Both expose
+    identical OpenAI-compatible /v1 APIs consumed via openai.OpenAI +
+    Instructor. No Ollama dependency in pyproject.toml.
+    AMD Radeon Pro 580 / non-Apple-Silicon: requires -ngl 0 flag (CPU-only
+    inference; Metal backend crashes on pre-M-series discrete GPUs).
+    See Section 7.1, 7.3.
+
+
+================================================================================
+10. OPEN QUESTIONS (REMAINING)
+================================================================================
+
+  OQ-06: ACCOUNTABILITY LINK POLLING VS. PUSH
+    Current spec: viewing instance polls daily at Sunday Briefing time.
+    If a partner completes a significant goal mid-week, there's no
+    real-time acknowledgment mechanism. Evaluate webhook push on
+    COMPLETED state transitions for v2.1. Defer for now.
+
+  OQ-07: IOS CAPACITY PROFILE SYNC CONFLICT RESOLUTION
+    When a user runs both web and iOS clients, Capacity Profile writes
+    can originate from two sources. Last-write-wins is simple but risks
+    overwriting a richer web-side profile with a sparse iOS-side one.
+    Define merge strategy before Phase 6 begins.
+
+  OQ-08: MODEL REGISTRY GOVERNANCE
+    The registry is a static configuration file. When OTEL data shows
+    a model's real performance diverges from its entry, who decides to
+    update it and through what process? Define review workflow before
+    Phase 1 generates its first divergence signal.
+
+  OQ-09: ACCOUNTABILITY EVENT HISTORY ON REVOCATION
+    Current spec: viewer's instance purges event history on revocation.
+    Open: does the owner's instance also purge accountability_link_events
+    on revocation, or retain them? Privacy and audit implications differ.
+    Decide before Phase 5 ships the revocation endpoint.
+
+
+================================================================================
+END OF DOCUMENT
+================================================================================
+Version: 2.0.2 | crichalchemist/JERICHO | 2026-03-21

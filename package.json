@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run dev:api\" \"npm run dev:client\"",
+    "dev:fastapi": "concurrently \"cd backend && uv run uvicorn jyriko.main:app --reload\" \"npm run dev:client\"",
     "dev:api": "STATE_PATH=src/data/state_good.json node src/api/server.js",
     "dev:api:watch": "STATE_PATH=src/data/state_good.json nodemon src/api/server.js",
     "dev:client": "vite dev",
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.4",
+    "baseline-browser-mapping": "^2.10.32",
     "concurrently": "^8.2.2",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
