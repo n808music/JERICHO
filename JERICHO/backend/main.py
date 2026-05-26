@@ -17,6 +17,7 @@ import app.models.user  # noqa: F401
 import app.models.master_plan  # noqa: F401
 import app.models.core_mission_contract  # noqa: F401
 import app.models.user_state  # noqa: F401
+import app.models.user_calendar  # noqa: F401
 
 # Create database tables
 Base.metadata.create_all(bind=engine)

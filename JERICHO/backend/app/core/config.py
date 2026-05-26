@@ -20,7 +20,13 @@ class Settings(BaseSettings):
     
     # Environment
     environment: str = "development"
-    
+
+    # Calendar OAuth + encryption
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_oauth_redirect_uri: str = "http://localhost:8000/api/calendar/google/callback"
+    credential_encryption_key: str = "dev-encryption-key-change-in-production"
+
     class Config:
         env_file = ".env"
 
