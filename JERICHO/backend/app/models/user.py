@@ -21,6 +21,10 @@ class User(Base):
     cycles = relationship("Cycle", back_populates="user")
     blocks = relationship("Block", back_populates="user")
     master_plans = relationship("MasterPlan", back_populates="user")
+    state = relationship("UserState", back_populates="user", uselist=False)
+    core_mission_contracts = relationship("CoreMissionContract", back_populates="user")
+    core_mission_revision_logs = relationship("CoreMissionRevisionLog", back_populates="user")
+    entropy_event_logs = relationship("EntropyEventLog", back_populates="user")
 
 
 class Goal(Base):

@@ -40,3 +40,8 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     """Token data schema"""
     user_id: Optional[int] = None
+
+
+class DeviceAuthRequest(BaseModel):
+    """Device-based auth — no password, device_id is the credential"""
+    device_id: str

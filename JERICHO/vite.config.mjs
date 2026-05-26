@@ -6,6 +6,10 @@ import { fileURLToPath } from 'node:url';
 export default defineConfig({
   plugins: [react()],
   root: '.',
+  server: {
+    port: 5183,
+    strictPort: true,
+  },
   define: {
     process: {
       env: {

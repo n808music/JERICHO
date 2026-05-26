@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from app.core.database import get_db
 from app.core.security import create_access_token, verify_password, get_password_hash, verify_token
-from app.schemas.auth import UserCreate, UserLogin, UserResponse, Token, TokenData
+from app.schemas.auth import UserCreate, UserLogin, UserResponse, Token, TokenData, DeviceAuthRequest
 from app.models.user import User
 
 router = APIRouter()
@@ -42,6 +42,27 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
         )
     
     return user
+
+
+@router.post("/device", response_model=Token)
+async def device_auth(payload: DeviceAuthRequest, db: Session = Depends(get_db)):
+    """Auto-register or login a device account. device_id is the credential."""
+    if not payload.device_id or len(payload.device_id) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid device_id")
+
+    email = f"device-{payload.device_id}@jericho.local"
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        user = User(email=email, password_hash="", is_active=True)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    access_token = create_access_token(
+        data={"sub": str(user.id)},
+        expires_delta=timedelta(days=365),
+    )
+    return {"access_token": access_token, "token_type": "bearer", "expires_in": 365 * 86400}
 
 
 @router.post("/register", response_model=UserResponse)

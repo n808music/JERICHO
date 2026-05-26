@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
+import { pushState as syncPush, pullState as syncPull } from '../services/syncService.js';
 import structuredClone from '@ungap/structured-clone';
 import { appendTransitionTrace, computeDerivedState } from './identityCompute.js';
 import { canEmitExecutionEvent } from './engine/executionContract.ts';
@@ -1481,6 +1482,27 @@ export function IdentityProvider({ children, initialState }) {
 
   React.useEffect(() => {
     persistState(state);
+  }, [state]);
+
+  // Pull from server on mount — restores state across browser resets and port changes
+  React.useEffect(() => {
+    syncPull().then((serverState) => {
+      if (!serverState) return;
+      const hydrated = rehydratePersistedState(serverState);
+      if (hydrated) {
+        dispatch({ type: 'APPLY_NEXT_STATE', nextState: hydrated });
+      }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Debounced push to server on every state change
+  const syncPushTimerRef = React.useRef(null);
+  React.useEffect(() => {
+    clearTimeout(syncPushTimerRef.current);
+    syncPushTimerRef.current = setTimeout(() => {
+      syncPush(buildPersistableIdentityState(state));
+    }, 1500);
+    return () => clearTimeout(syncPushTimerRef.current);
   }, [state]);
 
   const store = {

@@ -12,6 +12,11 @@ import uvicorn
 from app.core.config import settings
 from app.api import auth, goals, blocks, sync
 from app.core.database import engine, Base
+# Import all models so SQLAlchemy mapper resolves relationships correctly
+import app.models.user  # noqa: F401
+import app.models.master_plan  # noqa: F401
+import app.models.core_mission_contract  # noqa: F401
+import app.models.user_state  # noqa: F401
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
