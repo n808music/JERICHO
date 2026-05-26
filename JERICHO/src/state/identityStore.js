@@ -1409,6 +1409,14 @@ export function IdentityProvider({ children, initialState }) {
     []
   );
   const activateSchedule = useCallback((payload = {}) => dispatch({ type: 'ACTIVATE_SCHEDULE', payload }), []);
+  const rebaseSchedule = useCallback(
+    (payload = {}) =>
+      dispatch({
+        type: 'REBASE_SCHEDULE',
+        payload: { ...(payload || {}), cycleId: payload?.cycleId || state.activeCycleId || null },
+      }),
+    [state.activeCycleId]
+  );
   const applyDraftSchedule = useCallback(
     (payload = {}) =>
       dispatch({
@@ -1556,6 +1564,7 @@ export function IdentityProvider({ children, initialState }) {
     applyPlan,
     setPlanResolutionKind,
     activateSchedule,
+    rebaseSchedule,
     applyDraftSchedule,
     applyRenegotiationOption,
     setSchedulingConstraints,
@@ -2523,6 +2532,13 @@ function markCompletedAcrossProjections(state, id) {
   touch(state.today?.blocks);
   (state.currentWeek?.days || []).forEach((d) => touch(d.blocks));
   (state.cycle || []).forEach((d) => touch(d.blocks));
+  touch(state.scheduleReviewBlocks);
+  Object.values(state?.blockStore?.blocks || {}).forEach((block) => {
+    touch([block]);
+  });
+  Object.values(state?.cyclesById || {}).forEach((cycle) => {
+    touch(cycle?.scheduleReviewBlocks);
+  });
   return { found, changed };
 }
 
@@ -2538,6 +2554,13 @@ function markStatusAcrossProjections(state, id, status) {
   touch(state.today?.blocks);
   (state.currentWeek?.days || []).forEach((d) => touch(d.blocks));
   (state.cycle || []).forEach((d) => touch(d.blocks));
+  touch(state.scheduleReviewBlocks);
+  Object.values(state?.blockStore?.blocks || {}).forEach((block) => {
+    touch([block]);
+  });
+  Object.values(state?.cyclesById || {}).forEach((cycle) => {
+    touch(cycle?.scheduleReviewBlocks);
+  });
   return found;
 }
 

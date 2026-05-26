@@ -155,5 +155,12 @@ describe('generate/apply integration', () => {
     const activatedCreates = (activated.executionEvents || []).filter((e) => e?.kind === 'create');
     expect(activatedCreates.length).toBeGreaterThan(0);
     expect(activated.scheduleLifecycle).toBe('active_schedule');
+    expect((activated.scheduleReviewBlocks || []).length).toBe(0);
+    expect((activated.cyclesById[activated.activeCycleId]?.scheduleReviewBlocks || []).length).toBe(0);
+    expect(
+      ((activated.cycle || []).flatMap((day) => day.blocks || []) || []).every(
+        (block) => String(block?.origin || '').trim() !== 'schedule_review'
+      )
+    ).toBe(true);
   });
 });

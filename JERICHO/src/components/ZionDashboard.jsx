@@ -676,6 +676,7 @@ function useZionState() {
     applyPlan,
     setPlanResolutionKind,
     activateSchedule,
+    rebaseSchedule,
     applyRenegotiationOption,
     resetIdentity,
     upsertProfileDetails,
@@ -772,6 +773,7 @@ function useZionState() {
       applyPlan,
       setPlanResolutionKind,
       activateSchedule,
+      rebaseSchedule,
       applyRenegotiationOption,
       resetIdentity,
       upsertProfileDetails,
@@ -1221,6 +1223,9 @@ export default function ZionDashboard({
     // already-committed schedule from the active cycle's calendar.
     const renderedCycleBlocks = (allRenderedBlocks || []).filter((block) => block?.cycleId === activeCycleId);
     const canonicalCycleBlocks = (fallbackExecutionBlocks || []).filter((block) => block?.cycleId === activeCycleId);
+    if (hasActiveSchedule && canonicalCycleBlocks.length > 0) {
+      return canonicalCycleBlocks;
+    }
     // state.cycle is still recomputed as the visible month slice in some reducer paths.
     // executionEvents remain the canonical committed source of truth, so prefer them
     // whenever they contain a fuller horizon than the currently rendered slice.
@@ -1231,9 +1236,19 @@ export default function ZionDashboard({
       return renderedCycleBlocks;
     }
     return canonicalCycleBlocks;
-  }, [allRenderedBlocks, fallbackExecutionBlocks, activeCycleId, isGoalAdmitted]);
+  }, [allRenderedBlocks, fallbackExecutionBlocks, activeCycleId, isGoalAdmitted, hasActiveSchedule]);
   const hasVisibleCanonicalBlocks = normalizedBlocks.length > 0;
   const hasPendingActivation = hasAppliedReviewSchedule && !hasActiveSchedule;
+  const temporalRebaseRequired =
+    hasPendingActivation &&
+    ['SCHEDULE_REBASE_REQUIRED', 'GENERATED_SCHEDULE_STALE'].includes(
+      String(lastPlanError?.code || '')
+        .trim()
+        .toUpperCase()
+    );
+  const cycleWasRebased = String(activeCycle?.temporalStatus || '')
+    .trim()
+    .toLowerCase() === 'rebased';
   const reassessmentRequired =
     String(activeCycle?.reassessmentStatus || '')
       .trim()
@@ -2281,6 +2296,15 @@ export default function ZionDashboard({
     });
   };
 
+  const handleRebaseSchedule = () => {
+    if (isCycleReadOnly || hasActiveSchedule || !hasAppliedReviewSchedule) return;
+    const cycleId = activeCycleId || null;
+    const executionStartDayKey =
+      lastPlanError?.meta?.executionStartDayKey || activeDayKey || appTime?.activeDayKey || today?.date || null;
+    traceAction('schedule.rebase.click', { cycleId, executionStartDayKey, errorCode: lastPlanError?.code || null });
+    actions.rebaseSchedule?.({ cycleId, executionStartDayKey });
+  };
+
   const handleCompleteCycleReassessment = () => {
     if (!activeCycleId || typeof actions.completeCycleReassessment !== 'function') {
       return;
@@ -2938,6 +2962,7 @@ export default function ZionDashboard({
                       dateLabel={activeDayKey}
                       blocks={selectedDayBlocks}
                       drafts={[]}
+                      selectedBlockId={selectedBlockId}
                       lineageBlocks={calendarSurfaceBlocks}
                       deliverableLabelById={deliverableLabelById}
                       criterionLabelById={criterionLabelById}
@@ -3203,13 +3228,24 @@ export default function ZionDashboard({
                               {hasActiveSchedule ? 'View active schedule' : 'View review schedule'}
                             </button>
                             {hasAppliedReviewSchedule && !hasActiveSchedule ? (
-                              <button
-                                className="rounded-full border border-jericho-accent px-3 py-1 text-jericho-accent hover:bg-jericho-accent/10"
-                                onClick={handleActivateSchedule}
-                                disabled={!actions.activateSchedule || reviewScheduleBlocks.length === 0}
-                              >
-                                Activate schedule
-                              </button>
+                              <>
+                                <button
+                                  className="rounded-full border border-jericho-accent px-3 py-1 text-jericho-accent hover:bg-jericho-accent/10"
+                                  onClick={handleActivateSchedule}
+                                  disabled={!actions.activateSchedule || reviewScheduleBlocks.length === 0}
+                                >
+                                  Activate schedule
+                                </button>
+                                {temporalRebaseRequired ? (
+                                  <button
+                                    className="rounded-full border border-amber-700/60 px-3 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-600/10"
+                                    onClick={handleRebaseSchedule}
+                                    disabled={!actions.rebaseSchedule}
+                                  >
+                                    Rebase from today
+                                  </button>
+                                ) : null}
+                              </>
                             ) : null}
                           </div>
                       {scheduleDisplayItemsAllResolved.length > 0 &&
@@ -3223,6 +3259,33 @@ export default function ZionDashboard({
                                 to start live execution. Today completion, miss, and skip logging stay disabled until
                                 activation.
                               </p>
+                              {temporalRebaseRequired ? (
+                                <>
+                                  <p className="text-amber-700/90">
+                                    Schedule rebase required. This draft no longer matches the activation start date and
+                                    still contains unexecuted work in the past.
+                                  </p>
+                                  <p className="text-amber-700/90">
+                                    Rebase from {formatDayKeyLabel(activeDayKey)} to move executable work forward,
+                                    then review and activate.
+                                  </p>
+                                  <div className="pt-1">
+                                    <button
+                                      className="rounded-full border border-amber-700/60 px-3 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-600/10"
+                                      onClick={handleRebaseSchedule}
+                                      disabled={!actions.rebaseSchedule}
+                                    >
+                                      Rebase from today
+                                    </button>
+                                  </div>
+                                </>
+                              ) : null}
+                              {cycleWasRebased ? (
+                                <p className="text-amber-700/90">
+                                  Schedule rebased from the current start date. Review the shifted blocks, then activate
+                                  execution.
+                                </p>
+                              ) : null}
                             </div>
                           ) : null}
                           {scheduleDisplayItemsAllResolved.length > 0 && scheduleDisplayItems.length === 0 ? (

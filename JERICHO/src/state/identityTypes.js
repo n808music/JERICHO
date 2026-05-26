@@ -116,6 +116,31 @@
  *   scheduleActiveHash?: string | null;
  *   scheduleAppliedAtISO?: string | null;
  *   scheduleActivatedAtISO?: string | null;
+ *   scheduleGeneratedAtISO?: string | null;
+ *   generatedForStartDayKey?: string | null;
+ *   validUntilDayKey?: string | null;
+ *   activationRequestedAtISO?: string | null;
+ *   executionStartDayKey?: string | null;
+ *   temporalStatus?: 'fresh' | 'drifted' | 'stale' | 'rebase_required' | 'rebased';
+ *   rebaseRequired?: boolean;
+ *   pastDatedBlockCount?: number;
+ *   scheduleDebtMinutes?: number;
+ *   compressionDelta?: number;
+ *   temporalReasonCodes?: string[];
+ *   lastTemporalAudit?: {
+ *     generatedAtISO?: string | null;
+ *     generatedForStartDayKey?: string | null;
+ *     validUntilDayKey?: string | null;
+ *     activationRequestedAtISO?: string | null;
+ *     executionStartDayKey?: string | null;
+ *     temporalStatus?: string | null;
+ *     rebaseRequired?: boolean;
+ *     pastDatedBlockCount?: number;
+ *     scheduleDebtMinutes?: number;
+ *     compressionDelta?: number;
+ *     daysSinceGenerated?: number;
+ *     temporalReasonCodes?: string[];
+ *   };
  *   selectedPlanResolutionKind?: string | null;
  *   lastResolvedPlanSummary?: {
  *     planStatus?: string | null;

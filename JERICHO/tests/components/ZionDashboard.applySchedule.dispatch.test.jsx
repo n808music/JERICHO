@@ -7,6 +7,7 @@ import ZionDashboard from '../../src/components/ZionDashboard.jsx';
 
 const applyPlan = vi.fn();
 const activateSchedule = vi.fn();
+const rebaseSchedule = vi.fn();
 const commitPreviewItems = vi.fn();
 const setPlanResolutionKind = vi.fn();
 const noop = vi.fn();
@@ -78,6 +79,7 @@ function buildStore() {
     applyPlan,
     setPlanResolutionKind,
     activateSchedule,
+    rebaseSchedule,
     resetIdentity: noop,
     setActiveCycle: noop,
     deleteCycle: noop,
@@ -116,6 +118,7 @@ describe('ZionDashboard apply schedule dispatch wiring', () => {
   beforeEach(() => {
     applyPlan.mockClear();
     activateSchedule.mockClear();
+    rebaseSchedule.mockClear();
     commitPreviewItems.mockClear();
     setPlanResolutionKind.mockClear();
     mockStore = buildStore();
@@ -251,6 +254,55 @@ describe('ZionDashboard apply schedule dispatch wiring', () => {
     expect(screen.queryByRole('button', { name: /^Missed$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Skipped$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Edit$/i })).not.toBeInTheDocument();
+  });
+
+  it('offers Rebase from today and dispatches rebaseSchedule when temporal drift blocks activation', async () => {
+    mockStore = buildStore();
+    mockStore.proposedBlocks = [];
+    mockStore.pendingPlanConfirmation = false;
+    mockStore.lastPlanError = {
+      code: 'SCHEDULE_REBASE_REQUIRED',
+      reasonCodes: ['PAST_DATED_UNEXECUTED_BLOCKS', 'SCHEDULE_REBASE_REQUIRED'],
+      meta: { executionStartDayKey: '2026-02-03' },
+    };
+    mockStore.cyclesById['cycle-active'] = {
+      ...mockStore.cyclesById['cycle-active'],
+      scheduleLifecycle: 'applied_review',
+      temporalStatus: 'rebase_required',
+      scheduleReviewBlocks: [
+        {
+          id: 'review-1',
+          cycleId: 'cycle-active',
+          goalId: 'goal-1',
+          status: 'planned',
+          title: 'Review block',
+          label: 'Review block',
+          practice: 'FOCUS',
+          domain: 'FOCUS',
+          durationMinutes: 45,
+          dayKey: '2026-01-29',
+          startISO: '2026-01-29T09:00:00.000Z',
+          endISO: '2026-01-29T09:45:00.000Z',
+          start: '2026-01-29T09:00:00.000Z',
+          end: '2026-01-29T09:45:00.000Z',
+        },
+      ],
+    };
+
+    await renderDashboard();
+
+    expect(screen.getByRole('button', { name: /rebase from today/i })).toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /rebase from today/i }));
+    });
+
+    expect(rebaseSchedule).toHaveBeenCalledTimes(1);
+    expect(rebaseSchedule).toHaveBeenCalledWith({
+      cycleId: 'cycle-active',
+      executionStartDayKey: '2026-02-03',
+    });
   });
 
   it('locks apply until a horizon resolution is selected and forwards the selected kind', async () => {

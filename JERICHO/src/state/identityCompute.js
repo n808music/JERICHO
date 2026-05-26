@@ -172,7 +172,7 @@ const DEFAULT_PROFILE_ID = 'profile-local-default';
 const DEFAULT_PROFILE_LABEL = 'Local Profile';
 
 /**
- * @typedef {{ type: 'BEGIN_BLOCK'; id: string } | { type: 'COMPLETE_BLOCK'; id: string } | { type: 'RESCHEDULE_BLOCK'; id: string; start: string; end: string } | { type: 'APPLY_LENSES'; lenses: Partial<LensesConfig> } | { type: 'SET_VIEW_DATE'; date: string } | { type: 'REBALANCE_TODAY'; mode?: 'CLEAR_AFTERNOON' } | { type: 'COMPLETE_ONBOARDING'; onboarding: any } | { type: 'UPDATE_PENDING_ONBOARDING_INPUTS'; onboarding: any } | { type: 'START_NEW_CYCLE'; payload: any } | { type: 'START_NEW_CYCLE_WITH_DECISION'; payload: { mode: 'archive' | 'delete' } } | { type: 'END_CYCLE'; cycleId: string } | { type: 'ARCHIVE_AND_CLONE_CYCLE'; cycleId: string; overrides?: any } | { type: 'SET_ACTIVE_CYCLE'; cycleId: string } | { type: 'DELETE_CYCLE'; cycleId: string } | { type: 'HARD_DELETE_CYCLE'; cycleId: string } | { type: 'ADD_TRUTH_ENTRY'; payload: any } | { type: 'CREATE_BLOCK'; payload: any } | { type: 'UPDATE_BLOCK'; payload: any } | { type: 'DELETE_BLOCK'; id: string } | { type: 'ADD_RECURRING_PATTERN'; pattern: any } | { type: 'SET_PRIMARY_OBJECTIVE'; objectiveId: string | null } | { type: 'SET_CALIBRATION_DAYS'; daysPerWeek: number; uncertain?: boolean } | { type: 'GENERATE_PLAN' } | { type: 'APPLY_PLAN' } | { type: 'ACTIVATE_SCHEDULE' } | { type: 'ACCEPT_SUGGESTED_BLOCK'; proposalId: string } | { type: 'REJECT_SUGGESTED_BLOCK'; proposalId: string; reason: string } | { type: 'IGNORE_SUGGESTED_BLOCK'; proposalId: string } | { type: 'DISMISS_SUGGESTED_BLOCK'; proposalId: string } | { type: 'CREATE_DELIVERABLE'; payload: any } | { type: 'UPDATE_DELIVERABLE'; payload: any } | { type: 'DELETE_DELIVERABLE'; payload: any } | { type: 'CREATE_CRITERION'; payload: any } | { type: 'TOGGLE_CRITERION_DONE'; payload: any } | { type: 'DELETE_CRITERION'; payload: any } | { type: 'LINK_BLOCK_TO_DELIVERABLE'; payload: any } | { type: 'ASSIGN_SUGGESTION_LINK'; payload: any } | { type: 'SET_STRATEGY'; payload: any } | { type: 'GENERATE_COLD_PLAN'; payload?: any } | { type: 'REBASE_COLD_PLAN'; payload?: any } | { type: 'SET_DEFINITE_GOAL'; outcome: string; deadlineDayKey: string } | { type: 'COMPILE_GOAL_EQUATION'; payload: any } | { type: 'APPLY_RENEGOTIATION_OPTION'; payload?: any }} Action
+ * @typedef {{ type: 'BEGIN_BLOCK'; id: string } | { type: 'COMPLETE_BLOCK'; id: string } | { type: 'RESCHEDULE_BLOCK'; id: string; start: string; end: string } | { type: 'APPLY_LENSES'; lenses: Partial<LensesConfig> } | { type: 'SET_VIEW_DATE'; date: string } | { type: 'REBALANCE_TODAY'; mode?: 'CLEAR_AFTERNOON' } | { type: 'COMPLETE_ONBOARDING'; onboarding: any } | { type: 'UPDATE_PENDING_ONBOARDING_INPUTS'; onboarding: any } | { type: 'START_NEW_CYCLE'; payload: any } | { type: 'START_NEW_CYCLE_WITH_DECISION'; payload: { mode: 'archive' | 'delete' } } | { type: 'END_CYCLE'; cycleId: string } | { type: 'ARCHIVE_AND_CLONE_CYCLE'; cycleId: string; overrides?: any } | { type: 'SET_ACTIVE_CYCLE'; cycleId: string } | { type: 'DELETE_CYCLE'; cycleId: string } | { type: 'HARD_DELETE_CYCLE'; cycleId: string } | { type: 'ADD_TRUTH_ENTRY'; payload: any } | { type: 'CREATE_BLOCK'; payload: any } | { type: 'UPDATE_BLOCK'; payload: any } | { type: 'DELETE_BLOCK'; id: string } | { type: 'ADD_RECURRING_PATTERN'; pattern: any } | { type: 'SET_PRIMARY_OBJECTIVE'; objectiveId: string | null } | { type: 'SET_CALIBRATION_DAYS'; daysPerWeek: number; uncertain?: boolean } | { type: 'GENERATE_PLAN' } | { type: 'APPLY_PLAN' } | { type: 'ACTIVATE_SCHEDULE' } | { type: 'REBASE_SCHEDULE'; payload?: any } | { type: 'ACCEPT_SUGGESTED_BLOCK'; proposalId: string } | { type: 'REJECT_SUGGESTED_BLOCK'; proposalId: string; reason: string } | { type: 'IGNORE_SUGGESTED_BLOCK'; proposalId: string } | { type: 'DISMISS_SUGGESTED_BLOCK'; proposalId: string } | { type: 'CREATE_DELIVERABLE'; payload: any } | { type: 'UPDATE_DELIVERABLE'; payload: any } | { type: 'DELETE_DELIVERABLE'; payload: any } | { type: 'CREATE_CRITERION'; payload: any } | { type: 'TOGGLE_CRITERION_DONE'; payload: any } | { type: 'DELETE_CRITERION'; payload: any } | { type: 'LINK_BLOCK_TO_DELIVERABLE'; payload: any } | { type: 'ASSIGN_SUGGESTION_LINK'; payload: any } | { type: 'SET_STRATEGY'; payload: any } | { type: 'GENERATE_COLD_PLAN'; payload?: any } | { type: 'REBASE_COLD_PLAN'; payload?: any } | { type: 'SET_DEFINITE_GOAL'; outcome: string; deadlineDayKey: string } | { type: 'COMPILE_GOAL_EQUATION'; payload: any } | { type: 'APPLY_RENEGOTIATION_OPTION'; payload?: any }} Action
  */
 
 export function computeDerivedState(state, action) {
@@ -761,6 +761,9 @@ export function computeDerivedState(state, action) {
       break;
     case 'ACTIVATE_SCHEDULE':
       activateSchedule(next, action.payload || {});
+      break;
+    case 'REBASE_SCHEDULE':
+      rebaseSchedule(next, action.payload || {});
       break;
     case 'APPLY_DRAFT_SCHEDULE':
       applyDraftSchedule(next, action.payload || {});
@@ -1823,6 +1826,102 @@ function buildScheduleReviewBlock(
     optional: Boolean(item.optional),
     objectiveId: state.today?.primaryObjectiveId || null,
     scheduleLifecycle: 'applied_review',
+  };
+}
+
+function getTemporalBlockDayKey(block, timeZone = 'UTC') {
+  return (
+    coerceDayKey(block?.dayKey, timeZone) ||
+    coerceDayKey(block?.startISO, timeZone) ||
+    coerceDayKey(block?.start, timeZone) ||
+    coerceDayKey(block?.date, timeZone) ||
+    null
+  );
+}
+
+function hasCanonicalExecutionOutcome(state, blockId) {
+  const targetId = String(blockId || '').trim();
+  if (!targetId) {
+    return false;
+  }
+  return (Array.isArray(state?.executionEvents) ? state.executionEvents : []).some((event) => {
+    const eventBlockId = String(event?.blockId || '').trim();
+    const kind = String(event?.kind || '').trim().toLowerCase();
+    return eventBlockId === targetId && (kind === 'complete' || kind === 'missed' || kind === 'skipped');
+  });
+}
+
+function buildScheduleTemporalAudit(state, cycle, blocks = [], { referenceDayKey = null, timeZone = 'UTC' } = {}) {
+  const normalizedBlocks = (Array.isArray(blocks) ? blocks : []).filter(Boolean);
+  const sortedDayKeys = normalizedBlocks
+    .map((block) => getTemporalBlockDayKey(block, timeZone))
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right));
+  const generatedAtISO =
+    cycle?.scheduleGeneratedAtISO ||
+    cycle?.autoAsanaPlan?.audit?.generatedAtISO ||
+    cycle?.goalPlan?.generatedAtISO ||
+    null;
+  const generatedDayKey = coerceDayKey(generatedAtISO, timeZone) || null;
+  const executionStartDayKey =
+    coerceDayKey(referenceDayKey, timeZone) ||
+    coerceDayKey(state?.appTime?.activeDayKey, timeZone) ||
+    coerceDayKey(state?.today?.date, timeZone) ||
+    nowDayKey(timeZone);
+  const generatedForStartDayKey = sortedDayKeys[0] || generatedDayKey || executionStartDayKey;
+  const freshnessDays = 7;
+  const validUntilDayKey = generatedDayKey ? addDays(generatedDayKey, freshnessDays - 1, timeZone) : executionStartDayKey;
+  const daysSinceGenerated = generatedDayKey ? Math.max(0, daysBetween(generatedDayKey, executionStartDayKey)) : 0;
+  const pastDatedBlocks = normalizedBlocks.filter((block) => {
+    const blockDayKey = getTemporalBlockDayKey(block, timeZone);
+    return Boolean(blockDayKey && blockDayKey < executionStartDayKey && !hasCanonicalExecutionOutcome(state, block?.id));
+  });
+  const pastDatedBlockCount = pastDatedBlocks.length;
+  const scheduleDebtMinutes = pastDatedBlocks.reduce(
+    (sum, block) => sum + Math.max(0, Number(block?.durationMinutes || block?.minutes || 0)),
+    0
+  );
+  const compressionDelta =
+    sortedDayKeys.length > 0
+      ? Math.max(0, daysBetween(generatedForStartDayKey, sortedDayKeys[sortedDayKeys.length - 1]) - Math.max(0, daysBetween(executionStartDayKey, sortedDayKeys[sortedDayKeys.length - 1])))
+      : 0;
+  const reasonCodes = [];
+  const isStale = generatedDayKey ? executionStartDayKey > validUntilDayKey : false;
+  if (isStale) {
+    reasonCodes.push('GENERATED_SCHEDULE_STALE');
+  }
+  if (pastDatedBlockCount > 0) {
+    reasonCodes.push('PAST_DATED_UNEXECUTED_BLOCKS');
+    reasonCodes.push('ACTIVATION_REANCHOR_REQUIRED');
+    reasonCodes.push('SCHEDULE_REBASE_REQUIRED');
+  }
+  if (compressionDelta > 0) {
+    reasonCodes.push('HARD_ANCHOR_COMPRESSION_CHANGED');
+  }
+  if (reasonCodes.length > 0) {
+    reasonCodes.push('REASSESSMENT_TEMPORAL_DRIFT_DETECTED');
+  }
+  const temporalStatus =
+    pastDatedBlockCount > 0
+      ? 'rebase_required'
+      : isStale
+        ? 'stale'
+        : reasonCodes.length > 0
+          ? 'drifted'
+          : 'fresh';
+  return {
+    generatedAtISO,
+    generatedForStartDayKey,
+    validUntilDayKey,
+    activationRequestedAtISO: state?.appTime?.nowISO || new Date().toISOString(),
+    executionStartDayKey,
+    temporalStatus,
+    rebaseRequired: pastDatedBlockCount > 0,
+    pastDatedBlockCount,
+    scheduleDebtMinutes,
+    compressionDelta,
+    daysSinceGenerated,
+    temporalReasonCodes: Array.from(new Set(reasonCodes)),
   };
 }
 
@@ -11705,9 +11804,21 @@ function applyDraftSchedule(state, payload = {}) {
     )
     .filter(Boolean);
   annotateRepeatedSessionTitles(reviewBlocks);
+  const temporalAudit = buildScheduleTemporalAudit(state, cycle, proposedItems, { timeZone });
   cycle.scheduleReviewBlocks = reviewBlocks;
   cycle.scheduleDraftHash = buildScheduleDraftHash(proposedItems);
   cycle.scheduleAppliedAtISO = state.appTime?.nowISO || new Date().toISOString();
+  cycle.scheduleGeneratedAtISO = temporalAudit.generatedAtISO;
+  cycle.generatedForStartDayKey = temporalAudit.generatedForStartDayKey;
+  cycle.validUntilDayKey = temporalAudit.validUntilDayKey;
+  cycle.activationRequestedAtISO = temporalAudit.activationRequestedAtISO;
+  cycle.executionStartDayKey = temporalAudit.executionStartDayKey;
+  cycle.temporalStatus = temporalAudit.temporalStatus;
+  cycle.rebaseRequired = temporalAudit.rebaseRequired;
+  cycle.pastDatedBlockCount = temporalAudit.pastDatedBlockCount;
+  cycle.scheduleDebtMinutes = temporalAudit.scheduleDebtMinutes;
+  cycle.compressionDelta = temporalAudit.compressionDelta;
+  cycle.temporalReasonCodes = temporalAudit.temporalReasonCodes;
   cycle.scheduleLifecycle = reviewBlocks.length > 0 ? 'applied_review' : 'no_schedule';
   cycle.selectedPlanResolutionKind = resolutionKind || cycle.selectedPlanResolutionKind || null;
   cycle.selectedPlanResolutionAtISO = state.appTime?.nowISO || new Date().toISOString();
@@ -11856,6 +11967,267 @@ function applyDraftSchedule(state, payload = {}) {
   });
 }
 
+function sortBlocksForTemporalRebase(blocks = [], timeZone = 'UTC') {
+  return [...(Array.isArray(blocks) ? blocks : [])].sort((left, right) => {
+    const leftDayKey = getTemporalBlockDayKey(left, timeZone) || '9999-12-31';
+    const rightDayKey = getTemporalBlockDayKey(right, timeZone) || '9999-12-31';
+    if (leftDayKey !== rightDayKey) {
+      return leftDayKey.localeCompare(rightDayKey);
+    }
+    const leftStart = String(left?.startISO || left?.start || '').trim();
+    const rightStart = String(right?.startISO || right?.start || '').trim();
+    if (leftStart !== rightStart) {
+      return leftStart.localeCompare(rightStart);
+    }
+    return String(left?.id || '').localeCompare(String(right?.id || ''));
+  });
+}
+
+function collectRebaseDayKeys(executionStartDayKey, endDayKey, timeZone = 'UTC') {
+  const keys = [];
+  let cursor = executionStartDayKey;
+  let guard = 0;
+  while (cursor && endDayKey && cursor <= endDayKey && guard < 5000) {
+    keys.push(cursor);
+    const next = addDays(cursor, 1, timeZone);
+    if (!next || next === cursor) {
+      break;
+    }
+    cursor = next;
+    guard += 1;
+  }
+  return keys;
+}
+
+function buildRebaseWindowsByDayKey(dayKeys = [], workWindows = {}, timeZone = 'UTC') {
+  return dayKeys.reduce((acc, dayKey) => {
+    const dow = dayKeyToDow(dayKey);
+    const windows = Array.isArray(workWindows?.[dow]) ? workWindows[dow] : [];
+    acc[dayKey] = windows
+      .map((window) => ({
+        startMin: parseHHMMToMinutes(window?.start),
+        endMin: parseHHMMToMinutes(window?.end),
+      }))
+      .filter((window) => window.endMin > window.startMin);
+    return acc;
+  }, {});
+}
+
+function weekKeyForDay(dayKey) {
+  const [year, month, day] = String(dayKey || '')
+    .split('-')
+    .map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const oneJan = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((date.getTime() - oneJan.getTime()) / 86400000 + oneJan.getUTCDay() + 1) / 7);
+  return `${date.getUTCFullYear()}-W${week}`;
+}
+
+function minutesToHHMM(totalMinutes = 0) {
+  const normalized = Math.max(0, Number(totalMinutes) || 0);
+  const hours = Math.floor(normalized / 60);
+  const minutes = normalized % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function findRebaseSlot({
+  block,
+  candidateDayKeys,
+  windowsByDayKey,
+  occupiedByDayKey,
+  dailyCounts,
+  weeklyCounts,
+  maxBlocksPerDay,
+  maxBlocksPerWeek,
+}) {
+  const durationMinutes = Math.max(1, Number(block?.durationMinutes || 30));
+  for (const dayKey of candidateDayKeys) {
+    const windows = windowsByDayKey[dayKey] || [];
+    if (!windows.length) {
+      continue;
+    }
+    if ((dailyCounts.get(dayKey) || 0) >= maxBlocksPerDay) {
+      continue;
+    }
+    const weekKey = weekKeyForDay(dayKey);
+    if ((weeklyCounts.get(weekKey) || 0) >= maxBlocksPerWeek) {
+      continue;
+    }
+    const occupied = occupiedByDayKey.get(dayKey) || [];
+    for (const window of windows) {
+      let cursor = window.startMin;
+      while (cursor + durationMinutes <= window.endMin) {
+        const overlaps = occupied.some(
+          (slot) => !(cursor + durationMinutes <= slot.startMin || cursor >= slot.endMin)
+        );
+        if (!overlaps) {
+          return { dayKey, startMin: cursor };
+        }
+        cursor += 15;
+      }
+    }
+  }
+  return null;
+}
+
+function rebaseSchedule(state, payload = {}) {
+  const cycleId = payload?.cycleId || state.activeCycleId || null;
+  const cycle = getTargetCycle(state, cycleId);
+  const contract = getCanonicalCycleContract(cycle, state.goalExecutionContract, cycle?.contract || null);
+  if (!cycle || !contract) {
+    return;
+  }
+  const timeZone = state.appTime?.timeZone || 'UTC';
+  const executionStartDayKey =
+    coerceDayKey(payload?.executionStartDayKey, timeZone) ||
+    coerceDayKey(state.appTime?.activeDayKey, timeZone) ||
+    coerceDayKey(state.today?.date, timeZone) ||
+    nowDayKey(timeZone);
+  const reviewBlocks = sortBlocksForTemporalRebase(cycle.scheduleReviewBlocks || [], timeZone);
+  if (!reviewBlocks.length) {
+    state.lastPlanError = {
+      code: 'NO_APPLIED_REVIEW_BLOCKS',
+      reason: 'No applied review blocks available to rebase.',
+      cycleId: cycle.id,
+      goalId: contract.goalId,
+    };
+    return;
+  }
+  const endDayKey =
+    coerceDayKey(contract?.endDayKey, timeZone) ||
+    coerceDayKey(contract?.deadline?.dayKey, timeZone) ||
+    coerceDayKey(contract?.deadlineISO, timeZone) ||
+    reviewBlocks.map((block) => getTemporalBlockDayKey(block, timeZone)).filter(Boolean).sort().pop() ||
+    executionStartDayKey;
+  const candidateDayKeys = collectRebaseDayKeys(executionStartDayKey, endDayKey, timeZone);
+  const workWindows = normalizeCanonicalWorkWindows(contract?.workWindows || cycle?.goalContract?.workWindows || {});
+  const windowsByDayKey = buildRebaseWindowsByDayKey(candidateDayKeys, workWindows, timeZone);
+  const maxBlocksPerDay = Math.max(
+    1,
+    Number(cycle?.strategy?.constraints?.maxBlocksPerDay || state?.constraints?.maxBlocksPerDay || Number.POSITIVE_INFINITY)
+  );
+  const maxBlocksPerWeek = Math.max(
+    1,
+    Number(cycle?.strategy?.constraints?.maxBlocksPerWeek || state?.constraints?.maxBlocksPerWeek || Number.POSITIVE_INFINITY)
+  );
+  const occupiedByDayKey = new Map();
+  const dailyCounts = new Map();
+  const weeklyCounts = new Map();
+  const preservedBlocks = [];
+  const portableBlocks = [];
+
+  reviewBlocks.forEach((block) => {
+    if (hasCanonicalExecutionOutcome(state, block?.id)) {
+      preservedBlocks.push({ ...block });
+      const dayKey = getTemporalBlockDayKey(block, timeZone);
+      if (dayKey && dayKey >= executionStartDayKey) {
+        const startMin = parseHHMMToMinutes(String((block?.startISO || block?.start || '').slice(11, 16) || '09:00'));
+        const durationMinutes = Math.max(1, Number(block?.durationMinutes || 30));
+        if (!occupiedByDayKey.has(dayKey)) occupiedByDayKey.set(dayKey, []);
+        occupiedByDayKey.get(dayKey).push({ startMin, endMin: startMin + durationMinutes });
+        dailyCounts.set(dayKey, (dailyCounts.get(dayKey) || 0) + 1);
+        const weekKey = weekKeyForDay(dayKey);
+        weeklyCounts.set(weekKey, (weeklyCounts.get(weekKey) || 0) + 1);
+      }
+      return;
+    }
+    portableBlocks.push({ ...block });
+  });
+
+  const rebasedBlocks = [];
+  for (const block of portableBlocks) {
+    const originalDayKey = getTemporalBlockDayKey(block, timeZone) || executionStartDayKey;
+    const earliestDayKey = originalDayKey >= executionStartDayKey ? originalDayKey : executionStartDayKey;
+    const eligibleDayKeys = candidateDayKeys.filter((dayKey) => dayKey >= earliestDayKey);
+    const slot = findRebaseSlot({
+      block,
+      candidateDayKeys: eligibleDayKeys,
+      windowsByDayKey,
+      occupiedByDayKey,
+      dailyCounts,
+      weeklyCounts,
+      maxBlocksPerDay,
+      maxBlocksPerWeek,
+    });
+    if (!slot) {
+      const failedAudit = buildScheduleTemporalAudit(state, cycle, reviewBlocks, {
+        referenceDayKey: executionStartDayKey,
+        timeZone,
+      });
+      cycle.temporalStatus = 'rebase_required';
+      cycle.rebaseRequired = true;
+      cycle.lastTemporalAudit = failedAudit;
+      state.cyclesById[cycle.id] = cycle;
+      state.lastPlanError = {
+        code: 'INSUFFICIENT_CAPACITY_FOR_TEMPORAL_REBASE',
+        reason: 'Displaced work cannot fit the remaining future work windows before required anchors.',
+        cycleId: cycle.id,
+        goalId: contract.goalId,
+        reasonCodes: Array.from(
+          new Set(['INSUFFICIENT_CAPACITY_FOR_TEMPORAL_REBASE', ...(failedAudit.temporalReasonCodes || [])])
+        ),
+        meta: {
+          executionStartDayKey,
+          pastDatedBlockCount: failedAudit.pastDatedBlockCount,
+          scheduleDebtMinutes: failedAudit.scheduleDebtMinutes,
+          compressionDelta: failedAudit.compressionDelta,
+        },
+      };
+      return;
+    }
+    const startISO = buildLocalStartISO(slot.dayKey, minutesToHHMM(slot.startMin), timeZone).startISO;
+    const endISO = new Date(Date.parse(startISO) + Math.max(1, Number(block?.durationMinutes || 30)) * 60000).toISOString();
+    const rebased = {
+      ...block,
+      start: startISO,
+      end: endISO,
+      startISO,
+      endISO,
+      dayKey: slot.dayKey,
+      status: String(block?.status || '').trim().toLowerCase() === 'completed' ? 'completed' : 'planned',
+    };
+    rebasedBlocks.push(rebased);
+    if (!occupiedByDayKey.has(slot.dayKey)) occupiedByDayKey.set(slot.dayKey, []);
+    occupiedByDayKey.get(slot.dayKey).push({
+      startMin: slot.startMin,
+      endMin: slot.startMin + Math.max(1, Number(block?.durationMinutes || 30)),
+    });
+    dailyCounts.set(slot.dayKey, (dailyCounts.get(slot.dayKey) || 0) + 1);
+    const weekKey = weekKeyForDay(slot.dayKey);
+    weeklyCounts.set(weekKey, (weeklyCounts.get(weekKey) || 0) + 1);
+  }
+
+  const nextReviewBlocks = sortBlocksForTemporalRebase([...preservedBlocks, ...rebasedBlocks], timeZone);
+  const priorAudit = buildScheduleTemporalAudit(state, cycle, reviewBlocks, {
+    referenceDayKey: executionStartDayKey,
+    timeZone,
+  });
+  const postAudit = buildScheduleTemporalAudit(state, cycle, nextReviewBlocks, {
+    referenceDayKey: executionStartDayKey,
+    timeZone,
+  });
+  cycle.scheduleReviewBlocks = nextReviewBlocks;
+  cycle.scheduleLifecycle = 'applied_review';
+  cycle.executionStartDayKey = executionStartDayKey;
+  cycle.activationRequestedAtISO = state.appTime?.nowISO || new Date().toISOString();
+  cycle.temporalStatus = 'rebased';
+  cycle.rebaseRequired = false;
+  cycle.pastDatedBlockCount = postAudit.pastDatedBlockCount;
+  cycle.scheduleDebtMinutes = postAudit.scheduleDebtMinutes;
+  cycle.compressionDelta = postAudit.compressionDelta;
+  cycle.temporalReasonCodes = Array.from(
+    new Set(['SCHEDULE_REBASED_FROM_TEMPORAL_DRIFT', ...(postAudit.compressionDelta > 0 ? ['HARD_ANCHOR_COMPRESSION_CHANGED'] : [])])
+  );
+  cycle.lastTemporalAudit = priorAudit;
+  state.scheduleReviewBlocks = nextReviewBlocks;
+  state.scheduleLifecycle = 'applied_review';
+  state.scheduleApplied = true;
+  state.pendingPlanConfirmation = false;
+  state.lastPlanError = null;
+  state.cyclesById[cycle.id] = cycle;
+  mergeScheduleReviewBlocksIntoCycleProjection(state, cycle);
+}
+
 function activateSchedule(state, payload = {}) {
   const targetCycleId = payload?.cycleId || state.activeCycleId || null;
   const cycle = getTargetCycle(state, targetCycleId);
@@ -11892,6 +12264,46 @@ function activateSchedule(state, payload = {}) {
   }
   const nowISO = state.appTime?.nowISO || new Date().toISOString();
   const timeZone = state.appTime?.timeZone || 'UTC';
+  const temporalAudit = buildScheduleTemporalAudit(state, cycle, reviewBlocks, {
+    referenceDayKey: state.appTime?.activeDayKey || state.today?.date || null,
+    timeZone,
+  });
+  cycle.activationRequestedAtISO = temporalAudit.activationRequestedAtISO;
+  cycle.executionStartDayKey = temporalAudit.executionStartDayKey;
+  cycle.temporalStatus = temporalAudit.temporalStatus;
+  cycle.rebaseRequired = temporalAudit.rebaseRequired;
+  cycle.pastDatedBlockCount = temporalAudit.pastDatedBlockCount;
+  cycle.scheduleDebtMinutes = temporalAudit.scheduleDebtMinutes;
+  cycle.compressionDelta = temporalAudit.compressionDelta;
+  cycle.temporalReasonCodes = temporalAudit.temporalReasonCodes;
+  if (temporalAudit.temporalReasonCodes.length > 0) {
+    cycle.reassessmentStatus = 'required';
+    cycle.reassessmentRequiredAtISO = nowISO;
+    state.cyclesById[cycle.id] = cycle;
+    state.lastPlanError = {
+      code: temporalAudit.rebaseRequired ? 'SCHEDULE_REBASE_REQUIRED' : 'GENERATED_SCHEDULE_STALE',
+      reason: temporalAudit.rebaseRequired
+        ? 'This schedule contains unexecuted blocks dated before activation. Rebase or regenerate before execution can begin.'
+        : 'This generated schedule has gone stale and must be regenerated or rebased before activation.',
+      cycleId: cycle.id,
+      goalId: contract.goalId,
+      reasonCodes: temporalAudit.temporalReasonCodes,
+      meta: {
+        generatedAtISO: temporalAudit.generatedAtISO,
+        generatedForStartDayKey: temporalAudit.generatedForStartDayKey,
+        validUntilDayKey: temporalAudit.validUntilDayKey,
+        activationRequestedAtISO: temporalAudit.activationRequestedAtISO,
+        executionStartDayKey: temporalAudit.executionStartDayKey,
+        temporalStatus: temporalAudit.temporalStatus,
+        rebaseRequired: temporalAudit.rebaseRequired,
+        pastDatedBlockCount: temporalAudit.pastDatedBlockCount,
+        scheduleDebtMinutes: temporalAudit.scheduleDebtMinutes,
+        compressionDelta: temporalAudit.compressionDelta,
+        daysSinceGenerated: temporalAudit.daysSinceGenerated,
+      },
+    };
+    return;
+  }
   let activatedCount = 0;
   reviewBlocks.forEach((block) => {
     if (!block?.id) {
@@ -11962,6 +12374,7 @@ function activateSchedule(state, payload = {}) {
   cycle.scheduleLifecycle = 'active_schedule';
   cycle.scheduleActivatedAtISO = nowISO;
   cycle.scheduleActiveHash = cycle.scheduleDraftHash || buildScheduleDraftHash(reviewBlocks);
+  mergeScheduleReviewBlocksIntoCycleProjection(state, cycle);
   state.scheduleLifecycle = 'active_schedule';
   state.scheduleReviewBlocks = [];
   state.scheduleApplied = true;
