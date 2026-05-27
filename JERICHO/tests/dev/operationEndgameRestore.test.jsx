@@ -94,6 +94,25 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(plan.currentScheduleConstraintVersionId).toBe(summary.constraintVersionId);
     expect(state.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
     expect(state.fullHorizonPlanQuality?.state).toBe('trusted');
+    expect(state.fullHorizonPlanQuality?.standardStatus).toBe('trusted_plan');
+    expect(state.fullHorizonPlanQuality?.mvpStandard?.reasonCodes || []).toEqual([]);
+    expect(state.fullHorizonPlanQuality?.mvpStandard?.gates).toMatchObject({
+      horizonCoverage: true,
+      phaseDistribution: true,
+      terminalPhasePresence: true,
+      laneContinuity: true,
+      actionSpecificity: true,
+      workloadDensity: true,
+      anchorIntegration: true,
+      planCalendarCoherence: true,
+    });
+    expect(state.fullHorizonPlanQuality?.mvpStandard?.summary).toMatchObject({
+      endDayKey: '2031-05-19',
+      lastBlockDayKey: '2031-05-19',
+      p3LastDayKey: '2031-05-19',
+      terminalGapDays: 0,
+      p3TerminalGapDays: 0,
+    });
     expect(state.fullHorizonBlockQuality?.state).toBeTruthy();
     expect(state.fullHorizonBlockQuality?.summary?.totalBlocks).toBeGreaterThan(0);
     expect(agenda?.profileId).toBe(DEFAULT_PROFILE_ID);
