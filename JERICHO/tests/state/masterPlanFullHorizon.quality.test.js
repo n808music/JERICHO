@@ -479,4 +479,102 @@ describe('master-plan full-horizon quality gate', () => {
     expect(quality.reasonCodes).toContain('PHASE_ACTIVE_LANE_MILESTONE_COVERAGE_THIN');
     expect(quality.reasonCodes).toContain('PHASE_ACTIVE_LANE_MILESTONE_COVERAGE_THIN_P2');
   });
+
+  it('emits the official MVP horizon code when a five-year plan stops early', () => {
+    const state = buildGeneratedState();
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks).filter((block) => String(block.dayKey || '') < '2029-01-01');
+
+    const quality = evaluateForState(state, blocks);
+
+    expect(quality.standardStatus).toBe('withheld_plan');
+    expect(quality.mvpStandard.reasonCodes).toContain('PLAN_HORIZON_UNDERFILLED');
+    expect(quality.reasonCodes).toContain('PLAN_HORIZON_UNDERFILLED');
+  });
+
+  it('emits the official MVP terminal-phase code when P3 ends too early', () => {
+    const state = buildGeneratedState();
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks).map((block, index) =>
+      block.phaseLabel === 'P3'
+        ? {
+            ...block,
+            dayKey: `2028-06-${String((index % 20) + 1).padStart(2, '0')}`,
+            date: `2028-06-${String((index % 20) + 1).padStart(2, '0')}`,
+          }
+        : block
+    );
+
+    const quality = evaluateForState(state, blocks);
+
+    expect(quality.mvpStandard.reasonCodes).toContain('TERMINAL_PHASE_MISSING_OR_TOO_EARLY');
+    expect(quality.reasonCodes).toContain('TERMINAL_PHASE_MISSING_OR_TOO_EARLY');
+  });
+
+  it('emits the official MVP anchor code when the first anchor behaves like the endpoint', () => {
+    const state = buildGeneratedState();
+    const { plan } = buildContext(state);
+    const firstAnchorDayKey = [...(plan?.anchors || [])].map((anchor) => anchor.date).filter(Boolean).sort()[0];
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks).filter((block) => String(block.dayKey || '') <= firstAnchorDayKey);
+
+    const quality = evaluateForState(state, blocks);
+
+    expect(quality.mvpStandard.reasonCodes).toContain('ANCHOR_TREATED_AS_TERMINAL_ENDPOINT');
+    expect(quality.reasonCodes).toContain('ANCHOR_TREATED_AS_TERMINAL_ENDPOINT');
+  });
+
+  it('emits the official MVP action-specificity code for vague executable titles', () => {
+    const state = buildGeneratedState();
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks);
+    blocks[0].title = 'launch';
+
+    const quality = evaluateForState(state, blocks);
+
+    expect(quality.mvpStandard.reasonCodes).toContain('ACTION_SPECIFICITY_WEAK');
+    expect(quality.reasonCodes).toContain('ACTION_SPECIFICITY_WEAK');
+  });
+
+  it('emits the official MVP workload-density code when long-horizon work is too thin', () => {
+    const state = buildGeneratedState();
+    const blocks = cloneBlocks(state.fullHorizonScheduleBlocks).filter((block, index, allBlocks) => index % 25 === 0 || index === allBlocks.length - 1);
+
+    const quality = evaluateForState(state, blocks);
+
+    expect(quality.mvpStandard.reasonCodes).toContain('WORKLOAD_DENSITY_THIN');
+    expect(quality.reasonCodes).toContain('WORKLOAD_DENSITY_THIN');
+  });
+
+  it('emits the official MVP lane-continuity code when major lanes disappear after year one', () => {
+    const state = buildGeneratedState();
+    const blocksWithExplicitLanes = cloneBlocks(state.fullHorizonScheduleBlocks).map((block, index) => ({
+      ...block,
+      laneId: `lane-${index % 6}`,
+      laneLabel: `Lane ${index % 6}`,
+    }));
+    const blocks = blocksWithExplicitLanes.filter(
+      (block) => String(block.dayKey || '') <= '2027-05-19' || String(block.laneId || '') === 'lane-0'
+    );
+
+    const quality = evaluateForState(state, blocks);
+
+    expect(quality.mvpStandard.reasonCodes).toContain('LANE_CONTINUITY_GAP');
+    expect(quality.reasonCodes).toContain('LANE_CONTINUITY_GAP');
+  });
+
+  it('passes the distributed baseline as an official trusted or provisional MVP plan', () => {
+    const quality = evaluateForState(buildGeneratedState());
+
+    expect(['trusted_plan', 'provisional_plan']).toContain(quality.standardStatus);
+    expect(quality.mvpStandard.gates.horizonCoverage).toBe(true);
+    expect(quality.mvpStandard.gates.terminalPhasePresence).toBe(true);
+  });
+
+  it('keeps the Operation Endgame fixture inspectable under the official MVP standard', () => {
+    const state = buildOperationEndgameFixtureState();
+    const quality = state.fullHorizonPlanQuality;
+
+    expect(quality?.mvpStandard?.status).toBe(quality?.standardStatus);
+    expect(['trusted_plan', 'provisional_plan', 'degraded_plan', 'withheld_plan']).toContain(quality?.standardStatus);
+    expect(Array.isArray(quality?.mvpStandard?.reasonCodes)).toBe(true);
+    expect(quality?.mvpStandard?.gates).toHaveProperty('horizonCoverage');
+    expect(quality?.mvpStandard?.gates).toHaveProperty('actionSpecificity');
+  });
 });

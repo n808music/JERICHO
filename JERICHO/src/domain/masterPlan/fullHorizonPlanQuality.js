@@ -226,7 +226,6 @@ function evaluatePrecision({ blocks }) {
 function evaluateProgression({ blocks }) {
   const reasonCodes = [];
   const findings = [];
-  const p1Texts = summarizeKeywords(blocksForPhase(blocks, 'P1'));
   const p2Texts = summarizeKeywords(blocksForPhase(blocks, 'P2'));
   const p3Texts = summarizeKeywords(blocksForPhase(blocks, 'P3'));
 
@@ -591,6 +590,228 @@ function buildLaneFindings(blocks) {
   );
 }
 
+function getPlanHorizonBounds(masterPlanContract) {
+  return {
+    startDayKey: normalizeDayKey(masterPlanContract?.fullHorizonStartDayKey || masterPlanContract?.horizonStart),
+    endDayKey: normalizeDayKey(
+      masterPlanContract?.fullHorizonEndDayKey || masterPlanContract?.horizonEnd || masterPlanContract?.deadline
+    ),
+  };
+}
+
+function getFirstAnchorDayKey(anchors = []) {
+  return (
+    [...(Array.isArray(anchors) ? anchors : [])]
+      .map((anchor) => normalizeDayKey(anchor?.date || anchor?.dayKey || anchor?.targetDate))
+      .filter(Boolean)
+      .sort()[0] || null
+  );
+}
+
+function getExpectedLaneKeys(laneModel = []) {
+  return (Array.isArray(laneModel) ? laneModel : [])
+    .filter((lane) => {
+      const state = String(lane?.activationState || lane?.status || 'active').trim().toLowerCase();
+      return !['inactive', 'retired', 'obsolete'].includes(state);
+    })
+    .flatMap((lane) => [lane?.id, lane?.laneId, lane?.title, lane?.label])
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+}
+
+function evaluateMvpPlanQualityStandard({
+  blocks,
+  fullHorizonCoverageAudit,
+  dimensions,
+  laneModel,
+  masterPlanContract,
+  anchors,
+}) {
+  const reasonCodes = [];
+  const findings = [];
+  const { startDayKey, endDayKey } = getPlanHorizonBounds(masterPlanContract);
+  const horizonDays = dayDistanceInclusive(startDayKey, endDayKey);
+  const firstBlockDayKey = normalizeDayKey(blocks[0]?.dayKey || blocks[0]?.date);
+  const lastBlockDayKey = normalizeDayKey(blocks[blocks.length - 1]?.dayKey || blocks[blocks.length - 1]?.date);
+  const terminalGapDays = endDayKey && lastBlockDayKey ? Math.max(0, diffDays(lastBlockDayKey, endDayKey)) : null;
+  const blocksByPhase = {
+    P1: blocksForPhase(blocks, 'P1'),
+    P2: blocksForPhase(blocks, 'P2'),
+    P3: blocksForPhase(blocks, 'P3'),
+  };
+  const p3LastDayKey = normalizeDayKey(blocksByPhase.P3[blocksByPhase.P3.length - 1]?.dayKey);
+  const p3TerminalGapDays = endDayKey && p3LastDayKey ? Math.max(0, diffDays(p3LastDayKey, endDayKey)) : null;
+  const firstAnchorDayKey = getFirstAnchorDayKey(anchors);
+  const postAnchorBlocks = firstAnchorDayKey ? blocks.filter((block) => normalizeDayKey(block?.dayKey) > firstAnchorDayKey) : [];
+  const expectedLaneKeys = [
+    ...new Set([
+      ...getExpectedLaneKeys(laneModel),
+      ...blocks
+        .flatMap((block) => [block?.laneId, block?.laneLabel])
+        .map((value) => String(value || '').trim())
+        .filter(Boolean),
+    ]),
+  ];
+  const longHorizon = horizonDays >= 365;
+  const terminalWindowDays = longHorizon ? Math.max(120, Math.round(horizonDays * 0.08)) : 45;
+  const minimumBlocks = longHorizon ? Math.max(36, Math.ceil(horizonDays / 21)) : Math.max(8, Math.ceil(horizonDays / 30));
+  const firstYearStartDayKey = startDayKey || firstBlockDayKey;
+  const firstYearEnd = firstYearStartDayKey ? parseDayKey(firstYearStartDayKey) : null;
+  if (firstYearEnd) {
+    firstYearEnd.setUTCDate(firstYearEnd.getUTCDate() + 365);
+  }
+  const firstYearEndDayKey = firstYearEnd ? firstYearEnd.toISOString().slice(0, 10) : null;
+
+  const addGateFailure = (code, finding) => {
+    reasonCodes.push(code);
+    if (finding) {
+      findings.push(finding);
+    }
+  };
+
+  if (!fullHorizonCoverageAudit?.fullHorizonCovered || terminalGapDays === null || terminalGapDays > terminalWindowDays) {
+    addGateFailure(
+      'PLAN_HORIZON_UNDERFILLED',
+      `Plan work stops ${terminalGapDays ?? 'unknown'} days before the declared horizon.`
+    );
+  }
+
+  if (
+    !blocksByPhase.P1.length ||
+    !blocksByPhase.P2.length ||
+    !blocksByPhase.P3.length ||
+    dimensions?.pacing?.reasonCodes?.includes('PACING_QUARTER_GAP') ||
+    dimensions?.pacing?.reasonCodes?.includes('PACING_YEAR_GAP')
+  ) {
+    addGateFailure('PHASE_MODEL_COMPRESSED', 'P1/P2/P3 are not meaningfully distributed across the horizon.');
+  }
+
+  if (!blocksByPhase.P3.length || p3TerminalGapDays === null || p3TerminalGapDays > terminalWindowDays) {
+    addGateFailure(
+      'TERMINAL_PHASE_MISSING_OR_TOO_EARLY',
+      `P3 terminal-readiness work stops ${p3TerminalGapDays ?? 'unknown'} days before the horizon.`
+    );
+  }
+
+  const expectedLaneCount = Math.max(expectedLaneKeys.length, Array.isArray(laneModel) ? laneModel.length : 0);
+  if (expectedLaneCount >= 3 && firstYearEndDayKey) {
+    const lanesWithPostYearWork = new Set(
+      blocks
+        .filter((block) => normalizeDayKey(block?.dayKey) > firstYearEndDayKey)
+        .flatMap((block) => [block?.laneId, block?.laneLabel])
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+    );
+    const matchedContinuedLaneCount = expectedLaneKeys.filter((laneKey) => lanesWithPostYearWork.has(laneKey)).length;
+    const continuedLaneCount =
+      expectedLaneKeys.length > 0 && matchedContinuedLaneCount > 0
+        ? matchedContinuedLaneCount
+        : Math.min(lanesWithPostYearWork.size, expectedLaneCount);
+    if (continuedLaneCount / expectedLaneCount < 0.6) {
+      addGateFailure(
+        'LANE_CONTINUITY_GAP',
+        `Only ${continuedLaneCount}/${expectedLaneCount} lanes continue beyond the first year.`
+      );
+    }
+  }
+
+  if (
+    dimensions?.precision?.reasonCodes?.some((code) =>
+      ['PRECISION_VAGUE_TITLE', 'PRECISION_MISSING_EXPECTED_OUTPUT', 'PRECISION_MISSING_LANE_CONTEXT'].includes(code)
+    )
+  ) {
+    addGateFailure('ACTION_SPECIFICITY_WEAK', 'Executable block titles or expected outputs are too vague.');
+  }
+
+  if (
+    blocks.length < minimumBlocks ||
+    dimensions?.pacing?.reasonCodes?.some((code) =>
+      ['PACING_PHASE_DENSITY_THIN', 'PACING_LATE_HORIZON_DENSITY_COLLAPSE', 'PACING_YEAR_GAP'].includes(code)
+    )
+  ) {
+    addGateFailure('WORKLOAD_DENSITY_THIN', 'Workload density is too thin for the declared strategic horizon.');
+  }
+
+  if (
+    firstAnchorDayKey &&
+    endDayKey &&
+    firstAnchorDayKey < endDayKey &&
+    postAnchorBlocks.length < Math.max(4, Math.floor(blocks.length * 0.08))
+  ) {
+    addGateFailure('ANCHOR_TREATED_AS_TERMINAL_ENDPOINT', 'The first major anchor is acting like the plan endpoint.');
+  }
+
+  if (
+    !fullHorizonCoverageAudit?.fullHorizonCovered ||
+    fullHorizonCoverageAudit?.reasonCodes?.some((code) =>
+      ['COVERAGE_BADGE_PREMATURE', 'HORIZON_RESOLVED_BUT_NOT_COVERED', 'EXPANSION_RENDERED_BUT_TERMINAL_COVERAGE_MISSING'].includes(
+        code
+      )
+    )
+  ) {
+    addGateFailure('PLAN_CALENDAR_COHERENCE_WEAK', 'Plan horizon coverage and scheduled agenda do not agree.');
+  }
+
+  if (
+    blocks.some((block) =>
+      ['UNSCHEDULABLE', 'CAPACITY_CONSTRAINT_MISMATCH', 'OUTSIDE_WORK_WINDOW'].some((token) =>
+        String(block?.placementStatus || block?.conflictCode || block?.reasonCode || '').includes(token)
+      )
+    )
+  ) {
+    addGateFailure('CAPACITY_CONSTRAINT_MISMATCH', 'Scheduled work conflicts with capacity or placement constraints.');
+  }
+
+  if (
+    dimensions?.progression?.reasonCodes?.includes('PROGRESSION_DEPENDENCY_CHAIN_THIN') ||
+    blocks.some((block) => String(block?.phaseLabel || '').match(/^P[23]$/) && block?.dependencyOrderWeak)
+  ) {
+    addGateFailure('DEPENDENCY_ORDER_WEAK', 'Later-phase work lacks enough dependency lineage.');
+  }
+
+  const uniqueReasonCodes = [...new Set(reasonCodes)];
+  let status = 'trusted_plan';
+  if (uniqueReasonCodes.includes('PLAN_HORIZON_UNDERFILLED') || uniqueReasonCodes.includes('PLAN_CALENDAR_COHERENCE_WEAK')) {
+    status = 'withheld_plan';
+  } else if (uniqueReasonCodes.length >= 4 || uniqueReasonCodes.includes('TERMINAL_PHASE_MISSING_OR_TOO_EARLY')) {
+    status = 'degraded_plan';
+  } else if (uniqueReasonCodes.length > 0) {
+    status = 'provisional_plan';
+  }
+
+  return {
+    status,
+    reasonCodes: uniqueReasonCodes,
+    findings,
+    gates: {
+      horizonCoverage: !uniqueReasonCodes.includes('PLAN_HORIZON_UNDERFILLED'),
+      phaseDistribution: !uniqueReasonCodes.includes('PHASE_MODEL_COMPRESSED'),
+      terminalPhasePresence: !uniqueReasonCodes.includes('TERMINAL_PHASE_MISSING_OR_TOO_EARLY'),
+      laneContinuity: !uniqueReasonCodes.includes('LANE_CONTINUITY_GAP'),
+      actionSpecificity: !uniqueReasonCodes.includes('ACTION_SPECIFICITY_WEAK'),
+      workloadDensity: !uniqueReasonCodes.includes('WORKLOAD_DENSITY_THIN'),
+      anchorIntegration: !uniqueReasonCodes.includes('ANCHOR_TREATED_AS_TERMINAL_ENDPOINT'),
+      planCalendarCoherence: !uniqueReasonCodes.includes('PLAN_CALENDAR_COHERENCE_WEAK'),
+      capacityRealism: !uniqueReasonCodes.includes('CAPACITY_CONSTRAINT_MISMATCH'),
+      dependencyOrder: !uniqueReasonCodes.includes('DEPENDENCY_ORDER_WEAK'),
+    },
+    summary: {
+      startDayKey,
+      endDayKey,
+      firstBlockDayKey,
+      lastBlockDayKey,
+      terminalGapDays,
+      p3LastDayKey,
+      p3TerminalGapDays,
+      blockCount: blocks.length,
+      minimumBlocks,
+      expectedLaneCount,
+      firstAnchorDayKey,
+      postAnchorBlockCount: postAnchorBlocks.length,
+    },
+  };
+}
+
 export function evaluateFullHorizonPlanQuality({
   fullHorizonScheduleBlocks = [],
   fullHorizonCoverageAudit = null,
@@ -666,8 +887,20 @@ export function evaluateFullHorizonPlanQuality({
     aggregateReasonCodes.push('COVERAGE_PASSED_BUT_QUALITY_DEGRADED');
   }
 
+  const mvpStandard = evaluateMvpPlanQualityStandard({
+    blocks,
+    fullHorizonCoverageAudit,
+    dimensions,
+    laneModel,
+    masterPlanContract,
+    anchors,
+  });
+  aggregateReasonCodes.push(...mvpStandard.reasonCodes);
+
   return {
     state,
+    standardStatus: mvpStandard.status,
+    mvpStandard,
     score,
     dimensions,
     phaseFindings: buildPhaseFindings(blocks, dimensions),
