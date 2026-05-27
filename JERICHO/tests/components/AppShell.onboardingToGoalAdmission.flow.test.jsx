@@ -17,8 +17,13 @@ describe('AppShell structure entry without an active cycle', () => {
     vi.unstubAllGlobals();
   });
 
+  async function enterProfile() {
+    fireEvent.click(await screen.findByRole('button', { name: /Continue as/i }));
+  }
+
   it('lands in the review-mode Structure shell and offers starting a new cycle', async () => {
     render(<AppShell />);
+    await enterProfile();
     const cycleIds = Object.keys(window.__jerichoDebug__?.cyclesById || {});
     await act(async () => {
       cycleIds.forEach((cycleId) => {
@@ -35,6 +40,7 @@ describe('AppShell structure entry without an active cycle', () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
     render(<AppShell />);
+    await enterProfile();
 
     fireEvent.click(await screen.findByRole('button', { name: /Structure/i }));
     fireEvent.click(await screen.findByText(/^Execution Cycle$/i));

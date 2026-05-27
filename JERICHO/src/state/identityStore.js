@@ -170,6 +170,67 @@ function normalizeProfileIdentity(profile = {}, options = {}) {
   };
 }
 
+function buildProfileAccessState({ profilesById = {}, activeProfileId = null, status = null, nowISO = null } = {}) {
+  const profileIds = Object.keys(profilesById || {}).filter(Boolean);
+  const hasProfiles = profileIds.length > 0;
+  const selectedProfileId =
+    activeProfileId && profilesById?.[activeProfileId] ? String(activeProfileId).trim() : null;
+  const nextStatus =
+    status ||
+    (selectedProfileId ? 'profile_restore_available' : hasProfiles ? 'profile_restore_available' : 'profile_required');
+  return {
+    status: nextStatus,
+    selectedProfileId: nextStatus === 'profile_selected' ? selectedProfileId : null,
+    lastSelectedAtISO: nextStatus === 'profile_selected' ? nowISO || null : null,
+  };
+}
+
+function getProfilePrimaryGoalId(state, profile) {
+  const explicitGoalId = String(profile?.activeGoalId || '').trim();
+  if (explicitGoalId && state?.goalsById?.[explicitGoalId]?.profileId === profile.id) {
+    return explicitGoalId;
+  }
+  return (Array.isArray(profile?.goalIds) ? profile.goalIds : []).find(
+    (goalId) => state?.goalsById?.[goalId]?.profileId === profile.id
+  ) || null;
+}
+
+function applyProfileSelection(draft, profileId) {
+  const normalizedProfileId = String(profileId || '').trim() || DEFAULT_PROFILE_ID;
+  draft.profilesById = draft.profilesById && typeof draft.profilesById === 'object' ? draft.profilesById : {};
+  if (!draft.profilesById[normalizedProfileId]) {
+    draft.profilesById[normalizedProfileId] = {
+      id: normalizedProfileId,
+      ...normalizeProfileIdentity({ label: DEFAULT_PROFILE_LABEL }),
+      goalIds: [],
+      activeGoalId: null,
+      masterCalendarId: `calendar-${normalizedProfileId}`,
+      strategicClusterIds: [],
+      createdAtISO: draft.appTime?.nowISO || new Date().toISOString(),
+      status: 'active',
+    };
+  }
+  const profile = draft.profilesById[normalizedProfileId];
+  draft.activeProfileId = normalizedProfileId;
+  const activeGoalId = getProfilePrimaryGoalId(draft, profile);
+  draft.activeGoalId = activeGoalId || null;
+  if (activeGoalId) {
+    profile.activeGoalId = activeGoalId;
+  }
+  const activeCycleId = activeGoalId ? draft.goalsById?.[activeGoalId]?.activeCycleId || null : null;
+  draft.activeCycleId = activeCycleId && draft.cyclesById?.[activeCycleId] ? activeCycleId : null;
+  if (draft.activeCycleId) {
+    const cycle = draft.cyclesById[draft.activeCycleId];
+    draft.goalExecutionContract = cycle?.goalContract || draft.goalExecutionContract || null;
+  }
+  draft.profileAccess = buildProfileAccessState({
+    profilesById: draft.profilesById,
+    activeProfileId: normalizedProfileId,
+    status: 'profile_selected',
+    nowISO: draft.appTime?.nowISO || new Date().toISOString(),
+  });
+}
+
 function getCanonicalActionsForBlock(state, block) {
   const cycleId = String(block?.cycleId || state?.activeCycleId || '').trim();
   const cycle = cycleId ? state?.cyclesById?.[cycleId] || null : null;
@@ -314,6 +375,12 @@ export function buildBlankIdentityState(options = {}) {
     },
     activeProfileId: requestedProfileId,
     profilesById: baseProfiles,
+    profileAccess: buildProfileAccessState({
+      profilesById: baseProfiles,
+      activeProfileId: requestedProfileId,
+      status: options.profileAccess?.status || 'profile_restore_available',
+      nowISO,
+    }),
     goalsById: {},
     masterCalendarsById: {},
     strategicClustersById: {},
@@ -424,6 +491,15 @@ export function rehydratePersistedState(persisted) {
     return null;
   }
   const withTemplates = ensureTemplates(persisted);
+  withTemplates.profileAccess =
+    withTemplates.profileAccess && typeof withTemplates.profileAccess === 'object'
+      ? withTemplates.profileAccess
+      : buildProfileAccessState({
+          profilesById: withTemplates.profilesById || {},
+          activeProfileId: withTemplates.activeProfileId || null,
+          status: Object.keys(withTemplates.profilesById || {}).length > 0 ? 'profile_restore_available' : 'profile_required',
+          nowISO: withTemplates.appTime?.nowISO || null,
+        });
   return computeDerivedState(withTemplates, {
     type: 'SET_VIEW_DATE',
     date: withTemplates.viewDate || withTemplates.today?.date || withTemplates.cycle?.[0]?.date,
@@ -585,6 +661,16 @@ function buildInitialIdentityState() {
         status: 'active',
       },
     },
+    profileAccess: buildProfileAccessState({
+      profilesById: {
+        [DEFAULT_PROFILE_ID]: {
+          id: DEFAULT_PROFILE_ID,
+        },
+      },
+      activeProfileId: DEFAULT_PROFILE_ID,
+      status: 'profile_restore_available',
+      nowISO,
+    }),
     goalsById: {
       [goalGovernanceContract.goalId]: {
         id: goalGovernanceContract.goalId,
@@ -927,6 +1013,11 @@ function identityReducer(state, action) {
         displayName: profileDisplayName,
         roleLabel,
         profilesById: sanitizedProfiles,
+        profileAccess: {
+          status: 'profile_selected',
+          selectedProfileId: activeProfileId,
+          lastSelectedAtISO: state?.appTime?.nowISO || new Date().toISOString(),
+        },
         timeZone: state?.appTime?.timeZone || 'UTC',
       }),
       { type: 'NO_OP' }
@@ -1002,6 +1093,18 @@ function identityReducer(state, action) {
       label: nextDisplayName || DEFAULT_PROFILE_DISPLAY_NAME,
     };
     draft.activeProfileId = profileId;
+    draft.profileAccess = buildProfileAccessState({
+      profilesById: draft.profilesById,
+      activeProfileId: profileId,
+      status: 'profile_selected',
+      nowISO: draft.appTime?.nowISO || new Date().toISOString(),
+    });
+    return computeDerivedState(draft, { type: 'NO_OP' });
+  }
+
+  if (action.type === 'SELECT_PROFILE') {
+    const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
+    applyProfileSelection(draft, action.profileId);
     return computeDerivedState(draft, { type: 'NO_OP' });
   }
 
@@ -1042,7 +1145,9 @@ function identityReducer(state, action) {
     const isForecastBlock = (state?.calendarDisplayBlocks || []).some(
       b => b.source === 'derived' && String(b.id || '') === String(action.id || '')
     );
-    if (isForecastBlock) return state;
+    if (isForecastBlock) {
+      return state;
+    }
     const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
     draft.ledger = draft.ledger || [];
     const candidate = findBlockForExecutionOutcome(draft, action.id);
@@ -1113,7 +1218,9 @@ function identityReducer(state, action) {
     const isForecastBlock = (state?.calendarDisplayBlocks || []).some(
       b => b.source === 'derived' && String(b.id || '') === String(action.id || '')
     );
-    if (isForecastBlock) return state;
+    if (isForecastBlock) {
+      return state;
+    }
     const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
     const targetStatus = action.type === 'MISS_BLOCK' ? 'missed' : 'skipped';
     const targetKind = action.type === 'MISS_BLOCK' ? 'missed' : 'skipped';
@@ -1245,6 +1352,21 @@ function identityReducer(state, action) {
   if (action.type === 'APPLY_NEXT_STATE') {
     // Replace state with provided nextState (already derived by pure admission reducer)
     return computeDerivedState(action.nextState || state, { type: 'NO_OP' });
+  }
+
+  // Fast-path: pure UI navigation — no plan recomputation needed
+  if (action.type === 'SET_ACTIVE_DAY_KEY') {
+    return { ...state, appTime: { ...state.appTime, activeDayKey: action.dayKey } };
+  }
+  if (action.type === 'SET_VIEW_DATE') {
+    return { ...state, viewDate: action.date };
+  }
+  if (action.type === 'SET_SELECTED_HORIZON_MODE') {
+    const VALID_HORIZON_MODES = new Set(['current_cycle', '1_year', '2_year', '3_year', '4_year', '5_year', 'full_horizon']);
+    if (!VALID_HORIZON_MODES.has(action.mode)) {
+      return state;
+    }
+    return { ...state, selectedHorizonMode: action.mode };
   }
 
   return computeDerivedState(state, action);
@@ -1474,6 +1596,7 @@ export function IdentityProvider({ children, initialState }) {
     dispatch({ type: 'UPDATE_BLOCK', payload: { ...(payload || {}), id: `blk-${proposalId}` } });
   }, []);
   const resetIdentity = useCallback(() => dispatch({ type: 'RESET_IDENTITY' }), []);
+  const selectProfile = useCallback((profileId) => dispatch({ type: 'SELECT_PROFILE', profileId }), []);
   const upsertProfileDetails = useCallback(
     (payload = {}) => dispatch({ type: 'UPSERT_PROFILE_DETAILS', ...payload }),
     []
@@ -1495,13 +1618,15 @@ export function IdentityProvider({ children, initialState }) {
   // Pull from server on mount — restores state across browser resets and port changes
   React.useEffect(() => {
     syncPull().then((serverState) => {
-      if (!serverState) return;
+      if (!serverState) {
+        return;
+      }
       const hydrated = rehydratePersistedState(serverState);
       if (hydrated) {
         dispatch({ type: 'APPLY_NEXT_STATE', nextState: hydrated });
       }
     });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Debounced push to server on every state change
   const syncPushTimerRef = React.useRef(null);
@@ -1587,6 +1712,7 @@ export function IdentityProvider({ children, initialState }) {
     assignSuggestionLink,
     compileGoalEquation,
     resetIdentity,
+    selectProfile,
     upsertProfileDetails,
     setDefiniteGoal,
     setAim,
@@ -2546,8 +2672,12 @@ function markStatusAcrossProjections(state, id, status) {
   let found = null;
   const touch = (blocks = []) => {
     blocks.forEach((b) => {
-      if (!b || b.id !== id) return;
-      if (!found) found = b;
+      if (!b || b.id !== id) {
+        return;
+      }
+      if (!found) {
+        found = b;
+      }
       b.status = status;
     });
   };
