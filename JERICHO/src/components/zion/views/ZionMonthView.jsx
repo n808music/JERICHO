@@ -85,7 +85,7 @@ export default function ZionMonthView({
                       criterionLabelById,
                     });
                     return (
-                      <div key={block.id || idx} className="min-w-0 space-y-0.5 overflow-hidden">
+                      <div key={block.id ?? `${day.date}-block-${idx}`} className="min-w-0 space-y-0.5 overflow-hidden">
                         <div className="text-[10px] leading-tight text-jericho-text" style={clampTwoLinesStyle}>
                           {block.displayTitle || block.title || block.label || 'Untitled task'}
                         </div>

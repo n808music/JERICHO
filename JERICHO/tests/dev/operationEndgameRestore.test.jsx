@@ -425,4 +425,31 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Forecast workload recognized:/i);
     expect(screen.getByTestId('phase-card-p3')).toHaveTextContent(/Forecast workload recognized:/i);
   });
+
+  it('renders full-horizon Operation Endgame plan without duplicate React key warnings', async () => {
+    const keyWarnings = [];
+    const errSpy = vi.spyOn(console, 'error').mockImplementation((...args) => {
+      const msg = args.join(' ');
+      if (msg.includes('key') || msg.includes('Each child') || msg.includes('unique')) {
+        keyWarnings.push(msg);
+      }
+    });
+
+    mockStore = buildOperationEndgameFixtureState();
+
+    await act(async () => {
+      render(<MasterPlanTimeline />);
+    });
+
+    errSpy.mockRestore();
+
+    expect(keyWarnings).toHaveLength(0);
+
+    const blocks = mockStore.fullHorizonScheduleBlocks || [];
+    expect(blocks.length).toBeGreaterThan(0);
+
+    const ids = blocks.map((b) => b.id);
+    const uniqueIds = new Set(ids);
+    expect(uniqueIds.size).toBe(ids.length);
+  });
 });
