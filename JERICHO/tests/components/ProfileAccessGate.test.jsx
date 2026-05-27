@@ -73,6 +73,28 @@ describe('ProfileAccessGate', () => {
     expect(selectProfile).toHaveBeenCalledWith(expect.stringMatching(/^profile-local-/));
   });
 
+  it('offers Operation Endgame restore as a product-facing recovery action', async () => {
+    const restoreOperationEndgameProfile = vi.fn();
+    render(
+      <ProfileAccessGate
+        store={{
+          activeProfileId: 'profile-local-default',
+          profilesById: {},
+          operationEndgameRestoreAvailable: true,
+          restoreOperationEndgameProfile,
+          upsertProfileDetails: vi.fn(),
+          selectProfile: vi.fn(),
+        }}
+      />
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Restore Operation Endgame/i }));
+
+    expect(restoreOperationEndgameProfile).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: /Create profile/i })).toBeInTheDocument();
+  });
+
   it('hides placeholder local profiles from saved-profile continuation', () => {
     render(
       <ProfileAccessGate

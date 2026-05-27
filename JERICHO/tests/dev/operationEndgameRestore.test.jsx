@@ -4,9 +4,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen } from '@testing-library/react';
 
 import {
+  buildOperationEndgameReferenceState,
   buildOperationEndgameFixtureState,
   buildPersistableOperationEndgameFixtureState,
   installOperationEndgameRestore,
+  OPERATION_ENDGAME_REFERENCE_PROFILE_DISPLAY_NAME,
+  OPERATION_ENDGAME_REFERENCE_PROFILE_ID,
   restoreOperationEndgameFixture,
   summarizeOperationEndgameFixtureState,
 } from '../../src/dev/operationEndgameRestore.js';
@@ -311,6 +314,28 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(rehydrated.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
     expect(rehydrated.fullHorizonPlanQuality?.state).toBe('trusted');
     expect(rehydrated.fullHorizonBlockQuality?.state).toBeTruthy();
+  });
+
+  it('builds a product-facing reference profile that is not the placeholder local profile', () => {
+    const state = buildOperationEndgameReferenceState();
+    const profile = state.profilesById[OPERATION_ENDGAME_REFERENCE_PROFILE_ID];
+    const plan = profile?.activeMasterPlanId ? state.masterPlansById[profile.activeMasterPlanId] : null;
+
+    expect(state.activeProfileId).toBe(OPERATION_ENDGAME_REFERENCE_PROFILE_ID);
+    expect(state.profilesById[DEFAULT_PROFILE_ID]).toBeUndefined();
+    expect(profile.displayName).toBe(OPERATION_ENDGAME_REFERENCE_PROFILE_DISPLAY_NAME);
+    expect(profile.label).toBe(OPERATION_ENDGAME_REFERENCE_PROFILE_DISPLAY_NAME);
+    expect(profile.masterCalendarId).toBe(`calendar-${OPERATION_ENDGAME_REFERENCE_PROFILE_ID}`);
+    expect(state.masterCalendarsById[profile.masterCalendarId]?.profileId).toBe(OPERATION_ENDGAME_REFERENCE_PROFILE_ID);
+    expect(state.goalsById[state.activeGoalId]?.profileId).toBe(OPERATION_ENDGAME_REFERENCE_PROFILE_ID);
+    expect(plan?.profileId).toBe(OPERATION_ENDGAME_REFERENCE_PROFILE_ID);
+    expect(plan?.horizonEnd).toBe('2031-05-19');
+    expect(state.profileAccess).toMatchObject({
+      status: 'profile_selected',
+      selectedProfileId: OPERATION_ENDGAME_REFERENCE_PROFILE_ID,
+    });
+    expect(state.fullHorizonPlanQuality?.standardStatus).toBe('trusted_plan');
+    expect(state.fullHorizonPlanQuality?.mvpStandard?.reasonCodes || []).toEqual([]);
   });
 
   it('writes a compact persisted payload when the fully derived fixture would exceed the active identity quota', () => {

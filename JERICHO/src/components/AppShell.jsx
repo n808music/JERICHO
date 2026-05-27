@@ -234,6 +234,12 @@ export function ProfileAccessGate({ store, profileCoherence = null }) {
     });
     store?.selectProfile?.(profileId);
   };
+  const handleRestoreOperationEndgame = () => {
+    store?.restoreOperationEndgameProfile?.();
+  };
+  const canRestoreOperationEndgame = Boolean(
+    store?.operationEndgameRestoreAvailable && typeof store?.restoreOperationEndgameProfile === 'function'
+  );
 
   return (
     <main className="mx-auto flex min-h-[70vh] max-w-2xl flex-col justify-center gap-6">
@@ -270,7 +276,17 @@ export function ProfileAccessGate({ store, profileCoherence = null }) {
             );
           })}
         </div>
-      ) : (
+      ) : null}
+      <div className="flex flex-wrap gap-3">
+        {canRestoreOperationEndgame ? (
+          <button
+            type="button"
+            className="w-fit rounded-md border border-jericho-accent bg-jericho-accent px-4 py-2 text-sm font-semibold text-white hover:bg-jericho-accent/90"
+            onClick={handleRestoreOperationEndgame}
+          >
+            Restore Operation Endgame
+          </button>
+        ) : null}
         <button
           type="button"
           className="w-fit rounded-md border border-jericho-accent px-4 py-2 text-sm font-semibold text-jericho-accent hover:bg-jericho-accent/10"
@@ -278,7 +294,7 @@ export function ProfileAccessGate({ store, profileCoherence = null }) {
         >
           Create profile
         </button>
-      )}
+      </div>
     </main>
   );
 }

@@ -20,6 +20,9 @@ const DEFAULT_NOW_ISO = '2026-05-19T12:00:00.000Z';
 const DEFAULT_TODAY_DATE = '2026-05-19';
 const DEFAULT_HORIZON_END = '2031-05-19';
 const DEFAULT_HORIZON_MONTHS = 60;
+export const OPERATION_ENDGAME_REFERENCE_PROFILE_ID = 'profile-james-endgame';
+export const OPERATION_ENDGAME_REFERENCE_PROFILE_DISPLAY_NAME = 'James / Operation Endgame';
+export const OPERATION_ENDGAME_REFERENCE_PROFILE_ROLE = 'GSS founder';
 const FOUNDATION_ANCHOR_DATE = '2026-06-15';
 const PRIMARY_ANCHOR_DATE = '2026-10-17';
 const P2_GATE_DATE = '2028-06-15';
@@ -336,6 +339,88 @@ function preserveExistingProfileMetadata(state, previousState) {
   return state;
 }
 
+function retargetProfileScopedCollections(state, sourceProfileId, targetProfileId) {
+  [
+    'goalsById',
+    'cyclesById',
+    'masterPlansById',
+    'masterPlanLanesById',
+    'masterPlanAnchorsById',
+    'masterPlanMilestonesById',
+    'masterPlanAgendaVersionsById',
+    'scheduleConstraintVersionsById',
+    'masterCalendarsById',
+  ].forEach((collectionKey) => {
+    Object.values(state?.[collectionKey] || {}).forEach((entry) => {
+      if (entry?.profileId === sourceProfileId) {
+        entry.profileId = targetProfileId;
+      }
+    });
+  });
+}
+
+export function promoteOperationEndgameReferenceProfile(
+  state,
+  {
+    profileId = OPERATION_ENDGAME_REFERENCE_PROFILE_ID,
+    displayName = OPERATION_ENDGAME_REFERENCE_PROFILE_DISPLAY_NAME,
+    roleLabel = OPERATION_ENDGAME_REFERENCE_PROFILE_ROLE,
+  } = {}
+) {
+  if (!state?.profilesById?.[DEFAULT_PROFILE_ID]) {
+    return state;
+  }
+
+  const targetProfileId = String(profileId || OPERATION_ENDGAME_REFERENCE_PROFILE_ID).trim();
+  const masterCalendarId = `calendar-${targetProfileId}`;
+  const sourceProfile = state.profilesById[DEFAULT_PROFILE_ID];
+  const promotedProfile = {
+    ...sourceProfile,
+    id: targetProfileId,
+    displayName,
+    label: displayName,
+    roleLabel,
+    profileRole: roleLabel,
+    masterCalendarId,
+    status: 'active',
+  };
+
+  delete state.profilesById[DEFAULT_PROFILE_ID];
+  state.profilesById[targetProfileId] = promotedProfile;
+  retargetProfileScopedCollections(state, DEFAULT_PROFILE_ID, targetProfileId);
+
+  state.masterCalendarsById =
+    state.masterCalendarsById && typeof state.masterCalendarsById === 'object' ? state.masterCalendarsById : {};
+  Object.keys(state.masterCalendarsById).forEach((calendarId) => {
+    if (calendarId === `calendar-${DEFAULT_PROFILE_ID}`) {
+      delete state.masterCalendarsById[calendarId];
+    }
+  });
+  state.masterCalendarsById[masterCalendarId] = {
+    ...(state.masterCalendarsById[masterCalendarId] || {}),
+    id: masterCalendarId,
+    profileId: targetProfileId,
+    activeGoalIds: Array.isArray(promotedProfile.goalIds) ? promotedProfile.goalIds : [],
+    activeCycleIds: Array.isArray(promotedProfile.cycleIds) ? promotedProfile.cycleIds : [],
+    availableCapacityHours: state.masterCalendarsById[masterCalendarId]?.availableCapacityHours || 40,
+    capacityLoadHours: state.masterCalendarsById[masterCalendarId]?.capacityLoadHours || 0,
+    status: 'active',
+  };
+
+  if (state.masterPlanIntake?.profileId === DEFAULT_PROFILE_ID) {
+    state.masterPlanIntake.profileId = targetProfileId;
+  }
+
+  state.activeProfileId = targetProfileId;
+  state.profileAccess = {
+    status: 'profile_selected',
+    selectedProfileId: targetProfileId,
+    lastSelectedAtISO: state.appTime?.nowISO || new Date().toISOString(),
+  };
+
+  return computeDerivedState(state, { type: 'NO_OP' });
+}
+
 function addP2Milestones(state, nowISO) {
   const { planId, plan } = getFixturePlan(state);
   if (!planId || !plan) {
@@ -530,6 +615,10 @@ export function buildOperationEndgameFixtureState({
   next.scheduleReviewBlocks = [];
 
   return next;
+}
+
+export function buildOperationEndgameReferenceState(options = {}) {
+  return promoteOperationEndgameReferenceProfile(buildOperationEndgameFixtureState(options), options);
 }
 
 export function summarizeOperationEndgameFixtureState(state) {

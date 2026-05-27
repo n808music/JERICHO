@@ -1630,6 +1630,17 @@ export function IdentityProvider({ children, initialState }) {
     (payload = {}) => dispatch({ type: 'UPSERT_PROFILE_DETAILS', ...payload }),
     []
   );
+  const restoreOperationEndgameProfile = useCallback(async () => {
+    if (IS_PRODUCTION) {
+      return null;
+    }
+    const { buildOperationEndgameReferenceState, summarizeOperationEndgameFixtureState } = await import(
+      '../dev/operationEndgameRestore.js'
+    );
+    const nextState = buildOperationEndgameReferenceState();
+    dispatch({ type: 'APPLY_NEXT_STATE', nextState });
+    return summarizeOperationEndgameFixtureState(nextState);
+  }, []);
 
   const attemptGoalAdmission = useCallback(
     (payload) => {
@@ -1743,6 +1754,8 @@ export function IdentityProvider({ children, initialState }) {
     resetIdentity,
     selectProfile,
     upsertProfileDetails,
+    restoreOperationEndgameProfile,
+    operationEndgameRestoreAvailable: !IS_PRODUCTION,
     setDefiniteGoal,
     setAim,
     setPatternTargets,
