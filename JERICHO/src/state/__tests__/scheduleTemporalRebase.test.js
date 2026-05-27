@@ -48,6 +48,7 @@ function buildAppliedReviewState({
         status: 'active',
         scheduleLifecycle: 'applied_review',
         scheduleReviewBlocks: reviewBlocks.map((block) => ({ ...block })),
+        scheduleAppliedAtISO: '2026-05-19T13:00:00.000Z',
         scheduleGeneratedAtISO: generatedAtISO,
         goalContract: {
           goalId,
@@ -122,6 +123,48 @@ describe('schedule temporal rebase', () => {
     });
     expect(unexecutedPastBlocks).toHaveLength(0);
     expect(typeof next.cyclesById['cycle-1'].compressionDelta).toBe('number');
+  });
+
+  it('records the none-happened delay resolution when rebasing from delayed activation reassessment', () => {
+    const next = computeDerivedState(
+      buildAppliedReviewState({
+        blocks: [
+          {
+            id: 'blk-review-1',
+            title: 'Past block A',
+            start: '2026-05-19T09:00:00.000Z',
+            end: '2026-05-19T10:00:00.000Z',
+            startISO: '2026-05-19T09:00:00.000Z',
+            endISO: '2026-05-19T10:00:00.000Z',
+            durationMinutes: 60,
+          },
+        ],
+      }),
+      {
+        type: 'REBASE_SCHEDULE',
+        payload: {
+          cycleId: 'cycle-1',
+          executionStartDayKey: '2026-05-26',
+          activationDelayResolution: 'rebase',
+          workHappenedDuringDelay: 'none',
+        },
+      }
+    );
+
+    expect(next.lastPlanError).toBeNull();
+    expect(next.cyclesById['cycle-1'].scheduleLifecycle).toBe('applied_review');
+    expect(next.cyclesById['cycle-1'].activationDelayAssessment).toMatchObject({
+      status: 'ready_to_rebase',
+      selectedResolution: 'rebase',
+      workHappenedDuringDelay: 'none',
+    });
+    expect(next.cyclesById['cycle-1'].activationDelayAssessment?.reasonCodes || []).toEqual(
+      expect.arrayContaining(['DELAY_WINDOW_REBASE_SELECTED'])
+    );
+    expect(next.cyclesById['cycle-1'].temporalReasonCodes || []).toEqual(
+      expect.arrayContaining(['SCHEDULE_REBASED_FROM_TEMPORAL_DRIFT', 'DELAY_WINDOW_REBASE_SELECTED'])
+    );
+    expect((next.executionEvents || []).some((event) => event?.kind === 'create')).toBe(false);
   });
 
   it('preserves historical execution evidence while rebasing only unexecuted work', () => {

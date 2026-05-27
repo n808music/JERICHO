@@ -76,6 +76,37 @@ function buildAppliedReviewState({
 }
 
 describe('schedule temporal drift activation gate', () => {
+  it('blocks delayed activation for user investigation when an applied schedule has unverified past work', () => {
+    const next = computeDerivedState(
+      buildAppliedReviewState({
+        nowDayKey: '2026-05-26',
+        blockDayKey: '2026-05-19',
+        generatedAtISO: '2026-05-19T08:00:00.000Z',
+      }),
+      { type: 'ACTIVATE_SCHEDULE' }
+    );
+
+    next.cyclesById['cycle-1'].scheduleAppliedAtISO = '2026-05-19T13:00:00.000Z';
+    const blocked = computeDerivedState(next, { type: 'ACTIVATE_SCHEDULE' });
+
+    expect(blocked.lastPlanError?.code).toBe('ACTIVATION_DELAY_REASSESSMENT_REQUIRED');
+    expect(blocked.lastPlanError?.reasonCodes || []).toEqual(
+      expect.arrayContaining([
+        'ACTIVATION_DELAY_REASSESSMENT_REQUIRED',
+        'APPLIED_TO_ACTIVATION_GAP_DETECTED',
+        'USER_CONFIRMATION_REQUIRED_FOR_DELAY_WINDOW',
+        'DELAY_WINDOW_EXECUTION_UNKNOWN',
+      ])
+    );
+    expect(blocked.cyclesById['cycle-1'].activationDelayAssessment).toMatchObject({
+      status: 'requires_user_investigation',
+      appliedStartDayKey: '2026-05-19',
+      requestedExecutionStartDayKey: '2026-05-26',
+      workHappenedDuringDelay: 'unknown',
+    });
+    expect(blocked.scheduleLifecycle).toBe('applied_review');
+  });
+
   it('blocks activation when review blocks are dated before the activation day', () => {
     const next = computeDerivedState(buildAppliedReviewState(), { type: 'ACTIVATE_SCHEDULE' });
 

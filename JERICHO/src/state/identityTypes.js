@@ -127,6 +127,20 @@
  *   scheduleDebtMinutes?: number;
  *   compressionDelta?: number;
  *   temporalReasonCodes?: string[];
+ *   activationDelayAssessment?: {
+ *     status?: 'not_required' | 'requires_user_investigation' | 'ready_to_rebase' | 'ready_for_backfill' | 'requires_regeneration' | 'blocked';
+ *     appliedAtISO?: string | null;
+ *     activationRequestedAtISO?: string | null;
+ *     appliedStartDayKey?: string | null;
+ *     requestedExecutionStartDayKey?: string | null;
+ *     delayDays?: number;
+ *     userDelayExplanation?: string | null;
+ *     workHappenedDuringDelay?: 'none' | 'some' | 'most' | 'unknown';
+ *     selectedResolution?: 'rebase' | 'backfill' | 'regenerate' | 'change_start_date' | null;
+ *     pastDatedBlockCount?: number;
+ *     scheduleDebtMinutes?: number;
+ *     reasonCodes?: string[];
+ *   };
  *   lastTemporalAudit?: {
  *     generatedAtISO?: string | null;
  *     generatedForStartDayKey?: string | null;

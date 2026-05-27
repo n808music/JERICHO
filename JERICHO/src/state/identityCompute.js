@@ -1925,6 +1925,81 @@ function buildScheduleTemporalAudit(state, cycle, blocks = [], { referenceDayKey
   };
 }
 
+function buildActivationDelayAssessment(state, cycle, blocks = [], temporalAudit, { timeZone = 'UTC' } = {}) {
+  const normalizedBlocks = (Array.isArray(blocks) ? blocks : []).filter(Boolean);
+  const appliedStartDayKey =
+    normalizedBlocks
+      .map((block) => getTemporalBlockDayKey(block, timeZone))
+      .filter(Boolean)
+      .sort((left, right) => left.localeCompare(right))[0] ||
+    coerceDayKey(cycle?.generatedForStartDayKey, timeZone) ||
+    null;
+  const requestedExecutionStartDayKey =
+    coerceDayKey(temporalAudit?.executionStartDayKey, timeZone) ||
+    coerceDayKey(state?.appTime?.activeDayKey, timeZone) ||
+    coerceDayKey(state?.today?.date, timeZone) ||
+    nowDayKey(timeZone);
+  const appliedAtISO = cycle?.scheduleAppliedAtISO || state?.draftScheduleAppliedAtISO || null;
+  if (!appliedAtISO || !appliedStartDayKey || appliedStartDayKey >= requestedExecutionStartDayKey) {
+    return {
+      status: 'not_required',
+      appliedAtISO,
+      activationRequestedAtISO: temporalAudit?.activationRequestedAtISO || state?.appTime?.nowISO || new Date().toISOString(),
+      appliedStartDayKey,
+      requestedExecutionStartDayKey,
+      delayDays: 0,
+      pastDatedBlockCount: 0,
+      scheduleDebtMinutes: 0,
+      reasonCodes: [],
+    };
+  }
+  const unverifiedDelayBlocks = normalizedBlocks.filter((block) => {
+    const blockDayKey = getTemporalBlockDayKey(block, timeZone);
+    return Boolean(
+      blockDayKey &&
+        blockDayKey >= appliedStartDayKey &&
+        blockDayKey < requestedExecutionStartDayKey &&
+        !hasCanonicalExecutionOutcome(state, block?.id)
+    );
+  });
+  const scheduleDebtMinutes = unverifiedDelayBlocks.reduce(
+    (sum, block) => sum + Math.max(0, Number(block?.durationMinutes || block?.minutes || 0)),
+    0
+  );
+  const existing = cycle?.activationDelayAssessment || {};
+  const selectedResolution = existing?.selectedResolution || null;
+  const reasonCodes = [];
+  if (unverifiedDelayBlocks.length > 0) {
+    reasonCodes.push('APPLIED_TO_ACTIVATION_GAP_DETECTED');
+    reasonCodes.push('USER_CONFIRMATION_REQUIRED_FOR_DELAY_WINDOW');
+    if (!selectedResolution) {
+      reasonCodes.push('ACTIVATION_DELAY_REASSESSMENT_REQUIRED');
+      reasonCodes.push('DELAY_WINDOW_EXECUTION_UNKNOWN');
+    }
+  }
+  return {
+    status:
+      unverifiedDelayBlocks.length === 0
+        ? 'not_required'
+        : selectedResolution
+          ? selectedResolution === 'rebase'
+            ? 'ready_to_rebase'
+            : 'blocked'
+          : 'requires_user_investigation',
+    appliedAtISO,
+    activationRequestedAtISO: temporalAudit?.activationRequestedAtISO || state?.appTime?.nowISO || new Date().toISOString(),
+    appliedStartDayKey,
+    requestedExecutionStartDayKey,
+    delayDays: Math.max(0, daysBetween(appliedStartDayKey, requestedExecutionStartDayKey)),
+    userDelayExplanation: existing?.userDelayExplanation || null,
+    workHappenedDuringDelay: existing?.workHappenedDuringDelay || (unverifiedDelayBlocks.length > 0 ? 'unknown' : 'none'),
+    selectedResolution,
+    pastDatedBlockCount: unverifiedDelayBlocks.length,
+    scheduleDebtMinutes,
+    reasonCodes: Array.from(new Set(reasonCodes)),
+  };
+}
+
 function mergeBlocksIntoDays(days = [], blocks = []) {
   const byDate = new Map();
   const cloneDay = (day) => ({
@@ -12093,6 +12168,20 @@ function rebaseSchedule(state, payload = {}) {
     };
     return;
   }
+  if (payload?.activationDelayResolution === 'rebase' || payload?.workHappenedDuringDelay === 'none') {
+    const preAudit = buildScheduleTemporalAudit(state, cycle, reviewBlocks, {
+      referenceDayKey: executionStartDayKey,
+      timeZone,
+    });
+    const delayAssessment = buildActivationDelayAssessment(state, cycle, reviewBlocks, preAudit, { timeZone });
+    cycle.activationDelayAssessment = {
+      ...delayAssessment,
+      status: 'ready_to_rebase',
+      workHappenedDuringDelay: 'none',
+      selectedResolution: 'rebase',
+      reasonCodes: Array.from(new Set([...(delayAssessment.reasonCodes || []), 'DELAY_WINDOW_REBASE_SELECTED'])),
+    };
+  }
   const endDayKey =
     coerceDayKey(contract?.endDayKey, timeZone) ||
     coerceDayKey(contract?.deadline?.dayKey, timeZone) ||
@@ -12218,6 +12307,9 @@ function rebaseSchedule(state, payload = {}) {
   cycle.temporalReasonCodes = Array.from(
     new Set(['SCHEDULE_REBASED_FROM_TEMPORAL_DRIFT', ...(postAudit.compressionDelta > 0 ? ['HARD_ANCHOR_COMPRESSION_CHANGED'] : [])])
   );
+  if (cycle.activationDelayAssessment?.selectedResolution === 'rebase') {
+    cycle.temporalReasonCodes = Array.from(new Set([...cycle.temporalReasonCodes, 'DELAY_WINDOW_REBASE_SELECTED']));
+  }
   cycle.lastTemporalAudit = priorAudit;
   state.scheduleReviewBlocks = nextReviewBlocks;
   state.scheduleLifecycle = 'applied_review';
@@ -12268,6 +12360,9 @@ function activateSchedule(state, payload = {}) {
     referenceDayKey: state.appTime?.activeDayKey || state.today?.date || null,
     timeZone,
   });
+  const activationDelayAssessment = buildActivationDelayAssessment(state, cycle, reviewBlocks, temporalAudit, {
+    timeZone,
+  });
   cycle.activationRequestedAtISO = temporalAudit.activationRequestedAtISO;
   cycle.executionStartDayKey = temporalAudit.executionStartDayKey;
   cycle.temporalStatus = temporalAudit.temporalStatus;
@@ -12276,6 +12371,32 @@ function activateSchedule(state, payload = {}) {
   cycle.scheduleDebtMinutes = temporalAudit.scheduleDebtMinutes;
   cycle.compressionDelta = temporalAudit.compressionDelta;
   cycle.temporalReasonCodes = temporalAudit.temporalReasonCodes;
+  cycle.activationDelayAssessment = activationDelayAssessment;
+  if (activationDelayAssessment.status === 'requires_user_investigation') {
+    const reasonCodes = Array.from(new Set(activationDelayAssessment.reasonCodes || []));
+    cycle.reassessmentStatus = 'required';
+    cycle.reassessmentRequiredAtISO = nowISO;
+    state.cyclesById[cycle.id] = cycle;
+    state.lastPlanError = {
+      code: 'ACTIVATION_DELAY_REASSESSMENT_REQUIRED',
+      reason:
+        'This schedule was applied for an earlier start date. Confirm what happened during the delay window before activation or rebase.',
+      cycleId: cycle.id,
+      goalId: contract.goalId,
+      reasonCodes,
+      meta: {
+        appliedAtISO: activationDelayAssessment.appliedAtISO,
+        activationRequestedAtISO: activationDelayAssessment.activationRequestedAtISO,
+        appliedStartDayKey: activationDelayAssessment.appliedStartDayKey,
+        requestedExecutionStartDayKey: activationDelayAssessment.requestedExecutionStartDayKey,
+        executionStartDayKey: activationDelayAssessment.requestedExecutionStartDayKey,
+        delayDays: activationDelayAssessment.delayDays,
+        pastDatedBlockCount: activationDelayAssessment.pastDatedBlockCount,
+        scheduleDebtMinutes: activationDelayAssessment.scheduleDebtMinutes,
+      },
+    };
+    return;
+  }
   if (temporalAudit.temporalReasonCodes.length > 0) {
     cycle.reassessmentStatus = 'required';
     cycle.reassessmentRequiredAtISO = nowISO;

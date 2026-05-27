@@ -305,6 +305,70 @@ describe('ZionDashboard apply schedule dispatch wiring', () => {
     });
   });
 
+  it('asks what happened during an activation delay and dispatches none-happened rebase resolution', async () => {
+    mockStore = buildStore();
+    mockStore.proposedBlocks = [];
+    mockStore.pendingPlanConfirmation = false;
+    mockStore.lastPlanError = {
+      code: 'ACTIVATION_DELAY_REASSESSMENT_REQUIRED',
+      reasonCodes: [
+        'ACTIVATION_DELAY_REASSESSMENT_REQUIRED',
+        'APPLIED_TO_ACTIVATION_GAP_DETECTED',
+        'USER_CONFIRMATION_REQUIRED_FOR_DELAY_WINDOW',
+        'DELAY_WINDOW_EXECUTION_UNKNOWN',
+      ],
+      meta: {
+        appliedStartDayKey: '2026-01-29',
+        requestedExecutionStartDayKey: '2026-02-03',
+        executionStartDayKey: '2026-02-03',
+      },
+    };
+    mockStore.cyclesById['cycle-active'] = {
+      ...mockStore.cyclesById['cycle-active'],
+      scheduleLifecycle: 'applied_review',
+      activationDelayAssessment: {
+        status: 'requires_user_investigation',
+        appliedStartDayKey: '2026-01-29',
+        requestedExecutionStartDayKey: '2026-02-03',
+      },
+      scheduleReviewBlocks: [
+        {
+          id: 'review-1',
+          cycleId: 'cycle-active',
+          goalId: 'goal-1',
+          status: 'planned',
+          title: 'Review block',
+          label: 'Review block',
+          practice: 'FOCUS',
+          domain: 'FOCUS',
+          durationMinutes: 45,
+          dayKey: '2026-01-29',
+          startISO: '2026-01-29T09:00:00.000Z',
+          endISO: '2026-01-29T09:45:00.000Z',
+          start: '2026-01-29T09:00:00.000Z',
+          end: '2026-01-29T09:45:00.000Z',
+        },
+      ],
+    };
+
+    await renderDashboard();
+
+    expect(screen.getAllByRole('button', { name: /none happened - rebase from today/i }).length).toBeGreaterThan(0);
+
+    const user = userEvent.setup();
+    await act(async () => {
+      await user.click(screen.getAllByRole('button', { name: /none happened - rebase from today/i })[0]);
+    });
+
+    expect(rebaseSchedule).toHaveBeenCalledTimes(1);
+    expect(rebaseSchedule).toHaveBeenCalledWith({
+      cycleId: 'cycle-active',
+      executionStartDayKey: '2026-02-03',
+      activationDelayResolution: 'rebase',
+      workHappenedDuringDelay: 'none',
+    });
+  });
+
   it('locks apply until a horizon resolution is selected and forwards the selected kind', async () => {
     mockStore = {
       ...buildStore(),

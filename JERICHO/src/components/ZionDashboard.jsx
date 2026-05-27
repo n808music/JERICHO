@@ -583,10 +583,10 @@ function deriveGapReasonLabel({
   }
   const futureScheduled = scheduleDayKeys.some((scheduledDayKey) => scheduledDayKey > dayKey);
   const pastScheduled = scheduleDayKeys.some((scheduledDayKey) => scheduledDayKey < dayKey);
-  if (futureScheduled) {
+  if (futureScheduled && !pastScheduled) {
     return 'Gap: predecessor gate';
   }
-  if (pastScheduled) {
+  if (pastScheduled && !futureScheduled) {
     return 'Gap: no remaining blocks';
   }
   if (reasonCodes.includes('UNSCHEDULABLE') || lastPlanError?.code === 'NO_PROPOSED_BLOCKS') {
@@ -1246,6 +1246,12 @@ export default function ZionDashboard({
         .trim()
         .toUpperCase()
     );
+  const activationDelayReassessmentRequired =
+    hasPendingActivation &&
+    String(lastPlanError?.code || '')
+      .trim()
+      .toUpperCase() === 'ACTIVATION_DELAY_REASSESSMENT_REQUIRED';
+  const showRebaseRecoveryAction = temporalRebaseRequired || activationDelayReassessmentRequired;
   const cycleWasRebased = String(activeCycle?.temporalStatus || '')
     .trim()
     .toLowerCase() === 'rebased';
@@ -2302,7 +2308,13 @@ export default function ZionDashboard({
     const executionStartDayKey =
       lastPlanError?.meta?.executionStartDayKey || activeDayKey || appTime?.activeDayKey || today?.date || null;
     traceAction('schedule.rebase.click', { cycleId, executionStartDayKey, errorCode: lastPlanError?.code || null });
-    actions.rebaseSchedule?.({ cycleId, executionStartDayKey });
+    actions.rebaseSchedule?.({
+      cycleId,
+      executionStartDayKey,
+      ...(activationDelayReassessmentRequired
+        ? { activationDelayResolution: 'rebase', workHappenedDuringDelay: 'none' }
+        : {}),
+    });
   };
 
   const handleCompleteCycleReassessment = () => {
@@ -3236,13 +3248,13 @@ export default function ZionDashboard({
                                 >
                                   Activate schedule
                                 </button>
-                                {temporalRebaseRequired ? (
+                                {showRebaseRecoveryAction ? (
                                   <button
                                     className="rounded-full border border-amber-700/60 px-3 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-600/10"
                                     onClick={handleRebaseSchedule}
                                     disabled={!actions.rebaseSchedule}
                                   >
-                                    Rebase from today
+                                    {activationDelayReassessmentRequired ? 'None happened - rebase from today' : 'Rebase from today'}
                                   </button>
                                 ) : null}
                               </>
@@ -3259,7 +3271,38 @@ export default function ZionDashboard({
                                 to start live execution. Today completion, miss, and skip logging stay disabled until
                                 activation.
                               </p>
-                              {temporalRebaseRequired ? (
+                              {activationDelayReassessmentRequired ? (
+                                <>
+                                  <p className="text-amber-700/90">
+                                    Activation delay reassessment required. This schedule was applied for{' '}
+                                    {formatDayKeyLabel(
+                                      lastPlanError?.meta?.appliedStartDayKey ||
+                                        activeCycle?.activationDelayAssessment?.appliedStartDayKey ||
+                                        ''
+                                    )}
+                                    , but activation is being requested on{' '}
+                                    {formatDayKeyLabel(
+                                      lastPlanError?.meta?.requestedExecutionStartDayKey ||
+                                        activeCycle?.activationDelayAssessment?.requestedExecutionStartDayKey ||
+                                        activeDayKey
+                                    )}
+                                    .
+                                  </p>
+                                  <p className="text-amber-700/90">
+                                    Confirm what happened during the delay window before Jericho rebases or activates the
+                                    schedule.
+                                  </p>
+                                  <div className="pt-1">
+                                    <button
+                                      className="rounded-full border border-amber-700/60 px-3 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-600/10"
+                                      onClick={handleRebaseSchedule}
+                                      disabled={!actions.rebaseSchedule}
+                                    >
+                                      None happened - rebase from today
+                                    </button>
+                                  </div>
+                                </>
+                              ) : temporalRebaseRequired ? (
                                 <>
                                   <p className="text-amber-700/90">
                                     Schedule rebase required. This draft no longer matches the activation start date and
