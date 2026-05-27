@@ -18,7 +18,7 @@ describe('AppShell structure entry without an active cycle', () => {
   });
 
   async function enterProfile() {
-    fireEvent.click(await screen.findByRole('button', { name: /Continue as/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /Create profile/i }));
   }
 
   it('lands in the review-mode Structure shell and offers starting a new cycle', async () => {
@@ -36,22 +36,18 @@ describe('AppShell structure entry without an active cycle', () => {
     expect(window.__jerichoDebug__?.activeCycleId ?? null).toBeNull();
   });
 
-  it('resets to the true blank lifecycle state from product-facing controls', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-
+  it('starts a new coherent profile in the true blank lifecycle state', async () => {
     render(<AppShell />);
     await enterProfile();
 
     fireEvent.click(await screen.findByRole('button', { name: /Structure/i }));
-    fireEvent.click(await screen.findByText(/^Execution Cycle$/i));
-    fireEvent.click(screen.getByRole('button', { name: /Clear Goal/i }));
 
     await waitFor(() => expect(window.__jerichoDebug__?.activeCycleId ?? null).toBeNull());
 
-    expect(screen.getByRole('button', { name: /Continue/i })).toBeInTheDocument();
-    expect(screen.getByText(/^Contract Admission$/i)).toBeInTheDocument();
+    expect(await screen.findByText(/^Contract Admission$/i)).toBeInTheDocument();
+    expect(screen.getByText(/What are you trying to do/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Continue$/i })).toBeInTheDocument();
+    expect(screen.queryByText(/Grow revenue to \$10k\/month/i)).not.toBeInTheDocument();
     expect(window.__jerichoDebug__?.goalLifecycleState).toBe('blank');
-
-    confirmSpy.mockRestore();
   });
 });

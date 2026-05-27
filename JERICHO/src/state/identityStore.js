@@ -211,6 +211,20 @@ function applyProfileSelection(draft, profileId) {
     };
   }
   const profile = draft.profilesById[normalizedProfileId];
+  profile.masterCalendarId = profile.masterCalendarId || `calendar-${normalizedProfileId}`;
+  draft.masterCalendarsById =
+    draft.masterCalendarsById && typeof draft.masterCalendarsById === 'object' ? draft.masterCalendarsById : {};
+  if (!draft.masterCalendarsById[profile.masterCalendarId]) {
+    draft.masterCalendarsById[profile.masterCalendarId] = {
+      id: profile.masterCalendarId,
+      profileId: normalizedProfileId,
+      activeGoalIds: Array.isArray(profile.goalIds) ? profile.goalIds : [],
+      activeCycleIds: Array.isArray(profile.cycleIds) ? profile.cycleIds : [],
+      availableCapacityHours: 40,
+      capacityLoadHours: 0,
+      status: 'active',
+    };
+  }
   draft.activeProfileId = normalizedProfileId;
   const activeGoalId = getProfilePrimaryGoalId(draft, profile);
   draft.activeGoalId = activeGoalId || null;
@@ -1091,7 +1105,22 @@ function identityReducer(state, action) {
       }),
       id: profileId,
       label: nextDisplayName || DEFAULT_PROFILE_DISPLAY_NAME,
+      masterCalendarId: existingProfile.masterCalendarId || `calendar-${profileId}`,
     };
+    draft.masterCalendarsById =
+      draft.masterCalendarsById && typeof draft.masterCalendarsById === 'object' ? draft.masterCalendarsById : {};
+    const masterCalendarId = draft.profilesById[profileId].masterCalendarId;
+    if (!draft.masterCalendarsById[masterCalendarId]) {
+      draft.masterCalendarsById[masterCalendarId] = {
+        id: masterCalendarId,
+        profileId,
+        activeGoalIds: Array.isArray(draft.profilesById[profileId].goalIds) ? draft.profilesById[profileId].goalIds : [],
+        activeCycleIds: Array.isArray(draft.profilesById[profileId].cycleIds) ? draft.profilesById[profileId].cycleIds : [],
+        availableCapacityHours: 40,
+        capacityLoadHours: 0,
+        status: 'active',
+      };
+    }
     draft.activeProfileId = profileId;
     draft.profileAccess = buildProfileAccessState({
       profilesById: draft.profilesById,

@@ -3,7 +3,7 @@ import '@testing-library/jest-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ProfileAccessGate } from '../../src/components/AppShell.jsx';
+import { evaluateProfileContextCoherence, ProfileAccessGate } from '../../src/components/AppShell.jsx';
 
 describe('ProfileAccessGate', () => {
   it('offers saved profiles as continue actions', async () => {
@@ -67,9 +67,61 @@ describe('ProfileAccessGate', () => {
     await user.click(screen.getByRole('button', { name: /Create profile/i }));
 
     expect(upsertProfileDetails).toHaveBeenCalledWith({
-      profileId: 'profile-local-default',
-      displayName: 'Local Profile',
+      profileId: expect.stringMatching(/^profile-local-/),
+      displayName: 'New Profile',
     });
-    expect(selectProfile).toHaveBeenCalledWith('profile-local-default');
+    expect(selectProfile).toHaveBeenCalledWith(expect.stringMatching(/^profile-local-/));
+  });
+
+  it('hides placeholder local profiles from saved-profile continuation', () => {
+    render(
+      <ProfileAccessGate
+        store={{
+          activeProfileId: 'profile-local-default',
+          profilesById: {
+            'profile-local-default': {
+              id: 'profile-local-default',
+              displayName: 'Local Profile',
+              label: 'Local Profile',
+            },
+          },
+          selectProfile: vi.fn(),
+        }}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: /Continue as Local Profile/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Create profile/i })).toBeInTheDocument();
+  });
+
+  it('marks the default demo seed as incoherent profile context', () => {
+    const coherence = evaluateProfileContextCoherence({
+      activeProfileId: 'profile-local-default',
+      profileAccess: { status: 'profile_selected', selectedProfileId: 'profile-local-default' },
+      profilesById: {
+        'profile-local-default': {
+          id: 'profile-local-default',
+          displayName: 'Local Profile',
+          label: 'Local Profile',
+          goalIds: ['goal-1'],
+          activeGoalId: 'goal-1',
+          activeCycleId: 'cycle-1',
+          masterCalendarId: 'calendar-profile-local-default',
+        },
+      },
+      goalsById: {
+        'goal-1': { id: 'goal-1', profileId: 'profile-local-default', activeCycleId: 'cycle-1' },
+      },
+      cyclesById: {
+        'cycle-1': { id: 'cycle-1', profileId: 'profile-local-default', goalContract: { goalId: 'goal-1' } },
+      },
+      masterCalendarsById: {},
+      activeCycleId: 'cycle-1',
+    });
+
+    expect(coherence.coherent).toBe(false);
+    expect(coherence.reasonCodes).toEqual(
+      expect.arrayContaining(['PLACEHOLDER_PROFILE_CONTEXT', 'PLACEHOLDER_GOAL_CONTEXT', 'PLACEHOLDER_CYCLE_CONTEXT'])
+    );
   });
 });

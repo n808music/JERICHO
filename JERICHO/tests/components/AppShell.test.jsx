@@ -22,4 +22,15 @@ describe('AppShell', () => {
     );
     expect(html).toContain('Jericho // LIVE');
   });
+
+  it('does not treat the default local seed as coherent profile context', () => {
+    const html = ReactDOMServer.renderToString(<AppShell />);
+
+    expect(html).toContain('Profile access');
+    expect(html).toContain('Create profile');
+    expect(html).toContain('default local/demo profile');
+    expect(html).not.toContain('Grow revenue to $10k/month');
+    expect(html).not.toContain('Today');
+    expect(html).not.toContain('Structure');
+  });
 });
