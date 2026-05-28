@@ -12,6 +12,33 @@ function nextDayKey(dayKey, days) {
   return d.toISOString().slice(0, 10);
 }
 
+// Day-of-week offset from Monday (ISO week). Used for workday rotation.
+const DOW_OFFSET_FROM_MON = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 };
+
+/**
+ * Place a block on a specific workday within the ISO week that contains `cursor`,
+ * rotating through `workDays` by `rotationIdx`. If the rotated day falls before
+ * `cursor` (backward placement), advance one week so time only moves forward.
+ */
+function placementDayForBlock(cursor, workDays, rotationIdx) {
+  if (!workDays || workDays.length === 0) return cursor;
+  const d = new Date(`${cursor}T12:00:00.000Z`);
+  const utcDow = d.getUTCDay(); // 0=Sun, 1=Mon, …, 6=Sat
+  const daysToMon = utcDow === 0 ? -6 : 1 - utcDow;
+  const monDate = new Date(d);
+  monDate.setUTCDate(d.getUTCDate() + daysToMon);
+  const targetDow = workDays[Math.abs(rotationIdx) % workDays.length];
+  const offsetFromMon = DOW_OFFSET_FROM_MON[targetDow] ?? 0;
+  const targetDate = new Date(monDate);
+  targetDate.setUTCDate(monDate.getUTCDate() + offsetFromMon);
+  let placementKey = targetDate.toISOString().slice(0, 10);
+  if (placementKey < cursor) {
+    targetDate.setUTCDate(targetDate.getUTCDate() + 7);
+    placementKey = targetDate.toISOString().slice(0, 10);
+  }
+  return placementKey;
+}
+
 function hasWord(text, pattern) {
   return new RegExp(`\\b${pattern}\\b`, 'i').test(String(text || ''));
 }
@@ -788,6 +815,7 @@ function buildBlock({
   laneStatus,
   descriptor,
   dayKey,
+  idDayKey = null,
   idx,
   plan,
 }) {
@@ -810,9 +838,10 @@ function buildBlock({
           : phase?.label === 'P2'
             ? 'forecast'
             : 'strategic';
+  const idKey = idDayKey || dayKey;
 
   return {
-    id: mkId(planId, phase?.label, laneId || 'lane', dayKey, idx),
+    id: mkId(planId, phase?.label, laneId || 'lane', idKey, idx),
     title: occurrenceDescriptor.title,
     date: dayKey,
     dayKey,
@@ -926,6 +955,7 @@ export function expandFullHorizonSchedule({
   lanes = [],
   existingForecastBlocks = [],
   committedBlocks = [],
+  workDays = [],
 } = {}) {
   const result = [];
   if (!phaseModel?.phases?.length || !horizonStartDayKey || !horizonEndDayKey) {
@@ -944,7 +974,8 @@ export function expandFullHorizonSchedule({
 
     const visiblePhaseEnd = phaseEnd < horizonEndDayKey ? phaseEnd : horizonEndDayKey;
 
-    for (const lane of targetLanes) {
+    for (let laneIndex = 0; laneIndex < targetLanes.length; laneIndex++) {
+      const lane = targetLanes[laneIndex];
       const laneStatus = getPhaseLaneStatus(phase, lane);
       if (!lane && phaseLabel !== 'P3') continue;
       if (laneStatus === 'deferred') continue;
@@ -953,11 +984,18 @@ export function expandFullHorizonSchedule({
       const descriptors = createDescriptor({ phaseLabel, lane, laneStatus, planOrientation });
       if (!descriptors.length) continue;
 
+      // Offset each lane's rotation so lanes don't pile up on the same weekday.
+      const laneRotationBase = laneIndex * 2;
+
       let cursor = phaseStart;
       let idx = 0;
+      let rotationIdx = laneRotationBase;
       while (cursor && cursor <= visiblePhaseEnd) {
         const cadenceDays = resolveCadenceDays(phaseLabel, laneStatus, planOrientation, laneFamily, cursor, visiblePhaseEnd);
         const descriptor = descriptors[idx % descriptors.length];
+        const placementKey = workDays.length > 0
+          ? placementDayForBlock(cursor, workDays, rotationIdx)
+          : cursor;
         result.push(
           buildBlock({
             planId,
@@ -965,13 +1003,15 @@ export function expandFullHorizonSchedule({
             lane,
             laneStatus,
             descriptor,
-            dayKey: cursor,
+            dayKey: placementKey,
+            idDayKey: cursor,
             idx,
             plan,
           })
         );
         cursor = nextDayKey(cursor, cadenceDays);
         idx += 1;
+        rotationIdx += 1;
       }
     }
 

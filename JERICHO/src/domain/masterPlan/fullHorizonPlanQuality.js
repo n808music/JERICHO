@@ -769,11 +769,40 @@ function evaluateMvpPlanQualityStandard({
     addGateFailure('DEPENDENCY_ORDER_WEAK', 'Later-phase work lacks enough dependency lineage.');
   }
 
+  // Weekday distribution gate: for long-horizon plans with enough blocks,
+  // clustering ≥75% of work onto ≤2 weekdays while <4 weekdays are used is a quality failure.
+  if (longHorizon && blocks.length >= 20) {
+    const dowCounts = {};
+    const dowNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    for (const block of blocks) {
+      const dk = block?.dayKey || block?.date;
+      if (!dk || typeof dk !== 'string') continue;
+      const dowName = dowNames[new Date(`${dk}T12:00:00.000Z`).getUTCDay()];
+      dowCounts[dowName] = (dowCounts[dowName] || 0) + 1;
+    }
+    const dowEntries = Object.entries(dowCounts).sort((a, b) => b[1] - a[1]);
+    const uniqueDowCount = dowEntries.length;
+    const topTwoCount = (dowEntries[0]?.[1] ?? 0) + (dowEntries[1]?.[1] ?? 0);
+    const topTwoRatio = blocks.length > 0 ? topTwoCount / blocks.length : 0;
+    if (topTwoRatio > 0.75 && uniqueDowCount < 4) {
+      const topDay = dowEntries[0]?.[0] ?? '?';
+      const topPct = Math.round(((dowEntries[0]?.[1] ?? 0) / blocks.length) * 100);
+      addGateFailure(
+        'WORK_WEEK_DISTRIBUTION_CLUSTERED',
+        `${topPct}% of blocks land on ${topDay} — only ${uniqueDowCount} weekday${uniqueDowCount === 1 ? '' : 's'} used across a ${horizonDays}-day horizon.`
+      );
+    }
+  }
+
   const uniqueReasonCodes = [...new Set(reasonCodes)];
   let status = 'trusted_plan';
   if (uniqueReasonCodes.includes('PLAN_HORIZON_UNDERFILLED') || uniqueReasonCodes.includes('PLAN_CALENDAR_COHERENCE_WEAK')) {
     status = 'withheld_plan';
-  } else if (uniqueReasonCodes.length >= 4 || uniqueReasonCodes.includes('TERMINAL_PHASE_MISSING_OR_TOO_EARLY')) {
+  } else if (
+    uniqueReasonCodes.length >= 4 ||
+    uniqueReasonCodes.includes('TERMINAL_PHASE_MISSING_OR_TOO_EARLY') ||
+    uniqueReasonCodes.includes('WORK_WEEK_DISTRIBUTION_CLUSTERED')
+  ) {
     status = 'degraded_plan';
   } else if (uniqueReasonCodes.length > 0) {
     status = 'provisional_plan';
@@ -794,6 +823,7 @@ function evaluateMvpPlanQualityStandard({
       planCalendarCoherence: !uniqueReasonCodes.includes('PLAN_CALENDAR_COHERENCE_WEAK'),
       capacityRealism: !uniqueReasonCodes.includes('CAPACITY_CONSTRAINT_MISMATCH'),
       dependencyOrder: !uniqueReasonCodes.includes('DEPENDENCY_ORDER_WEAK'),
+      workWeekDistribution: !uniqueReasonCodes.includes('WORK_WEEK_DISTRIBUTION_CLUSTERED'),
     },
     summary: {
       startDayKey,

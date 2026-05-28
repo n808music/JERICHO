@@ -577,4 +577,55 @@ describe('master-plan full-horizon quality gate', () => {
     expect(quality?.mvpStandard?.gates).toHaveProperty('horizonCoverage');
     expect(quality?.mvpStandard?.gates).toHaveProperty('actionSpecificity');
   });
+
+  it('baseline Operation Endgame schedule has acceptable weekday distribution', () => {
+    const state = buildGeneratedState();
+    const quality = evaluateForState(state);
+
+    expect(quality.mvpStandard.reasonCodes).not.toContain('WORK_WEEK_DISTRIBUTION_CLUSTERED');
+    expect(quality.mvpStandard.gates.workWeekDistribution).toBe(true);
+  });
+
+  it('reports WORK_WEEK_DISTRIBUTION_CLUSTERED when schedule is pinned to two weekdays', () => {
+    const state = buildGeneratedState();
+    // Snap all blocks to Tuesday/Wednesday only to simulate the pre-fix clustering
+    const clusterBlocks = cloneBlocks(state.fullHorizonScheduleBlocks).map((block) => {
+      const dk = String(block.dayKey || '');
+      if (!dk) return block;
+      const d = new Date(`${dk}T12:00:00.000Z`);
+      const utcDow = d.getUTCDay();
+      // Push every block to the nearest Tuesday (DOW 2)
+      const daysToTue = utcDow <= 2 ? 2 - utcDow : 9 - utcDow;
+      d.setUTCDate(d.getUTCDate() + daysToTue);
+      const tueDayKey = d.toISOString().slice(0, 10);
+      return { ...block, dayKey: tueDayKey, date: tueDayKey };
+    });
+
+    const quality = evaluateForState(state, clusterBlocks);
+    expect(quality.mvpStandard.reasonCodes).toContain('WORK_WEEK_DISTRIBUTION_CLUSTERED');
+    expect(quality.mvpStandard.gates.workWeekDistribution).toBe(false);
+    expect(quality.mvpStandard.status).not.toBe('trusted_plan');
+  });
+
+  it('baseline Operation Endgame distributes work across at least 4 weekdays', () => {
+    const state = buildGeneratedState();
+    const blocks = state.fullHorizonScheduleBlocks || [];
+    const dowSet = new Set();
+    for (const b of blocks) {
+      const dk = b.dayKey || b.date;
+      if (dk) dowSet.add(new Date(`${dk}T12:00:00.000Z`).getUTCDay());
+    }
+    expect(dowSet.size).toBeGreaterThanOrEqual(4);
+    const counts = {};
+    for (const b of blocks) {
+      const dk = b.dayKey || b.date;
+      if (!dk) continue;
+      const dow = new Date(`${dk}T12:00:00.000Z`).getUTCDay();
+      counts[dow] = (counts[dow] || 0) + 1;
+    }
+    const total = blocks.length;
+    const sorted = Object.values(counts).sort((a, b) => b - a);
+    const topTwoRatio = ((sorted[0] || 0) + (sorted[1] || 0)) / total;
+    expect(topTwoRatio).toBeLessThan(0.75);
+  });
 });

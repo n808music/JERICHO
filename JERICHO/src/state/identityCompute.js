@@ -6317,6 +6317,7 @@ function applyLongHorizonCalendarBlocks(state) {
       lanes,
       existingForecastBlocks: allForecastBlocks,
       committedBlocks: [],
+      workDays: getWorkDaysFromWindows(state.goalExecutionContract?.workWindows || {}),
     });
     coverageAudit = auditFullHorizonCoverage({
       fullHorizonScheduleBlocks,
