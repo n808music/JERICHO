@@ -142,3 +142,166 @@ describe('schedule temporal drift activation gate', () => {
     );
   });
 });
+
+describe('activation-date reassessment and calendar re-anchor (May 19 → May 28)', () => {
+  function buildAppliedState519() {
+    const state = buildAppliedReviewState({
+      nowDayKey: '2026-05-28',
+      blockDayKey: '2026-05-19',
+      generatedAtISO: '2026-05-19T08:00:00.000Z',
+    });
+    state.cyclesById['cycle-1'].scheduleAppliedAtISO = '2026-05-19T13:00:00.000Z';
+    state.cyclesById['cycle-1'].goalContract = {
+      goalId: 'goal-1',
+      startDayKey: '2026-05-19',
+      endDayKey: '2026-07-01',
+      workWindows: { mon: [{ start: '09:00', end: '10:00' }], tue: [{ start: '09:00', end: '10:00' }], wed: [{ start: '09:00', end: '10:00' }], thu: [{ start: '09:00', end: '10:00' }], fri: [{ start: '09:00', end: '10:00' }] },
+    };
+    return state;
+  }
+
+  it('May 19 schedule activated May 28 triggers activation-delay reassessment question', () => {
+    const next = computeDerivedState(buildAppliedState519(), { type: 'ACTIVATE_SCHEDULE' });
+
+    expect(next.lastPlanError?.code).toBe('ACTIVATION_DELAY_REASSESSMENT_REQUIRED');
+    expect(next.cyclesById['cycle-1'].activationDelayAssessment).toMatchObject({
+      status: 'requires_user_investigation',
+      appliedStartDayKey: '2026-05-19',
+      requestedExecutionStartDayKey: '2026-05-28',
+    });
+  });
+
+  it('May 19 schedule cannot activate silently on May 28', () => {
+    const next = computeDerivedState(buildAppliedState519(), { type: 'ACTIVATE_SCHEDULE' });
+
+    expect(next.scheduleLifecycle).not.toBe('active_schedule');
+    expect(next.cyclesById['cycle-1'].scheduleLifecycle).not.toBe('active_schedule');
+    expect((next.executionEvents || []).filter((e) => e?.kind === 'create')).toHaveLength(0);
+  });
+
+  it('May 19 schedule does not populate pre-activation calendar blocks during delay reassessment', () => {
+    const next = computeDerivedState(buildAppliedState519(), { type: 'ACTIVATE_SCHEDULE' });
+
+    const allDays = Array.isArray(next.cycle) ? next.cycle : [];
+    const preActivationDays = allDays.filter((day) => day?.date && day.date < '2026-05-28');
+    const preActivationBlocks = preActivationDays.flatMap((day) =>
+      (day.blocks || []).filter((b) => b?.origin === 'schedule_review' || b?.origin === 'schedule_active')
+    );
+    expect(preActivationBlocks).toHaveLength(0);
+  });
+
+  it('Selecting None happened rebases unexecuted blocks to May 28 or later', () => {
+    const blocked = computeDerivedState(buildAppliedState519(), { type: 'ACTIVATE_SCHEDULE' });
+    expect(blocked.lastPlanError?.code).toBe('ACTIVATION_DELAY_REASSESSMENT_REQUIRED');
+
+    const rebased = computeDerivedState(blocked, {
+      type: 'REBASE_SCHEDULE',
+      payload: {
+        cycleId: 'cycle-1',
+        executionStartDayKey: '2026-05-28',
+        activationDelayResolution: 'rebase',
+        workHappenedDuringDelay: 'none',
+      },
+    });
+
+    const reviewBlocks = rebased.cyclesById['cycle-1']?.scheduleReviewBlocks || [];
+    expect(reviewBlocks.length).toBeGreaterThan(0);
+    const allForward = reviewBlocks.every((b) => {
+      const dk = b?.dayKey || (b?.startISO || b?.start || '').slice(0, 10);
+      return dk >= '2026-05-28';
+    });
+    expect(allForward).toBe(true);
+    expect(rebased.cyclesById['cycle-1'].activationDelayAssessment?.selectedResolution).toBe('rebase');
+  });
+
+  it('After None-happened rebase, cycle remains in applied_review not active', () => {
+    const blocked = computeDerivedState(buildAppliedState519(), { type: 'ACTIVATE_SCHEDULE' });
+
+    const rebased = computeDerivedState(blocked, {
+      type: 'REBASE_SCHEDULE',
+      payload: {
+        cycleId: 'cycle-1',
+        executionStartDayKey: '2026-05-28',
+        activationDelayResolution: 'rebase',
+        workHappenedDuringDelay: 'none',
+      },
+    });
+
+    expect(rebased.scheduleLifecycle).toBe('applied_review');
+    expect(rebased.cyclesById['cycle-1'].scheduleLifecycle).toBe('applied_review');
+    expect((rebased.executionEvents || []).filter((e) => e?.kind === 'create')).toHaveLength(0);
+  });
+
+  it('After rebase and final activation, first executable calendar block is >= May 28', () => {
+    const blocked = computeDerivedState(buildAppliedState519(), { type: 'ACTIVATE_SCHEDULE' });
+
+    const rebased = computeDerivedState(blocked, {
+      type: 'REBASE_SCHEDULE',
+      payload: {
+        cycleId: 'cycle-1',
+        executionStartDayKey: '2026-05-28',
+        activationDelayResolution: 'rebase',
+        workHappenedDuringDelay: 'none',
+      },
+    });
+
+    const activated = computeDerivedState(rebased, { type: 'ACTIVATE_SCHEDULE' });
+
+    expect(activated.scheduleLifecycle).toBe('active_schedule');
+    const createEvents = (activated.executionEvents || []).filter((e) => e?.kind === 'create');
+    expect(createEvents.length).toBeGreaterThan(0);
+    const allOnOrAfter = createEvents.every((e) => {
+      const dk = e?.dateISO || (e?.startISO || '').slice(0, 10);
+      return dk >= '2026-05-28';
+    });
+    expect(allOnOrAfter).toBe(true);
+  });
+
+  it('final invariant: activated execution events before executionStartDayKey are excluded from calendar projection', () => {
+    const staleBlock = {
+      id: 'blk-stale-1',
+      cycleId: 'cycle-1',
+      goalId: 'goal-1',
+      start: '2026-05-19T09:00:00.000Z',
+      end: '2026-05-19T10:00:00.000Z',
+      startISO: '2026-05-19T09:00:00.000Z',
+      endISO: '2026-05-19T10:00:00.000Z',
+      dayKey: '2026-05-19',
+      durationMinutes: 60,
+      status: 'planned',
+      origin: 'schedule_active',
+    };
+
+    const state = {
+      ...buildAppliedState519(),
+      executionEvents: [
+        {
+          kind: 'create',
+          blockId: 'blk-stale-1',
+          cycleId: 'cycle-1',
+          goalId: 'goal-1',
+          dateISO: '2026-05-19',
+          startISO: '2026-05-19T09:00:00.000Z',
+          endISO: '2026-05-19T10:00:00.000Z',
+          status: 'planned',
+          origin: 'schedule_active',
+          ...staleBlock,
+        },
+      ],
+    };
+    state.cyclesById['cycle-1'].scheduleLifecycle = 'active_schedule';
+    state.cyclesById['cycle-1'].scheduleReviewBlocks = [];
+    state.cyclesById['cycle-1'].executionStartDayKey = '2026-05-28';
+    state.scheduleLifecycle = 'active_schedule';
+
+    const derived = computeDerivedState(state, { type: 'NO_OP' });
+
+    const allBlocks = (derived.cycle || []).flatMap((day) => day?.blocks || []);
+    const stale = allBlocks.find((b) => b?.id === 'blk-stale-1');
+    expect(stale).toBeUndefined();
+
+    const todayBlocks = derived.today?.blocks || [];
+    const staleToday = todayBlocks.find((b) => b?.id === 'blk-stale-1');
+    expect(staleToday).toBeUndefined();
+  });
+});

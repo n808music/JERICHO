@@ -999,6 +999,7 @@ export function computeDerivedState(state, action) {
   deriveProfileExecutionContainment(next);
   persistActiveCycleState(next);
   enforceActiveCycleTodayBlocks(next, hadCycleRecords);
+  enforceExecutionStartBoundary(next);
   return next;
 }
 
@@ -2000,6 +2001,35 @@ function buildActivationDelayAssessment(state, cycle, blocks = [], temporalAudit
   };
 }
 
+function enforceExecutionStartBoundary(state) {
+  const activeCycleId = state.activeCycleId || null;
+  const activeCycle = activeCycleId ? (state.cyclesById?.[activeCycleId] || null) : null;
+  const executionStartDayKey = activeCycle?.executionStartDayKey || null;
+  if (!executionStartDayKey) return;
+  const isEvidenced = (blockId) => {
+    const id = String(blockId || '').trim();
+    if (!id) return false;
+    return (state.executionEvents || []).some((e) => {
+      const eid = String(e?.blockId || '').trim();
+      const kind = String(e?.kind || '').trim().toLowerCase();
+      return eid === id && (kind === 'complete' || kind === 'missed' || kind === 'skipped' || kind === 'backfill');
+    });
+  };
+  const shouldExclude = (block) => {
+    const dk = block?.dayKey || (block?.startISO || block?.start || '').slice(0, 10) || '';
+    return Boolean(dk && dk < executionStartDayKey && !isEvidenced(block?.id));
+  };
+  if (Array.isArray(state.cycle)) {
+    state.cycle = state.cycle.map((day) => ({
+      ...day,
+      blocks: (Array.isArray(day?.blocks) ? day.blocks : []).filter((block) => !shouldExclude(block)),
+    }));
+  }
+  if (state.today && Array.isArray(state.today.blocks)) {
+    state.today.blocks = state.today.blocks.filter((block) => !shouldExclude(block));
+  }
+}
+
 function mergeBlocksIntoDays(days = [], blocks = []) {
   const byDate = new Map();
   const cloneDay = (day) => ({
@@ -2060,7 +2090,20 @@ function mergeScheduleReviewBlocksIntoCycleProjection(state, cycle = null) {
       (block) => !(cycleId && block?.cycleId === cycleId && String(block?.origin || '').trim() === 'schedule_review')
     ),
   }));
-  state.cycle = reviewBlocks.length ? mergeBlocksIntoDays(filteredCycleDays, reviewBlocks) : filteredCycleDays;
+  // During activation-delay investigation, exclude review blocks before the requested
+  // execution start so the calendar does not render stale pre-activation work.
+  const delayBoundaryDayKey =
+    cycle?.activationDelayAssessment?.status === 'requires_user_investigation'
+      ? (cycle.activationDelayAssessment?.requestedExecutionStartDayKey || null)
+      : null;
+  const visibleReviewBlocks = delayBoundaryDayKey
+    ? reviewBlocks.filter((block) => {
+        const timeZone = state?.appTime?.timeZone || 'UTC';
+        const dk = getTemporalBlockDayKey(block, timeZone) || '';
+        return !dk || dk >= delayBoundaryDayKey;
+      })
+    : reviewBlocks;
+  state.cycle = visibleReviewBlocks.length ? mergeBlocksIntoDays(filteredCycleDays, visibleReviewBlocks) : filteredCycleDays;
 }
 
 function ensureCycleStructures(state) {
@@ -12364,6 +12407,17 @@ function activateSchedule(state, payload = {}) {
   const activationDelayAssessment = buildActivationDelayAssessment(state, cycle, reviewBlocks, temporalAudit, {
     timeZone,
   });
+  // When the user has already confirmed "None happened" and rebased, suppress the stale
+  // gate so the second activation attempt (after rebase) is not blocked again.
+  const wasRebasedFromDelayResolution =
+    temporalAudit.rebaseRequired === false &&
+    (String(cycle?.activationDelayAssessment?.selectedResolution || '') === 'rebase' ||
+      String(cycle?.temporalStatus || '') === 'rebased');
+  if (wasRebasedFromDelayResolution) {
+    temporalAudit.temporalReasonCodes = (temporalAudit.temporalReasonCodes || []).filter(
+      (c) => c !== 'GENERATED_SCHEDULE_STALE' && c !== 'REASSESSMENT_TEMPORAL_DRIFT_DETECTED'
+    );
+  }
   cycle.activationRequestedAtISO = temporalAudit.activationRequestedAtISO;
   cycle.executionStartDayKey = temporalAudit.executionStartDayKey;
   cycle.temporalStatus = temporalAudit.temporalStatus;
