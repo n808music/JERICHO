@@ -1,8 +1,10 @@
 import React from 'react';
 import ZionDashboard from './ZionDashboard.jsx';
 import ErrorBoundary from './ErrorBoundary.jsx';
+import LoginGate from './LoginGate.jsx';
 import { IdentityProvider, useIdentityStore } from '../state/identityStore.js';
 import { JerichoProvider } from '../core/state.js';
+import * as localAuth from '../state/localAuthStore.js';
 
 const NOOP = () => {};
 
@@ -156,16 +158,40 @@ export function evaluateProfileContextCoherence(store) {
 }
 
 export default function AppShell() {
+  const [isAuthenticated, setIsAuthenticated] = React.useState(() => localAuth.isAuthenticated());
+
+  const handleLogin = React.useCallback(() => {
+    setIsAuthenticated(true);
+  }, []);
+
+  const handleLogout = React.useCallback(() => {
+    localAuth.logout();
+    setIsAuthenticated(false);
+  }, []);
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-jericho-bg text-jericho-text transition-colors duration-300">
+        <div className="max-w-6xl mx-auto px-6 py-6 space-y-6">
+          <header className="flex items-center justify-between border-b border-line/40 pb-3">
+            <span className="text-xs uppercase tracking-[0.2em] text-muted">Jericho</span>
+          </header>
+          <LoginGate onLogin={handleLogin} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <JerichoProvider>
       <IdentityProvider>
-        <AppShellInner />
+        <AppShellInner onLogout={handleLogout} />
       </IdentityProvider>
     </JerichoProvider>
   );
 }
 
-function AppShellInner() {
+function AppShellInner({ onLogout = NOOP }) {
   const store = useIdentityStore();
   const commandContext = React.useMemo(
     () => ({
@@ -185,6 +211,8 @@ function AppShellInner() {
   }, []);
 
   const profileCoherence = React.useMemo(() => evaluateProfileContextCoherence(store), [store]);
+  const session = localAuth.getSession();
+  const sessionLabel = session?.username ? `Signed in as ${session.username}` : null;
 
   return (
     <div className="min-h-screen bg-jericho-bg text-jericho-text transition-colors duration-300">
@@ -192,6 +220,18 @@ function AppShellInner() {
         <div className="max-w-6xl mx-auto px-6 py-6 space-y-6">
           <header className="flex items-center justify-between border-b border-line/40 pb-3">
             <span className="text-xs uppercase tracking-[0.2em] text-muted">Jericho // LIVE</span>
+            <div className="flex items-center gap-4">
+              {sessionLabel && (
+                <span className="text-xs text-muted">{sessionLabel}</span>
+              )}
+              <button
+                type="button"
+                onClick={onLogout}
+                className="text-xs uppercase tracking-[0.14em] text-muted hover:text-jericho-text"
+              >
+                Sign out
+              </button>
+            </div>
           </header>
           {profileCoherence.coherent ? (
             <ZionDashboard
