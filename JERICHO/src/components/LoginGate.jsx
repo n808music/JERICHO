@@ -1,13 +1,57 @@
 import React from 'react';
 import * as localAuth from '../state/localAuthStore.js';
 
+// Official local dev credentials: username=james, password=JerichoMVP2026!
+// Not production security — local containment credential only.
+
+function PasswordInput({ id, value, onChange, onBlur, autoComplete, label }) {
+  const [show, setShow] = React.useState(false);
+  return (
+    <div className="space-y-1">
+      <label className="text-xs uppercase tracking-[0.12em] text-muted" htmlFor={id}>
+        {label}
+      </label>
+      <div className="relative">
+        <input
+          id={id}
+          type={show ? 'text' : 'password'}
+          value={value}
+          onChange={onChange}
+          onBlur={onBlur}
+          required
+          autoComplete={autoComplete}
+          className="w-full rounded-md border border-line/70 bg-white px-3 py-2 pr-16 text-sm text-jericho-text focus:border-jericho-accent focus:outline-none"
+        />
+        <button
+          type="button"
+          aria-label={show ? `Hide ${label}` : `Show ${label}`}
+          onClick={() => setShow((s) => !s)}
+          className="absolute inset-y-0 right-0 flex items-center px-3 text-xs text-muted hover:text-jericho-text"
+          tabIndex={-1}
+        >
+          {show ? 'Hide' : 'Show'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function LoginGate({ onLogin }) {
   const [mode, setMode] = React.useState(() => (localAuth.hasAccount() ? 'login' : 'create'));
   const [username, setUsername] = React.useState('james');
   const [password, setPassword] = React.useState('');
   const [confirm, setConfirm] = React.useState('');
+  const [confirmTouched, setConfirmTouched] = React.useState(false);
   const [error, setError] = React.useState('');
   const [loading, setLoading] = React.useState(false);
+
+  // Inline mismatch hint — only after confirm field has been touched
+  const showMismatch =
+    mode === 'create' &&
+    confirmTouched &&
+    confirm.length > 0 &&
+    password.length > 0 &&
+    password !== confirm;
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -33,6 +77,10 @@ export default function LoginGate({ onLogin }) {
       setError('Password must be at least 6 characters.');
       return;
     }
+    if (!confirm) {
+      setError('Please confirm your password.');
+      return;
+    }
     if (password !== confirm) {
       setError('Passwords do not match.');
       return;
@@ -42,6 +90,14 @@ export default function LoginGate({ onLogin }) {
     localAuth.setSession(username);
     setLoading(false);
     onLogin(username);
+  };
+
+  const switchMode = (next) => {
+    setMode(next);
+    setError('');
+    setPassword('');
+    setConfirm('');
+    setConfirmTouched(false);
   };
 
   return (
@@ -84,46 +140,33 @@ export default function LoginGate({ onLogin }) {
           />
         </div>
 
-        <div className="space-y-1">
-          <label
-            className="text-xs uppercase tracking-[0.12em] text-muted"
-            htmlFor="login-password"
-          >
-            Password
-          </label>
-          <input
-            id="login-password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            className="w-full rounded-md border border-line/70 bg-white px-3 py-2 text-sm text-jericho-text focus:border-jericho-accent focus:outline-none"
-          />
-        </div>
+        <PasswordInput
+          id="login-password"
+          label="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+        />
 
         {mode === 'create' && (
-          <div className="space-y-1">
-            <label
-              className="text-xs uppercase tracking-[0.12em] text-muted"
-              htmlFor="login-confirm"
-            >
-              Confirm password
-            </label>
-            <input
-              id="login-confirm"
-              type="password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              required
-              autoComplete="new-password"
-              className="w-full rounded-md border border-line/70 bg-white px-3 py-2 text-sm text-jericho-text focus:border-jericho-accent focus:outline-none"
-            />
-          </div>
+          <PasswordInput
+            id="login-confirm"
+            label="Confirm password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            onBlur={() => setConfirmTouched(true)}
+            autoComplete="new-password"
+          />
+        )}
+
+        {showMismatch && (
+          <p className="text-xs text-amber-600" role="status" data-testid="mismatch-hint">
+            Passwords do not match.
+          </p>
         )}
 
         {error && (
-          <p className="text-xs text-red-500" role="alert">
+          <p className="text-xs text-red-500" role="alert" data-testid="error-message">
             {error}
           </p>
         )}
@@ -144,10 +187,7 @@ export default function LoginGate({ onLogin }) {
             <button
               type="button"
               className="text-jericho-accent hover:underline"
-              onClick={() => {
-                setMode('create');
-                setError('');
-              }}
+              onClick={() => switchMode('create')}
             >
               Create one
             </button>
@@ -158,10 +198,7 @@ export default function LoginGate({ onLogin }) {
             <button
               type="button"
               className="text-jericho-accent hover:underline"
-              onClick={() => {
-                setMode('login');
-                setError('');
-              }}
+              onClick={() => switchMode('login')}
             >
               Sign in
             </button>
