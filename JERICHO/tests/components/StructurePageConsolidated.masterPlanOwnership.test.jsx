@@ -208,6 +208,62 @@ describe('StructurePageConsolidated unified intake ownership', () => {
     expect(screen.queryByRole('dialog', { name: /Replace active execution cycle/i })).not.toBeInTheDocument();
   });
 
+  it('shows distinct pending text for Success Standard when successStandard field is absent', () => {
+    mockStore = {
+      ...buildPreAdmissionStore(),
+      profilesById: {
+        [DEFAULT_PROFILE_ID]: {
+          id: DEFAULT_PROFILE_ID,
+          activeMasterPlanId: 'mp-1',
+          masterPlanIds: ['mp-1'],
+        },
+      },
+      masterPlansById: {
+        'mp-1': {
+          id: 'mp-1',
+          title: 'Operation Endgame',
+          laneIds: ['lane-1'],
+          northStarOutcome: 'Grow revenue to $10k/month',
+          masterPlanSummary: 'Grow revenue to $10k/month',
+          outcomeTarget: null,
+          successStandard: null,
+        },
+      },
+    };
+
+    render(<StructurePageConsolidated />);
+
+    expect(screen.getByText('Grow revenue to $10k/month')).toBeInTheDocument();
+    expect(screen.getByText(/Success standard pending/i)).toBeInTheDocument();
+    expect(screen.queryAllByText('Grow revenue to $10k/month')).toHaveLength(1);
+  });
+
+  it('Archive Cycle button has no amber styling when no active cycle', () => {
+    mockStore = {
+      ...buildPreAdmissionStore(),
+      profilesById: {
+        [DEFAULT_PROFILE_ID]: {
+          id: DEFAULT_PROFILE_ID,
+          activeMasterPlanId: 'mp-1',
+          masterPlanIds: ['mp-1'],
+        },
+      },
+      masterPlansById: {
+        'mp-1': {
+          id: 'mp-1',
+          title: 'Operation Endgame',
+          laneIds: ['lane-1'],
+        },
+      },
+    };
+
+    render(<StructurePageConsolidated />);
+
+    const archiveBtn = screen.getByRole('button', { name: /Archive Cycle/i });
+    expect(archiveBtn).toBeDisabled();
+    expect(archiveBtn.className).not.toMatch(/amber/);
+  });
+
   it('opens the replacement modal only when a valid active execution cycle exists', () => {
     mockStore = {
       ...buildPreAdmissionStore(),

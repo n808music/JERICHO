@@ -226,7 +226,7 @@ function MasterPlanStructureSection({
               <div>
                 <div className="text-[11px] uppercase tracking-[0.12em] text-muted">Success Standard</div>
                 <div className="text-xs text-jericho-text">
-                  {activeMasterPlan?.successStandard || activeMasterPlan?.masterPlanSummary || 'Success standard pending'}
+                  {activeMasterPlan?.successStandard || 'Success standard pending'}
                 </div>
               </div>
               <div className="text-xs text-muted">
@@ -312,7 +312,7 @@ function CycleManagementSection({
           <button
             onClick={onArchiveCycle}
             disabled={!hasActiveCycle}
-            className="rounded-full border border-amber-600 px-3 py-1 text-xs text-amber-600 hover:bg-amber-600/10 disabled:opacity-50"
+            className={`rounded-full border px-3 py-1 text-xs disabled:opacity-50 ${hasActiveCycle ? 'border-amber-600 text-amber-600 hover:bg-amber-600/10' : 'border-line/60 text-muted'}`}
           >
             Archive Cycle
           </button>
