@@ -27,7 +27,8 @@ describe('AppShell', () => {
     const html = ReactDOMServer.renderToString(<AppShell />);
 
     expect(html).toContain('Profile access');
-    expect(html).toContain('Restore Operation Endgame');
+    expect(html).not.toContain('Restore Operation Endgame');
+    expect(html).toContain('Continue as James');
     expect(html).toContain('Create profile');
     expect(html).toContain('default local/demo profile');
     expect(html).not.toContain('Grow revenue to $10k/month');

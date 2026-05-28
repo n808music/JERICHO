@@ -73,7 +73,7 @@ describe('ProfileAccessGate', () => {
     expect(selectProfile).toHaveBeenCalledWith(expect.stringMatching(/^profile-local-/));
   });
 
-  it('offers Operation Endgame restore as a product-facing recovery action', async () => {
+  it('offers account continuation when no saved profiles exist', async () => {
     const restoreOperationEndgameProfile = vi.fn();
     render(
       <ProfileAccessGate
@@ -89,10 +89,48 @@ describe('ProfileAccessGate', () => {
     );
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /Restore Operation Endgame/i }));
+    await user.click(screen.getByRole('button', { name: /Continue as James/i }));
 
     expect(restoreOperationEndgameProfile).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('button', { name: /Create profile/i })).toBeInTheDocument();
+  });
+
+  it('does not expose restore fixture language in user-facing UI', () => {
+    render(
+      <ProfileAccessGate
+        store={{
+          activeProfileId: 'profile-local-default',
+          profilesById: {},
+          operationEndgameRestoreAvailable: true,
+          restoreOperationEndgameProfile: vi.fn(),
+          upsertProfileDetails: vi.fn(),
+          selectProfile: vi.fn(),
+        }}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: /Restore Operation Endgame/i })).not.toBeInTheDocument();
+  });
+
+  it('hides account continuation when saved profiles already exist', () => {
+    render(
+      <ProfileAccessGate
+        store={{
+          profilesById: {
+            'profile-james-endgame': {
+              id: 'profile-james-endgame',
+              displayName: 'James / Operation Endgame',
+            },
+          },
+          operationEndgameRestoreAvailable: true,
+          restoreOperationEndgameProfile: vi.fn(),
+          selectProfile: vi.fn(),
+        }}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: /^Continue as James$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Continue as James \/ Operation Endgame/i })).toBeInTheDocument();
   });
 
   it('hides placeholder local profiles from saved-profile continuation', () => {

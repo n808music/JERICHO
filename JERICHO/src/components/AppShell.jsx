@@ -247,7 +247,7 @@ export function ProfileAccessGate({ store, profileCoherence = null }) {
         <p className="text-xs uppercase tracking-[0.18em] text-muted">Profile access</p>
         <h1 className="text-2xl font-semibold text-jericho-text">Welcome to Jericho</h1>
         <p className="text-sm text-muted">
-          Select a coherent saved profile before entering the execution system.
+          Sign in to continue your execution system.
         </p>
         {profileCoherence?.reasonCodes?.length ? (
           <p className="text-xs text-muted">
@@ -278,13 +278,13 @@ export function ProfileAccessGate({ store, profileCoherence = null }) {
         </div>
       ) : null}
       <div className="flex flex-wrap gap-3">
-        {canRestoreOperationEndgame ? (
+        {canRestoreOperationEndgame && profiles.length === 0 ? (
           <button
             type="button"
             className="w-fit rounded-md border border-jericho-accent bg-jericho-accent px-4 py-2 text-sm font-semibold text-white hover:bg-jericho-accent/90"
             onClick={handleRestoreOperationEndgame}
           >
-            Restore Operation Endgame
+            Continue as James
           </button>
         ) : null}
         <button
