@@ -1526,7 +1526,7 @@ export default function ZionDashboard({
   }, [calendarSurfaceBlocks, timeZone]);
   const selectedDayBlocks = calendarDayBlocksMap.get(activeDayKey) || [];
   const dailyCheckInView = useMemo(() => {
-    if (!hasVisibleScheduleBlocks) {
+    if (!hasVisibleScheduleBlocks || !hasActiveSchedule) {
       return null;
     }
     const planningIntake =
@@ -2967,7 +2967,14 @@ export default function ZionDashboard({
 
               {zionView === 'day' ? (
                 <div className="space-y-4">
-                  {dailyCheckInView ? <DailyCheckInPanel view={dailyCheckInView} /> : null}
+                  {dailyCheckInView ? (
+                    <DailyCheckInPanel view={dailyCheckInView} />
+                  ) : !activeCycleId ? (
+                    <div className="rounded-lg border border-line/60 bg-jericho-surface/90 px-4 py-6 space-y-1 text-center">
+                      <p className="text-sm font-semibold text-jericho-text">No execution cycle active.</p>
+                      <p className="text-xs text-muted">Start your first cycle when ready.</p>
+                    </div>
+                  ) : null}
                   <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
                     <div className="space-y-3">
                     <BlockColumn

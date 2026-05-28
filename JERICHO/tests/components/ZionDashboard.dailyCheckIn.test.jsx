@@ -150,3 +150,40 @@ describe('ZionDashboard daily check-in surface', () => {
   });
 });
 
+describe('ZionDashboard no-active-cycle Today authority', () => {
+  it('does not render backlog check-in when no execution cycle is active', () => {
+    const base = buildStore();
+    mockStore = {
+      ...base,
+      activeCycleId: null,
+      cyclesById: {},
+      blockStore: { blocks: {} },
+      scheduleApplied: false,
+      fullHorizonScheduleBlocks: Array.from({ length: 12 }, (_, i) => ({
+        id: `fh-plan-P1-lane-2026-06-${String(i + 1).padStart(2, '0')}-0`,
+        title: `Forecast block ${i + 1}`,
+        dayKey: `2026-06-${String(i + 1).padStart(2, '0')}`,
+        phaseLabel: 'P1',
+        laneId: 'lane',
+      })),
+    };
+
+    render(<ZionDashboard initialView="today" initialZionView="day" />);
+
+    expect(screen.queryByText(/Where You Are/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/behind plan/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/ALERT/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/No execution cycle active\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Start your first cycle when ready\./i)).toBeInTheDocument();
+  });
+
+  it('still renders check-in when a cycle with an active schedule exists', () => {
+    mockStore = buildStore();
+
+    render(<ZionDashboard initialView="today" initialZionView="day" />);
+
+    expect(screen.getByText(/Where You Are/i)).toBeInTheDocument();
+    expect(screen.queryByText(/No execution cycle active\./i)).not.toBeInTheDocument();
+  });
+});
+
