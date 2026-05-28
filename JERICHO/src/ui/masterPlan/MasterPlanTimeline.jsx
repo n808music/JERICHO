@@ -134,7 +134,7 @@ function summarizeFilteredScheduledAgenda(blocks = [], selectedRange = '5Y', sel
   }, {});
 
   const byLane = filteredBlocks.reduce((acc, block) => {
-    const lane = lanes.find((laneItem) => laneItem?.id === block?.masterPlanLaneId);
+    const lane = lanes.find((laneItem) => laneItem?.id === (block?.masterPlanLaneId || block?.laneId));
     const domain = String(lane?.domain || '').trim().toLowerCase();
     const label = AGENDA_LANE_OPTIONS.find((option) => option.value === domain)?.label || lane?.title || 'Unassigned';
     acc[label] = (acc[label] || 0) + 1;
@@ -948,8 +948,8 @@ function MasterPlanTimelineView({ plan, store }) {
               <p className="text-sm text-muted">Plan visualizes integrated clusters and independent work on one calendar.</p>
             </div>
             <div className="text-right text-[11px] text-muted">
-              <p>{activeProfile.id}</p>
-              <p>{activeMasterCalendar.id}</p>
+              <p>{activeProfile.displayName || activeProfile.label || activeProfile.id}</p>
+              <p>Master Calendar</p>
             </div>
           </div>
           {strategicClusters.length > 0 ? (
@@ -1286,8 +1286,7 @@ function StrategicCoveragePanel({
                   : ''}
               </p>
               <p className="text-[11px] text-muted">
-                Constraints: {scheduledAgendaConstraintVersion?.source || 'manual'} ·{' '}
-                {scheduledAgendaConstraintVersion?.constraintHash || 'unversioned'}
+                Constraints: {scheduledAgendaConstraintVersion ? 'Active' : 'Not versioned'}
               </p>
               <p className="text-[11px] text-muted">
                 These blocks are future work: the active execution cycle is still the only live schedule.

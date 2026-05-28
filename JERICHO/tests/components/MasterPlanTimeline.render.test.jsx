@@ -543,7 +543,7 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByTestId('masterplan-agenda-status')).toHaveTextContent(/current/i);
     expect(screen.getByText(/generated P2\/P3 workload passes the current quality gate/i)).toBeInTheDocument();
     expect(screen.getByText(/Full-horizon scheduled agenda — planned, not live execution\./i)).toBeInTheDocument();
-    expect(screen.getByText(/Constraints:\s*master_calendar/i)).toBeInTheDocument();
+    expect(screen.getByText(/Constraints:\s*Active/i)).toBeInTheDocument();
     expect(screen.getByText(/\d+ planned blocks/i)).toBeInTheDocument();
     expect(screen.getByText(/\d+ scheduled · \d+ unscheduled/i)).toBeInTheDocument();
     expect(screen.getByTestId('masterplan-block-quality-status')).toBeInTheDocument();
@@ -606,5 +606,49 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByText(/No scheduled agenda version has been generated yet\./i)).toBeInTheDocument();
     expect(screen.getByText(/Full-horizon scheduled agenda — planned, not live execution\./i)).toBeInTheDocument();
     expect(screen.queryByText(/Constraints:/i)).not.toBeInTheDocument();
+  });
+
+  it('does not expose raw internal profile or calendar IDs in Plan UI', async () => {
+    const persisted = JSON.parse(JSON.stringify(buildOperationEndgameFixtureState()));
+    mockStore = rehydratePersistedState(persisted);
+    const activeProfileId = mockStore.activeProfileId;
+
+    await act(async () => {
+      render(<MasterPlanTimeline />);
+    });
+
+    const bodyText = document.body.textContent || '';
+    expect(bodyText).not.toMatch(new RegExp(activeProfileId));
+    expect(bodyText).not.toMatch(/calendar-profile-[a-z0-9-]+/);
+    expect(screen.getAllByText(/Master Calendar/i).length).toBeGreaterThan(0);
+  });
+
+  it('does not show Unassigned label for full-horizon blocks that have lane assignments', async () => {
+    const persisted = JSON.parse(JSON.stringify(buildOperationEndgameFixtureState()));
+    mockStore = rehydratePersistedState(persisted);
+
+    await act(async () => {
+      render(<MasterPlanTimeline />);
+    });
+
+    expect(screen.queryByText(/^Unassigned \d+$/i)).not.toBeInTheDocument();
+  });
+
+  it('does not render constraint hash in normal Plan UI', async () => {
+    const persisted = JSON.parse(JSON.stringify(buildOperationEndgameFixtureState()));
+    mockStore = rehydratePersistedState(persisted);
+
+    await act(async () => {
+      render(<MasterPlanTimeline />);
+    });
+
+    const constraintEls = screen.queryAllByText(/Constraints:/i);
+    constraintEls.forEach((el) => {
+      expect(el.textContent).not.toMatch(/[a-f0-9]{6,}/);
+      expect(el.textContent).not.toMatch(/master_calendar/);
+    });
+    if (constraintEls.length > 0) {
+      expect(constraintEls[0].textContent).toMatch(/Active|Not versioned/);
+    }
   });
 });
