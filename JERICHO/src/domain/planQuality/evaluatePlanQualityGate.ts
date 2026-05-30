@@ -19,7 +19,57 @@ type PlanArtifact = {
   dayKey?: string | null;
   start?: string | null;
   startISO?: string | null;
+  // Substrate fields — present on full-horizon blocks, absent on goal-level ProposedBlocks
+  blockType?: string | null;
+  owner?: string | null;
+  durationMinutes?: number | null;
+  producesArtifact?: string | null;
+  consumedBy?: string[] | null;
+  passEvidence?: string | null;
+  // Goal-level proxy classification (PLANNING | CORE | VERIFICATION)
+  kind?: string | null;
+  // Machine-verifiable downstream reference (present on full-horizon blocks)
+  consumedByRef?: { type: string; id: string } | null;
+  // Phase context for downstream ordering check
+  phaseLabel?: string | null;
+  // Lane context — present on full-horizon blocks
+  laneId?: string | null;
+  laneLabel?: string | null;
 };
+
+// Block types that are exempt from execution-substrate requirements.
+// Exempt types are ONLY for blocks that inspect, validate, audit, or checkpoint
+// already-produced work. They must not produce the primary artifact of a lane.
+// If a block creates user-facing, commercial, operational, creative, technical,
+// or strategic output, it is execution work and must carry execution substrate.
+// Adding new exempt types requires a test explaining why the block is truly non-production.
+const EXEMPT_BLOCK_TYPES = new Set([
+  'review',
+  'audit',
+  'terminal-review',
+  'terminal-readiness',
+  'gate',
+  'checkpoint',
+]);
+
+// Non-execution occupancy markers consume calendar time but are not production work.
+// They should influence temporal gap analysis without being forced to masquerade as
+// execution substrate, downstream support, or review/monitoring work.
+const NON_EXECUTION_OCCUPANCY_BLOCK_TYPES = new Set(['waiting_period']);
+
+function isReviewClassBlock(block: PlanArtifact): boolean {
+  if (block?.blockType) {
+    return EXEMPT_BLOCK_TYPES.has(block.blockType) || block.owner === 'reviewer' || block.owner === 'system';
+  }
+  if (block?.kind) {
+    return block.kind === 'VERIFICATION';
+  }
+  return false;
+}
+
+function isNonExecutionOccupancyBlock(block: PlanArtifact): boolean {
+  return Boolean(block?.blockType && NON_EXECUTION_OCCUPANCY_BLOCK_TYPES.has(block.blockType));
+}
 
 type PlanDeliverable = {
   id?: string;
@@ -37,6 +87,19 @@ type BranchCoverageSummary = {
   declaredBranches: string[]; // deliverable IDs expected to have block coverage
 };
 
+type PhaseObjectiveInput = {
+  id: string;
+  label: string;
+  phaseObjective?: string | null;
+  unlockCriteria?: string[] | null;
+};
+
+type LaneInput = {
+  id: string;
+  label?: string | null;
+  laneOutcome?: string | null;
+};
+
 type EvaluatePlanQualityGateInput = {
   goalText?: string;
   verificationText?: string;
@@ -45,6 +108,14 @@ type EvaluatePlanQualityGateInput = {
   proposedBlocks?: PlanArtifact[];
   committedBlocks?: PlanArtifact[];
   branchCoverageSummary?: BranchCoverageSummary;
+  phases?: PhaseObjectiveInput[];
+  lanes?: LaneInput[];
+  missionContext?: {
+    coreMission?: string | null;
+    outcomeTarget?: string | null;
+    successStandard?: string | null;
+    terminalOutcome?: string | null;
+  };
   temporalContext?: {
     contractStartDayKey?: string | null;
     contractEndDayKey?: string | null;
@@ -557,6 +628,97 @@ function analyzeLongHorizonTemporalDistribution(input: {
   };
 }
 
+// Phase-aware temporal workload distribution check.
+// Only fires for plans ≥ 1 year (365 days) that contain full-horizon blocks (blockType present).
+// Goal-level ProposedBlocks without blockType are skipped entirely.
+function analyzePhaseWorkloadDistribution(input: {
+  executionArtifacts: PlanArtifact[];
+  temporalContext?: EvaluatePlanQualityGateInput['temporalContext'];
+}): { failureCodes: PlanQualityFailureCode[]; phasesWithoutExecution: string[] } | null {
+  const contractStartDayKey = normalizeText(input.temporalContext?.contractStartDayKey);
+  const contractEndDayKey = normalizeText(input.temporalContext?.contractEndDayKey);
+  if (!isDayKey(contractStartDayKey) || !isDayKey(contractEndDayKey)) return null;
+  const horizonDays = daysBetween(contractStartDayKey, contractEndDayKey) + 1;
+  if (horizonDays < 365) return null;
+  if (input.temporalContext?.isRecurring === true) return null;
+  if (explicitEarlyCompletionAllowed(input.temporalContext?.earlyCompletionJustification)) return null;
+
+  const EXEMPT_PHASE_TYPES = new Set([
+    'review', 'audit', 'terminal-review', 'terminal-readiness', 'gate', 'checkpoint', 'waiting_period',
+  ]);
+
+  // Only analyze full-horizon blocks — those with blockType set
+  const fullHorizonBlocks = input.executionArtifacts.filter((b) => b?.blockType);
+  if (fullHorizonBlocks.length === 0) return null;
+
+  // Group by phase label (P1, P2, P3)
+  const byPhase: Record<string, { exec: PlanArtifact[]; all: PlanArtifact[] }> = {};
+  fullHorizonBlocks.forEach((block) => {
+    const phase = normalizeText((block as any)?.phaseLabel).toUpperCase();
+    if (!phase || !['P1', 'P2', 'P3'].includes(phase)) return;
+    if (!byPhase[phase]) byPhase[phase] = { exec: [], all: [] };
+    byPhase[phase].all.push(block);
+    const isExempt =
+      EXEMPT_PHASE_TYPES.has(block.blockType!) ||
+      block.owner === 'reviewer' ||
+      block.owner === 'system';
+    if (!isExempt) byPhase[phase].exec.push(block);
+  });
+
+  const presentPhases = (['P1', 'P2', 'P3'] as const).filter((p) => byPhase[p]);
+  if (presentPhases.length === 0) return null;
+
+  const foundCodes: PlanQualityFailureCode[] = [];
+  const phasesWithoutExecution: string[] = [];
+
+  // PHASE_WITHOUT_EXECUTION_WORK: phase has blocks but zero execution-class blocks
+  for (const phase of presentPhases) {
+    if ((byPhase[phase]?.exec.length ?? 0) === 0) {
+      phasesWithoutExecution.push(phase);
+    }
+  }
+  if (phasesWithoutExecution.length > 0) {
+    foundCodes.push('PHASE_WITHOUT_EXECUTION_WORK');
+  }
+
+  // FRONT_LOADED_EXECUTION: P3 exists and has <15% of total execution blocks while total >= 10
+  const totalExec = presentPhases.reduce((sum, p) => sum + (byPhase[p]?.exec.length ?? 0), 0);
+  const p3Exec = byPhase['P3']?.exec.length ?? 0;
+  if (byPhase['P3'] && totalExec >= 10 && p3Exec / totalExec < 0.15) {
+    foundCodes.push('FRONT_LOADED_EXECUTION');
+  }
+
+  // LONG_HORIZON_WORK_GAPS: gap > 60 days between consecutive execution blocks within any phase
+  // Extends the existing commercial-specific check to all goal types at a higher threshold
+  const MAX_INTRA_PHASE_GAP_DAYS = 60;
+  for (const phase of presentPhases) {
+    const execDayKeys = (byPhase[phase]?.exec ?? [])
+      .map((b) => resolveArtifactDayKey(b))
+      .filter(isDayKey)
+      .sort();
+    if (execDayKeys.length < 2) continue;
+    for (let i = 1; i < execDayKeys.length; i++) {
+      const gap = daysBetween(execDayKeys[i - 1] ?? '', execDayKeys[i] ?? '');
+      if (gap > MAX_INTRA_PHASE_GAP_DAYS) {
+        if (!foundCodes.includes('LONG_HORIZON_WORK_GAPS')) {
+          foundCodes.push('LONG_HORIZON_WORK_GAPS');
+        }
+        break;
+      }
+    }
+  }
+
+  // SPARSE_HORIZON_COVERAGE: fewer than 1 execution block per 2 months of horizon
+  // Only meaningful when there are full-horizon blocks to evaluate
+  const horizonMonths = horizonDays / 30;
+  const minRequired = Math.floor(horizonMonths / 2);
+  if (totalExec > 0 && totalExec < minRequired) {
+    foundCodes.push('SPARSE_HORIZON_COVERAGE');
+  }
+
+  return foundCodes.length > 0 ? { failureCodes: foundCodes, phasesWithoutExecution } : null;
+}
+
 function analyzeCommercialBlockSpecificity(input: {
   goalText: string;
   verificationText: string;
@@ -597,6 +759,262 @@ function analyzeCommercialBlockSpecificity(input: {
   }
 
   return null;
+}
+
+// Phase Objective Authenticity: each phase in a full-horizon plan must carry a concrete
+// objective and measurable unlock criteria, and must have at least one execution-class block
+// supporting it. Fires only when phases are explicitly provided (non-phased plans are skipped).
+function analyzePhaseObjectiveAuthenticity(input: {
+  phases: PhaseObjectiveInput[];
+  executionArtifacts: PlanArtifact[];
+}): {
+  failureCodes: PlanQualityFailureCode[];
+  phasesWithMissingObjective: string[];
+  phasesWithVagueObjective: string[];
+  phasesWithMissingUnlockCriteria: string[];
+  phasesWithVagueUnlockCriteria: string[];
+  phasesWithoutSupportingBlocks: string[];
+} | null {
+  const { phases, executionArtifacts } = input;
+  if (!Array.isArray(phases) || phases.length === 0) return null;
+
+  // A phase objective is vague if it has fewer than 3 specific semantic tokens after filtering
+  // stopwords, process-class verbs (build/prepare/improve/execute), and shell tokens.
+  // This catches "Scale" (1), "Build momentum" (1, "build" filtered), "Continue execution" (2).
+  const OBJECTIVE_TOKEN_THRESHOLD = 3;
+
+  // A single unlock criterion is vague if it has fewer than 2 specific semantic tokens.
+  // Fires only when ALL criteria in the array are vague.
+  const CRITERION_TOKEN_THRESHOLD = 2;
+
+  // Additional denylist for known vague objective phrases.
+  const VAGUE_OBJECTIVE_PHRASES = new Set([
+    'scale',
+    'build momentum',
+    'prepare for growth',
+    'continue execution',
+    'improve operations',
+    'growth',
+    'momentum',
+    'move forward',
+    'scale up',
+  ]);
+
+  // Count execution-class blocks per phase label (uppercase key).
+  // Review/checkpoint blocks do not satisfy phase support.
+  const execBlocksByPhase = new Map<string, number>();
+  for (const block of executionArtifacts) {
+    const phaseKey = normalizeText((block as any)?.phaseLabel).toUpperCase();
+    if (!phaseKey || !block?.blockType || isReviewClassBlock(block) || isNonExecutionOccupancyBlock(block)) continue;
+    execBlocksByPhase.set(phaseKey, (execBlocksByPhase.get(phaseKey) ?? 0) + 1);
+  }
+
+  const foundCodes: PlanQualityFailureCode[] = [];
+  const phasesWithMissingObjective: string[] = [];
+  const phasesWithVagueObjective: string[] = [];
+  const phasesWithMissingUnlockCriteria: string[] = [];
+  const phasesWithVagueUnlockCriteria: string[] = [];
+  const phasesWithoutSupportingBlocks: string[] = [];
+
+  for (const phase of phases) {
+    const label = normalizeText(phase.label) || normalizeText(phase.id);
+
+    // --- Objective checks ---
+    const objectiveText = normalizeText(phase.phaseObjective);
+    if (!objectiveText) {
+      phasesWithMissingObjective.push(label);
+    } else {
+      const tokens = extractSemanticTokens(objectiveText, { excludeShell: true });
+      if (VAGUE_OBJECTIVE_PHRASES.has(objectiveText.toLowerCase()) || tokens.length < OBJECTIVE_TOKEN_THRESHOLD) {
+        phasesWithVagueObjective.push(label);
+      }
+    }
+
+    // --- Unlock criteria checks ---
+    const criteria = Array.isArray(phase.unlockCriteria) ? (phase.unlockCriteria as string[]).filter(Boolean) : [];
+    if (criteria.length === 0) {
+      phasesWithMissingUnlockCriteria.push(label);
+    } else {
+      const allVague = criteria.every(
+        (criterion) => extractSemanticTokens(criterion, { excludeShell: true }).length < CRITERION_TOKEN_THRESHOLD,
+      );
+      if (allVague) {
+        phasesWithVagueUnlockCriteria.push(label);
+      }
+    }
+
+    // --- Supporting blocks check ---
+    const phaseKey = normalizeText(phase.label).toUpperCase();
+    if ((execBlocksByPhase.get(phaseKey) ?? 0) === 0) {
+      phasesWithoutSupportingBlocks.push(label);
+    }
+  }
+
+  if (phasesWithMissingObjective.length > 0) foundCodes.push('MISSING_PHASE_OBJECTIVE');
+  if (phasesWithVagueObjective.length > 0) foundCodes.push('VAGUE_PHASE_OBJECTIVE');
+  if (phasesWithMissingUnlockCriteria.length > 0) foundCodes.push('MISSING_PHASE_UNLOCK_CRITERIA');
+  if (phasesWithVagueUnlockCriteria.length > 0) foundCodes.push('VAGUE_PHASE_UNLOCK_CRITERIA');
+  if (phasesWithoutSupportingBlocks.length > 0) foundCodes.push('PHASE_OBJECTIVE_WITHOUT_SUPPORTING_BLOCKS');
+
+  if (foundCodes.length === 0) return null;
+  return {
+    failureCodes: foundCodes,
+    phasesWithMissingObjective,
+    phasesWithVagueObjective,
+    phasesWithMissingUnlockCriteria,
+    phasesWithVagueUnlockCriteria,
+    phasesWithoutSupportingBlocks,
+  };
+}
+
+// Mission Alignment Authenticity: phase objectives must share meaningful tokens with the declared
+// mission context, and a terminal outcome requires a P3 phase to support it.
+// Fires only when both phases and non-empty missionContext are explicitly provided.
+function analyzeMissionAlignment(input: {
+  phases: PhaseObjectiveInput[];
+  missionContext: EvaluatePlanQualityGateInput['missionContext'];
+}): { failureCodes: PlanQualityFailureCode[]; misalignedPhases: string[] } | null {
+  const { phases, missionContext } = input;
+  if (!Array.isArray(phases) || phases.length === 0) return null;
+  if (!missionContext) return null;
+
+  // Build combined mission reference text from all provided mission context fields
+  const missionRefText = [
+    missionContext.coreMission,
+    missionContext.outcomeTarget,
+    missionContext.successStandard,
+    missionContext.terminalOutcome,
+  ]
+    .filter(Boolean)
+    .join(' ');
+  if (!normalizeText(missionRefText)) return null;
+
+  const missionTokens = new Set(extractSemanticTokens(missionRefText, { excludeShell: true }));
+  if (missionTokens.size === 0) return null;
+
+  const foundCodes: PlanQualityFailureCode[] = [];
+  const misalignedPhases: string[] = [];
+
+  // PHASE_OBJECTIVE_NOT_MISSION_ALIGNED: phase objective has zero token overlap with mission context
+  for (const phase of phases) {
+    const label = normalizeText(phase.label) || normalizeText(phase.id);
+    const objectiveText = normalizeText(phase.phaseObjective);
+    if (!objectiveText) continue; // missing objective handled by analyzePhaseObjectiveAuthenticity
+    const objectiveTokens = extractSemanticTokens(objectiveText, { excludeShell: true });
+    const overlap = objectiveTokens.filter((t) => missionTokens.has(t));
+    if (overlap.length === 0) {
+      misalignedPhases.push(label);
+    }
+  }
+  if (misalignedPhases.length > 0) {
+    foundCodes.push('PHASE_OBJECTIVE_NOT_MISSION_ALIGNED');
+  }
+
+  // TERMINAL_OUTCOME_WITHOUT_PHASE_SUPPORT: a declared terminal outcome requires a P3 phase
+  const terminalOutcome = normalizeText(missionContext.terminalOutcome);
+  if (terminalOutcome) {
+    const hasP3 = phases.some((p) => normalizeText(p.label).toUpperCase() === 'P3');
+    if (!hasP3) {
+      foundCodes.push('TERMINAL_OUTCOME_WITHOUT_PHASE_SUPPORT');
+    }
+  }
+
+  if (foundCodes.length === 0) return null;
+  return { failureCodes: foundCodes, misalignedPhases };
+}
+
+function analyzeLaneContributionAuthenticity(input: {
+  lanes?: LaneInput[];
+  executionArtifacts: PlanArtifact[];
+}): {
+  failureCodes: PlanQualityFailureCode[];
+  lanesWithMissingOutcome: string[];
+  lanesWithVagueOutcome: string[];
+  lanesWithoutExecution: string[];
+  lanesWithoutSupport: string[];
+} | null {
+  const lanes = Array.isArray(input.lanes) ? input.lanes.filter(Boolean) : [];
+  if (lanes.length === 0) return null;
+
+  const fullHorizonArtifacts = input.executionArtifacts.filter((artifact) => artifact?.blockType);
+  if (fullHorizonArtifacts.length === 0) return null;
+
+  const VAGUE_LANE_OUTCOME_PATTERNS = new Set([
+    'build momentum',
+    'support growth',
+    'improve operations',
+    'create content',
+    'make progress',
+  ]);
+  const LANE_OUTCOME_TOKEN_THRESHOLD = 2;
+
+  const executionBlocksByLane = new Map<string, PlanArtifact[]>();
+  for (const artifact of fullHorizonArtifacts) {
+    const laneId = normalizeText(artifact?.laneId);
+    if (!laneId || isReviewClassBlock(artifact) || isNonExecutionOccupancyBlock(artifact)) continue;
+    if (!executionBlocksByLane.has(laneId)) {
+      executionBlocksByLane.set(laneId, []);
+    }
+    executionBlocksByLane.get(laneId)?.push(artifact);
+  }
+
+  const foundCodes: PlanQualityFailureCode[] = [];
+  const lanesWithMissingOutcome: string[] = [];
+  const lanesWithVagueOutcome: string[] = [];
+  const lanesWithoutExecution: string[] = [];
+  const lanesWithoutSupport: string[] = [];
+
+  for (const lane of lanes) {
+    const laneId = normalizeText(lane?.id);
+    if (!laneId) continue;
+
+    const laneLabel = normalizeText(lane?.label) || laneId;
+    const laneOutcome = normalizeText(lane?.laneOutcome);
+    if (!laneOutcome) {
+      lanesWithMissingOutcome.push(laneLabel);
+    } else {
+      const outcomeTokens = extractSemanticTokens(laneOutcome, { excludeShell: true });
+      if (
+        VAGUE_LANE_OUTCOME_PATTERNS.has(laneOutcome.toLowerCase()) ||
+        outcomeTokens.length < LANE_OUTCOME_TOKEN_THRESHOLD
+      ) {
+        lanesWithVagueOutcome.push(laneLabel);
+      }
+    }
+
+    const laneExecutionBlocks = executionBlocksByLane.get(laneId) || [];
+    if (laneExecutionBlocks.length === 0) {
+      lanesWithoutExecution.push(laneLabel);
+      continue;
+    }
+
+    const hasContributionPath = laneExecutionBlocks.some((block) => {
+      const refType = normalizeText(block?.consumedByRef?.type);
+      const refId = normalizeText(block?.consumedByRef?.id);
+      if (!refType || !refId) return false;
+      if (refType === 'phaseObjective' || refType === 'terminalOutcome') return true;
+      if (refType !== 'laneOutcome') return false;
+      return refId === laneId || refId.startsWith(`${laneId}:`);
+    });
+
+    if (!hasContributionPath) {
+      lanesWithoutSupport.push(laneLabel);
+    }
+  }
+
+  if (lanesWithMissingOutcome.length > 0) foundCodes.push('MISSING_LANE_OUTCOME');
+  if (lanesWithVagueOutcome.length > 0) foundCodes.push('VAGUE_LANE_OUTCOME');
+  if (lanesWithoutExecution.length > 0) foundCodes.push('LANE_WITHOUT_EXECUTION_WORK');
+  if (lanesWithoutSupport.length > 0) foundCodes.push('LANE_OUTCOME_WITHOUT_PHASE_OR_MISSION_SUPPORT');
+
+  if (foundCodes.length === 0) return null;
+  return {
+    failureCodes: foundCodes,
+    lanesWithMissingOutcome,
+    lanesWithVagueOutcome,
+    lanesWithoutExecution,
+    lanesWithoutSupport,
+  };
 }
 
 export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): PlanQualityGateResult {
@@ -815,6 +1233,220 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
     }
   });
 
+  // Action Title Executability: execution block titles must be complete, action-oriented instructions.
+  // Only applies to full-horizon execution blocks (blockType present, not review-class).
+  const ACTION_VERB_SET = new Set([
+    'activate', 'analyze', 'archive', 'assemble', 'assess', 'audit',
+    'backup', 'brief', 'build',
+    'close', 'collect', 'communicate', 'compile', 'complete', 'configure', 'confirm', 'connect',
+    'consolidate', 'coordinate', 'create',
+    'debug', 'define', 'deliver', 'demo', 'deploy', 'design', 'develop', 'document', 'draft',
+    'establish', 'evaluate', 'execute',
+    'finalize', 'fix', 'gather', 'generate', 'harden', 'hire',
+    'identify', 'implement', 'improve', 'integrate',
+    'launch', 'map', 'measure', 'migrate', 'model', 'monitor',
+    'onboard', 'optimize', 'outline', 'package', 'plan', 'prepare', 'present', 'produce',
+    'prototype', 'publish',
+    'reconcile', 'record', 'release', 'resolve', 'review', 'revise', 'run',
+    'secure', 'select', 'sequence', 'set', 'share', 'ship', 'stress-test', 'submit', 'sync',
+    'test', 'track', 'train', 'update', 'validate', 'verify', 'write',
+  ]);
+  const INTERROGATIVE_WORDS = new Set([
+    'what', 'how', 'why', 'when', 'where', 'who', 'which',
+    'is', 'are', 'does', 'do', 'can', 'should', 'will', 'would', 'could',
+  ]);
+
+  function checkTitleExecutability(title: string): {
+    fragmentary: boolean; nonActionable: boolean; question: boolean;
+  } {
+    if (!title) return { fragmentary: false, nonActionable: false, question: false };
+    const words = title.trim().split(/\s+/);
+    const firstWord = (words[0] || '').toLowerCase().replace(/[^a-z-]/g, '');
+    return {
+      fragmentary: words.length < 3,
+      question: title.includes('?') || INTERROGATIVE_WORDS.has(firstWord),
+      nonActionable: words.length >= 3 && !ACTION_VERB_SET.has(firstWord),
+    };
+  }
+
+  // Artifact specificity: vague phrase denylists for known placeholder outputs.
+  // "With context" exceptions: a category word paired with 2+ substantive descriptor tokens passes.
+  const VAGUE_ARTIFACT_PHRASES = new Set([
+    'work product matching expected output',
+    'completed artifact matching expected output',
+    'work product',
+    'output',
+    'artifact',
+    'result',
+    'progress',
+  ]);
+  const VAGUE_EVIDENCE_PHRASES = new Set([
+    'work product matching expected output',
+    'completed artifact matching expected output',
+    'done',
+    'complete',
+    'completed',
+    'finished',
+    'assembled',
+    'created',
+    'produced',
+    'work done',
+    'work complete',
+    'work completed',
+    'block passed',
+    'task done',
+    'task complete',
+    'evidence exists',
+    'artifact exists',
+  ]);
+
+  function isVagueArtifact(value: string | null | undefined): boolean {
+    const text = normalizeText(value).toLowerCase();
+    if (!text) return false; // empty already caught by MISSING_EXECUTION_ARTIFACT
+    if (VAGUE_ARTIFACT_PHRASES.has(text)) return true;
+    // Shell-only check: no substantive (non-shell, non-stop, non-process) tokens at all
+    return extractSemanticTokens(text, { excludeShell: true }).length === 0;
+  }
+
+  function isVagueEvidence(value: string | null | undefined): boolean {
+    const text = normalizeText(value).toLowerCase();
+    if (!text) return false; // empty already caught by MISSING_EXECUTION_PASS_EVIDENCE
+    if (VAGUE_EVIDENCE_PHRASES.has(text)) return true;
+    return extractSemanticTokens(text, { excludeShell: true }).length === 0;
+  }
+
+  // Plan Substance Gate: execution blocks must answer who owns the work, how long it takes,
+  // what artifact it produces, what consumes that output, and what evidence proves it passed.
+  // Full-horizon blocks carry blockType + all 5 fields; goal-level blocks carry kind only.
+  // Review/audit/checkpoint/gate blocks are exempt from execution-substrate requirements.
+  const substanceMissingBlockIds = new Set<string>();
+  const vagueArtifactBlockIds = new Set<string>();
+  const vagueEvidenceBlockIds = new Set<string>();
+  const fragmentaryBlockIds = new Set<string>();
+  const nonActionableBlockIds = new Set<string>();
+  const questionBlockIds = new Set<string>();
+  let reviewClassCount = 0;
+  let executionClassCount = 0;
+
+  executionArtifacts.forEach((block, index) => {
+    const blockId = normalizeText(block?.id) || `block-${index + 1}`;
+    const title = normalizeText(block?.title);
+    if (isReviewClassBlock(block)) {
+      reviewClassCount++;
+      return;
+    }
+    if (isNonExecutionOccupancyBlock(block)) {
+      return;
+    }
+    executionClassCount++;
+    // Substrate field enforcement applies only to full-horizon blocks (blockType present).
+    // Goal-level ProposedBlocks (kind only) contribute to the ratio check but are not
+    // individually flagged for missing fields they structurally cannot carry.
+    if (!block?.blockType) return;
+    if (!normalizeText(block?.owner)) {
+      substanceMissingBlockIds.add(blockId);
+      failureCodes.add('MISSING_EXECUTION_OWNER');
+      reasonCodes.add('MISSING_EXECUTION_OWNER');
+    }
+    if (!block?.durationMinutes || block.durationMinutes <= 0) {
+      substanceMissingBlockIds.add(blockId);
+      failureCodes.add('MISSING_EXECUTION_DURATION');
+      reasonCodes.add('MISSING_EXECUTION_DURATION');
+    }
+    if (!normalizeText(block?.producesArtifact)) {
+      substanceMissingBlockIds.add(blockId);
+      failureCodes.add('MISSING_EXECUTION_ARTIFACT');
+      reasonCodes.add('MISSING_EXECUTION_ARTIFACT');
+    }
+    if (!Array.isArray(block?.consumedBy) || block.consumedBy.length === 0) {
+      substanceMissingBlockIds.add(blockId);
+      failureCodes.add('MISSING_EXECUTION_CONSUMER');
+      reasonCodes.add('MISSING_EXECUTION_CONSUMER');
+    }
+    if (!normalizeText(block?.passEvidence)) {
+      substanceMissingBlockIds.add(blockId);
+      failureCodes.add('MISSING_EXECUTION_PASS_EVIDENCE');
+      reasonCodes.add('MISSING_EXECUTION_PASS_EVIDENCE');
+    }
+    // Artifact Specificity: present fields must still be specific enough to be actionable.
+    // Only fires when the field is non-empty (missing fields are caught above).
+    if (normalizeText(block?.producesArtifact) && isVagueArtifact(block?.producesArtifact)) {
+      vagueArtifactBlockIds.add(blockId);
+      failureCodes.add('VAGUE_EXECUTION_ARTIFACT');
+      reasonCodes.add('VAGUE_EXECUTION_ARTIFACT');
+    }
+    if (normalizeText(block?.passEvidence) && isVagueEvidence(block?.passEvidence)) {
+      vagueEvidenceBlockIds.add(blockId);
+      failureCodes.add('VAGUE_PASS_EVIDENCE');
+      reasonCodes.add('VAGUE_PASS_EVIDENCE');
+    }
+    // Action Title Executability: title must be a complete, action-oriented instruction.
+    // Checked only when title is present (empty titles are caught by BLOCK_TOO_GENERIC/LINEAGE checks).
+    if (title) {
+      const titleCheck = checkTitleExecutability(title);
+      if (titleCheck.fragmentary) {
+        fragmentaryBlockIds.add(blockId);
+        failureCodes.add('FRAGMENTARY_BLOCK_TITLE');
+        reasonCodes.add('FRAGMENTARY_BLOCK_TITLE');
+      } else if (titleCheck.question) {
+        questionBlockIds.add(blockId);
+        failureCodes.add('QUESTION_BLOCK_TITLE');
+        reasonCodes.add('QUESTION_BLOCK_TITLE');
+      } else if (titleCheck.nonActionable) {
+        nonActionableBlockIds.add(blockId);
+        failureCodes.add('NON_ACTIONABLE_BLOCK_TITLE');
+        reasonCodes.add('NON_ACTIONABLE_BLOCK_TITLE');
+      }
+    }
+  });
+
+  // MONITORING_WITHOUT_PRODUCTION: a plan whose classified blocks are majority review/audit/checkpoint
+  // has scheduled oversight of work it never scheduled. Requires at least 3 classified blocks to fire.
+  const totalClassifiedBlocks = reviewClassCount + executionClassCount;
+  if (totalClassifiedBlocks >= 3 && reviewClassCount / totalClassifiedBlocks > 0.5) {
+    failureCodes.add('MONITORING_WITHOUT_PRODUCTION');
+    reasonCodes.add('MONITORING_WITHOUT_PRODUCTION');
+  }
+
+  // Dependency Chain Authenticity: execution blocks must reference a real downstream plan object.
+  // consumedByRef is the machine-verifiable link; consumedBy is the human-readable label.
+  // Only fires for full-horizon blocks that carry blockType — goal-level blocks are not checked here.
+  const KNOWN_PHASE_LABELS = new Set(['P1', 'P2', 'P3']);
+  const PHASE_ORDER: Record<string, number> = { P1: 1, P2: 2, P3: 3 };
+  const VAGUE_REF_IDS = new Set(['plan', 'downstream', 'later', 'tbd', 'future', 'unknown', '']);
+  const consumedByRefMissingBlockIds = new Set<string>();
+  const consumedByRefUnresolvedBlockIds = new Set<string>();
+  const consumedByRefNonDownstreamBlockIds = new Set<string>();
+
+  executionArtifacts.forEach((block, index) => {
+    const blockId = normalizeText(block?.id) || `block-${index + 1}`;
+    if (isReviewClassBlock(block) || isNonExecutionOccupancyBlock(block)) return;
+    if (!block?.blockType) return;
+    const ref = block?.consumedByRef;
+    const refId = normalizeText(ref?.id).toLowerCase();
+    if (!ref || !refId || VAGUE_REF_IDS.has(refId)) {
+      consumedByRefMissingBlockIds.add(blockId);
+      failureCodes.add('MISSING_CONSUMED_BY_REF');
+      reasonCodes.add('MISSING_CONSUMED_BY_REF');
+      return;
+    }
+    if (ref.type === 'phaseObjective' && !KNOWN_PHASE_LABELS.has(normalizeText(ref.id).toUpperCase())) {
+      consumedByRefUnresolvedBlockIds.add(blockId);
+      failureCodes.add('UNRESOLVED_CONSUMED_BY_REF');
+      reasonCodes.add('UNRESOLVED_CONSUMED_BY_REF');
+      return;
+    }
+    if (ref.type === 'phaseObjective' && block?.phaseLabel) {
+      const blockOrder = PHASE_ORDER[normalizeText(block.phaseLabel).toUpperCase()];
+      const refOrder = PHASE_ORDER[normalizeText(ref.id).toUpperCase()];
+      if (blockOrder && refOrder && refOrder <= blockOrder) {
+        consumedByRefNonDownstreamBlockIds.add(blockId);
+        failureCodes.add('NON_DOWNSTREAM_CONSUMED_BY_REF');
+        reasonCodes.add('NON_DOWNSTREAM_CONSUMED_BY_REF');
+      }
+    }
+  });
+
   const deliverableTitles = deliverables.map((deliverable) => normalizeText(deliverable?.title));
   const commercialSemanticFinding = evaluateCommercialProductLaunchSemanticCoverage({
     goalText,
@@ -886,6 +1518,43 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
       reasonCodes.add(failureCode);
     });
   }
+
+  const phaseWorkloadFinding = analyzePhaseWorkloadDistribution({
+    executionArtifacts,
+    temporalContext: input.temporalContext,
+  });
+  phaseWorkloadFinding?.failureCodes.forEach((code) => {
+    failureCodes.add(code);
+    reasonCodes.add(code);
+  });
+
+  const phaseObjectiveFinding = analyzePhaseObjectiveAuthenticity({
+    phases: Array.isArray(input.phases) ? input.phases : [],
+    executionArtifacts,
+  });
+  phaseObjectiveFinding?.failureCodes.forEach((code) => {
+    failureCodes.add(code);
+    reasonCodes.add(code);
+  });
+
+  const missionAlignmentFinding = analyzeMissionAlignment({
+    phases: Array.isArray(input.phases) ? input.phases : [],
+    missionContext: input.missionContext,
+  });
+  missionAlignmentFinding?.failureCodes.forEach((code) => {
+    failureCodes.add(code);
+    reasonCodes.add(code);
+  });
+
+  const laneContributionFinding = analyzeLaneContributionAuthenticity({
+    lanes: input.lanes,
+    executionArtifacts,
+  });
+  laneContributionFinding?.failureCodes.forEach((code) => {
+    failureCodes.add(code);
+    reasonCodes.add(code);
+  });
+
   const commercialBlockSpecificityFinding = analyzeCommercialBlockSpecificity({
     goalText,
     verificationText,
@@ -932,6 +1601,48 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
         goalObjectMissingBlockIds: Array.from(goalObjectMissingBlockIds),
       }),
       ...(meaningLossBlockIds.size > 0 && { meaningLossBlockIds: Array.from(meaningLossBlockIds) }),
+      ...(substanceMissingBlockIds.size > 0 && { substanceMissingBlockIds: Array.from(substanceMissingBlockIds) }),
+      ...(vagueArtifactBlockIds.size > 0 && { vagueArtifactBlockIds: Array.from(vagueArtifactBlockIds) }),
+      ...(vagueEvidenceBlockIds.size > 0 && { vagueEvidenceBlockIds: Array.from(vagueEvidenceBlockIds) }),
+      ...(fragmentaryBlockIds.size > 0 && { fragmentaryBlockIds: Array.from(fragmentaryBlockIds) }),
+      ...(nonActionableBlockIds.size > 0 && { nonActionableBlockIds: Array.from(nonActionableBlockIds) }),
+      ...(questionBlockIds.size > 0 && { questionBlockIds: Array.from(questionBlockIds) }),
+      ...(consumedByRefMissingBlockIds.size > 0 && { consumedByRefMissingBlockIds: Array.from(consumedByRefMissingBlockIds) }),
+      ...(consumedByRefUnresolvedBlockIds.size > 0 && { consumedByRefUnresolvedBlockIds: Array.from(consumedByRefUnresolvedBlockIds) }),
+      ...(consumedByRefNonDownstreamBlockIds.size > 0 && { consumedByRefNonDownstreamBlockIds: Array.from(consumedByRefNonDownstreamBlockIds) }),
+      ...(phaseWorkloadFinding?.phasesWithoutExecution?.length && {
+        phasesWithoutExecution: phaseWorkloadFinding.phasesWithoutExecution,
+      }),
+      ...(phaseObjectiveFinding?.phasesWithMissingObjective?.length && {
+        phasesWithMissingObjective: phaseObjectiveFinding.phasesWithMissingObjective,
+      }),
+      ...(phaseObjectiveFinding?.phasesWithVagueObjective?.length && {
+        phasesWithVagueObjective: phaseObjectiveFinding.phasesWithVagueObjective,
+      }),
+      ...(phaseObjectiveFinding?.phasesWithMissingUnlockCriteria?.length && {
+        phasesWithMissingUnlockCriteria: phaseObjectiveFinding.phasesWithMissingUnlockCriteria,
+      }),
+      ...(phaseObjectiveFinding?.phasesWithVagueUnlockCriteria?.length && {
+        phasesWithVagueUnlockCriteria: phaseObjectiveFinding.phasesWithVagueUnlockCriteria,
+      }),
+      ...(phaseObjectiveFinding?.phasesWithoutSupportingBlocks?.length && {
+        phasesWithoutSupportingBlocks: phaseObjectiveFinding.phasesWithoutSupportingBlocks,
+      }),
+      ...(missionAlignmentFinding?.misalignedPhases?.length && {
+        phasesNotMissionAligned: missionAlignmentFinding.misalignedPhases,
+      }),
+      ...(laneContributionFinding?.lanesWithMissingOutcome?.length && {
+        lanesWithMissingOutcome: laneContributionFinding.lanesWithMissingOutcome,
+      }),
+      ...(laneContributionFinding?.lanesWithVagueOutcome?.length && {
+        lanesWithVagueOutcome: laneContributionFinding.lanesWithVagueOutcome,
+      }),
+      ...(laneContributionFinding?.lanesWithoutExecution?.length && {
+        lanesWithoutExecution: laneContributionFinding.lanesWithoutExecution,
+      }),
+      ...(laneContributionFinding?.lanesWithoutSupport?.length && {
+        lanesWithoutSupport: laneContributionFinding.lanesWithoutSupport,
+      }),
       ...(temporalFinding && { temporalDistribution: temporalFinding.temporalDistribution }),
       ...(commercialBlockSpecificityFinding && {
         commercialBlockSpecificity: {
