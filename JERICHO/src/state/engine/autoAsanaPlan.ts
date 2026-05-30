@@ -68,6 +68,11 @@ type AutoAsanaPlan = {
     requiredWorkFamily?: string | null;
     capitalGateId?: string | null;
     pathwayTag?: string | null;
+    owner?: string | null;
+    producesArtifact?: string | null;
+    consumedBy?: string[] | string | null;
+    passEvidence?: string | null;
+    consumedByRef?: { type: string; id: string } | null;
   }>;
   conflicts: { kind: string; detail: string; code?: string; candidateResolutions?: string[] }[];
   recoveryOptions: { kind: string; detail: string }[];
@@ -166,6 +171,9 @@ export function compileAutoAsanaPlan({
   actionSequence?: Array<{
     id?: string;
     title?: string;
+    deliverable?: string;
+    definitionOfDone?: string;
+    actionType?: 'preparation' | 'execution';
     estimateMin?: number;
     dependencies?: string[];
     dependencyDetails?: DependencyDetail[];
@@ -220,6 +228,7 @@ export function compileAutoAsanaPlan({
     dayKeys,
     plannedPerDay,
     timeZone,
+    goalId,
     cycleId,
     constraints,
     acceptedBlocks,
@@ -441,6 +450,7 @@ function scheduleHorizonBlocks({
   dayKeys,
   plannedPerDay,
   timeZone,
+  goalId,
   cycleId,
   constraints,
   acceptedBlocks,
@@ -450,12 +460,16 @@ function scheduleHorizonBlocks({
   dayKeys: string[];
   plannedPerDay: number;
   timeZone: string;
+  goalId: string;
   cycleId: string;
   constraints: Constraints;
   acceptedBlocks: Array<{ id: string; startISO: string; durationMinutes: number }>;
   actionSequence: Array<{
     id?: string;
     title?: string;
+    deliverable?: string;
+    definitionOfDone?: string;
+    actionType?: 'preparation' | 'execution';
     estimateMin?: number;
     dependencies?: string[];
     deliverableId?: string | null;
@@ -490,6 +504,11 @@ function scheduleHorizonBlocks({
     completionCondition?: string | null;
     detailTitle?: string | null;
     endISO?: string | null;
+    owner?: string | null;
+    producesArtifact?: string | null;
+    consumedBy?: string[] | string | null;
+    passEvidence?: string | null;
+    consumedByRef?: { type: string; id: string } | null;
   }> = [];
   const conflicts: AutoAsanaPlan['conflicts'] = [];
   const recoveryOptions: AutoAsanaPlan['recoveryOptions'] = [];
@@ -498,6 +517,7 @@ function scheduleHorizonBlocks({
   const requiredDrafts = buildRequiredDrafts(
     dayKeys,
     plannedPerDay,
+    goalId,
     cycleId,
     durationMinutes,
     acceptedBlocks,
@@ -628,6 +648,11 @@ function scheduleHorizonBlocks({
       requiredWorkFamily: draft.requiredWorkFamily || null,
       capitalGateId: draft.capitalGateId || null,
       pathwayTag: draft.pathwayTag || null,
+      owner: draft.owner ?? null,
+      producesArtifact: draft.producesArtifact ?? null,
+      consumedBy: Array.isArray(draft.consumedBy) ? [...draft.consumedBy] : draft.consumedBy ?? null,
+      passEvidence: draft.passEvidence ?? null,
+      consumedByRef: draft.consumedByRef ? { ...draft.consumedByRef } : draft.consumedByRef ?? null,
     });
     if (draft.identityKey) {
       seenIdentityKeys.add(draft.identityKey);
@@ -694,6 +719,11 @@ function scheduleHorizonBlocks({
           sessionIndex: nextSessionIndex,
           identityKey,
           detailTitle: `Final validation and terminal closure checkpoint for ${anchorTitle}`,
+          owner: 'executor',
+          producesArtifact: `Terminal closure evidence package for ${anchorTitle}`,
+          consumedBy: [`terminalOutcome:${goalId}`],
+          passEvidence: `Terminal closure checkpoint recorded with final validation evidence and outcome decision for ${anchorTitle}`,
+          consumedByRef: { type: 'terminalOutcome', id: goalId },
         };
         const slot = findSlotForDraft({
           draft: closureDraft,
@@ -737,6 +767,13 @@ function scheduleHorizonBlocks({
             completionCondition: null,
             detailTitle: closureDraft.detailTitle,
             endISO: new Date(Date.parse(slot.startISO) + closureDraft.durationMinutes * 60 * 1000).toISOString(),
+            owner: closureDraft.owner ?? null,
+            producesArtifact: closureDraft.producesArtifact ?? null,
+            consumedBy: Array.isArray(closureDraft.consumedBy)
+              ? [...closureDraft.consumedBy]
+              : closureDraft.consumedBy ?? null,
+            passEvidence: closureDraft.passEvidence ?? null,
+            consumedByRef: closureDraft.consumedByRef ? { ...closureDraft.consumedByRef } : closureDraft.consumedByRef ?? null,
           });
           const slotStartMin = minutesFromISO(slot.startISO, timeZone);
           if (!placedBusyByDay[slot.dayKey]) placedBusyByDay[slot.dayKey] = [];
@@ -787,6 +824,7 @@ function scheduleHorizonBlocks({
 function buildRequiredDrafts(
   dayKeys: string[],
   plannedPerDay: number,
+  goalId: string,
   cycleId: string,
   durationMinutes: number,
   acceptedBlocks: Array<{
@@ -799,6 +837,9 @@ function buildRequiredDrafts(
   actionSequence: Array<{
     id?: string;
     title?: string;
+    deliverable?: string;
+    definitionOfDone?: string;
+    actionType?: 'preparation' | 'execution';
     estimateMin?: number;
     dependencies?: string[];
     deliverableId?: string | null;
@@ -843,6 +884,10 @@ function buildRequiredDrafts(
   const actionMetaById = new Map<
     string,
     {
+      title?: string;
+      deliverable?: string;
+      definitionOfDone?: string;
+      actionType?: 'preparation' | 'execution';
       minimumDurationBusinessDays?: number;
       blockType?: 'execution' | 'waiting_period' | 'capital_checkpoint';
       waitType?: string;
@@ -870,6 +915,13 @@ function buildRequiredDrafts(
     }
     if (id) {
       actionMetaById.set(id, {
+        title,
+        deliverable: String((action as any)?.deliverable || '').trim() || undefined,
+        definitionOfDone: String((action as any)?.definitionOfDone || '').trim() || undefined,
+        actionType:
+          (action as any)?.actionType === 'preparation' || (action as any)?.actionType === 'execution'
+            ? (action as any).actionType
+            : undefined,
         minimumDurationBusinessDays: Number.isFinite(Number((action as any)?.minimumDurationBusinessDays))
           ? Number((action as any)?.minimumDurationBusinessDays)
           : undefined,
@@ -980,12 +1032,16 @@ function buildRequiredDrafts(
         draft.targetDayKey
       );
     });
-    return materializeLongHorizonTailClosureDrafts({
-      drafts: sortDraftsByDependency(drafts),
-      dayKeys,
-      cycleId,
-      durationMinutes,
-      constraints,
+    return hydrateDraftExecutionSubstrate({
+      goalId,
+      drafts: materializeLongHorizonTailClosureDrafts({
+        drafts: sortDraftsByDependency(drafts),
+        dayKeys,
+        cycleId,
+        durationMinutes,
+        constraints,
+      }),
+      actionMetaById,
     });
   }
   // Canonical action sequence present: expand each action into one or more
@@ -1105,12 +1161,16 @@ function buildRequiredDrafts(
         };
       })
       .filter((draft) => !committedIdentityKeys.has(String(draft.identityKey || '').trim()));
-    return materializeLongHorizonTailClosureDrafts({
-      drafts: sortDraftsByDependency(drafts),
-      dayKeys,
-      cycleId,
-      durationMinutes,
-      constraints,
+    return hydrateDraftExecutionSubstrate({
+      goalId,
+      drafts: materializeLongHorizonTailClosureDrafts({
+        drafts: sortDraftsByDependency(drafts),
+        dayKeys,
+        cycleId,
+        durationMinutes,
+        constraints,
+      }),
+      actionMetaById,
     });
   }
   const drafts: Array<{
@@ -1174,12 +1234,97 @@ function buildRequiredDrafts(
       });
     }
   });
-  return materializeLongHorizonTailClosureDrafts({
-    drafts: sortDraftsByDependency(drafts),
-    dayKeys,
-    cycleId,
-    durationMinutes,
-    constraints,
+  return hydrateDraftExecutionSubstrate({
+    goalId,
+    drafts: materializeLongHorizonTailClosureDrafts({
+      drafts: sortDraftsByDependency(drafts),
+      dayKeys,
+      cycleId,
+      durationMinutes,
+      constraints,
+    }),
+    actionMetaById,
+  });
+}
+
+function resolveGeneratedBlockOwner(blockType?: string | null) {
+  if (blockType === 'waiting_period') {
+    return null;
+  }
+  return 'executor';
+}
+
+function hydrateDraftExecutionSubstrate({
+  goalId,
+  drafts,
+  actionMetaById,
+}: {
+  goalId: string;
+  drafts: any[];
+  actionMetaById: Map<
+    string,
+    {
+      title?: string;
+      deliverable?: string;
+      definitionOfDone?: string;
+      actionType?: 'preparation' | 'execution';
+    }
+  >;
+}) {
+  const safeDrafts = Array.isArray(drafts) ? drafts.map((draft) => ({ ...draft })) : [];
+  const downstreamDraftsByActionId = new Map<string, any[]>();
+
+  safeDrafts.forEach((draft) => {
+    const directDependencyIds = Array.isArray(draft?.directDependencyIds)
+      ? draft.directDependencyIds.map((id: unknown) => String(id || '').trim()).filter(Boolean)
+      : [];
+    directDependencyIds.forEach((dependencyId) => {
+      const downstream = downstreamDraftsByActionId.get(dependencyId) || [];
+      downstream.push(draft);
+      downstreamDraftsByActionId.set(dependencyId, downstream);
+    });
+  });
+
+  return safeDrafts.map((draft) => {
+    if (draft?.blockType === 'waiting_period') {
+      return draft;
+    }
+
+    const actionId = String(draft?.actionId || '').trim();
+    const actionMeta = actionMetaById.get(actionId) || {};
+    const currentSessionIndex = Number.isFinite(Number(draft?.sessionIndex)) ? Number(draft.sessionIndex) : null;
+    const nextSessionDraft =
+      currentSessionIndex === null
+        ? null
+        : safeDrafts.find(
+            (candidate) =>
+              String(candidate?.actionId || '').trim() === actionId &&
+              Number.isFinite(Number(candidate?.sessionIndex)) &&
+              Number(candidate.sessionIndex) === currentSessionIndex + 1
+          ) || null;
+    const downstreamDraft = (downstreamDraftsByActionId.get(actionId) || [])[0] || null;
+
+    let consumedByRef = null;
+    let consumedBy: string[] | null = null;
+    if (nextSessionDraft?.id) {
+      consumedByRef = { type: 'block', id: String(nextSessionDraft.id) };
+      consumedBy = [String(nextSessionDraft.title || nextSessionDraft.detailTitle || nextSessionDraft.id)];
+    } else if (downstreamDraft?.id) {
+      consumedByRef = { type: 'block', id: String(downstreamDraft.id) };
+      consumedBy = [String(downstreamDraft.title || downstreamDraft.detailTitle || downstreamDraft.id)];
+    } else if (goalId) {
+      consumedByRef = { type: 'terminalOutcome', id: goalId };
+      consumedBy = [`terminalOutcome:${goalId}`];
+    }
+
+    return {
+      ...draft,
+      owner: resolveGeneratedBlockOwner(draft?.blockType),
+      producesArtifact: String(actionMeta?.deliverable || '').trim() || null,
+      consumedBy,
+      passEvidence: String(actionMeta?.definitionOfDone || '').trim() || null,
+      consumedByRef,
+    };
   });
 }
 
