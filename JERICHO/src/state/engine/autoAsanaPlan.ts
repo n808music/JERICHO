@@ -141,6 +141,46 @@ const WEEKDAY_MAP: Record<string, number> = {
   sat: 6,
 };
 const DAY_CODE_BY_INDEX = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const EXECUTION_TITLE_ACTION_VERBS = new Set([
+  'assess',
+  'build',
+  'confirm',
+  'configure',
+  'create',
+  'define',
+  'document',
+  'draft',
+  'edit',
+  'evaluate',
+  'finalize',
+  'map',
+  'outline',
+  'package',
+  'prepare',
+  'produce',
+  'record',
+  'review',
+  'run',
+  'secure',
+  'select',
+  'stress-test',
+  'submit',
+  'test',
+  'track',
+  'validate',
+  'verify',
+  'write',
+]);
+const EXECUTION_TITLE_VERB_REWRITE: Record<string, string> = {
+  check: 'validate',
+  choose: 'select',
+  compare: 'evaluate',
+  conduct: 'run',
+  list: 'document',
+  lock: 'finalize',
+  request: 'secure',
+  retest: 'test',
+};
 
 export function compileAutoAsanaPlan({
   goalId,
@@ -973,20 +1013,31 @@ function buildRequiredDrafts(
           sessionIndex,
         });
         const prefersCanonicalTitle = !session.actionId && Boolean(canonicalActionTitle || canonicalDeliverableTitle);
+        const selectedTitle =
+          (prefersCanonicalTitle ? canonicalActionTitle || canonicalDeliverableTitle : '') ||
+          operationalTitle ||
+          (isGenericSessionTitle(session.title) || !session.title || prefersCanonicalTitle
+            ? canonicalDeliverableTitle ||
+              canonicalActionTitle ||
+              String(orderedFallbackAction?.title || '').trim() ||
+              session.title
+            : session.title);
+        const normalizedTitle = buildActionableExecutionTitle({
+          rawTitle: selectedTitle,
+          fallbackTitle: operationalTitle,
+          deliverableTitle: canonicalDeliverableTitle,
+          deliverable: actionMeta.deliverable,
+          definitionOfDone: actionMeta.definitionOfDone,
+          actionTitle: canonicalActionTitle || String(orderedFallbackAction?.title || '').trim(),
+          sessionTitle: session.title,
+          blockType: actionMeta.blockType || 'execution',
+        });
         return {
           id: `blk-auto-${identityKey}`,
           durationMinutes: session.durationMinutes,
           targetDayKey: explicitTargetDayKey || session.date,
           preferredStartTime: session.startTime,
-          title:
-            (prefersCanonicalTitle ? canonicalActionTitle || canonicalDeliverableTitle : '') ||
-            operationalTitle ||
-            (isGenericSessionTitle(session.title) || !session.title || prefersCanonicalTitle
-              ? canonicalDeliverableTitle ||
-                canonicalActionTitle ||
-                String(orderedFallbackAction?.title || '').trim() ||
-                session.title
-              : session.title),
+          title: normalizedTitle,
           actionId: actionKey,
           deliverableId: deliverableKey,
           directDependencyIds: dependencyMeta.directByActionId.get(actionKey) || [],
@@ -1075,7 +1126,6 @@ function buildRequiredDrafts(
           (isGenericActionTitle(actionTitle) ? deliverableTitle || actionTitle : actionTitle || deliverableTitle) ||
           'Auto Asana Execution';
         const titleNeedsOrdinal = !operationalTitle && !sessionTitles[idx] && sessionCount > 1;
-        const title = titleNeedsOrdinal ? `${titleBase} (Session ${idx + 1}/${sessionCount})` : titleBase;
         const actionId = action?.id ? String(action.id) : `synthetic-action-${actionIndex + 1}`;
         const actionMeta = actionMetaById.get(actionId) || {};
         const currentIndex = actionSessionCounts.get(actionId) || 0;
@@ -1083,6 +1133,17 @@ function buildRequiredDrafts(
         const deliverableId = action?.deliverableId
           ? String(action.deliverableId)
           : `deliv-synthetic-${actionIndex + 1}`;
+        const rawTitle = titleNeedsOrdinal ? `${titleBase} (Session ${idx + 1}/${sessionCount})` : titleBase;
+        const title = buildActionableExecutionTitle({
+          rawTitle,
+          fallbackTitle: operationalTitle,
+          deliverableTitle,
+          deliverable: actionMeta.deliverable,
+          definitionOfDone: actionMeta.definitionOfDone,
+          actionTitle,
+          sessionTitle: String(sessionTitles[idx] || '').trim(),
+          blockType: actionMeta.blockType || 'execution',
+        });
         return {
           actionId,
           deliverableId,
@@ -1253,6 +1314,175 @@ function resolveGeneratedBlockOwner(blockType?: string | null) {
   }
   return 'executor';
 }
+
+function normalizeExecutionTitleWord(value: unknown) {
+  return String(value || '')
+    .trim()
+    .split(/\s+/)[0]
+    ?.toLowerCase()
+    .replace(/[^a-z-]/g, '');
+}
+
+function isActionableExecutionTitle(value: unknown) {
+  const title = String(value || '').trim();
+  if (!title) {
+    return false;
+  }
+  const words = title.split(/\s+/);
+  if (words.length < 3) {
+    return false;
+  }
+  return EXECUTION_TITLE_ACTION_VERBS.has(normalizeExecutionTitleWord(title));
+}
+
+function rewriteExecutionLeadVerb(value: unknown) {
+  const title = String(value || '').trim();
+  if (!title) {
+    return '';
+  }
+  const words = title.split(/\s+/);
+  const firstWord = normalizeExecutionTitleWord(title);
+  const rewrittenVerb = EXECUTION_TITLE_VERB_REWRITE[firstWord];
+  if (!rewrittenVerb) {
+    return title;
+  }
+  return [rewrittenVerb.charAt(0).toUpperCase() + rewrittenVerb.slice(1), ...words.slice(1)].join(' ');
+}
+
+function inferExecutionTitleVerb({
+  rawTitle,
+  deliverableTitle,
+  deliverable,
+  definitionOfDone,
+}: {
+  rawTitle?: unknown;
+  deliverableTitle?: unknown;
+  deliverable?: unknown;
+  definitionOfDone?: unknown;
+}) {
+  const context = [rawTitle, deliverableTitle, deliverable, definitionOfDone]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  if (/\b(record|episode|podcast|audio|interview|segment)\b/i.test(context)) {
+    return 'Record';
+  }
+  if (/\b(validate|review|proof|criteria|acceptance|qa|quality|check)\b/i.test(context)) {
+    return 'Validate';
+  }
+  if (/\b(test|checkout|flow|payment|order path|order capture)\b/i.test(context)) {
+    return 'Test';
+  }
+  if (/\b(package|evidence|bundle|packet|submission)\b/i.test(context)) {
+    return 'Package';
+  }
+  if (/\b(map|dependency)\b/i.test(context)) {
+    return 'Map';
+  }
+  if (/\b(compare|moq|lead time|quote)\b/i.test(context)) {
+    return 'Compare';
+  }
+  if (/\b(request|outreach|supplier|manufacturer|sample)\b/i.test(context)) {
+    return 'Create';
+  }
+  if (/\b(configure|setup)\b/i.test(context)) {
+    return 'Configure';
+  }
+  if (/\b(build|page|dashboard|system|workflow|funnel|checkout)\b/i.test(context)) {
+    return 'Build';
+  }
+  if (/\b(write|copy|script|brief|outline|messaging)\b/i.test(context)) {
+    return 'Draft';
+  }
+  if (/\b(list|checklist|question|notes|criteria)\b/i.test(context)) {
+    return 'Create';
+  }
+  return 'Create';
+}
+
+function normalizeExecutionObjectTitle(value: unknown) {
+  return String(value || '')
+    .trim()
+    .replace(/\s+\(Session\s+\d+\/\d+\)$/i, '')
+    .replace(/^[\s.:;-]+|[\s.:;-]+$/g, '');
+}
+
+function buildActionableExecutionTitle({
+  rawTitle,
+  fallbackTitle,
+  deliverableTitle,
+  deliverable,
+  definitionOfDone,
+  actionTitle,
+  sessionTitle,
+  blockType,
+}: {
+  rawTitle?: unknown;
+  fallbackTitle?: unknown;
+  deliverableTitle?: unknown;
+  deliverable?: unknown;
+  definitionOfDone?: unknown;
+  actionTitle?: unknown;
+  sessionTitle?: unknown;
+  blockType?: string | null;
+}) {
+  if (blockType && blockType !== 'execution') {
+    return String(rawTitle || fallbackTitle || '').trim();
+  }
+
+  const raw = String(rawTitle || '').trim();
+  if (raw && raw.split(/\s+/).length < 3) {
+    return raw;
+  }
+  if (isActionableExecutionTitle(raw)) {
+    return raw;
+  }
+  const rewrittenRaw = rewriteExecutionLeadVerb(raw);
+  if (isActionableExecutionTitle(rewrittenRaw)) {
+    return rewrittenRaw;
+  }
+
+  const fallback = String(fallbackTitle || '').trim();
+  if (fallback && fallback.split(/\s+/).length < 3) {
+    return fallback;
+  }
+  if (isActionableExecutionTitle(fallback)) {
+    return fallback;
+  }
+  const rewrittenFallback = rewriteExecutionLeadVerb(fallback);
+  if (isActionableExecutionTitle(rewrittenFallback)) {
+    return rewrittenFallback;
+  }
+
+  const objectTitle =
+    normalizeExecutionObjectTitle(deliverableTitle) ||
+    normalizeExecutionObjectTitle(deliverable) ||
+    normalizeExecutionObjectTitle(actionTitle) ||
+    normalizeExecutionObjectTitle(sessionTitle) ||
+    normalizeExecutionObjectTitle(raw) ||
+    normalizeExecutionObjectTitle(fallback) ||
+    'execution deliverable';
+  const verb = inferExecutionTitleVerb({
+    rawTitle: raw,
+    deliverableTitle,
+    deliverable,
+    definitionOfDone,
+  });
+  let title = `${verb} ${objectTitle}`.replace(/\s+/g, ' ').trim();
+
+  if (title.split(/\s+/).length < 3) {
+    const qualifier =
+      normalizeExecutionObjectTitle(definitionOfDone) ||
+      normalizeExecutionObjectTitle(deliverable) ||
+      'work package';
+    title = `${title} for ${qualifier}`.replace(/\s+/g, ' ').trim();
+  }
+
+  return title;
+}
+
 
 function hydrateDraftExecutionSubstrate({
   goalId,
@@ -2499,24 +2729,24 @@ function isCommercialFamilyShellTitle(value: unknown) {
 function commercialOperationalTitleBank(value: string) {
   if (/\bformula|sample|packaging|sourcing|sellable[-\s]?unit|manufacturer|moq\b/i.test(value)) {
     return [
-      'List caffeine dosage, flavor, texture, and compliance assumptions for the gum formula',
-      'Shortlist viable stimulant dosage and gum base formulation options',
-      'Request sample capability notes from two gum manufacturers',
-      'Compare manufacturer MOQ, lead time, certifications, and sample cost',
-      'Choose initial formula direction and sample acceptance criteria',
+      'Document caffeine dosage, flavor, texture, and compliance assumptions for the gum formula',
+      'Select viable stimulant dosage and gum base formulation options',
+      'Secure sample capability notes from two gum manufacturers',
+      'Evaluate manufacturer MOQ, lead time, certifications, and sample cost',
+      'Select initial formula direction and sample acceptance criteria',
       'Define packaging format, count size, label claims, and required warnings',
-      'Request packaging quote and dieline requirements from supplier A',
-      'Request packaging quote and dieline requirements from supplier B',
-      'Compare packaging costs, lead times, minimums, and print constraints',
+      'Secure packaging quote and dieline requirements from supplier A',
+      'Secure packaging quote and dieline requirements from supplier B',
+      'Evaluate packaging costs, lead times, minimums, and print constraints',
       'Create sellable unit readiness checklist for formula, packaging, and sourcing',
       'Confirm sample approval path and evidence needed before sales',
-      'Lock sourcing next steps, owner, risk, and fallback manufacturer',
+      'Finalize sourcing next steps, owner, risk, and fallback manufacturer',
     ];
   }
   if (/\boffer|pricing|product page|checkout|ordering|fulfillment|payment|shipping\b/i.test(value)) {
     return [
       'Define launch offer promise, pack size, price hypothesis, and buyer guarantee',
-      'Compare unit economics using formula, packaging, shipping, and platform fees',
+      'Evaluate unit economics using formula, packaging, shipping, and platform fees',
       'Draft pricing test assumptions and minimum viable margin threshold',
       'Outline product page sections for benefits, ingredients, usage, and proof',
       'Write product page copy for caffeine benefit, flavor, safety, and buyer fit',
@@ -2526,7 +2756,7 @@ function commercialOperationalTitleBank(value: string) {
       'Define fulfillment handling for paid orders, samples, backorders, and refunds',
       'Create purchase-path readiness checklist and failure recovery notes',
       'Run buyer-perspective checkout review and record friction points',
-      'Lock commercial readiness evidence for first-sales execution',
+      'Finalize commercial readiness evidence for first-sales execution',
     ];
   }
   if (/\bpositioning|messaging|campaign|assets|sales cta|announcement\b/i.test(value)) {
@@ -2547,15 +2777,15 @@ function commercialOperationalTitleBank(value: string) {
     return [
       'Build first-buyer list from warm contacts, niche communities, and likely early adopters',
       'Segment first-buyer list by urgency, relationship strength, and purchase likelihood',
-      'Send first 10 buyer outreach messages with purchase-path CTA',
-      'Log buyer replies, objections, clicks, and order intent evidence',
-      'Send follow-up wave to non-responders with clearer offer and CTA',
+      'Communicate first 10 buyer outreach messages with purchase-path CTA',
+      'Record buyer replies, objections, clicks, and order intent evidence',
+      'Communicate follow-up wave to non-responders with clearer offer and CTA',
       'Run direct first-order attempt with highest-intent buyer segment',
       'Capture checkout failures, order objections, and fulfillment blockers',
-      'Adjust CTA or offer language based on first response evidence',
-      'Send second buyer outreach wave with revised offer or proof point',
+      'Revise CTA or offer language based on first response evidence',
+      'Communicate second buyer outreach wave with revised offer or proof point',
       'Track first order attempts, conversions, and blocked transactions',
-      'Escalate working channel and pause nonperforming channel',
+      'Select working channel and archive nonperforming channel',
       'Prepare evidence packet for first-sales review',
     ];
   }
@@ -2564,9 +2794,9 @@ function commercialOperationalTitleBank(value: string) {
   ) {
     return [
       'Compile first-sales attempts, paid orders, blocked orders, and buyer response evidence',
-      'Compare conversion results by outreach segment, message, and purchase path',
+      'Evaluate conversion results by outreach segment, message, and purchase path',
       'Review objection patterns around price, trust, ingredients, shipping, and taste',
-      'Decide whether to adjust formula, offer, purchase path, or buyer segment',
+      'Evaluate whether to adjust formula, offer, purchase path, or buyer segment',
       'Define next commercial milestone from first-sales evidence',
       'Record terminal review evidence and launch continuation decision',
     ];

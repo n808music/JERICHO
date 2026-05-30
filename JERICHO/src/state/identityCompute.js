@@ -38,6 +38,7 @@ import { buildGoalPolicySnapshot } from '../domain/goal/GoalPolicy.ts';
 import { evaluatePlanQualityGate } from '../domain/planQuality/evaluatePlanQualityGate.ts';
 import { generateAutoDeliverables, debugAutoDeliverablesGeneration } from '../core/autoDeliverables.ts';
 import { getDeadlineDayKey } from '../core/deadline.ts';
+
 import { generateDeterministicPlan } from '../core/deterministicPlanGenerator.ts';
 import { canEmitExecutionEvent } from './engine/executionContract.ts';
 import {
@@ -1741,6 +1742,62 @@ function titleTokenCount(value) {
     .filter((token) => token.length >= 3).length;
 }
 
+const ACTIONABLE_BLOCK_LEAD_VERBS = new Set([
+  'activate', 'analyze', 'archive', 'assemble', 'assess', 'audit',
+  'backup', 'brief', 'build',
+  'close', 'collect', 'communicate', 'compile', 'complete', 'configure', 'confirm', 'connect',
+  'consolidate', 'coordinate', 'create',
+  'debug', 'define', 'deliver', 'demo', 'deploy', 'design', 'develop', 'document', 'draft',
+  'establish', 'evaluate', 'execute',
+  'finalize', 'fix', 'gather', 'generate', 'harden', 'hire',
+  'identify', 'implement', 'improve', 'integrate',
+  'launch', 'map', 'measure', 'migrate', 'model', 'monitor',
+  'onboard', 'optimize', 'outline', 'package', 'plan', 'prepare', 'present', 'produce',
+  'prototype', 'publish',
+  'reconcile', 'record', 'release', 'resolve', 'review', 'revise', 'run',
+  'secure', 'select', 'sequence', 'set', 'share', 'ship', 'stress-test', 'submit', 'sync',
+  'test', 'track', 'train', 'update', 'validate', 'verify', 'write',
+]);
+
+function isActionableBlockTitle(title) {
+  const text = String(title || '').trim();
+  if (!text) {
+    return false;
+  }
+  const words = text.split(/\s+/);
+  if (words.length < 3) {
+    return false;
+  }
+  const firstWord = (words[0] || '').toLowerCase().replace(/[^a-z-]/g, '');
+  return ACTIONABLE_BLOCK_LEAD_VERBS.has(firstWord);
+}
+
+function isExecutionProposalBlockType(blockType) {
+  const normalized = String(blockType || '').trim().toLowerCase();
+  return normalized === 'execution' || normalized === 'action';
+}
+
+function shouldPreserveExecutableProposalTitle({
+  explicitProposalTitle,
+  canonicalActionTitle,
+  blockType,
+  proposalSource,
+}) {
+  if (!isExecutionProposalBlockType(blockType)) {
+    return false;
+  }
+  if (proposalSource !== 'action_graph') {
+    return false;
+  }
+  if (!isActionableBlockTitle(explicitProposalTitle)) {
+    return false;
+  }
+  if (!canonicalActionTitle) {
+    return true;
+  }
+  return !isActionableBlockTitle(canonicalActionTitle);
+}
+
 function shouldPreferProposalTitle(explicitProposalTitle, canonicalActionTitle) {
   const explicit = String(explicitProposalTitle || '').trim();
   const canonical = String(canonicalActionTitle || '').trim();
@@ -3256,8 +3313,16 @@ function setCycleProposedBlocks(state, cycleId, proposals = []) {
     const isLongHorizonClosureTitle = /final validation|terminal closure checkpoint|closure checkpoint/i.test(
       explicitProposalTitle
     );
+    const preserveExecutableProposalTitle = shouldPreserveExecutableProposalTitle({
+      explicitProposalTitle,
+      canonicalActionTitle,
+      blockType: proposal?.blockType,
+      proposalSource: proposal?.source,
+    });
     const resolvedTitle =
-      isLongHorizonClosureTitle || shouldPreferProposalTitle(explicitProposalTitle, canonicalActionTitle)
+      preserveExecutableProposalTitle ||
+      isLongHorizonClosureTitle ||
+      shouldPreferProposalTitle(explicitProposalTitle, canonicalActionTitle)
         ? explicitProposalTitle
         : canonicalActionTitle || explicitProposalTitle || '';
     const identity = String(
