@@ -1508,10 +1508,10 @@ function enforceActiveCycleTodayBlocks(state, hadCycleRecords = false) {
 }
 
 function collectGovernanceContracts(state) {
-  if (!state?.activeCycleId) {
-    return [];
-  }
-  const cycle = state?.cyclesById?.[state.activeCycleId] || null;
+  const fallbackGoalId = state?.activeGoalId || state?.goalExecutionContract?.goalId || null;
+  const cycle =
+    (state?.activeCycleId ? state?.cyclesById?.[state.activeCycleId] || null : null) ||
+    resolveCycleForGoal(state, fallbackGoalId);
   if (!cycle) {
     return [];
   }
@@ -7683,6 +7683,10 @@ function applyCycleScoring(state) {
       supportHorizon,
     },
   };
+  const planQualityGate = resolvePlanQualityGateForGoal(state, goalId);
+  if (planQualityGate?.status === 'PLAN_QUALITY_WITHHELD') {
+    metrics.posUnavailableReasonCode = 'POS_NOT_ADMITTED_PLAN_QUALITY_WITHHELD';
+  }
 
   const feasibilityStatus = goalId ? state?.feasibilityByGoal?.[goalId]?.status || null : null;
   if (feasibilityStatus === 'INFEASIBLE' && Boolean(canonicalFeasibility?.diagnostics?.hasThroughputModel)) {

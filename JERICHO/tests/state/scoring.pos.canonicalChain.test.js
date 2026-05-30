@@ -152,6 +152,47 @@ describe('POS canonical chain scoring', () => {
     expect(metrics.posExplanation?.reasons?.[0]?.code).not.toBe('POS_NO_PLAN');
   });
 
+  it('reports explicit POS unavailability when generated plan quality is withheld', () => {
+    compileAutoAsanaPlanMock.mockReturnValue({
+      horizonBlocks: [
+        {
+          id: 'hb-thin-1',
+          title: 'Draft stale outline',
+          deliverableId: 'd1',
+          actionId: 'act-canonical',
+          dayKey: '2026-03-11',
+          startISO: '2026-03-11T09:00:00.000Z',
+          durationMinutes: 60,
+          blockType: 'execution',
+        },
+      ],
+      conflicts: [],
+    });
+    const state = baseState({
+      goalWorkById: {
+        'goal-canonical': [{ workItemId: 'w1', blocksRemaining: 2 }],
+      },
+      deliverablesByCycleId: {
+        'cycle-pos-1': {
+          cycleId: 'cycle-pos-1',
+          deliverables: [{ id: 'd1', title: 'Draft podcast episode', estimateMin: 60, actionIds: ['act-canonical'] }],
+          suggestionLinks: {},
+          lastUpdatedAtISO: '2026-03-10T12:00:00.000Z',
+        },
+      },
+    });
+
+    const generated = computeDerivedState(state, { type: 'GENERATE_PLAN', payload: { cycleId: 'cycle-pos-1' } });
+    const rescored = computeDerivedState(generated, { type: 'NO_OP' });
+    const cycle = rescored.cyclesById['cycle-pos-1'];
+    const metrics = cycle?.metrics || {};
+
+    expect(cycle?.planQualityGate?.status).toBe('PLAN_QUALITY_WITHHELD');
+    expect(cycle?.planQualityGate?.failureCodes?.length).toBeGreaterThan(0);
+    expect(metrics.posScore).toBeNull();
+    expect(metrics.posUnavailableReasonCode).toBe('POS_NOT_ADMITTED_PLAN_QUALITY_WITHHELD');
+  });
+
   it('falls back to canonical goal contract when governance contract is missing', () => {
     const state = baseState({
       cyclesById: {
