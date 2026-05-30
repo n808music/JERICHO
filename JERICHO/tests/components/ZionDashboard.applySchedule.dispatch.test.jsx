@@ -250,10 +250,10 @@ describe('ZionDashboard apply schedule dispatch wiring', () => {
       await user.click(screen.getAllByText(/Review block/i)[0]);
     });
 
-    expect(screen.queryByRole('button', { name: /^Complete$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Missed$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Skipped$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Edit$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Complete$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Missed$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Skipped$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Edit$/i })).toBeDisabled();
   });
 
   it('offers Rebase from today and dispatches rebaseSchedule when temporal drift blocks activation', async () => {
