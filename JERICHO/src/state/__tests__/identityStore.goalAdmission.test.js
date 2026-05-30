@@ -1,21 +1,64 @@
 import { describe, it, expect } from 'vitest';
-import { attemptGoalAdmissionPure } from '../identityStore.js';
+import { DEFAULT_PROFILE_ID, attemptGoalAdmissionPure } from '../identityStore.js';
 import { computeContractHash } from '../../domain/goal/GoalAdmissionPolicy.ts';
 import { buildValidGoalContract } from '../../domain/goal/testHelpers.ts';
 import { GoalRejectionCode } from '../../domain/goal/GoalRejectionCode.ts';
 
 const NOW_ISO = '2026-01-10T12:00:00.000Z';
+const EXISTING_GOAL_ID = 'goal-1';
+const EXISTING_CYCLE_ID = 'cycle-1';
 
 function buildMinimalState() {
   return {
     appTime: { nowISO: NOW_ISO, timeZone: 'UTC', activeDayKey: '2026-01-10' },
+    activeProfileId: DEFAULT_PROFILE_ID,
+    profilesById: {
+      [DEFAULT_PROFILE_ID]: {
+        id: DEFAULT_PROFILE_ID,
+        label: 'Local Profile',
+        displayName: 'Local Profile',
+        goalIds: [],
+        activeGoalId: null,
+        masterCalendarId: `calendar-${DEFAULT_PROFILE_ID}`,
+        strategicClusterIds: [],
+        createdAtISO: NOW_ISO,
+        status: 'active',
+      },
+    },
+    goalsById: {},
+    goalAdmissionByGoal: {},
     cyclesById: {},
     activeCycleId: null,
     cycleOrder: [],
     aspirations: [],
     aspirationsByCycleId: {},
+    masterCalendarsById: {},
+    deliverablesByCycleId: {},
     // computeDerivedState will fill other defaults
   };
+}
+
+function attachExistingActiveCycle(state) {
+  state.cyclesById[EXISTING_CYCLE_ID] = {
+    id: EXISTING_CYCLE_ID,
+    status: 'Active',
+    profileId: DEFAULT_PROFILE_ID,
+    goalId: EXISTING_GOAL_ID,
+    goalContract: { goalId: EXISTING_GOAL_ID, terminalOutcome: { text: 'Other goal' } },
+  };
+  state.activeCycleId = EXISTING_CYCLE_ID;
+  state.cycleOrder = [EXISTING_CYCLE_ID];
+  state.goalsById[EXISTING_GOAL_ID] = {
+    id: EXISTING_GOAL_ID,
+    profileId: DEFAULT_PROFILE_ID,
+    cycleIds: [EXISTING_CYCLE_ID],
+    activeCycleId: EXISTING_CYCLE_ID,
+    status: 'active',
+    title: 'Other goal',
+  };
+  state.profilesById[DEFAULT_PROFILE_ID].goalIds = [EXISTING_GOAL_ID];
+  state.profilesById[DEFAULT_PROFILE_ID].activeGoalId = EXISTING_GOAL_ID;
+  state.aspirationsByCycleId[EXISTING_CYCLE_ID] = [];
 }
 
 function createValidContract(overrides = {}) {
@@ -66,14 +109,7 @@ function createRejectedContract() {
 describe('identityStore.attemptGoalAdmissionPure', () => {
   it('creates an aspiration on rejected contract and does not change activeCycle', () => {
     const state = buildMinimalState();
-    // add an existing active cycle to ensure invariant
-    state.cyclesById['cycle-1'] = {
-      id: 'cycle-1',
-      status: 'Active',
-      goalContract: { terminalOutcome: { text: 'Other goal' } },
-    };
-    state.activeCycleId = 'cycle-1';
-    state.cycleOrder = ['cycle-1'];
+    attachExistingActiveCycle(state);
 
     const badContract = createRejectedContract();
     const { nextState, result } = attemptGoalAdmissionPure(state, badContract);
@@ -83,21 +119,14 @@ describe('identityStore.attemptGoalAdmissionPure', () => {
     expect(Array.isArray(nextState.aspirations)).toBe(true);
     expect(nextState.aspirations.length).toBe(1);
     // active cycle unchanged
-    expect(nextState.activeCycleId).toBe('cycle-1');
+    expect(nextState.activeCycleId).toBe(EXISTING_CYCLE_ID);
     // no new cycles created
     expect(Object.keys(nextState.cyclesById).length).toBe(1);
   });
 
   it('creates a new active cycle on admitted contract and leaves aspirations unchanged', () => {
     const state = buildMinimalState();
-    // pre-existing cycle present
-    state.cyclesById['cycle-1'] = {
-      id: 'cycle-1',
-      status: 'Active',
-      goalContract: { terminalOutcome: { text: 'Other goal' } },
-    };
-    state.activeCycleId = 'cycle-1';
-    state.cycleOrder = ['cycle-1'];
+    attachExistingActiveCycle(state);
 
     const goodContract = createValidContract();
     const { nextState, result } = attemptGoalAdmissionPure(state, goodContract);
@@ -166,7 +195,7 @@ describe('identityStore.attemptGoalAdmissionPure', () => {
     });
     // create two active cycles with same terminal outcome
     state.cyclesById['cycle-1'] = {
-      id: 'cycle-1',
+      id: EXISTING_CYCLE_ID,
       status: 'Active',
       goalContract: { terminalOutcome: { text: 'Duplicate goal' } },
     };
@@ -175,7 +204,7 @@ describe('identityStore.attemptGoalAdmissionPure', () => {
       status: 'Active',
       goalContract: { terminalOutcome: { text: 'Duplicate goal' } },
     };
-    state.activeCycleId = 'cycle-1';
+    state.activeCycleId = EXISTING_CYCLE_ID;
 
     const result = attemptGoalAdmissionPure(state, contract);
     expect(result.result.status).toBe('REJECTED');
