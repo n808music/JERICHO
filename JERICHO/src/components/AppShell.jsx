@@ -7,6 +7,8 @@ import { JerichoProvider } from '../core/state.js';
 import * as localAuth from '../state/localAuthStore.js';
 
 const NOOP = () => {};
+const IDENTITY_KEY = 'jericho-identity';
+const AUTH_TOKEN_KEY = 'jericho-auth-token';
 
 function getInitialZionViewFromHash() {
   if (typeof window === 'undefined') {
@@ -85,6 +87,65 @@ function describeProfileCoherenceBlock(reasonCodes = []) {
   return 'Profile context is incomplete. Select, restore, or create a coherent profile.';
 }
 
+function readStorageValue(key) {
+  if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') {
+    return null;
+  }
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function getAppShellAuthState() {
+  const account = localAuth.getAccount();
+  const session = localAuth.getSession();
+  const hasLocalAccount = Boolean(account?.username);
+  const hasLocalSession = Boolean(session?.username);
+  const authenticatedUser = hasLocalAccount && hasLocalSession ? session.username : null;
+  const localProfileAvailable = Boolean(readStorageValue(IDENTITY_KEY));
+  const devRestoreAvailable =
+    typeof window !== 'undefined' && typeof window.__jerichoRestoreOperationEndgame === 'function';
+  const syncUnavailable = false;
+
+  return {
+    authenticatedUser,
+    hasLocalAccount,
+    hasLocalSession,
+    localProfileAvailable,
+    devRestoreAvailable,
+    syncUnavailable,
+  };
+}
+
+function UnauthenticatedStateNotice({ authState }) {
+  if (authState.hasLocalAccount && !authState.hasLocalSession) {
+    return (
+      <div
+        className="rounded-md border border-line/70 bg-white px-4 py-3 text-sm text-muted"
+        data-testid="account-signin-required-notice"
+      >
+        A local account exists on this browser, but you need to sign in again to continue.
+      </div>
+    );
+  }
+
+  if (authState.localProfileAvailable || authState.devRestoreAvailable) {
+    return (
+      <div
+        className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+        data-testid="local-profile-restore-notice"
+      >
+        Local profile or dev restore data is available on this browser, but it is not authenticated
+        account access. Sign in or create/link an account before entering Jericho.
+      </div>
+    );
+  }
+
+  return null;
+}
+
 export function evaluateProfileContextCoherence(store) {
   const reasonCodes = [];
   const activeProfileId = String(store?.activeProfileId || '').trim();
@@ -158,24 +219,25 @@ export function evaluateProfileContextCoherence(store) {
 }
 
 export default function AppShell() {
-  const [isAuthenticated, setIsAuthenticated] = React.useState(() => localAuth.isAuthenticated());
+  const [authState, setAuthState] = React.useState(() => getAppShellAuthState());
 
   const handleLogin = React.useCallback(() => {
-    setIsAuthenticated(true);
+    setAuthState(getAppShellAuthState());
   }, []);
 
   const handleLogout = React.useCallback(() => {
     localAuth.logout();
-    setIsAuthenticated(false);
+    setAuthState(getAppShellAuthState());
   }, []);
 
-  if (!isAuthenticated) {
+  if (!authState.authenticatedUser) {
     return (
       <div className="min-h-screen bg-jericho-bg text-jericho-text transition-colors duration-300">
         <div className="max-w-6xl mx-auto px-6 py-6 space-y-6">
           <header className="flex items-center justify-between border-b border-line/40 pb-3">
             <span className="text-xs uppercase tracking-[0.2em] text-muted">Jericho</span>
           </header>
+          <UnauthenticatedStateNotice authState={authState} />
           <LoginGate onLogin={handleLogin} />
         </div>
       </div>
@@ -211,8 +273,8 @@ function AppShellInner({ onLogout = NOOP }) {
   }, []);
 
   const profileCoherence = React.useMemo(() => evaluateProfileContextCoherence(store), [store]);
-  const session = localAuth.getSession();
-  const sessionLabel = session?.username ? `Signed in as ${session.username}` : null;
+  const authState = getAppShellAuthState();
+  const sessionLabel = authState.authenticatedUser ? `Signed in as ${authState.authenticatedUser}` : null;
 
   return (
     <div className="min-h-screen bg-jericho-bg text-jericho-text transition-colors duration-300">
