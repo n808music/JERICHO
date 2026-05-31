@@ -1,21 +1,41 @@
 import React from 'react';
 import '@testing-library/jest-dom';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import AppShell from '../../src/components/AppShell.jsx';
 import { computeContractHash } from '../../src/domain/goal/GoalAdmissionPolicy.ts';
 import { buildValidGoalContract } from '../../src/domain/goal/testHelpers.ts';
 
-const NOW_ISO = '2026-03-18T12:00:00.000Z';
+vi.mock('../../src/services/syncService.js', () => ({
+  pushState: vi.fn(async () => {}),
+  pullState: vi.fn(async () => null),
+}));
+
+import AppShell from '../../src/components/AppShell.jsx';
+
+const ACCOUNT_RECORD = JSON.stringify({ username: 'james', passwordHash: 'hash', createdAt: 1 });
+const SESSION_RECORD = JSON.stringify({ username: 'james', issuedAt: 2 });
+
+function isoAtNoon(date) {
+  return `${date.toISOString().slice(0, 10)}T12:00:00.000Z`;
+}
+
+function dayKeyAtOffset(daysFromNow) {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + daysFromNow);
+  return date.toISOString().slice(0, 10);
+}
 
 function createValidContract(overrides = {}) {
+  const nowISO = isoAtNoon(new Date());
   const contract = buildValidGoalContract({
+    goalId: 'goal-live-structure-route',
+    cycleId: 'cycle-live-structure-route',
     terminalOutcome: {
       text: 'Launch the first SaaS release',
       verificationCriteria: 'Release is live',
       isConcrete: true,
     },
-    deadline: { dayKey: '2026-05-01', isHardDeadline: true },
+    deadline: { dayKey: dayKeyAtOffset(45), isHardDeadline: true },
     sacrifice: {
       whatIsGivenUp: 'Weekend leisure time',
       duration: '6 weeks',
@@ -36,9 +56,18 @@ function createValidContract(overrides = {}) {
       checkInFrequency: 'DAILY',
       triggerDescription: 'Morning review',
     },
-    inscription: { inscribedAtISO: NOW_ISO, acknowledgment: 'I accept', isCompromised: false },
+    inscription: { inscribedAtISO: nowISO, acknowledgment: 'I accept', isCompromised: false },
     isAspirational: false,
+    createdAtISO: nowISO,
     ...overrides,
+    temporalBinding: {
+      daysPerWeek: 5,
+      activationTime: '09:00',
+      sessionDurationMinutes: 90,
+      weeklyMinutes: 450,
+      startDayKey: dayKeyAtOffset(0),
+      ...overrides.temporalBinding,
+    },
   });
 
   contract.inscription.contractHash = computeContractHash(contract);
@@ -50,38 +79,67 @@ function createValidContract(overrides = {}) {
 }
 
 describe('AppShell structure route contract', () => {
-  let storageValue = null;
+  let storage;
 
   beforeEach(() => {
     window.location.hash = '#/structure';
+    storage = new Map([
+      ['jericho-account', ACCOUNT_RECORD],
+      ['jericho-session', SESSION_RECORD],
+    ]);
     vi.stubGlobal('localStorage', {
-      getItem: () => storageValue,
-      setItem: () => {},
-      removeItem: () => {},
+      getItem: (key) => storage.get(key) ?? null,
+      setItem: (key, value) => {
+        storage.set(key, String(value));
+      },
+      removeItem: (key) => {
+        storage.delete(key);
+      },
     });
   });
 
   afterEach(() => {
     window.location.hash = '';
-    storageValue = null;
+    storage = null;
     vi.unstubAllGlobals();
   });
 
+  async function enterProfile() {
+    fireEvent.click(await screen.findByRole('button', { name: /Create profile/i }));
+    const continueButton = screen.queryByRole('button', { name: /Continue as /i });
+    if (continueButton) {
+      fireEvent.click(continueButton);
+    }
+    await screen.findByRole('button', { name: /Structure/i });
+    await waitFor(() => expect(window.__jerichoDebug__?.activeProfileId).toBeTruthy());
+  }
+
   it('renders the canonical Zion Structure entry surface on #/structure', async () => {
     render(<AppShell />);
+    await enterProfile();
 
     expect(await screen.findByRole('button', { name: /Structure/i })).toBeInTheDocument();
-    expect(screen.queryByText('Getting Started') || screen.queryByText('Definite Goal')).toBeTruthy();
+    expect(screen.queryByText('Contract Admission') || screen.queryByText('Definite Goal')).toBeTruthy();
 
     expect(screen.queryByText('System Loop')).not.toBeInTheDocument();
   });
 
   it('renders the post-admission structure surface when an admitted goal exists', async () => {
     render(<AppShell />);
+    await enterProfile();
 
+    let admissionResult = null;
     await act(async () => {
-      window.__jerichoDebug__.attemptGoalAdmission(createValidContract());
+      admissionResult = window.__jerichoDebug__.attemptGoalAdmission(createValidContract());
     });
+    expect(admissionResult?.status).toBe('ADMITTED');
+
+    const continueButton = screen.queryByRole('button', { name: /Continue as /i });
+    if (continueButton) {
+      fireEvent.click(continueButton);
+    }
+
+    await screen.findByRole('button', { name: /Structure/i });
 
     await waitFor(() => expect(screen.getByText('Definite Goal')).toBeInTheDocument());
     expect(screen.getByText('Read-only. To change goal, archive this cycle and start a new one.')).toBeInTheDocument();
