@@ -35,6 +35,23 @@ type PlanArtifact = {
   // Lane context — present on full-horizon blocks
   laneId?: string | null;
   laneLabel?: string | null;
+  // Execution context — carries lane family + lane status for BD professionalism checks
+  executionContext?: {
+    laneFamily?: string | null;
+    laneStatus?: string | null;
+    planOrientation?: string | null;
+  } | null;
+  // Phase 4 — gate criteria substrate
+  gateName?: string | null;
+  passCriteria?: string | null;
+  failCriteria?: string | null;
+  decisionAuthority?: string | null;
+  passBranch?: string | null;
+  failBranch?: string | null;
+  evidenceRequired?: string | null;
+  // Phase 5 — BD professionalism flags
+  isExternalBdMechanic?: boolean;
+  isExternalStakeholderTouchpoint?: boolean;
 };
 
 // Block types that are exempt from execution-substrate requirements.
@@ -1442,6 +1459,54 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
     failureCodes.add('MONITORING_WITHOUT_PRODUCTION');
     reasonCodes.add('MONITORING_WITHOUT_PRODUCTION');
   }
+
+  // Business Development Professionalism (Phase 5): commercial/capital/institution/civic
+  // lanes that have ANY active execution work must include real external-facing BD
+  // mechanics (outreach, proposal, pilot, partnership) and at least one external
+  // stakeholder touchpoint. Capital lanes must additionally declare a budget amount,
+  // budget range, or an explicit unknown-budget flag for resolution. Blocked /
+  // incubating / gated lanes (no active execution work) are exempt — they are allowed
+  // to carry only readiness / audit / gate work until upstream dependencies clear.
+  const BD_REQUIRED_LANE_FAMILIES = new Set([
+    'income_stream',
+    'capital_real_estate',
+    'institution_education',
+    'civic_development',
+  ]);
+  const CAPITAL_BUDGET_PATTERN = /\$\s*\d|\b\d+\s*(?:k|m|b)\b|\bbudget\s+(?:range|amount)\b|\bfunding\s+amount\b|\bcapital\s+(?:range|amount)\b|\bunknown[- ]budget\b/i;
+  const bdLaneBlocks = new Map<string, { laneFamily: string; activeBlocks: PlanArtifact[]; allBlocks: PlanArtifact[] }>();
+  executionArtifacts.forEach((block) => {
+    const laneId = normalizeText(block?.laneId);
+    if (!laneId) return;
+    const laneFamily = String(block?.executionContext?.laneFamily || '').trim();
+    if (!BD_REQUIRED_LANE_FAMILIES.has(laneFamily)) return;
+    const entry = bdLaneBlocks.get(laneId) || { laneFamily, activeBlocks: [], allBlocks: [] };
+    entry.allBlocks.push(block);
+    if (String(block?.executionContext?.laneStatus || '').trim() === 'active') {
+      entry.activeBlocks.push(block);
+    }
+    bdLaneBlocks.set(laneId, entry);
+  });
+  bdLaneBlocks.forEach(({ laneFamily, activeBlocks }) => {
+    if (activeBlocks.length === 0) return;
+    const hasBdMechanic = activeBlocks.some((b) => b?.isExternalBdMechanic === true);
+    if (!hasBdMechanic) {
+      failureCodes.add('MISSING_BD_EXECUTION_MECHANICS');
+      reasonCodes.add('MISSING_BD_EXECUTION_MECHANICS');
+    }
+    const hasStakeholderTouchpoint = activeBlocks.some((b) => b?.isExternalStakeholderTouchpoint === true);
+    if (!hasStakeholderTouchpoint) {
+      failureCodes.add('MISSING_EXTERNAL_STAKEHOLDER_TOUCHPOINT');
+      reasonCodes.add('MISSING_EXTERNAL_STAKEHOLDER_TOUCHPOINT');
+    }
+    if (laneFamily === 'capital_real_estate') {
+      const hasBudget = activeBlocks.some((b) => CAPITAL_BUDGET_PATTERN.test(normalizeText(b?.producesArtifact)));
+      if (!hasBudget) {
+        failureCodes.add('MISSING_CAPITAL_AMOUNT_OR_BUDGET_RANGE');
+        reasonCodes.add('MISSING_CAPITAL_AMOUNT_OR_BUDGET_RANGE');
+      }
+    }
+  });
 
   // Dependency Chain Authenticity: execution blocks must reference a real downstream plan object.
   // consumedByRef is the machine-verifiable link; consumedBy is the human-readable label.
