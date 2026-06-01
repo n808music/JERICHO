@@ -54,6 +54,11 @@ type PlanArtifact = {
   isExternalStakeholderTouchpoint?: boolean;
   // Phase 6 — title-family used for cadence-loop detection
   titleFamily?: string | null;
+  // Phase 7 — backfill/historical/imported markers exempt past-dated blocks
+  // from STALE_ACTIVE_CYCLE_STATE.
+  isHistorical?: boolean;
+  isBackfilled?: boolean;
+  isImported?: boolean;
 };
 
 // Block types that are exempt from execution-substrate requirements.
@@ -126,6 +131,11 @@ type EvaluatePlanQualityGateInput = {
   actions?: PlanAction[];
   proposedBlocks?: PlanArtifact[];
   committedBlocks?: PlanArtifact[];
+  // Phase 7 — active-cycle rebasing inputs. evaluationDate is the day the
+  // plan is being evaluated (ISO 'YYYY-MM-DD' or Date); allowsBackdatedStart
+  // signals the user has explicitly confirmed the cycle is backdated.
+  evaluationDate?: string | Date | null;
+  allowsBackdatedStart?: boolean;
   branchCoverageSummary?: BranchCoverageSummary;
   phases?: PhaseObjectiveInput[];
   lanes?: LaneInput[];
@@ -1046,6 +1056,15 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
   const proposedBlocks = Array.isArray(input.proposedBlocks) ? input.proposedBlocks.filter(Boolean) : [];
   const committedBlocks = Array.isArray(input.committedBlocks) ? input.committedBlocks.filter(Boolean) : [];
   const executionArtifacts = [...proposedBlocks, ...committedBlocks];
+  // Phase 7 — normalize evaluationDate into an ISO day key for past-date checks.
+  const evaluationDayKey = (() => {
+    const raw = input.evaluationDate;
+    if (!raw) return null;
+    if (raw instanceof Date) return raw.toISOString().slice(0, 10);
+    const s = String(raw).trim();
+    return s.length >= 10 ? s.slice(0, 10) : null;
+  })();
+  const allowsBackdatedStart = input.allowsBackdatedStart === true;
 
   const failureCodes = new Set<PlanQualityFailureCode>();
   const reasonCodes = new Set<string>();
@@ -1572,6 +1591,33 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
       failureCodes.add('MECHANICAL_CADENCE_LOOP');
       reasonCodes.add('MECHANICAL_CADENCE_LOOP');
       break;
+    }
+  }
+
+  // Active Cycle Rebasing (Phase 7): a plan evaluated on day X should not
+  // silently schedule actionable blocks before X. Past-dated blocks must
+  // either be flagged as historical/backfilled/imported (intentional backfill)
+  // or the entire plan must declare allowsBackdatedStart. Without these
+  // signals, the active cycle has either drifted off the real execution
+  // timeline (STALE_ACTIVE_CYCLE_STATE) or started in the past without
+  // confirmation (ACTIVE_CYCLE_STARTS_IN_PAST_WITHOUT_CONFIRMATION).
+  if (evaluationDayKey && proposedBlocks.length > 0) {
+    const stalePastBlocks = proposedBlocks.filter((b) => {
+      const dayKey = normalizeText(b?.dayKey);
+      if (!dayKey || dayKey >= evaluationDayKey) return false;
+      return b?.isHistorical !== true && b?.isBackfilled !== true && b?.isImported !== true;
+    });
+    if (stalePastBlocks.length > 0) {
+      failureCodes.add('STALE_ACTIVE_CYCLE_STATE');
+      reasonCodes.add('STALE_ACTIVE_CYCLE_STATE');
+    }
+    const earliestProposedDayKey = proposedBlocks
+      .map((b) => normalizeText(b?.dayKey))
+      .filter((k) => k)
+      .sort()[0];
+    if (earliestProposedDayKey && earliestProposedDayKey < evaluationDayKey && !allowsBackdatedStart) {
+      failureCodes.add('ACTIVE_CYCLE_STARTS_IN_PAST_WITHOUT_CONFIRMATION');
+      reasonCodes.add('ACTIVE_CYCLE_STARTS_IN_PAST_WITHOUT_CONFIRMATION');
     }
   }
 
