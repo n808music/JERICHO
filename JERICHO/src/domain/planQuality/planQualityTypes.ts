@@ -22,6 +22,7 @@ export type PlanQualityFailureCode =
   | 'OUTCOME_COVERAGE_TERMINAL_STAGE_MISSING'
   | 'OUTCOME_ENDPOINT_MISSING'
   | 'OUTCOME_SPLIT_DIMENSION_UNCOVERED'
+  | 'MISSING_OUTCOME_TARGET'
   | 'LONG_HORIZON_TEMPORAL_COMPRESSION'
   | 'LONG_HORIZON_UNJUSTIFIED_TAIL_GAP'
   | 'LONG_HORIZON_SPARSE_CADENCE'
@@ -33,7 +34,35 @@ export type PlanQualityFailureCode =
   | 'PURCHASE_PATH_MISSING'
   | 'FIRST_SALES_CORRIDOR_MISSING'
   | 'BRAND_LAUNCH_SUBSTITUTED_FOR_PRODUCT_LAUNCH'
-  | 'TERMINAL_EVENT_EVIDENCE_MISSING';
+  | 'TERMINAL_EVENT_EVIDENCE_MISSING'
+  | 'MISSING_EXECUTION_OWNER'
+  | 'MISSING_EXECUTION_DURATION'
+  | 'MISSING_EXECUTION_ARTIFACT'
+  | 'MISSING_EXECUTION_CONSUMER'
+  | 'MISSING_EXECUTION_PASS_EVIDENCE'
+  | 'MONITORING_WITHOUT_PRODUCTION'
+  | 'MISSING_CONSUMED_BY_REF'
+  | 'UNRESOLVED_CONSUMED_BY_REF'
+  | 'NON_DOWNSTREAM_CONSUMED_BY_REF'
+  | 'PHASE_WITHOUT_EXECUTION_WORK'
+  | 'FRONT_LOADED_EXECUTION'
+  | 'SPARSE_HORIZON_COVERAGE'
+  | 'VAGUE_EXECUTION_ARTIFACT'
+  | 'VAGUE_PASS_EVIDENCE'
+  | 'FRAGMENTARY_BLOCK_TITLE'
+  | 'NON_ACTIONABLE_BLOCK_TITLE'
+  | 'QUESTION_BLOCK_TITLE'
+  | 'MISSING_PHASE_OBJECTIVE'
+  | 'VAGUE_PHASE_OBJECTIVE'
+  | 'MISSING_PHASE_UNLOCK_CRITERIA'
+  | 'VAGUE_PHASE_UNLOCK_CRITERIA'
+  | 'PHASE_OBJECTIVE_WITHOUT_SUPPORTING_BLOCKS'
+  | 'PHASE_OBJECTIVE_NOT_MISSION_ALIGNED'
+  | 'TERMINAL_OUTCOME_WITHOUT_PHASE_SUPPORT'
+  | 'MISSING_LANE_OUTCOME'
+  | 'VAGUE_LANE_OUTCOME'
+  | 'LANE_WITHOUT_EXECUTION_WORK'
+  | 'LANE_OUTCOME_WITHOUT_PHASE_OR_MISSION_SUPPORT';
 
 export type PlanQualityGateResult = {
   status: PlanQualityGateStatus;
@@ -49,6 +78,26 @@ export type PlanQualityGateResult = {
     semanticHollowDeliverableIds?: string[];
     goalObjectMissingBlockIds?: string[];
     meaningLossBlockIds?: string[];
+    substanceMissingBlockIds?: string[];
+    consumedByRefMissingBlockIds?: string[];
+    consumedByRefUnresolvedBlockIds?: string[];
+    consumedByRefNonDownstreamBlockIds?: string[];
+    phasesWithoutExecution?: string[];
+    vagueArtifactBlockIds?: string[];
+    vagueEvidenceBlockIds?: string[];
+    fragmentaryBlockIds?: string[];
+    nonActionableBlockIds?: string[];
+    questionBlockIds?: string[];
+    phasesWithMissingObjective?: string[];
+    phasesWithVagueObjective?: string[];
+    phasesWithMissingUnlockCriteria?: string[];
+    phasesWithVagueUnlockCriteria?: string[];
+    phasesWithoutSupportingBlocks?: string[];
+    phasesNotMissionAligned?: string[];
+    lanesWithMissingOutcome?: string[];
+    lanesWithVagueOutcome?: string[];
+    lanesWithoutExecution?: string[];
+    lanesWithoutSupport?: string[];
     temporalDistribution?: {
       contractStartDayKey: string;
       contractEndDayKey: string;

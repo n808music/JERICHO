@@ -6028,6 +6028,9 @@ function applyPlanQualityGates(state) {
           .filter(Boolean)
       : [];
 
+    const masterPlanId = contract?.masterPlanId || cycle?.masterPlanId || null;
+    const masterPlanForGate = masterPlanId ? state?.masterPlansById?.[masterPlanId] || null : null;
+
     const result = evaluatePlanQualityGate({
       goalText: contract?.terminalOutcome?.text || contract?.goalText || contract?.goalLabel || '',
       verificationText: contract?.terminalOutcome?.verificationCriteria || '',
@@ -6036,6 +6039,16 @@ function applyPlanQualityGates(state) {
       proposedBlocks: canonicalProposed,
       committedBlocks: canonicalCommitted,
       branchCoverageSummary: { declaredBranches },
+      missionContext: masterPlanForGate
+        ? {
+            coreMission: masterPlanForGate.coreMission || null,
+            outcomeTarget: masterPlanForGate.outcomeTarget || null,
+            successStandard: masterPlanForGate.successStandard || null,
+            terminalOutcome: contract?.terminalOutcome?.text || null,
+            controllabilityClass: masterPlanForGate.controllabilityClass || null,
+            terminalTargetClass: masterPlanForGate.terminalTargetClass || null,
+          }
+        : undefined,
       temporalContext: {
         contractStartDayKey:
           contract?.startDayKey ||

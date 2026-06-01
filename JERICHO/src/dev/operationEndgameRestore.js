@@ -11,6 +11,12 @@ export const OPERATION_ENDGAME_GOAL_TEXT =
   'Coordinate Operation Endgame as a 5-year multi-lane master plan across product, creative, media, operations, revenue, capital, institution, and civic pathways.';
 export const OPERATION_ENDGAME_SUCCESS_STATE =
   'Build an active scaling ecosystem with validated product, creative, media, operations, revenue, capital, institution, and civic pathways through the 2031 strategic horizon.';
+// Falsifiable terminal target: each active lane must show externally verifiable
+// proof of scale by 2031-05-19. Specific dollar/user/audience thresholds are
+// intentionally left to the next plan-quality review so the seed does not
+// fabricate numbers the user hasn't stated.
+export const OPERATION_ENDGAME_OUTCOME_TARGET =
+  'By 2031-05-19, every active lane shows externally verifiable proof of scale: a shipping product with a paying user base, a published creative catalog with sustained audience, a recurring revenue stream, and a funded capital pathway or signed institutional/civic partnership. Specific dollar, user, and audience thresholds to be set at the next plan-quality review.';
 export const OPERATION_ENDGAME_CONSTRAINT =
   'Capital is constrained and near-term revenue matters. The system must coordinate multiple lanes without losing full-horizon truth.';
 export const OPERATION_ENDGAME_NON_NEGOTIABLE =
@@ -550,7 +556,7 @@ export function buildOperationEndgameFixtureState({
     plan.coreMission = OPERATION_ENDGAME_GOAL_TEXT;
     plan.masterPlanSummary = OPERATION_ENDGAME_GOAL_TEXT;
     plan.northStarOutcome = OPERATION_ENDGAME_SUCCESS_STATE;
-    plan.outcomeTarget = null;
+    plan.outcomeTarget = OPERATION_ENDGAME_OUTCOME_TARGET;
     plan.successStandard = OPERATION_ENDGAME_SUCCESS_STATE;
     plan.executionHorizon = '60 months through 2031';
     plan.horizonStart = todayDate;

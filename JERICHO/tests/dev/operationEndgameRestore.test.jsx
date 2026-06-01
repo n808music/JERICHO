@@ -174,7 +174,12 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(canonicalTexts).toContain('Coordinate Operation Endgame as a 5-year multi-lane master plan');
     expect(canonicalTexts).not.toMatch(/10k users|10,000 users/i);
     expect(canonicalTexts).not.toMatch(/grow revenue to \$10k\/month/i);
-    expect(plan?.outcomeTarget || null).toBeNull();
+    // Phase 2 contract: Operation Endgame seeds a falsifiable terminal target
+    // anchored to 2031-05-19. The negative regexes above still guard against
+    // fabricated user/dollar numbers — the target is structural, not numeric.
+    expect(plan?.outcomeTarget).toBeTruthy();
+    expect(plan?.outcomeTarget).toMatch(/2031-05-19/);
+    expect(plan?.outcomeTarget).toMatch(/externally verifiable proof of scale/);
   });
 
   it('writes the fixture to localStorage with a backup of the prior identity blob', () => {

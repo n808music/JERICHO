@@ -115,6 +115,8 @@ type EvaluatePlanQualityGateInput = {
     outcomeTarget?: string | null;
     successStandard?: string | null;
     terminalOutcome?: string | null;
+    controllabilityClass?: string | null;
+    terminalTargetClass?: string | null;
   };
   temporalContext?: {
     contractStartDayKey?: string | null;
@@ -1028,6 +1030,21 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
 
   const failureCodes = new Set<PlanQualityFailureCode>();
   const reasonCodes = new Set<string>();
+
+  // MISSING_OUTCOME_TARGET: a plan whose outcome depends on external markets,
+  // stakeholders, or funding (semi_controllable / externally_mediated) must declare
+  // a falsifiable terminal target. A purely self-controllable goal can rely on
+  // coreMission alone — this check only fires when controllabilityClass is provided.
+  if (input.missionContext) {
+    const controllabilityClass = normalizeText(input.missionContext.controllabilityClass || '').toLowerCase();
+    const requiresTerminalTarget =
+      controllabilityClass === 'semi_controllable' || controllabilityClass === 'externally_mediated';
+    if (requiresTerminalTarget && !normalizeText(input.missionContext.outcomeTarget)) {
+      failureCodes.add('MISSING_OUTCOME_TARGET');
+      reasonCodes.add('MISSING_OUTCOME_TARGET');
+    }
+  }
+
   const missingMajorComponents = new Set<string>();
   const missingDeliverableBranches = new Set<string>();
   const missingExecutionDescendants = new Set<string>();
