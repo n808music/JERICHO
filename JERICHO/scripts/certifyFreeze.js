@@ -6,7 +6,7 @@ import {
   buildBlankState,
   FIXED_DAY,
   localStartISOForHour,
-  NOW_ISO
+  NOW_ISO,
 } from '../src/state/tests/freeze_helpers.js';
 
 const OUT_DIR = path.join(process.cwd(), 'docs', 'certification');
@@ -36,8 +36,8 @@ function buildCertifiedState() {
       narrative: 'Freeze certification run',
       focusAreas: ['Creation'],
       successDefinition: 'Deliverables done',
-      minimumDaysPerWeek: 3
-    }
+      minimumDaysPerWeek: 3,
+    },
   });
 
   const cycleId = state.activeCycleId;
@@ -47,7 +47,7 @@ function buildCertifiedState() {
 
   state = computeDerivedState(state, {
     type: 'CREATE_DELIVERABLE',
-    payload: { cycleId, title: 'Certification Deliverable', requiredBlocks: 2 }
+    payload: { cycleId, title: 'Certification Deliverable', requiredBlocks: 2 },
   });
 
   state = computeDerivedState(state, { type: 'GENERATE_COLD_PLAN' });
@@ -67,8 +67,8 @@ function buildCertifiedState() {
       title: 'Certification Manual Block',
       timeZone: 'UTC',
       linkToGoal: true,
-      deliverableId
-    }
+      deliverableId,
+    },
   });
 
   const committedBlocks = [...(state.today?.blocks || [])];
@@ -87,7 +87,7 @@ async function run() {
   const committedSchedule = {
     today: state.today || null,
     currentWeek: state.currentWeek || null,
-    cycleDays: state.cycle || []
+    cycleDays: state.cycle || [],
   };
   const eventLog = state.executionEvents || [];
 
@@ -100,7 +100,7 @@ async function run() {
     cycleId,
     nowISO: NOW_ISO,
     dayKey: FIXED_DAY,
-    generatedAtISO: NOW_ISO
+    generatedAtISO: NOW_ISO,
   });
 
   console.log(`Certification snapshots written to ${OUT_DIR}`);

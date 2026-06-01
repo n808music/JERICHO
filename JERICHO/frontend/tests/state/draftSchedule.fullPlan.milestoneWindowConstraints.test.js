@@ -6,8 +6,26 @@ function buildState() {
   const startDay = '2026-01-01';
   const deadlineDay = '2026-01-03';
   const actions = [
-    { id: 'a-milestone', title: 'milestone action', detail: 'detail', category: 'Focus', estimateMin: 30, deps: [], topoIndex: 0, priority: 1 },
-    { id: 'a-normal', title: 'normal action', detail: 'detail', category: 'Creation', estimateMin: 30, deps: [], topoIndex: 1, priority: 2 }
+    {
+      id: 'a-milestone',
+      title: 'milestone action',
+      detail: 'detail',
+      category: 'Focus',
+      estimateMin: 30,
+      deps: [],
+      topoIndex: 0,
+      priority: 1,
+    },
+    {
+      id: 'a-normal',
+      title: 'normal action',
+      detail: 'detail',
+      category: 'Creation',
+      estimateMin: 30,
+      deps: [],
+      topoIndex: 1,
+      priority: 2,
+    },
   ];
 
   const goalContract = {
@@ -20,10 +38,10 @@ function buildState() {
         windowStartDayKey: '2026-02-01',
         windowEndDayKey: '2026-02-05',
         actionIds: ['a-milestone'],
-        checkpointActionIds: []
-      }
+        checkpointActionIds: [],
+      },
     ],
-    temporalBinding: { daysPerWeek: 7, specificDays: 'mon,tue,wed,thu,fri,sat,sun', sessionDurationMinutes: 30 }
+    temporalBinding: { daysPerWeek: 7, specificDays: 'mon,tue,wed,thu,fri,sat,sun', sessionDurationMinutes: 30 },
   };
 
   return {
@@ -40,14 +58,14 @@ function buildState() {
           id: cycleId,
           actions,
           goalContract,
-          coldPlan: { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } }
-        }
+          coldPlan: { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } },
+        },
       },
-      deliverablesByCycleId: { [cycleId]: { cycleId, deliverables: [] } }
+      deliverablesByCycleId: { [cycleId]: { cycleId, deliverables: [] } },
     },
     cycleId,
     actions,
-    goalContract
+    goalContract,
   };
 }
 
@@ -63,7 +81,7 @@ describe('draftSchedule milestone window constraints', () => {
       defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01', fullPlanMaxHorizonDays: 365 },
       captureStats: (stats) => {
         captured = stats;
-      }
+      },
     });
 
     expect(captured.horizonMode).toBe('MILESTONE_WINDOW');
@@ -81,8 +99,8 @@ describe('draftSchedule milestone window constraints', () => {
         windowStartDayKey: '2026-04-01',
         windowEndDayKey: '2026-12-31',
         actionIds: ['a-milestone'],
-        checkpointActionIds: []
-      }
+        checkpointActionIds: [],
+      },
     ];
 
     let captured = null;
@@ -94,7 +112,7 @@ describe('draftSchedule milestone window constraints', () => {
       defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01', fullPlanMaxHorizonDays: 20 },
       captureStats: (stats) => {
         captured = stats;
-      }
+      },
     });
 
     expect(captured.horizonMode).toBe('MILESTONE_WINDOW');
@@ -108,7 +126,16 @@ describe('draftSchedule milestone window constraints', () => {
   it('marks milestone action as dependency-not-ready-in-window when prerequisite is unresolved', () => {
     const { state, cycleId, goalContract } = buildState();
     const actions = [
-      { id: 'a-prereq', title: 'prereq', detail: 'detail', category: 'Focus', estimateMin: 30, deps: [], topoIndex: 0, priority: 1 },
+      {
+        id: 'a-prereq',
+        title: 'prereq',
+        detail: 'detail',
+        category: 'Focus',
+        estimateMin: 30,
+        deps: [],
+        topoIndex: 0,
+        priority: 1,
+      },
       {
         id: 'a-milestone',
         title: 'milestone action',
@@ -117,8 +144,8 @@ describe('draftSchedule milestone window constraints', () => {
         estimateMin: 30,
         deps: ['a-prereq'],
         topoIndex: 1,
-        priority: 2
-      }
+        priority: 2,
+      },
     ];
     state.actionsByCycleId[cycleId].actions = actions;
     state.cyclesById[cycleId].actions = actions;
@@ -128,8 +155,8 @@ describe('draftSchedule milestone window constraints', () => {
         windowStartDayKey: '2026-01-01',
         windowEndDayKey: '2026-01-02',
         actionIds: ['a-milestone'],
-        checkpointActionIds: []
-      }
+        checkpointActionIds: [],
+      },
     ];
 
     let captured = null;
@@ -141,7 +168,7 @@ describe('draftSchedule milestone window constraints', () => {
       defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' },
       captureStats: (stats) => {
         captured = stats;
-      }
+      },
     });
 
     const placedActionIds = Array.from(new Set(items.map((item) => item.actionId)));
@@ -154,7 +181,7 @@ describe('draftSchedule milestone window constraints', () => {
     const { state, cycleId, actions, goalContract } = buildState();
     state.cyclesById[cycleId].goalContract.temporalBinding = {
       ...state.cyclesById[cycleId].goalContract.temporalBinding,
-      specificDays: 'mon'
+      specificDays: 'mon',
     };
     state.cyclesById[cycleId].goalContract.milestones = [
       {
@@ -162,8 +189,8 @@ describe('draftSchedule milestone window constraints', () => {
         windowStartDayKey: '2026-01-02',
         windowEndDayKey: '2026-01-03',
         actionIds: ['a-milestone'],
-        checkpointActionIds: []
-      }
+        checkpointActionIds: [],
+      },
     ];
     let captured = null;
     const items = buildDraftScheduleItems(state, cycleId, {
@@ -174,7 +201,7 @@ describe('draftSchedule milestone window constraints', () => {
       defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' },
       captureStats: (stats) => {
         captured = stats;
-      }
+      },
     });
 
     const placedActionIds = Array.from(new Set(items.map((item) => item.actionId)));
@@ -193,8 +220,8 @@ describe('draftSchedule milestone window constraints', () => {
         windowStartDayKey: '2026-01-02',
         windowEndDayKey: '2026-01-03',
         actionIds: ['a-milestone'],
-        checkpointActionIds: []
-      }
+        checkpointActionIds: [],
+      },
     ];
 
     let captured = null;
@@ -206,7 +233,7 @@ describe('draftSchedule milestone window constraints', () => {
       defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' },
       captureStats: (stats) => {
         captured = stats;
-      }
+      },
     });
 
     expect(captured.milestoneWindowConstraintMode).toBe('soft');
@@ -227,7 +254,7 @@ describe('draftSchedule milestone window constraints', () => {
         estimateMin: 90,
         deps: [],
         topoIndex: 0,
-        priority: 1
+        priority: 1,
       },
       {
         id: 'a-windowed',
@@ -237,8 +264,8 @@ describe('draftSchedule milestone window constraints', () => {
         estimateMin: 30,
         deps: ['a-prereq'],
         topoIndex: 1,
-        priority: 2
-      }
+        priority: 2,
+      },
     ];
     state.actionsByCycleId[cycleId].actions = actions;
     state.cyclesById[cycleId].actions = actions;
@@ -248,8 +275,8 @@ describe('draftSchedule milestone window constraints', () => {
         windowStartDayKey: '2026-01-01',
         windowEndDayKey: '2026-01-01',
         actionIds: ['a-windowed'],
-        checkpointActionIds: []
-      }
+        checkpointActionIds: [],
+      },
     ];
 
     let captured = null;
@@ -261,7 +288,7 @@ describe('draftSchedule milestone window constraints', () => {
       defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' },
       captureStats: (stats) => {
         captured = stats;
-      }
+      },
     });
 
     const placedActionIds = Array.from(new Set(items.map((item) => item.actionId)));
@@ -284,7 +311,7 @@ describe('draftSchedule milestone window constraints', () => {
         estimateMin: 75,
         deps: [],
         topoIndex: 0,
-        priority: 1
+        priority: 1,
       },
       {
         id: 'a-after',
@@ -294,8 +321,8 @@ describe('draftSchedule milestone window constraints', () => {
         estimateMin: 30,
         deps: ['a-long'],
         topoIndex: 1,
-        priority: 2
-      }
+        priority: 2,
+      },
     ];
     state.actionsByCycleId[cycleId].actions = actions;
     state.cyclesById[cycleId].actions = actions;
@@ -306,7 +333,7 @@ describe('draftSchedule milestone window constraints', () => {
       actions,
       contract: state.cyclesById[cycleId].goalContract,
       timeZone: 'UTC',
-      defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' }
+      defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' },
     });
 
     const longItems = items.filter((item) => item.actionId === 'a-long');

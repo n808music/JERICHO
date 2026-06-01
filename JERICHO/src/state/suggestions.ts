@@ -1,5 +1,6 @@
 import { addDays } from './time/time.ts';
 import { buildLocalStartISO, assertValidISO } from './time/time.ts';
+import { IS_PRODUCTION } from '../utils/runtimeEnv.js';
 
 type SuggestionTemplate = {
   title: string;
@@ -49,8 +50,31 @@ export function generateSuggestions({
   goalText,
   primaryDomain,
   reservedIds = new Set(),
-  timeZone
+  timeZone,
 }: GenerateSuggestionsInput): Suggestion[] {
+  if (!IS_PRODUCTION) {
+    console.group('JERICHO_SUGGESTION_TRACE');
+    console.log({
+      traceId: `trace-suggest-${goalId}-${startDayKey || 'no-anchor'}`,
+      goalId: goalId || null,
+      moduleName: 'buildSuggestedBlocks',
+      stepName: 'entry',
+      status: startDayKey ? 'ok' : 'fail',
+      timestamp: new Date().toISOString(),
+      inputSummary: {
+        startDayKey: startDayKey || null,
+        blocksPerWeek,
+        daysPerWeek,
+        templatesCount: templates.length,
+        timeZone: timeZone || null,
+        reservedIdsCount: reservedIds.size,
+      },
+      errorCode: startDayKey ? null : 'SUGGESTION_ANCHOR_MISSING',
+      reasonCodes: startDayKey ? [] : ['startDayKey_undefined'],
+    });
+    console.groupEnd();
+  }
+
   const slots = blocksPerWeek > 7 ? ['09:00', '16:00'] : ['09:00'];
   const suggestions: Suggestion[] = [];
   const nowISO = new Date().toISOString();
@@ -63,14 +87,13 @@ export function generateSuggestions({
     const dayOffset = Math.floor(sequence / slots.length);
     const dayKey = addDays(startDayKey, dayOffset, timeZone);
     const slot = slots[sequence % slots.length];
-    const template =
-      templates[sequence % templates.length] || {
-        title: `${primaryDomain} block`,
-        domain: primaryDomain,
-        durationMinutes: 45,
-        frequency: 'weekly',
-        reason: 'maintain momentum'
-      };
+    const template = templates[sequence % templates.length] || {
+      title: `${primaryDomain} block`,
+      domain: primaryDomain,
+      durationMinutes: 45,
+      frequency: 'weekly',
+      reason: 'maintain momentum',
+    };
     const startResult = buildLocalStartISO(dayKey, slot, timeZone);
     if (!startResult?.ok) {
       assertValidISO('suggestion_startISO', '', { dayKey, slot, reason: startResult?.reason });
@@ -93,9 +116,31 @@ export function generateSuggestions({
       whyThis: `${template.reason} for “${goalText || 'your goal'}”.`,
       assumption: `Assuming ${daysPerWeek} days/week execution.`,
       status: 'suggested',
-      createdAtISO: nowISO
+      createdAtISO: nowISO,
     });
     sequence += 1;
   }
+
+  if (!IS_PRODUCTION) {
+    console.group('JERICHO_SUGGESTION_TRACE');
+    console.log({
+      traceId: `trace-suggest-${goalId}-${startDayKey || 'no-anchor'}`,
+      goalId: goalId || null,
+      moduleName: 'buildSuggestedBlocks',
+      stepName: 'complete',
+      status: suggestions.length > 0 ? 'ok' : 'fail',
+      timestamp: new Date().toISOString(),
+      outputSummary: {
+        suggestionsCount: suggestions.length,
+        requestedCount: blocksPerWeek,
+        firstDayKey: suggestions[0]?.dayKey || null,
+        lastDayKey: suggestions[suggestions.length - 1]?.dayKey || null,
+      },
+      errorCode: suggestions.length > 0 ? null : 'NO_SUGGESTIONS_GENERATED',
+      reasonCodes: suggestions.length === 0 ? ['anchor_or_template_failure'] : [],
+    });
+    console.groupEnd();
+  }
+
   return suggestions;
 }

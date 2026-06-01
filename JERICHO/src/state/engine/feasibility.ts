@@ -60,15 +60,23 @@ const WEEKDAY_MAP: Record<string, number> = {
   wed: 3,
   thu: 4,
   fri: 5,
-  sat: 6
+  sat: 6,
 };
 
-export function computeFeasibility(goal: { goalId: string; deadlineISO: string }, state: any, constraints: Constraints, nowISO: string): FeasibilityResult {
+export function computeFeasibility(
+  goal: { goalId: string; deadlineISO: string },
+  state: any,
+  constraints: Constraints,
+  nowISO: string
+): FeasibilityResult {
   const timezone = constraints?.timezone || 'UTC';
   const todayLocalDate = dayKeyFromISO(nowISO, timezone);
   const deadlineLocalDate = dayKeyFromISO(goal.deadlineISO, timezone);
   const workItems: WorkItem[] = (state?.goalWorkById && state.goalWorkById[goal.goalId]) || [];
-  const remainingBlocksTotal = workItems.reduce((sum, item) => sum + Math.max(0, Number(item?.blocksRemaining) || 0), 0);
+  const remainingBlocksTotal = workItems.reduce(
+    (sum, item) => sum + Math.max(0, Number(item?.blocksRemaining) || 0),
+    0
+  );
 
   if (goal.deadlineISO <= nowISO) {
     if (remainingBlocksTotal > 0) {
@@ -83,7 +91,7 @@ export function computeFeasibility(goal: { goalId: string; deadlineISO: string }
         requiredBlocksPerDay: null,
         requiredBlocksToday: null,
         completedBlocksToday: 0,
-        delta: {}
+        delta: {},
       };
     }
     return {
@@ -97,7 +105,7 @@ export function computeFeasibility(goal: { goalId: string; deadlineISO: string }
       requiredBlocksPerDay: 0,
       requiredBlocksToday: 0,
       completedBlocksToday: 0,
-      delta: {}
+      delta: {},
     };
   }
 
@@ -113,7 +121,7 @@ export function computeFeasibility(goal: { goalId: string; deadlineISO: string }
       requiredBlocksPerDay: 0,
       requiredBlocksToday: 0,
       completedBlocksToday: 0,
-      delta: {}
+      delta: {},
     };
   }
 
@@ -143,8 +151,8 @@ export function computeFeasibility(goal: { goalId: string; deadlineISO: string }
       debug: {
         todayLocalDate,
         deadlineLocalDate,
-        dailyCapacitySchedule
-      }
+        dailyCapacitySchedule,
+      },
     };
   }
 
@@ -176,7 +184,14 @@ export function computeFeasibility(goal: { goalId: string; deadlineISO: string }
     }
   }
 
-  const subDeadlines = computeSubDeadlines(workItems, todayLocalDate, deadlineLocalDate, constraints, timezone, dailyCapacitySchedule);
+  const subDeadlines = computeSubDeadlines(
+    workItems,
+    todayLocalDate,
+    deadlineLocalDate,
+    constraints,
+    timezone,
+    dailyCapacitySchedule
+  );
   if (subDeadlines.some((d) => d.requiredBlocksPerDay > d.workableDaysRemaining || d.workableDaysRemaining === 0)) {
     if (!reasons.includes('SUBDEADLINE_INFEASIBLE')) reasons.push('SUBDEADLINE_INFEASIBLE');
     status = 'INFEASIBLE';
@@ -198,8 +213,8 @@ export function computeFeasibility(goal: { goalId: string; deadlineISO: string }
     debug: {
       todayLocalDate,
       deadlineLocalDate,
-      dailyCapacitySchedule
-    }
+      dailyCapacitySchedule,
+    },
   };
 }
 
@@ -275,12 +290,13 @@ function computeSubDeadlines(
   return Object.entries(groups).map(([mustFinishByISO, remainingBlocks]) => {
     const schedule = buildDailyCapacitySchedule(startDate, mustFinishByISO, constraints, timezone);
     const workableDaysRemaining = Object.values(schedule).filter((v) => v > 0).length;
-    const requiredBlocksPerDay = workableDaysRemaining > 0 ? Math.ceil(remainingBlocks / workableDaysRemaining) : remainingBlocks;
+    const requiredBlocksPerDay =
+      workableDaysRemaining > 0 ? Math.ceil(remainingBlocks / workableDaysRemaining) : remainingBlocks;
     return {
       mustFinishByISO,
       remainingBlocks,
       workableDaysRemaining,
-      requiredBlocksPerDay
+      requiredBlocksPerDay,
     };
   });
 }

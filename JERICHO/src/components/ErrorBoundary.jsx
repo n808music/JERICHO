@@ -1,4 +1,5 @@
 import React from 'react';
+import { IS_PRODUCTION } from '../utils/runtimeEnv.js';
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -12,7 +13,7 @@ export default class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, info) {
     this.setState({ info });
-    if (process.env.NODE_ENV !== 'production') {
+    if (!IS_PRODUCTION) {
       // eslint-disable-next-line no-console
       console.error('UI ErrorBoundary caught error:', error, info);
     }
@@ -26,7 +27,7 @@ export default class ErrorBoundary extends React.Component {
         <div className="max-w-2xl w-full rounded-xl border border-line/60 bg-jericho-surface p-4 space-y-2">
           <p className="text-sm font-semibold text-jericho-text">UI Error</p>
           <p className="text-xs text-muted">{error.message || 'Unexpected render error.'}</p>
-          {process.env.NODE_ENV !== 'production' && info?.componentStack ? (
+          {!IS_PRODUCTION && info?.componentStack ? (
             <pre className="text-[11px] text-muted whitespace-pre-wrap">{info.componentStack}</pre>
           ) : null}
         </div>

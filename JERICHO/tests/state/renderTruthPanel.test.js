@@ -16,26 +16,26 @@ function makeState(overrides = {}) {
         requiredBlocksPerDay: 2,
         requiredBlocksToday: 1,
         completedBlocksToday: 1,
-        delta: { blocksShort: 0 }
-      }
+        delta: { blocksShort: 0 },
+      },
     },
     goalDirective: {
       goalId: GOAL_ID,
       workItemId: 'w1',
-      title: 'Draft outline'
+      title: 'Draft outline',
     },
     directiveEligibilityByGoal: {
-      [GOAL_ID]: { allowed: true, reasons: [] }
+      [GOAL_ID]: { allowed: true, reasons: [] },
     },
     probabilityStatusByGoal: {
       [GOAL_ID]: {
         status: 'computed',
         reasons: [],
         requiredEvents: 2,
-        evidenceSummary: { totalEvents: 3, completedCount: 2, daysCovered: 2 }
-      }
+        evidenceSummary: { totalEvents: 3, completedCount: 2, daysCovered: 2 },
+      },
     },
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -52,8 +52,8 @@ describe('renderTruthPanel', () => {
   it('renders directive enabled/disabled from eligibility', () => {
     const state = makeState({
       directiveEligibilityByGoal: {
-        [GOAL_ID]: { allowed: false, reasons: ['cooldown'] }
-      }
+        [GOAL_ID]: { allowed: false, reasons: ['cooldown'] },
+      },
     });
     const result = renderTruthPanel(state, NOW_ISO);
     expect(result.sections.guidance.hasDirective).toBe(true);
@@ -69,7 +69,7 @@ describe('renderTruthPanel', () => {
 
   it('returns errors when required artifacts are missing', () => {
     const state = makeState({
-      feasibilityByGoal: {}
+      feasibilityByGoal: {},
     });
     const result = renderTruthPanel(state, NOW_ISO);
     expect(result.errors).toBeTruthy();

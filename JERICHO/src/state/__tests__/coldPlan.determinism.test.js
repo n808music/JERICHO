@@ -9,7 +9,7 @@ const baseStrategy = {
   deliverables: [{ id: 'd1', title: 'Primary', requiredBlocks: 12 }],
   deadlineISO: '2026-02-01T23:59:00.000Z',
   constraints: { tz: 'UTC' },
-  assumptionsHash: ''
+  assumptionsHash: '',
 };
 
 describe('cold plan determinism', () => {
@@ -20,7 +20,7 @@ describe('cold plan determinism', () => {
       nowISO: '2026-01-01T12:00:00.000Z',
       strategy,
       completedCountToDate: 0,
-      rebaseMode: 'NONE'
+      rebaseMode: 'NONE',
     };
     const a = generateColdPlan(input);
     const b = generateColdPlan(input);

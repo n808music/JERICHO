@@ -1,4 +1,4 @@
-import { attachTeamRoles, buildAccountabilityStrip, filterSessionForViewer, ROLE_OWNER, ROLE_CONTRIBUTOR, ROLE_OBSERVER } from '../../src/core/team-roles.js';
+import { attachTeamRoles, buildAccountabilityStrip, filterSessionForViewer, ROLE_OWNER, ROLE_CONTRIBUTOR } from '../../src/core/team-roles.js';
 
 const teamState = {
   users: [

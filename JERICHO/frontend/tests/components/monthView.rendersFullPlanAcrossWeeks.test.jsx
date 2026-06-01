@@ -20,7 +20,7 @@ function buildState() {
     deps: [],
     status: 'todo',
     topoIndex: i,
-    priority: 1
+    priority: 1,
   }));
   const forecastByDayKey = {};
   for (let i = 0; i < 60; i += 1) {
@@ -61,18 +61,18 @@ function buildState() {
           goalLabel: 'write season 1 of tv show',
           startDate: startDay,
           deadline: { dayKey: '2026-05-01' },
-          temporalBinding: { daysPerWeek: 7, activationTime: '09:00', sessionDurationMinutes: 60 }
+          temporalBinding: { daysPerWeek: 7, activationTime: '09:00', sessionDurationMinutes: 60 },
         },
         coldPlan: { forecastByDayKey, dailyProjection: { forecastByDayKey: {} } },
-        summary: { completionCount: 0, completionRate: 0 }
-      }
+        summary: { completionCount: 0, completionRate: 0 },
+      },
     },
     goalExecutionContract: { goalId: 'goal-1', startDate: startDay, deadline: { dayKey: '2026-05-01' } },
     goalDirective: { goalId: 'goal-1', directiveId: 'dir-1' },
     directiveEligibilityByGoal: { 'goal-1': { eligible: true } },
     planDraft: { blocksPerWeek: 5, daysPerWeek: 5, primaryDomain: 'CREATION', minutesPerDay: 90 },
     planCalibration: null,
-    correctionSignals: null
+    correctionSignals: null,
   };
 }
 

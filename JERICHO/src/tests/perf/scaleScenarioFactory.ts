@@ -24,6 +24,10 @@ export type ScaleScenarioConfig = {
   optimizerMode?: 'off' | 'on';
   qualityPolicyId?: string;
   autoPolicySelection?: boolean;
+  enableMilestonePacing?: boolean;
+  enableHistoryPolicySelection?: boolean;
+  historyWindowCycles?: number;
+  historyInfluenceStrength?: 'light' | 'standard' | 'strong';
 };
 
 function actionId(i: number) {
@@ -95,15 +99,20 @@ export function buildScaleScenario(config: ScaleScenarioConfig) {
       totalMinutesPerWeek: Math.max(180, Math.ceil(config.actions.count / 8) * 45),
       primaryDomain: 'FOCUS',
       archetype: 'scale',
-      templates: [{ title: 'Scale Task', domain: 'Focus', durationMinutes: 45, frequency: 'weekly', reason: 'deterministic' }],
+      templates: [
+        { title: 'Scale Task', domain: 'Focus', durationMinutes: 45, frequency: 'weekly', reason: 'deterministic' },
+      ],
       horizonDays: config.executionHorizonDays,
       daysPerWeek: 7,
       qualityPolicyId: config.qualityPolicyId || 'BALANCED',
       autoPolicySelection: config.autoPolicySelection === true,
+      enableHistoryPolicySelection: config.enableHistoryPolicySelection === true,
+      historyWindowCycles: Number.isFinite(config.historyWindowCycles) ? config.historyWindowCycles : 5,
+      historyInfluenceStrength: config.historyInfluenceStrength || 'standard',
       enableQualityOptimizer: config.optimizerMode === 'on',
       optimizerMaxIterations: 2,
       optimizerMaxCandidates: 30,
-      enableMilestonePacing: false,
+      enableMilestonePacing: config.enableMilestonePacing === true,
       pacingCadenceMode: 'adaptive',
       actions,
       milestones,

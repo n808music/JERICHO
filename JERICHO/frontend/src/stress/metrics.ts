@@ -179,10 +179,7 @@ function normalizePlacement(entry: PlacementLike, index: number): NormalizedPlac
   const startAt = Date.parse(startISO);
   if (!Number.isFinite(startAt)) return null;
   const minutes = durationMinutes(entry);
-  const endISO =
-    entry.endISO ||
-    entry.end ||
-    new Date(startAt + Math.max(1, minutes || 30) * 60000).toISOString();
+  const endISO = entry.endISO || entry.end || new Date(startAt + Math.max(1, minutes || 30) * 60000).toISOString();
   const dayKey = entry.dayKey || entry.dateISO || dayKeyFromISO(startISO, 'UTC');
   if (!dayKey) return null;
   return {
@@ -191,7 +188,7 @@ function normalizePlacement(entry: PlacementLike, index: number): NormalizedPlac
     dayKey,
     startISO,
     endISO,
-    minutes: Math.max(1, minutes || 30)
+    minutes: Math.max(1, minutes || 30),
   };
 }
 
@@ -281,7 +278,7 @@ function toScoreAssignments(placements: NormalizedPlacement[], actionById: Map<s
         return date.getUTCHours() * 60 + date.getUTCMinutes();
       })(),
       durationMin: Math.max(1, placement.minutes || 30),
-      category: actionById.get(placement.actionId as string)?.category || 'UNKNOWN'
+      category: actionById.get(placement.actionId as string)?.category || 'UNKNOWN',
     }))
     .sort((a, b) => {
       if (a.dayKey !== b.dayKey) return a.dayKey.localeCompare(b.dayKey);
@@ -344,7 +341,7 @@ function computeDepViolations(
   return {
     violations,
     checkedActions,
-    eligibleActions: depActions
+    eligibleActions: depActions,
   };
 }
 
@@ -402,7 +399,10 @@ function computeMilestoneAnchoringScore(
       }
     }
 
-    if (hasCheckpointInWindow || (hasMilestoneActionInWindow && (milestoneActions.length <= 1 || predecessorsPlacedBeforeMilestone))) {
+    if (
+      hasCheckpointInWindow ||
+      (hasMilestoneActionInWindow && (milestoneActions.length <= 1 || predecessorsPlacedBeforeMilestone))
+    ) {
       anchored += 1;
     } else {
       missingMilestoneIds.push(milestone.id);
@@ -414,7 +414,7 @@ function computeMilestoneAnchoringScore(
     total: milestones.length,
     anchored,
     missingMilestoneIds: Array.from(new Set(missingMilestoneIds)),
-    missingCheckpointActionIds: Array.from(new Set(missingCheckpointActionIds))
+    missingCheckpointActionIds: Array.from(new Set(missingCheckpointActionIds)),
   };
 }
 
@@ -514,7 +514,7 @@ function computeMilestonePlacedRatio(
   return {
     min: Number(min.toFixed(4)),
     avg: Number(avg.toFixed(4)),
-    byMilestone
+    byMilestone,
   };
 }
 
@@ -529,7 +529,7 @@ function computeMilestoneWindowSlack(
       slackRatioMin: 1,
       slackRatioAvg: 1,
       infeasibleMilestonesCount: 0,
-      byMilestone: {}
+      byMilestone: {},
     };
   }
 
@@ -548,7 +548,8 @@ function computeMilestoneWindowSlack(
     Math.max(1, Number(fixture.availability?.routeMinutesDefault || 30));
   const dailyCap = Number(fixture.realismConstraints?.maxScheduledMinutesPerDay || 0);
   const weeklyCap = Number(fixture.realismConstraints?.maxScheduledMinutesPerWeek || 0);
-  const perDayCapacityMinutes = Number.isFinite(dailyCap) && dailyCap > 0 ? Math.min(perDayFromAvailability, dailyCap) : perDayFromAvailability;
+  const perDayCapacityMinutes =
+    Number.isFinite(dailyCap) && dailyCap > 0 ? Math.min(perDayFromAvailability, dailyCap) : perDayFromAvailability;
 
   const placementStartDayKey = dayKeyFromISO(
     String((diagnostics as any)?.feasibilityWindowStartISO || (diagnostics as any)?.placementWindowStartISO || ''),
@@ -610,20 +611,22 @@ function computeMilestoneWindowSlack(
       windowStartDayKey: milestone.windowStartDayKey,
       windowEndDayKey: milestone.windowEndDayKey,
       placementOverlapStartDayKey: overlapStart <= overlapEnd ? overlapStart : null,
-      placementOverlapEndDayKey: overlapStart <= overlapEnd ? overlapEnd : null
+      placementOverlapEndDayKey: overlapStart <= overlapEnd ? overlapEnd : null,
     };
   });
 
   const ratios = Object.values(byMilestone).map((entry) => entry.slackRatio);
   const slackRatioMin = ratios.length ? Number(Math.min(...ratios).toFixed(4)) : 1;
-  const slackRatioAvg = ratios.length ? Number((ratios.reduce((sum, ratio) => sum + ratio, 0) / ratios.length).toFixed(4)) : 1;
+  const slackRatioAvg = ratios.length
+    ? Number((ratios.reduce((sum, ratio) => sum + ratio, 0) / ratios.length).toFixed(4))
+    : 1;
   const infeasibleMilestonesCount = Object.values(byMilestone).filter((entry) => entry.slackRatio < 1).length;
 
   return {
     slackRatioMin,
     slackRatioAvg,
     infeasibleMilestonesCount,
-    byMilestone
+    byMilestone,
   };
 }
 
@@ -633,7 +636,7 @@ export function computeStressMetrics({
   previewItems,
   materializedBlocks,
   rebuildPreviewItems,
-  diagnostics
+  diagnostics,
 }: {
   fixture: StressScenarioFixture;
   actions: StressAction[];
@@ -652,12 +655,15 @@ export function computeStressMetrics({
   const knownActionIds = new Set(actions.map((action) => action.id));
   const placedActionIds = new Set(normalizedMaterialized.map((block) => block.actionId).filter(Boolean));
   const unplacedActionCount = Math.max(0, actionCount - placedActionIds.size);
-  const unplacedEstimateMinByCategory = actions.reduce((acc, action) => {
-    if (placedActionIds.has(action.id)) return acc;
-    const key = ((action.category || (action as any)?.domain || 'UNKNOWN') + '').toUpperCase();
-    acc[key] = (acc[key] || 0) + Math.max(0, Number(action.estimateMin) || 0);
-    return acc;
-  }, {} as Record<string, number>);
+  const unplacedEstimateMinByCategory = actions.reduce(
+    (acc, action) => {
+      if (placedActionIds.has(action.id)) return acc;
+      const key = ((action.category || (action as any)?.domain || 'UNKNOWN') + '').toUpperCase();
+      acc[key] = (acc[key] || 0) + Math.max(0, Number(action.estimateMin) || 0);
+      return acc;
+    },
+    {} as Record<string, number>
+  );
   const unplacedEstimateMinTotal = Object.values(unplacedEstimateMinByCategory).reduce((sum, value) => sum + value, 0);
 
   const totalsByDay = new Map<string, number>();
@@ -791,7 +797,9 @@ export function computeStressMetrics({
   const derivedWeeklyCapacity = (() => {
     const explicit = Number(fixture.realismConstraints?.maxScheduledMinutesPerWeek);
     if (Number.isFinite(explicit) && explicit > 0) return explicit;
-    const perDay = Math.max(1, Number(fixture.availability?.maxBlocksPerDay || 1)) * Math.max(1, Number(fixture.availability?.routeMinutesDefault || 30));
+    const perDay =
+      Math.max(1, Number(fixture.availability?.maxBlocksPerDay || 1)) *
+      Math.max(1, Number(fixture.availability?.routeMinutesDefault || 30));
     const daysPerWeek = Math.max(1, Number(fixture.availability?.daysPerWeek || 5));
     return perDay * daysPerWeek;
   })();
@@ -804,7 +812,7 @@ export function computeStressMetrics({
     placementWindowDays: Number((diagnostics as any)?.placementHorizonDays) || undefined,
     maxScheduledMinutesPerWeek: derivedWeeklyCapacity,
     milestoneWindowMissCountPlacement: placementAnchoringMissCount,
-    milestoneWindowSlack: placementAnchoringMissCount > 0 ? milestoneWindowSlack : null
+    milestoneWindowSlack: placementAnchoringMissCount > 0 ? milestoneWindowSlack : null,
   });
   const slotLeak = computeUniformSlotLeak(actions, materializedBlocks);
   const capacity = computeCapacityOverages(fixture, materializedBlocks);
@@ -818,37 +826,38 @@ export function computeStressMetrics({
       maxScheduledMinutesPerWeek: fixture.realismConstraints?.maxScheduledMinutesPerWeek,
       executionHorizonDays:
         Number((diagnostics as any)?.executionHorizonDays) ||
-        Math.max(1, dayDiffInclusive(fixture.horizon.startDayKey, fixture.horizon.endDayKey))
+        Math.max(1, dayDiffInclusive(fixture.horizon.startDayKey, fixture.horizon.endDayKey)),
     },
     horizons: {
       executionWindowStartDayKey:
-        dayKeyFromISO(String((diagnostics as any)?.executionWindowStartISO || ''), 'UTC') || fixture.horizon.startDayKey,
+        dayKeyFromISO(String((diagnostics as any)?.executionWindowStartISO || ''), 'UTC') ||
+        fixture.horizon.startDayKey,
       executionWindowEndDayKey:
         dayKeyFromISO(String((diagnostics as any)?.executionWindowEndISO || ''), 'UTC') || fixture.horizon.endDayKey,
       feasibilityWindowEndDayKey:
-        dayKeyFromISO(String((diagnostics as any)?.feasibilityWindowEndISO || ''), 'UTC') || fixture.horizon.endDayKey
+        dayKeyFromISO(String((diagnostics as any)?.feasibilityWindowEndISO || ''), 'UTC') || fixture.horizon.endDayKey,
     },
     milestones: (fixture.milestones || []).map((milestone) => ({
       milestoneId: milestone.id,
       windowStartDayKey: milestone.windowStartDayKey,
       windowEndDayKey: milestone.windowEndDayKey,
       checkpointActionIds: milestone.checkpointActionIds || [],
-      actionIds: milestone.actionIds || []
+      actionIds: milestone.actionIds || [],
     })),
     metricsContext: {
       milestoneWindowSlack,
       unplacedEstimateMinTotal,
       outsideExecutionHorizonEstimateMinTotal,
-      outsideExecutionHorizonCount
-    }
+      outsideExecutionHorizonCount,
+    },
   };
   const qualityPreview = scoreSchedule({
     ...scoreInputsShared,
-    assignments: toScoreAssignments(normalizedPreview, actionById)
+    assignments: toScoreAssignments(normalizedPreview, actionById),
   });
   const qualityApplied = scoreSchedule({
     ...scoreInputsShared,
-    assignments: toScoreAssignments(normalizedMaterialized, actionById)
+    assignments: toScoreAssignments(normalizedMaterialized, actionById),
   });
   const qualityScoreParity = qualityPreview.total === qualityApplied.total;
 
@@ -866,9 +875,15 @@ export function computeStressMetrics({
     dailyLoadStats: {
       min: dailyMin,
       avg: Number(dailyAvg.toFixed(2)),
-      max: dailyMax
+      max: dailyMax,
     },
-    churnIndex: Number(((Number.isFinite(diagnosticChurnIndex) ? diagnosticChurnIndex : churnPreviewToCommitted + churnAcrossRebuilds) || 0).toFixed(4)),
+    churnIndex: Number(
+      (
+        (Number.isFinite(diagnosticChurnIndex)
+          ? diagnosticChurnIndex
+          : churnPreviewToCommitted + churnAcrossRebuilds) || 0
+      ).toFixed(4)
+    ),
     preservedChunkCount,
     movedChunkCount,
     droppedChunkCount,
@@ -880,7 +895,7 @@ export function computeStressMetrics({
     depViolations: depStats.violations,
     depCheckCoverage: {
       checkedActions: depStats.checkedActions,
-      eligibleActions: depStats.eligibleActions
+      eligibleActions: depStats.eligibleActions,
     },
     milestoneAnchoringScore: milestoneAnchoring,
     milestoneWindowMissCount: milestoneAnchoring.missingMilestoneIds.length,
@@ -905,6 +920,6 @@ export function computeStressMetrics({
     milestoneWindowSlack,
     uniformSlotAssumptionLeak: slotLeak,
     capacityOverageDaysCount: capacity.overageDaysCount,
-    capacityMaxOverageMinutes: capacity.maxOverageMinutes
+    capacityMaxOverageMinutes: capacity.maxOverageMinutes,
   };
 }

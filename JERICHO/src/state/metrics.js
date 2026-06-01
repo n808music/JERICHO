@@ -9,7 +9,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const dayKeyFromISO = (iso = '') => dayKeyFromISOInTimeZone(iso);
 
 const clamp = (value, min = 0, max = 1440) => {
-  if (!Number.isFinite(value)) return 0;
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
   return Math.min(max, Math.max(min, value));
 };
 
@@ -24,8 +26,8 @@ export function normalizeBlocks(blocks = []) {
     const practiceKey = PRACTICE_KEYS.includes(b.practice)
       ? b.practice
       : PRACTICE_KEYS.includes(b.category)
-      ? b.category
-      : UNKNOWN_KEY;
+        ? b.category
+        : UNKNOWN_KEY;
     return {
       ...b,
       id: `${b.id}`,
@@ -33,7 +35,7 @@ export function normalizeBlocks(blocks = []) {
       durationMin,
       practiceKey,
       plannedMinutes,
-      completedMinutes
+      completedMinutes,
     };
   });
 }
@@ -41,14 +43,25 @@ export function normalizeBlocks(blocks = []) {
 export function windowFilter(window, block) {
   const blockDayKey = dayKeyFromISO(block.start);
   const { startDayKey, endDayKeyExclusive, includeDayKeys } = window;
-  const inRange = (!startDayKey || blockDayKey >= startDayKey) && (!endDayKeyExclusive || blockDayKey < endDayKeyExclusive);
+  const inRange =
+    (!startDayKey || blockDayKey >= startDayKey) && (!endDayKeyExclusive || blockDayKey < endDayKeyExclusive);
   const inList = !includeDayKeys || includeDayKeys.has(blockDayKey);
-  if (inRange && inList) return { included: true, reason: 'IN_WINDOW' };
-  if (includeDayKeys && !inList) return { included: false, reason: 'PADDED_DAY_EXCLUDED' };
+  if (inRange && inList) {
+    return { included: true, reason: 'IN_WINDOW' };
+  }
+  if (includeDayKeys && !inList) {
+    return { included: false, reason: 'PADDED_DAY_EXCLUDED' };
+  }
   return { included: false, reason: 'OUT_OF_WINDOW' };
 }
 
-export function computeWindowMetrics({ blocks = [], window, mode = 'calendar', planSource = PlanSource.SCHEDULED, patternTargets }) {
+export function computeWindowMetrics({
+  blocks = [],
+  window,
+  mode = 'calendar',
+  planSource = PlanSource.SCHEDULED,
+  patternTargets,
+}) {
   const included = [];
   const excluded = [];
   let plannedMinutes = 0;
@@ -73,7 +86,13 @@ export function computeWindowMetrics({ blocks = [], window, mode = 'calendar', p
 
   const scheduledPlannedMinutes = plannedMinutes;
 
-  if (planSource === PlanSource.TARGETS && scheduledPlannedMinutes === 0 && patternTargets && window?.startDayKey && window?.endDayKeyExclusive) {
+  if (
+    planSource === PlanSource.TARGETS &&
+    scheduledPlannedMinutes === 0 &&
+    patternTargets &&
+    window?.startDayKey &&
+    window?.endDayKeyExclusive
+  ) {
     const targetMinutesPerDay = PRACTICE_KEYS.reduce((acc, p) => acc + (patternTargets[p] || 0), 0);
     const dayCount = dayDiff(window.startDayKey, window.endDayKeyExclusive);
     const targetPlannedMinutes = clamp(targetMinutesPerDay * dayCount, 0, 24 * 60 * 31);
@@ -100,9 +119,9 @@ export function computeWindowMetrics({ blocks = [], window, mode = 'calendar', p
       summary: {
         unknownBlocks: included.filter((b) => b.practiceKey === UNKNOWN_KEY).length,
         unknownPlannedMinutes,
-        unknownCompletedMinutes
-      }
-    }
+        unknownCompletedMinutes,
+      },
+    },
   };
 }
 
@@ -110,7 +129,12 @@ export function computeDayMetricsMap({ blocks = [], dayKeys = [], mode = 'calend
   const map = {};
   const set = new Set(dayKeys);
   set.forEach((dayKey) => {
-    const window = { kind: 'day', startDayKey: dayKey, endDayKeyExclusive: addDays(dayKey, 1), includeDayKeys: new Set([dayKey]) };
+    const window = {
+      kind: 'day',
+      startDayKey: dayKey,
+      endDayKeyExclusive: addDays(dayKey, 1),
+      includeDayKeys: new Set([dayKey]),
+    };
     map[dayKey] = computeWindowMetrics({ blocks, window, mode });
   });
   return map;
@@ -130,9 +154,13 @@ export function computeTodayDomainInstrumentation({ dayKey, normalizedBlocks = [
 
   (normalizedBlocks || []).forEach((b) => {
     const blockDayKey = dayKeyFromISO(b.start);
-    if (blockDayKey !== dayKey) return;
+    if (blockDayKey !== dayKey) {
+      return;
+    }
     const key = PRACTICE_KEYS.includes(b.practiceKey) ? b.practiceKey : null;
-    if (!key) return;
+    if (!key) {
+      return;
+    }
     result[key].scheduled += b.plannedMinutes || 0;
     result[key].completed += b.completedMinutes || 0;
   });
@@ -163,21 +191,26 @@ export function groupPracticeLoad(blocks = []) {
 
 export function computePolicySelectionMetrics({ preview = null, applied = null } = {}) {
   const selectedQualityPolicyId = preview?.qualityPolicyIdUsed || applied?.qualityPolicyIdApplied || 'BALANCED';
-  const previewReasonCodes = Array.isArray(preview?.policySelectionReasonCodes) ? preview.policySelectionReasonCodes : [];
-  const appliedReasonCodes = Array.isArray(applied?.policySelectionReasonCodesApplied) ? applied.policySelectionReasonCodesApplied : [];
+  const previewReasonCodes = Array.isArray(preview?.policySelectionReasonCodes)
+    ? preview.policySelectionReasonCodes
+    : [];
+  const appliedReasonCodes = Array.isArray(applied?.policySelectionReasonCodesApplied)
+    ? applied.policySelectionReasonCodesApplied
+    : [];
   const previewCodesJson = JSON.stringify(previewReasonCodes);
   const appliedCodesJson = JSON.stringify(appliedReasonCodes);
   return {
     selectedQualityPolicyId,
     policySelectionChanged: Boolean(
-      preview?.policySelectionDecision?.hysteresis?.changed || applied?.policySelectionDecisionApplied?.hysteresis?.changed
+      preview?.policySelectionDecision?.hysteresis?.changed ||
+      applied?.policySelectionDecisionApplied?.hysteresis?.changed
     ),
     policySelectionReasonCodes: [...(previewReasonCodes.length ? previewReasonCodes : appliedReasonCodes)],
     policySelectionParity: Boolean(
       preview?.qualityPolicyIdUsed &&
-        applied?.qualityPolicyIdApplied &&
-        preview.qualityPolicyIdUsed === applied.qualityPolicyIdApplied &&
-        previewCodesJson === appliedCodesJson
+      applied?.qualityPolicyIdApplied &&
+      preview.qualityPolicyIdUsed === applied.qualityPolicyIdApplied &&
+      previewCodesJson === appliedCodesJson
     ),
   };
 }
@@ -197,6 +230,8 @@ export function computePacingComparisonMetrics({ withPacing = null, withoutPacin
 function dayDiff(startDayKey, endDayKeyExclusive) {
   const s = new Date(`${startDayKey}T00:00:00.000Z`).getTime();
   const e = new Date(`${endDayKeyExclusive}T00:00:00.000Z`).getTime();
-  if (!Number.isFinite(s) || !Number.isFinite(e)) return 0;
+  if (!Number.isFinite(s) || !Number.isFinite(e)) {
+    return 0;
+  }
   return Math.max(0, Math.round((e - s) / DAY_MS));
 }

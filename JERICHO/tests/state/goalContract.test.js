@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { activateGoalContract, deriveGoalStatus, validateGoalContractForActivation } from '../../src/state/contracts/goalContract.ts';
+import {
+  activateGoalContract,
+  deriveGoalStatus,
+  validateGoalContractForActivation,
+} from '../../src/state/contracts/goalContract.ts';
 
 const makeContract = (overrides = {}) => ({
   goalId: 'goal-1',
@@ -11,8 +15,8 @@ const makeContract = (overrides = {}) => ({
       metricType: 'threshold',
       metricName: 'revenue',
       targetValue: 10000,
-      validationMethod: 'user_attest'
-    }
+      validationMethod: 'user_attest',
+    },
   ],
   requirements: {
     requiredDomains: ['Body', 'Focus', 'Creation', 'Resources'],
@@ -20,17 +24,17 @@ const makeContract = (overrides = {}) => ({
       Body: 2,
       Focus: 3,
       Creation: 4,
-      Resources: 1
+      Resources: 1,
     },
     expectedDomainMix: {
       Body: 0.2,
       Focus: 0.3,
       Creation: 0.4,
-      Resources: 0.1
+      Resources: 0.1,
     },
-    maxAllowedVariance: 0.2
+    maxAllowedVariance: 0.2,
   },
-  ...overrides
+  ...overrides,
 });
 
 describe('goal contract activation', () => {
@@ -52,8 +56,8 @@ describe('goal contract activation', () => {
     const contract = makeContract({
       requirements: {
         ...makeContract().requirements,
-        expectedDomainMix: { Body: 0.5, Focus: 0.2, Creation: 0.2, Resources: 0.2 }
-      }
+        expectedDomainMix: { Body: 0.5, Focus: 0.2, Creation: 0.2, Resources: 0.2 },
+      },
     });
     const validation = validateGoalContractForActivation(contract, '2025-01-10');
     expect(validation.valid).toBe(false);

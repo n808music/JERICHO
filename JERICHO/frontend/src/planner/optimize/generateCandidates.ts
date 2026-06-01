@@ -13,12 +13,15 @@ export type CandidateGenerationInputs = {
     executionWindowEndDayKey: string;
   };
   milestones?: ScoreMilestone[];
-  actionConstraintsById?: Map<string, {
-    hasMilestoneBinding?: boolean;
-    constraintMode?: 'hard' | 'soft';
-    windowStartDayKey?: string | null;
-    windowEndDayKey?: string | null;
-  }>;
+  actionConstraintsById?: Map<
+    string,
+    {
+      hasMilestoneBinding?: boolean;
+      constraintMode?: 'hard' | 'soft';
+      windowStartDayKey?: string | null;
+      windowEndDayKey?: string | null;
+    }
+  >;
   dependencyBufferMinutes?: number;
   maxCandidates?: number;
   k1PerDay?: number;
@@ -153,7 +156,8 @@ function validateCandidate(assignments: ScoreAssignment[], inputs: CandidateGene
       const constraints = actionConstraintsById.get(assignment.actionId);
       if (!constraints || constraints.constraintMode !== 'hard' || !constraints.hasMilestoneBinding) continue;
       if (!constraints.windowStartDayKey || !constraints.windowEndDayKey) continue;
-      if (assignment.dayKey < constraints.windowStartDayKey || assignment.dayKey > constraints.windowEndDayKey) return false;
+      if (assignment.dayKey < constraints.windowStartDayKey || assignment.dayKey > constraints.windowEndDayKey)
+        return false;
     }
   }
 

@@ -14,7 +14,9 @@ export default function NextBestMoveCard({ directive, eligibility, onSelectBlock
     : `Execute ${directive.domain}${directive.title ? `: ${directive.title}` : ''}`;
 
   return (
-    <div className={`rounded-lg border border-line/60 bg-jericho-surface/90 p-3 text-xs space-y-1 ${isEligible ? '' : 'opacity-60'}`}>
+    <div
+      className={`rounded-lg border border-line/60 bg-jericho-surface/90 p-3 text-xs space-y-1 ${isEligible ? '' : 'opacity-60'}`}
+    >
       <p className="text-muted font-semibold">{header}</p>
       <p className="text-jericho-text font-semibold">{line}</p>
       {!isEligible && eligibility?.reasons?.length ? (

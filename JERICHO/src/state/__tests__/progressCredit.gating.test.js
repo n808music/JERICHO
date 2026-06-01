@@ -11,9 +11,16 @@ function buildBaseState() {
     lenses: {
       aim: { description: '', horizon: '90d', narrative: '' },
       pattern: { routines: { Body: [], Resources: [], Creation: [], Focus: [] }, dailyTargets: [], defaultMinutes: 30 },
-      flow: { streams: [] }
+      flow: { streams: [] },
     },
-    today: { date: FIXED_DAY, blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
+    today: {
+      date: FIXED_DAY,
+      blocks: [],
+      completionRate: 0,
+      driftSignal: 'contained',
+      loadByPractice: {},
+      practices: [],
+    },
     currentWeek: { weekStart: FIXED_DAY, days: [], metrics: {} },
     cycle: [],
     viewDate: FIXED_DAY,
@@ -30,8 +37,8 @@ function buildBaseState() {
       timeZone: 'UTC',
       nowISO: `${FIXED_DAY}T12:00:00.000Z`,
       activeDayKey: FIXED_DAY,
-      isFollowingNow: true
-    }
+      isFollowingNow: true,
+    },
   };
 }
 
@@ -47,8 +54,8 @@ describe('progress credit gating', () => {
         narrative: '',
         focusAreas: ['Creation'],
         successDefinition: 'Outcome',
-        minimumDaysPerWeek: 4
-      }
+        minimumDaysPerWeek: 4,
+      },
     });
     const goalId = onboarded.goalExecutionContract?.goalId;
     const cycleId = onboarded.activeCycleId;
@@ -65,31 +72,31 @@ describe('progress credit gating', () => {
         cycleId,
         deliverableId: 'deliv-1',
         criterionId: 'crit-1',
-        timeZone: 'UTC'
-      }
+        timeZone: 'UTC',
+      },
     });
     const block = created.today.blocks[0];
     const completed = buildExecutionEventFromBlock(block, {
       completed: true,
       kind: 'complete',
       dateISO: FIXED_DAY,
-      minutes: 30
+      minutes: 30,
     });
 
     const rejected = {
       ...created,
       goalAdmissionByGoal: {
         ...(created.goalAdmissionByGoal || {}),
-        [goalId]: { status: 'REJECTED_INFEASIBLE', reasonCodes: ['REQUIRED_PACE_EXCEEDS_MAX_PER_DAY'] }
+        [goalId]: { status: 'REJECTED_INFEASIBLE', reasonCodes: ['REQUIRED_PACE_EXCEEDS_MAX_PER_DAY'] },
       },
       executionEvents: [...(created.executionEvents || []), completed],
       cyclesById: {
         ...created.cyclesById,
         [cycleId]: {
           ...created.cyclesById[cycleId],
-          executionEvents: [...(created.executionEvents || []), completed]
-        }
-      }
+          executionEvents: [...(created.executionEvents || []), completed],
+        },
+      },
     };
 
     const recomputed = computeDerivedState(rejected, { type: 'NO_OP' });

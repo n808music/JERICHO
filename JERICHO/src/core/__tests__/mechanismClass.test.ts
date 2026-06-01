@@ -149,7 +149,7 @@ describe('mechanismClass', () => {
         expect(
           deriveMechanismClass({
             terminalOutcome: { text: 'Publish music' },
-            goalText: 'Create something'
+            goalText: 'Create something',
           })
         ).toBe('PUBLISH');
       });
@@ -158,7 +158,7 @@ describe('mechanismClass', () => {
         expect(
           deriveMechanismClass({
             terminalOutcome: { text: '' },
-            goalText: 'Learn Python'
+            goalText: 'Learn Python',
           })
         ).toBe('LEARN');
       });
@@ -180,7 +180,7 @@ describe('mechanismClass', () => {
         { input: { goalText: 'Build web application' }, expected: 'CREATE' },
         { input: { goalText: 'Review code quality' }, expected: 'REVIEW' },
         { input: { goalText: 'Set up CI/CD pipeline infrastructure' }, expected: 'OPS' },
-        { input: { goalText: 'Market and grow user base' }, expected: 'MARKET' }
+        { input: { goalText: 'Market and grow user base' }, expected: 'MARKET' },
       ];
 
       testCases.forEach((tc) => {

@@ -45,58 +45,67 @@ function completionStats(events: Array<any>) {
   return { completionCount, completionRate };
 }
 
-export function projectCyclesIndex({ cyclesById = {}, goalWorkById = {}, constraints = {} }: CycleIndexInput): CycleIndexEntry[] {
+export function projectCyclesIndex({
+  cyclesById = {},
+  goalWorkById = {},
+  constraints = {},
+}: CycleIndexInput): CycleIndexEntry[] {
   const entries = Object.values(cyclesById || {})
     .filter((cycle: any) => cycle?.status !== 'deleted')
     .map((cycle: any) => {
-    const status = cycle?.status === 'deleted' ? 'Deleted' : cycle?.status === 'active' ? 'Active' : 'Ended';
-    const cycleId = cycle?.id || '';
-    const goalTitle = cycle?.definiteGoal?.outcome || cycle?.contract?.goalText || '—';
-    const startDayKey = cycle?.startedAtDayKey || cycle?.contract?.startDayKey || '';
-    const endDayKey = cycle?.endedAtDayKey || null;
-    const deadlineDayKey = cycle?.definiteGoal?.deadlineDayKey || cycle?.contract?.endDayKey || null;
-    const startISO = dayKeyToISO(startDayKey);
-    const endISO = endDayKey ? dayKeyToISO(endDayKey) : null;
-    const deadlineISO = deadlineDayKey ? dayKeyToISO(deadlineDayKey) : null;
+      const status = cycle?.status === 'deleted' ? 'Deleted' : cycle?.status === 'active' ? 'Active' : 'Ended';
+      const cycleId = cycle?.id || '';
+      const goalTitle = cycle?.definiteGoal?.outcome || cycle?.contract?.goalText || '—';
+      const startDayKey = cycle?.startedAtDayKey || cycle?.contract?.startDayKey || '';
+      const endDayKey = cycle?.endedAtDayKey || null;
+      const deadlineDayKey = cycle?.definiteGoal?.deadlineDayKey || cycle?.contract?.endDayKey || null;
+      const startISO = dayKeyToISO(startDayKey);
+      const endISO = endDayKey ? dayKeyToISO(endDayKey) : null;
+      const deadlineISO = deadlineDayKey ? dayKeyToISO(deadlineDayKey) : null;
 
-    const events = cycle?.executionEvents || [];
-    const { completionCount, completionRate } = completionStats(events);
+      const events = cycle?.executionEvents || [];
+      const { completionCount, completionRate } = completionStats(events);
 
-    const nowISO = endISO || deadlineISO || startISO;
-    let probabilityAtEnd: number | null = null;
-    let feasibilityAtEnd: string | null = null;
+      const nowISO = endISO || deadlineISO || startISO;
+      let probabilityAtEnd: number | null = null;
+      let feasibilityAtEnd: string | null = null;
 
-    if (cycle?.goalGovernanceContract?.goalId && nowISO) {
-      const goalId = cycle.goalGovernanceContract.goalId;
-      const tempState = {
-        activeCycleId: cycleId,
-        cyclesById: { [cycleId]: cycle },
-        executionEvents: events,
-        goalWorkById
-      };
-      const timeZone = cycle?.goalGovernanceContract?.scope?.timezone || constraints?.timeZone || 'UTC';
-      const score = scoreGoalSuccessProbability(goalId, tempState, { timezone: timeZone, ...constraints }, nowISO);
-      probabilityAtEnd = Number.isFinite(score?.value) ? score.value : null;
-      const deadlineISOResolved = deadlineISO || nowISO;
-      const feasibility = computeFeasibility({ goalId, deadlineISO: deadlineISOResolved }, tempState, { timezone: timeZone, ...constraints }, nowISO);
-      feasibilityAtEnd = feasibility?.status || null;
-    }
-
-    return {
-      cycleId,
-      state: status,
-      goalTitle,
-      startISO,
-      endISO,
-      deadlineISO,
-      summaryStats: {
-        completionCount,
-        completionRate,
-        probabilityAtEnd,
-        feasibilityAtEnd
+      if (cycle?.goalGovernanceContract?.goalId && nowISO) {
+        const goalId = cycle.goalGovernanceContract.goalId;
+        const tempState = {
+          activeCycleId: cycleId,
+          cyclesById: { [cycleId]: cycle },
+          executionEvents: events,
+          goalWorkById,
+        };
+        const timeZone = cycle?.goalGovernanceContract?.scope?.timezone || constraints?.timeZone || 'UTC';
+        const score = scoreGoalSuccessProbability(goalId, tempState, { timezone: timeZone, ...constraints }, nowISO);
+        probabilityAtEnd = Number.isFinite(score?.value) ? score.value : null;
+        const deadlineISOResolved = deadlineISO || nowISO;
+        const feasibility = computeFeasibility(
+          { goalId, deadlineISO: deadlineISOResolved },
+          tempState,
+          { timezone: timeZone, ...constraints },
+          nowISO
+        );
+        feasibilityAtEnd = feasibility?.status || null;
       }
-    };
-  });
+
+      return {
+        cycleId,
+        state: status,
+        goalTitle,
+        startISO,
+        endISO,
+        deadlineISO,
+        summaryStats: {
+          completionCount,
+          completionRate,
+          probabilityAtEnd,
+          feasibilityAtEnd,
+        },
+      };
+    });
 
   entries.sort((a, b) => {
     if (a.state === 'Active' && b.state !== 'Active') return -1;

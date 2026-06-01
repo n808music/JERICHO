@@ -7,7 +7,7 @@ function buildState({
   actions = [],
   milestones = [],
   constraints = {},
-  defaultBufferMinutes = 0
+  defaultBufferMinutes = 0,
 } = {}) {
   const cycleId = 'cycle-dep-buffer';
   return {
@@ -32,15 +32,15 @@ function buildState({
             temporalBinding: {
               daysPerWeek: 7,
               specificDays: 'mon,tue,wed,thu,fri,sat,sun',
-              sessionDurationMinutes: 30
-            }
+              sessionDurationMinutes: 30,
+            },
           },
-          coldPlan: { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } }
-        }
+          coldPlan: { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } },
+        },
       },
-      deliverablesByCycleId: { [cycleId]: { cycleId, deliverables: [] } }
+      deliverablesByCycleId: { [cycleId]: { cycleId, deliverables: [] } },
     },
-    cycleId
+    cycleId,
   };
 }
 
@@ -48,7 +48,7 @@ describe('draftSchedule dependency buffer placement', () => {
   it('enforces earliest start using last dep chunk end plus buffer', () => {
     const actions = [
       { id: 'a', title: 'A', detail: 'A', category: 'Focus', estimateMin: 75, deps: [], topoIndex: 0, priority: 1 },
-      { id: 'b', title: 'B', detail: 'B', category: 'Focus', estimateMin: 30, deps: ['a'], topoIndex: 1, priority: 2 }
+      { id: 'b', title: 'B', detail: 'B', category: 'Focus', estimateMin: 30, deps: ['a'], topoIndex: 1, priority: 2 },
     ];
     const { state, cycleId } = buildState({ actions, defaultBufferMinutes: 60 });
     const items = buildDraftScheduleItems(state, cycleId, {
@@ -56,7 +56,7 @@ describe('draftSchedule dependency buffer placement', () => {
       actions,
       contract: state.cyclesById[cycleId].goalContract,
       timeZone: 'UTC',
-      defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' }
+      defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' },
     });
 
     const aItems = items.filter((item) => item.actionId === 'a');
@@ -69,7 +69,7 @@ describe('draftSchedule dependency buffer placement', () => {
   it('allows immediate dependent placement when buffer is zero', () => {
     const actions = [
       { id: 'a', title: 'A', detail: 'A', category: 'Focus', estimateMin: 75, deps: [], topoIndex: 0, priority: 1 },
-      { id: 'b', title: 'B', detail: 'B', category: 'Focus', estimateMin: 30, deps: ['a'], topoIndex: 1, priority: 2 }
+      { id: 'b', title: 'B', detail: 'B', category: 'Focus', estimateMin: 30, deps: ['a'], topoIndex: 1, priority: 2 },
     ];
     const { state, cycleId } = buildState({ actions, defaultBufferMinutes: 0 });
     const items = buildDraftScheduleItems(state, cycleId, {
@@ -77,7 +77,7 @@ describe('draftSchedule dependency buffer placement', () => {
       actions,
       contract: state.cyclesById[cycleId].goalContract,
       timeZone: 'UTC',
-      defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' }
+      defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' },
     });
 
     const aItems = items.filter((item) => item.actionId === 'a');
@@ -90,12 +90,12 @@ describe('draftSchedule dependency buffer placement', () => {
   it('marks dependent unplaced when buffer makes schedule infeasible', () => {
     const actions = [
       { id: 'a', title: 'A', detail: 'A', category: 'Focus', estimateMin: 75, deps: [], topoIndex: 0, priority: 1 },
-      { id: 'b', title: 'B', detail: 'B', category: 'Focus', estimateMin: 30, deps: ['a'], topoIndex: 1, priority: 2 }
+      { id: 'b', title: 'B', detail: 'B', category: 'Focus', estimateMin: 30, deps: ['a'], topoIndex: 1, priority: 2 },
     ];
     const { state, cycleId } = buildState({
       actions,
       deadlineDay: '2026-01-01',
-      defaultBufferMinutes: 60
+      defaultBufferMinutes: 60,
     });
     let captured = null;
     const items = buildDraftScheduleItems(state, cycleId, {
@@ -106,7 +106,7 @@ describe('draftSchedule dependency buffer placement', () => {
       defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' },
       captureStats: (stats) => {
         captured = stats;
-      }
+      },
     });
 
     expect(items.some((item) => item.actionId === 'b')).toBe(false);
@@ -116,7 +116,7 @@ describe('draftSchedule dependency buffer placement', () => {
   it('keeps soft fallback deterministic and dep-ready for windowed milestone action', () => {
     const actions = [
       { id: 'a', title: 'A', detail: 'A', category: 'Focus', estimateMin: 75, deps: [], topoIndex: 0, priority: 1 },
-      { id: 'b', title: 'B', detail: 'B', category: 'Focus', estimateMin: 30, deps: ['a'], topoIndex: 1, priority: 2 }
+      { id: 'b', title: 'B', detail: 'B', category: 'Focus', estimateMin: 30, deps: ['a'], topoIndex: 1, priority: 2 },
     ];
     const milestones = [
       {
@@ -124,8 +124,8 @@ describe('draftSchedule dependency buffer placement', () => {
         windowStartDayKey: '2026-01-01',
         windowEndDayKey: '2026-01-01',
         actionIds: ['b'],
-        checkpointActionIds: []
-      }
+        checkpointActionIds: [],
+      },
     ];
     const { state, cycleId } = buildState({ actions, milestones, defaultBufferMinutes: 60 });
     let captured = null;
@@ -137,7 +137,7 @@ describe('draftSchedule dependency buffer placement', () => {
       defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' },
       captureStats: (stats) => {
         captured = stats;
-      }
+      },
     });
 
     const bItem = items.find((item) => item.actionId === 'b');
@@ -155,7 +155,7 @@ describe('draftSchedule dependency buffer placement', () => {
   it('applies dep cutoff against preserved reservations from prior draft cache', () => {
     const actions = [
       { id: 'a', title: 'A', detail: 'A', category: 'Focus', estimateMin: 30, deps: [], topoIndex: 0, priority: 1 },
-      { id: 'b', title: 'B', detail: 'B', category: 'Focus', estimateMin: 30, deps: ['a'], topoIndex: 1, priority: 2 }
+      { id: 'b', title: 'B', detail: 'B', category: 'Focus', estimateMin: 30, deps: ['a'], topoIndex: 1, priority: 2 },
     ];
     const { state, cycleId } = buildState({ actions, defaultBufferMinutes: 60 });
     state.draftScheduleItemsByCycleId = {
@@ -172,16 +172,16 @@ describe('draftSchedule dependency buffer placement', () => {
           minutes: 30,
           chunkIndex: 0,
           chunkCount: 1,
-          allocatedMin: 30
-        }
-      ]
+          allocatedMin: 30,
+        },
+      ],
     };
     const items = buildDraftScheduleItems(state, cycleId, {
       startDateISO: '2026-01-01',
       actions,
       contract: state.cyclesById[cycleId].goalContract,
       timeZone: 'UTC',
-      defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' }
+      defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' },
     });
     const a = items.find((item) => item.actionId === 'a');
     const b = items.find((item) => item.actionId === 'b');

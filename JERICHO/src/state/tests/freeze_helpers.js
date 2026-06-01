@@ -8,7 +8,14 @@ export function buildBlankState(override = {}) {
   return {
     vector: { day: 1, direction: '', stability: 'steady', drift: 'contained', momentum: 'active' },
     lenses: { aim: { description: '', horizon: '90d', narrative: '' } },
-    today: { date: FIXED_DAY, blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
+    today: {
+      date: FIXED_DAY,
+      blocks: [],
+      completionRate: 0,
+      driftSignal: 'contained',
+      loadByPractice: {},
+      practices: [],
+    },
     currentWeek: { weekStart: FIXED_DAY, days: [], metrics: {} },
     cycle: [],
     viewDate: FIXED_DAY,
@@ -31,7 +38,7 @@ export function buildBlankState(override = {}) {
     goalExecutionContract: null,
     activeGoalId: null,
     profileLearning: null,
-    ...override
+    ...override,
   };
 }
 
@@ -41,7 +48,7 @@ export function addCompletedEventsForBlocks(state, blocks) {
       completed: true,
       kind: 'complete',
       dateISO: FIXED_DAY,
-      minutes: (block && block.durationMinutes) || 30
+      minutes: (block && block.durationMinutes) || 30,
     });
   });
   state.executionEvents = [...(state.executionEvents || []), ...events];

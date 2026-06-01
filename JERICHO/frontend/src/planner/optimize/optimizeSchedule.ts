@@ -1,5 +1,10 @@
 import { generateCandidates, type CandidateGenerationInputs } from './generateCandidates.ts';
-import { scoreSchedule, type ScoreAssignment, type ScoreBreakdown, type ScoreInputs } from '../scoring/scoreSchedule.ts';
+import {
+  scoreSchedule,
+  type ScoreAssignment,
+  type ScoreBreakdown,
+  type ScoreInputs,
+} from '../scoring/scoreSchedule.ts';
 
 export type OptimizeScheduleInputs = {
   baselineAssignments: ScoreAssignment[];
@@ -25,7 +30,14 @@ export type OptimizeScheduleResult = {
   chosenMovesSummary: {
     iterations: number;
     candidatesEvaluated: number;
-    moves: Array<{ actionId: string; chunkIndex: number; fromDayKey: string; fromStartMin: number; toDayKey: string; toStartMin: number }>;
+    moves: Array<{
+      actionId: string;
+      chunkIndex: number;
+      fromDayKey: string;
+      fromStartMin: number;
+      toDayKey: string;
+      toStartMin: number;
+    }>;
   };
 };
 
@@ -40,7 +52,7 @@ function deltaComponents(a: ScoreBreakdown['components'], b: ScoreBreakdown['com
     dependencyRisk: Number((b.dependencyRisk - a.dependencyRisk).toFixed(6)),
     contextSwitching: Number((b.contextSwitching - a.contextSwitching).toFixed(6)),
     loadSmoothness: Number((b.loadSmoothness - a.loadSmoothness).toFixed(6)),
-    deferralPenalty: Number((b.deferralPenalty - a.deferralPenalty).toFixed(6))
+    deferralPenalty: Number((b.deferralPenalty - a.deferralPenalty).toFixed(6)),
   };
 }
 
@@ -58,7 +70,7 @@ function summarizeMoves(before: ScoreAssignment[], after: ScoreAssignment[]) {
       fromDayKey: previous.dayKey,
       fromStartMin: previous.startMin,
       toDayKey: row.dayKey,
-      toStartMin: row.startMin
+      toStartMin: row.startMin,
     });
   });
   moves.sort((a, b) => {
@@ -75,7 +87,7 @@ function scoreInputsFrom(assignments: ScoreAssignment[], inputs: OptimizeSchedul
     constraints: inputs.constraints,
     horizons: inputs.horizons,
     milestones: inputs.milestones,
-    metricsContext: inputs.metricsContext
+    metricsContext: inputs.metricsContext,
   };
 }
 
@@ -98,7 +110,7 @@ export function optimizeSchedule(inputs: OptimizeScheduleInputs): OptimizeSchedu
       milestones: inputs.milestones,
       actionConstraintsById: inputs.actionConstraintsById,
       dependencyBufferMinutes: inputs.dependencyBufferMinutes,
-      maxCandidates: maxCandidatesPerIter
+      maxCandidates: maxCandidatesPerIter,
     });
 
     let chosen: ScoreAssignment[] | null = null;
@@ -125,12 +137,12 @@ export function optimizeSchedule(inputs: OptimizeScheduleInputs): OptimizeSchedu
     bestScore,
     improvement: {
       deltaTotal: Number((bestScore.total - baselineScore.total).toFixed(6)),
-      deltaByComponent: deltaComponents(baselineScore.components, bestScore.components)
+      deltaByComponent: deltaComponents(baselineScore.components, bestScore.components),
     },
     chosenMovesSummary: {
       iterations: maxIterations,
       candidatesEvaluated,
-      moves
-    }
+      moves,
+    },
   };
 }

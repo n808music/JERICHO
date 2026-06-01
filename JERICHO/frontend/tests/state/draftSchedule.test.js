@@ -4,7 +4,7 @@ import {
   buildRouteSlotsWindow,
   filterDraftItemsByDay,
   getDraftBoundary,
-  getDraftDiagnostics
+  getDraftDiagnostics,
 } from '../../src/state/draftSchedule.js';
 import { buildExecutionEventFromBlock } from '../../src/state/engine/todayAuthority.ts';
 import { getActionBlockers } from '../../src/domain/actions/actionSelectors.ts';
@@ -18,19 +18,19 @@ function buildSpineState({ deliverables = [], actions = [], forecastByDayKey = {
     today: { date: '2026-01-20' },
     executionEvents,
     actionsByCycleId: {
-      [cycleId]: { cycleId, goalId, actions }
+      [cycleId]: { cycleId, goalId, actions },
     },
     cyclesById: {
       [cycleId]: {
         id: cycleId,
         goalContract: { goalId, startDate: '2026-01-20', deadline: { dayKey: '2026-02-20' } },
         actions,
-        coldPlan: { forecastByDayKey, dailyProjection: { forecastByDayKey: {} } }
-      }
+        coldPlan: { forecastByDayKey, dailyProjection: { forecastByDayKey: {} } },
+      },
     },
     deliverablesByCycleId: {
-      [cycleId]: { cycleId, deliverables }
-    }
+      [cycleId]: { cycleId, deliverables },
+    },
   };
 }
 
@@ -40,15 +40,15 @@ describe('Draft schedule builder', () => {
       forecastByDayKey: {
         '2026-01-20': { totalBlocks: 1, byDeliverable: {} },
         '2026-01-21': { totalBlocks: 1, byDeliverable: {} },
-        '2026-01-22': { totalBlocks: 1, byDeliverable: {} }
-      }
+        '2026-01-22': { totalBlocks: 1, byDeliverable: {} },
+      },
     });
     const window = buildRouteSlotsWindow(state, {
       cycleId: 'cycle-1',
       startDateISO: '2026-01-20',
       daysForward: 3,
       routeMinutes: 30,
-      timeZone: 'UTC'
+      timeZone: 'UTC',
     });
     const slots = window.slots;
     expect(slots).toHaveLength(3);
@@ -66,23 +66,23 @@ describe('Draft schedule builder', () => {
           title: 'Occupied slot',
           start: '2026-01-20T09:00:00.000Z',
           end: '2026-01-20T09:30:00.000Z',
-          status: 'scheduled'
+          status: 'scheduled',
         },
         { id: 'evt-occupied', kind: 'create', completed: false, dateISO: '2026-01-20' }
-      )
+      ),
     ];
     const state = buildSpineState({
       executionEvents,
       forecastByDayKey: {
-        '2026-01-20': { totalBlocks: 2, byDeliverable: {} }
-      }
+        '2026-01-20': { totalBlocks: 2, byDeliverable: {} },
+      },
     });
     const window = buildRouteSlotsWindow(state, {
       cycleId: 'cycle-1',
       startDateISO: '2026-01-20',
       daysForward: 1,
       routeMinutes: 30,
-      timeZone: 'UTC'
+      timeZone: 'UTC',
     });
     expect(window.slots).toHaveLength(1);
     expect(window.slots[0].startISO).toBe('2026-01-20T09:30:00.000Z');
@@ -90,19 +90,31 @@ describe('Draft schedule builder', () => {
 
   it('merges suggested and route items deterministically and filters by contract start', () => {
     const suggested = [
-      { id: 's1', title: 'Suggested soon', startISO: '2026-01-21T09:00:00.000Z', durationMinutes: 30, domain: 'CREATION' },
-      { id: 's2', title: 'Suggested later', startISO: '2026-01-23T10:00:00.000Z', durationMinutes: 45, domain: 'FOCUS' }
+      {
+        id: 's1',
+        title: 'Suggested soon',
+        startISO: '2026-01-21T09:00:00.000Z',
+        durationMinutes: 30,
+        domain: 'CREATION',
+      },
+      {
+        id: 's2',
+        title: 'Suggested later',
+        startISO: '2026-01-23T10:00:00.000Z',
+        durationMinutes: 45,
+        domain: 'FOCUS',
+      },
     ];
     const route = [
       { dayKey: '2026-01-20', totalBlocks: 2 },
-      { dayKey: '2026-01-21', totalBlocks: 1 }
+      { dayKey: '2026-01-21', totalBlocks: 1 },
     ];
     const contract = { startDate: '2026-01-21' };
     const items = buildDraftScheduleItems(null, null, {
       suggestedBlocks: suggested,
       routeSuggestions: route,
       contract,
-      defaults: { primaryDomain: 'CREATION' }
+      defaults: { primaryDomain: 'CREATION' },
     });
     expect(items.every((item) => item.dayKey >= '2026-01-21')).toBe(true);
     expect(items[0].dayKey).toBe('2026-01-21');
@@ -114,7 +126,7 @@ describe('Draft schedule builder', () => {
     const items = [
       { dayKey: '2026-01-20', id: 'one' },
       { dayKey: '2026-01-20', id: 'two' },
-      { dayKey: '2026-01-21', id: 'three' }
+      { dayKey: '2026-01-21', id: 'three' },
     ];
     const filtered = filterDraftItemsByDay(items, '2026-01-20');
     expect(filtered.map((item) => item.id)).toEqual(['one', 'two']);
@@ -128,12 +140,17 @@ describe('Draft schedule builder', () => {
         daysPerWeek: 3,
         activationTime: '09:00',
         sessionDurationMinutes: 60,
-        startDayKey: '2026-01-19'
+        startDayKey: '2026-01-19',
       },
       deadline: { dayKey: '2026-01-31' },
-      domainPrimary: 'FOCUS'
+      domainPrimary: 'FOCUS',
     };
-    const items = buildDraftScheduleItems(null, null, { contract, suggestedBlocks: [], routeSuggestions: [], actions: [] });
+    const items = buildDraftScheduleItems(null, null, {
+      contract,
+      suggestedBlocks: [],
+      routeSuggestions: [],
+      actions: [],
+    });
     expect(items.length).toBeGreaterThan(0);
     expect(items.every((item) => item.source === 'strategicPlan')).toBe(true);
     expect(items.every((item) => item.requiresActionContext === true)).toBe(true);
@@ -141,10 +158,12 @@ describe('Draft schedule builder', () => {
 
   it('keeps requiresActionContext for coldPlan and suggestedPath items', () => {
     const items = buildDraftScheduleItems(null, null, {
-      suggestedBlocks: [{ id: 's1', title: 'Suggested block', dayKey: '2026-01-21', durationMinutes: 30, domain: 'FOCUS' }],
+      suggestedBlocks: [
+        { id: 's1', title: 'Suggested block', dayKey: '2026-01-21', durationMinutes: 30, domain: 'FOCUS' },
+      ],
       routeSuggestions: [{ dayKey: '2026-01-21', totalBlocks: 1 }],
       contract: { startDate: '2026-01-20' },
-      defaults: { primaryDomain: 'FOCUS' }
+      defaults: { primaryDomain: 'FOCUS' },
     });
     const coldPlanItems = items.filter((item) => item.source === 'coldPlan');
     const suggestedItems = items.filter((item) => item.source === 'suggestedPath');
@@ -164,14 +183,14 @@ describe('Draft schedule builder', () => {
       deps: [],
       status: 'todo',
       topoIndex: idx,
-      priority: 1
+      priority: 1,
     }));
     const items = buildDraftScheduleItems(null, null, {
       suggestedBlocks: [],
       routeSuggestions: [{ dayKey: '2026-01-21', totalBlocks: 2 }],
       actions,
       contract: { startDate: '2026-01-20' },
-      defaults: { primaryDomain: 'FOCUS' }
+      defaults: { primaryDomain: 'FOCUS' },
     });
     expect(items).toHaveLength(2);
     expect(items.every((item) => item.source === 'coldPlan')).toBe(true);
@@ -190,15 +209,15 @@ describe('Draft schedule builder', () => {
         deps: [],
         status: 'todo',
         topoIndex: 0,
-        priority: 1
-      }
+        priority: 1,
+      },
     ];
     const items = buildDraftScheduleItems(null, null, {
       suggestedBlocks: [],
       routeSuggestions: [{ dayKey: '2026-01-21', totalBlocks: 2 }],
       actions,
       contract: { startDate: '2026-01-20' },
-      defaults: { primaryDomain: 'FOCUS' }
+      defaults: { primaryDomain: 'FOCUS' },
     });
     expect(items).toHaveLength(1);
     expect(items[0].actionId).toBe('a-1');
@@ -215,7 +234,7 @@ describe('Draft schedule builder', () => {
         deps: ['a-2'],
         status: 'todo',
         topoIndex: 1,
-        priority: 1
+        priority: 1,
       },
       {
         id: 'a-2',
@@ -226,8 +245,8 @@ describe('Draft schedule builder', () => {
         deps: ['a-1'],
         status: 'todo',
         topoIndex: 2,
-        priority: 1
-      }
+        priority: 1,
+      },
     ];
     const routeSuggestions = [{ dayKey: '2026-01-21', totalBlocks: 2 }];
     const items = buildDraftScheduleItems(null, null, {
@@ -235,16 +254,21 @@ describe('Draft schedule builder', () => {
       routeSuggestions,
       actions,
       contract: { startDate: '2026-01-20' },
-      defaults: { primaryDomain: 'FOCUS' }
+      defaults: { primaryDomain: 'FOCUS' },
     });
     expect(items.length).toBeLessThanOrEqual(1);
-    const diagnostics = getDraftDiagnostics({ routeSuggestions, actions, draftItems: items, scheduleMode: 'READY_ONLY' });
+    const diagnostics = getDraftDiagnostics({
+      routeSuggestions,
+      actions,
+      draftItems: items,
+      scheduleMode: 'READY_ONLY',
+    });
     const diagnosticsWithDeadline = getDraftDiagnostics({
       routeSuggestions,
       actions,
       draftItems: items,
       scheduleMode: 'READY_ONLY',
-      deadlineISO: '2026-01-31T23:59:59.000Z'
+      deadlineISO: '2026-01-31T23:59:59.000Z',
     });
     expect(diagnostics.reasonCode).toBe('NO_GOAL_DEADLINE');
     expect(diagnosticsWithDeadline.reasonCode).toBe('NO_READY_ACTIONS');
@@ -266,8 +290,8 @@ describe('Draft schedule builder', () => {
         deps: [],
         status: 'todo',
         topoIndex: 0,
-        priority: 1
-      }
+        priority: 1,
+      },
     ];
     const deliverables = [{ id: 'd-1', title: 'Season thesis', dueDayKey: '2026-01-22', actionIds: ['a-1'] }];
     const executionEvents = [
@@ -282,27 +306,27 @@ describe('Draft schedule builder', () => {
           category: 'Focus',
           start: '2026-01-20T09:00:00.000Z',
           end: '2026-01-20T09:30:00.000Z',
-          status: 'planned'
+          status: 'planned',
         },
         {
           id: 'evt-1',
           kind: 'create',
           completed: false,
-          dateISO: '2026-01-20'
+          dateISO: '2026-01-20',
         }
-      )
+      ),
     ];
     const state = buildSpineState({
       actions,
       deliverables,
       executionEvents,
-      forecastByDayKey: { '2026-01-21': { totalBlocks: 1, byDeliverable: { 'd-1': 1 } } }
+      forecastByDayKey: { '2026-01-21': { totalBlocks: 1, byDeliverable: { 'd-1': 1 } } },
     });
     const items = buildDraftScheduleItems(state, 'cycle-1', {
       startDateISO: '2026-01-20',
       daysForward: 7,
       actions,
-      contract: state.cyclesById['cycle-1'].goalContract
+      contract: state.cyclesById['cycle-1'].goalContract,
     });
     expect(items.length).toBeLessThanOrEqual(1);
     const diagnostics = getDraftDiagnostics({
@@ -314,7 +338,7 @@ describe('Draft schedule builder', () => {
       routeSlotWindowDays: 7,
       routeSlotsCount: 1,
       deadlineISO: '2026-01-22T23:59:59.000Z',
-      deliverableCovered: true
+      deliverableCovered: true,
     });
     expect(diagnostics.reasonCode).toBe('DELIVERABLE_COVERED');
     expect(diagnostics.boundaryKind).toBe('DELIVERABLE');
@@ -332,7 +356,7 @@ describe('Draft schedule builder', () => {
         deps: [],
         status: 'todo',
         topoIndex: 0,
-        priority: 1
+        priority: 1,
       },
       {
         id: 'a-2',
@@ -344,15 +368,15 @@ describe('Draft schedule builder', () => {
         deps: [],
         status: 'todo',
         topoIndex: 1,
-        priority: 2
-      }
+        priority: 2,
+      },
     ];
     const state = buildSpineState({
       actions,
       forecastByDayKey: {
         '2026-01-20': { totalBlocks: 1, byDeliverable: {} },
-        '2026-01-21': { totalBlocks: 1, byDeliverable: {} }
-      }
+        '2026-01-21': { totalBlocks: 1, byDeliverable: {} },
+      },
     });
     const boundary = getDraftBoundary(state, 'cycle-1', { daysForward: 7 });
     const items = buildDraftScheduleItems(state, 'cycle-1', {
@@ -360,19 +384,22 @@ describe('Draft schedule builder', () => {
       daysForward: 7,
       boundary,
       actions,
-      contract: state.cyclesById['cycle-1'].goalContract
+      contract: state.cyclesById['cycle-1'].goalContract,
     });
     expect(['GOAL', 'HORIZON_FALLBACK', 'HORIZON']).toContain(boundary.kind);
     expect(items).toHaveLength(2);
     expect(items.every((item) => item.actionId && item.title && item.detail)).toBe(true);
     const diagnostics = getDraftDiagnostics({
-      routeSuggestions: [{ dayKey: '2026-01-20', totalBlocks: 1 }, { dayKey: '2026-01-21', totalBlocks: 1 }],
+      routeSuggestions: [
+        { dayKey: '2026-01-20', totalBlocks: 1 },
+        { dayKey: '2026-01-21', totalBlocks: 1 },
+      ],
       actions,
       draftItems: items,
       boundaryKind: boundary.kind,
       boundaryLabel: boundary.label,
       routeSlotWindowDays: 7,
-      routeSlotsCount: 2
+      routeSlotsCount: 2,
     });
     expect(typeof diagnostics.boundaryLabel).toBe('string');
     expect(diagnostics.routeSlotsCount).toBe(2);

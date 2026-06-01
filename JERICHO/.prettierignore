@@ -8,6 +8,7 @@ yarn-error.log*
 dist/
 build/
 *.tsbuildinfo
+artifacts/
 
 # Environment files
 .env
@@ -56,6 +57,8 @@ temp/
 .cache/
 .parcel-cache/
 .eslintcache
+backend/.pytest_cache/
+backend/venv/
 
 # Optional npm cache directory
 .npm

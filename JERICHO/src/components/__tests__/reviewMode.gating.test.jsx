@@ -17,8 +17,8 @@ describe('review mode gating', () => {
             domain: 'Focus',
             start: '2026-01-08T09:00:00.000Z',
             end: '2026-01-08T09:30:00.000Z',
-            status: 'planned'
-          }
+            status: 'planned',
+          },
         ]}
         selectedBlockId="blk-1"
         readOnly={true}

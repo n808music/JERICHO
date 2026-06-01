@@ -11,7 +11,7 @@ describe('Auto-Placement Draft Schedule', () => {
         timeZone,
         nowISO,
         activeDayKey: '2026-01-13',
-        isFollowingNow: true
+        isFollowingNow: true,
       },
       today: {
         date: '2026-01-13',
@@ -23,17 +23,17 @@ describe('Auto-Placement Draft Schedule', () => {
             start: '2026-01-13T21:00:00.000Z',
             end: '2026-01-13T22:30:00.000Z',
             status: 'in_progress',
-            placementState: 'COMMITTED'
-          }
-        ]
+            placementState: 'COMMITTED',
+          },
+        ],
       },
       executionEvents: [],
-      cyclesById: {}
+      cyclesById: {},
     };
 
-    const result = computeDerivedState(baseState, { 
+    const result = computeDerivedState(baseState, {
       type: 'DRAFT_SCHEDULE_CLEAR',
-      cycleId: 'cycle-1'
+      cycleId: 'cycle-1',
     });
 
     expect(result.draftEvents).toHaveLength(1);
@@ -52,7 +52,7 @@ describe('Auto-Placement Draft Schedule', () => {
         timeZone,
         nowISO,
         activeDayKey: '2026-01-13',
-        isFollowingNow: true
+        isFollowingNow: true,
       },
       today: {
         date: '2026-01-13',
@@ -64,21 +64,21 @@ describe('Auto-Placement Draft Schedule', () => {
             start: '2026-01-13T21:00:00.000Z',
             end: '2026-01-13T22:30:00.000Z',
             status: 'in_progress',
-            placementState: 'COMMITTED'
-          }
-        ]
+            placementState: 'COMMITTED',
+          },
+        ],
       },
       executionEvents: [],
-      cyclesById: {}
+      cyclesById: {},
     };
 
-    const result = computeDerivedState(baseState, { 
+    const result = computeDerivedState(baseState, {
       type: 'DRAFT_BLOCK_CREATE',
       cycleId: 'cycle-1',
       blockId: 'block-1',
       startISO: '2026-01-13T21:00:00.000Z',
       endISO: '2026-01-13T22:30:00.000Z',
-      status: 'committed'
+      status: 'committed',
     });
 
     expect(result.executionEvents).toHaveLength(1);
@@ -95,7 +95,7 @@ describe('Auto-Placement Draft Schedule', () => {
         timeZone,
         nowISO,
         activeDayKey: '2026-01-13',
-        isFollowingNow: true
+        isFollowingNow: true,
       },
       today: {
         date: '2026-01-13',
@@ -107,14 +107,14 @@ describe('Auto-Placement Draft Schedule', () => {
             start: '2026-01-13T21:00:00.000Z',
             end: '2026-01-13T22:30:00.000Z',
             status: 'in_progress',
-            placementState: 'COMMITTED'
-          }
-        ]
-      }
+            placementState: 'COMMITTED',
+          },
+        ],
+      },
     };
 
     const action = { type: 'DRAFT_BLOCK_CREATE', blockId: 'block-1' };
-    
+
     const result1 = computeDerivedState(baseState, action);
     const result2 = computeDerivedState(baseState, action);
 
@@ -127,36 +127,36 @@ describe('Auto-Placement Draft Schedule', () => {
         timeZone,
         nowISO,
         activeDayKey: '2026-01-13',
-        isFollowingNow: true
+        isFollowingNow: true,
       },
       today: {
         date: '2026-01-13',
-        blocks: []
-      }
+        blocks: [],
+      },
     };
 
-    const result1 = computeDerivedState(baseState, { 
+    const result1 = computeDerivedState(baseState, {
       type: 'DRAFT_BLOCK_CREATE',
       blockId: 'block-A',
       startISO: '2026-01-13T09:00:00.000Z',
       endISO: '2026-01-13T11:00:00.000Z',
-      status: 'committed'
+      status: 'committed',
     });
 
-    const result2 = computeDerivedState(result1, { 
+    const result2 = computeDerivedState(result1, {
       type: 'DRAFT_BLOCK_CREATE',
       blockId: 'block-B',
       startISO: '2026-01-13T13:00:00.000Z',
       endISO: '2026-01-13T15:00:00.000Z',
-      status: 'committed'
+      status: 'committed',
     });
 
-    const result3 = computeDerivedState(result2, { 
+    const result3 = computeDerivedState(result2, {
       type: 'DRAFT_BLOCK_CREATE',
       blockId: 'block-C',
       startISO: '2026-01-13T17:00:00.000Z',
       endISO: '2026-01-13T19:00:00.000Z',
-      status: 'committed'
+      status: 'committed',
     });
 
     // Should generate blocks in consistent order

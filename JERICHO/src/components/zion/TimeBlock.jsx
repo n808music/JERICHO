@@ -22,7 +22,7 @@ export default function TimeBlock({
   primaryObjectiveId,
   objectiveId,
   onClick,
-  onHover
+  onHover,
 }) {
   const { beginBlock, completeBlock } = useIdentityStore();
   const startMin = toMinutes(start);
@@ -31,19 +31,14 @@ export default function TimeBlock({
   const top = (startMin / (24 * 60)) * 100;
   const height = (duration / (24 * 60)) * 100;
 
-  const stateTone =
-    state === 'complete'
-      ? 'bg-emerald-500/20'
-      : state === 'missed'
-      ? 'bg-hot/15'
-      : 'bg-jericho-bg/30';
+  const stateTone = state === 'complete' ? 'bg-emerald-500/20' : state === 'missed' ? 'bg-hot/15' : 'bg-jericho-bg/30';
 
   const disciplineColors = {
     Body: '#22c55e',
     Resources: '#60a5fa',
     Creation: '#a78bfa',
     Focus: '#f59e0b',
-    default: 'var(--color-jericho-accent, #48d3be)'
+    default: 'var(--color-jericho-accent, #48d3be)',
   };
   const tint = disciplineColors[discipline] || disciplineColors.default;
 
@@ -74,19 +69,26 @@ export default function TimeBlock({
           borderLeft:
             priority || (primaryObjectiveId && primaryObjectiveId === objectiveId)
               ? '4px solid var(--color-jericho-accent, #48d3be)'
-              : undefined
+              : undefined,
         }}
       >
-        <div className={`text-[11px] uppercase tracking-[0.12em] mb-1 ${priority ? 'text-jericho-accent' : 'text-muted'}`}>
+        <div
+          className={`text-[11px] uppercase tracking-[0.12em] mb-1 ${priority ? 'text-jericho-accent' : 'text-muted'}`}
+        >
           {discipline || 'Block'}
         </div>
         <p className="font-semibold leading-tight">{label}</p>
-        <p className="text-[11px] text-muted">{start}–{end}</p>
+        <p className="text-[11px] text-muted">
+          {start}–{end}
+        </p>
         {primaryObjectiveId && primaryObjectiveId === objectiveId ? (
           <span className="text-[10px] text-jericho-accent">Primary</span>
         ) : null}
         {chain ? (
-          <span className="absolute -left-3 top-1/2 h-[2px] w-3 bg-jericho-accent/80 group-hover:w-5 transition-all" aria-hidden />
+          <span
+            className="absolute -left-3 top-1/2 h-[2px] w-3 bg-jericho-accent/80 group-hover:w-5 transition-all"
+            aria-hidden
+          />
         ) : null}
       </div>
       <div className={`absolute inset-0 pointer-events-none ${stateTone}`} aria-hidden />

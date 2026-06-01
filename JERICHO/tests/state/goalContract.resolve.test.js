@@ -10,22 +10,19 @@ const base = (overrides = {}) => ({
   scope: {
     domainsAllowed: ['Body', 'Focus', 'Creation', 'Resources'],
     timeHorizon: 'week',
-    timezone: 'America/Chicago'
+    timezone: 'America/Chicago',
   },
   governance: {
     suggestionsEnabled: true,
     probabilityEnabled: true,
-    minEvidenceEvents: 0
+    minEvidenceEvents: 0,
   },
-  ...overrides
+  ...overrides,
 });
 
 describe('resolveActiveContract', () => {
   it('selects highest version when multiple active', () => {
-    const contracts = [
-      base({ contractId: 'c-1', version: 1 }),
-      base({ contractId: 'c-2', version: 2 })
-    ];
+    const contracts = [base({ contractId: 'c-1', version: 1 }), base({ contractId: 'c-2', version: 2 })];
     const resolved = resolveActiveContract('goal-1', contracts, '2026-06-01');
     expect(resolved.contract?.contractId).toBe('c-2');
     expect(resolved.reasonCode).toBe('multiple_active');

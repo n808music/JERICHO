@@ -31,7 +31,7 @@ export default function HomeScreen({
   onOpenIdentityScan,
   onOpenHowItWorks,
   onOpenSettings,
-  onOpenAssistant
+  onOpenAssistant,
 }) {
   const [commandText, setCommandText] = useState('');
   const { cycle } = useIdentityStore();
@@ -111,9 +111,7 @@ export default function HomeScreen({
       <div className="text-xs uppercase tracking-[0.2em] text-neutral-500 mb-6">Jericho System</div>
       <div className="space-y-6 w-full max-w-3xl text-center">
         <p className="text-xl">Where are we starting today?</p>
-        {lastDaySummary ? (
-          <p className="text-[11px] text-neutral-500 mt-2">Yesterday: {lastDaySummary}</p>
-        ) : null}
+        {lastDaySummary ? <p className="text-[11px] text-neutral-500 mt-2">Yesterday: {lastDaySummary}</p> : null}
         <div className="rounded-full border border-neutral-700 bg-neutral-900 px-4 py-2 flex items-center gap-3">
           <span className="h-3 w-3 rounded-full bg-neutral-500" aria-hidden />
           <input
@@ -123,7 +121,10 @@ export default function HomeScreen({
             onChange={(e) => setCommandText(e.target.value)}
             onKeyDown={handleKeyDown}
           />
-          <button className="h-8 w-8 rounded-full border border-neutral-700 hover:border-neutral-500" aria-label="Voice input" />
+          <button
+            className="h-8 w-8 rounded-full border border-neutral-700 hover:border-neutral-500"
+            aria-label="Voice input"
+          />
         </div>
         <div className="flex flex-col items-center gap-4">
           <div className="h-24 w-24 rounded-full border border-neutral-700 flex items-center justify-center">

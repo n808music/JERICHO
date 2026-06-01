@@ -1,36 +1,36 @@
 /**
  * deterministicPlanGenerator.ts
- * 
+ *
  * Phase 3 Generic Deterministic Plan Generator (v1)
- * 
+ *
  * Core algorithm:
  * 1. Auto-deliverables: Use causal chain steps OR 3 generic (Planning 20%, Core 60%, Verify 20%)
  * 2. Block scheduling: Deterministic earliest-first allocation
  * 3. Constraints: maxBlocksPerDay, maxBlocksPerWeek, preferredDaysOfWeek, blackoutDayKeys
  * 4. Guarantees: >0 blocks if feasible, single INFEASIBLE error if not
- * 
+ *
  * Deterministic: same inputs → identical outputs (reproducible for testing/debugging)
  */
 
 /**
  * Iteration guard configuration
- * 
+ *
  * SAFETY RAILS, NOT CONTROL FLOW
  * These caps are defensive measures only. Under realistic workloads (typical to high-capacity goals),
  * iteration counts remain <2% of these limits, providing >500× safety margin.
- * 
+ *
  * EXPECTED ITERATION RANGE (based on cap-distance verification tests):
  * - Typical goal (100 blocks, 50 days, full schedule):   ~40-50 iterations
  * - Tight goal (90 blocks, 45 days, 4 blocks/day max):  ~80-90 iterations
  * - High-capacity goal (max blocks, 365 days):          ~500-600 iterations
  * All well below 50,000 cap.
- * 
+ *
  * PLAN_NON_TERMINATING_GUARD ERROR:
  * If you see code === 'PLAN_NON_TERMINATING_GUARD', the planner hit an iteration cap.
  * This is NOT a feasibility failure (compare with NO_ELIGIBLE_DAYS).
  * Check error.iterations and error.inputSummary for diagnostic context.
  * If this occurs in production with realistic goals, the cap needs adjustment.
- * 
+ *
  * DEBUG SURFACE:
  * IterationStats (dayIterations, allocationIterations) is returned ONLY in error objects,
  * never in success path, and is not persisted to storage. Safe to strip for production if needed.
@@ -67,7 +67,12 @@ export type DeterministicPlanResult = {
   proposedBlocks: ProposedBlock[];
   autoDeliverables: AutoDeliverable[];
   error?: {
-    code: 'NO_ELIGIBLE_DAYS' | 'WEEKLY_CAP_ZERO' | 'DAILY_CAP_ZERO' | 'DEADLINE_BEFORE_START' | 'PLAN_NON_TERMINATING_GUARD';
+    code:
+      | 'NO_ELIGIBLE_DAYS'
+      | 'WEEKLY_CAP_ZERO'
+      | 'DAILY_CAP_ZERO'
+      | 'DEADLINE_BEFORE_START'
+      | 'PLAN_NON_TERMINATING_GUARD';
     message: string;
     iterations?: IterationStats; // Debug: iteration counts if guard tripped
     inputSummary?: { start: string; deadline: string; daysAvailable?: number }; // Debug: input context
@@ -144,14 +149,16 @@ function getEligibleDays(
   const eligible: string[] = [];
   const blackout = new Set(constraints.blackoutDayKeys || []);
   const preferred = constraints.preferredDaysOfWeek || [];
-  
+
   let current = startDayKey;
   let iterations = 0;
-  
+
   while (current <= deadlineDayKey) {
     iterations++;
     if (iterations > ITERATION_GUARDS.MAX_DAY_ITERATIONS) {
-      throw new Error(`[deterministicPlanGenerator] getEligibleDays iteration cap exceeded: ${iterations} iterations, start=${startDayKey}, deadline=${deadlineDayKey}`);
+      throw new Error(
+        `[deterministicPlanGenerator] getEligibleDays iteration cap exceeded: ${iterations} iterations, start=${startDayKey}, deadline=${deadlineDayKey}`
+      );
     }
     // Skip blackout days
     if (!blackout.has(current)) {
@@ -166,9 +173,9 @@ function getEligibleDays(
         }
       }
     }
-    
+
     if (current === deadlineDayKey) break;
-    
+
     // Increment day
     const [year, month, day] = current.split('-').map(Number);
     const nextDate = new Date(Date.UTC(year, month - 1, day + 1));
@@ -177,7 +184,7 @@ function getEligibleDays(
     const d = String(nextDate.getUTCDate()).padStart(2, '0');
     current = `${y}-${m}-${d}`;
   }
-  
+
   return [eligible, iterations];
 }
 
@@ -186,14 +193,7 @@ function getEligibleDays(
  * Returns SUCCESS with proposed blocks OR INFEASIBLE with single error
  */
 export function generateDeterministicPlan(input: DeterministicGenInput): DeterministicPlanResult {
-  const {
-    contractDeadlineDayKey,
-    contractStartDayKey,
-    nowDayKey,
-    causalChainSteps,
-    constraints,
-    mode,
-  } = input;
+  const { contractDeadlineDayKey, contractStartDayKey, nowDayKey, causalChainSteps, constraints, mode } = input;
 
   // Validate constraints
   if (constraints.maxBlocksPerDay <= 0) {
@@ -296,7 +296,7 @@ export function generateDeterministicPlan(input: DeterministicGenInput): Determi
 
   // Allocate blocks to days (deterministic earliest-first)
   let allocationIterations = 0;
-  
+
   for (const block of blockQueue) {
     if (blockIndex >= targetBlocks) break;
 

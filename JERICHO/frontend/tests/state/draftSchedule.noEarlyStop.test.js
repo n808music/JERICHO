@@ -12,7 +12,7 @@ function buildState() {
     deps: [],
     status: 'todo',
     topoIndex: i,
-    priority: 1
+    priority: 1,
   }));
   const forecastByDayKey = {};
   for (let i = 0; i < 14; i += 1) {
@@ -32,14 +32,14 @@ function buildState() {
           goalId: 'goal-1',
           startDate: '2026-02-01',
           deadline: { dayKey: '2026-02-14' },
-          temporalBinding: { daysPerWeek: 7 }
+          temporalBinding: { daysPerWeek: 7 },
         },
         actions,
-        coldPlan: { forecastByDayKey, dailyProjection: { forecastByDayKey: {} } }
-      }
+        coldPlan: { forecastByDayKey, dailyProjection: { forecastByDayKey: {} } },
+      },
     },
     deliverablesByCycleId: { [cycleId]: { cycleId, deliverables: [] } },
-    planDraft: { executionHorizonDays: 365 }
+    planDraft: { executionHorizonDays: 365 },
   };
 }
 

@@ -14,7 +14,7 @@ export const QUALITY_WEIGHTS: QualityWeights = {
   dependencyRisk: 1.0,
   contextSwitching: 0.8,
   loadSmoothness: 0.7,
-  deferralPenalty: 1.1
+  deferralPenalty: 1.1,
 };
 
 export const SCORE_ROUNDING_DECIMALS = 6;

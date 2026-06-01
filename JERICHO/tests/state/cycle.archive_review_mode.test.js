@@ -5,12 +5,12 @@ function makeState() {
   return {
     appTime: { activeDayKey: '2026-01-09', timeZone: 'UTC', nowISO: '2026-01-09T00:00:00.000Z' },
     cyclesById: {
-      'cycle-1': { id: 'cycle-1', status: 'active', startedAtDayKey: '2026-01-01', executionEvents: [{ id: 'e1' }] }
+      'cycle-1': { id: 'cycle-1', status: 'active', startedAtDayKey: '2026-01-01', executionEvents: [{ id: 'e1' }] },
     },
     activeCycleId: 'cycle-1',
     today: { date: '2026-01-09', blocks: [{ id: 'b1' }] },
     currentWeek: { days: [{ date: '2026-01-09', blocks: [{ id: 'b1' }] }] },
-    cycle: [{ date: '2026-01-09', blocks: [{ id: 'b1' }] }]
+    cycle: [{ date: '2026-01-09', blocks: [{ id: 'b1' }] }],
   };
 }
 

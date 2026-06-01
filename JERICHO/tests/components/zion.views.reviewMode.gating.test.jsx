@@ -13,7 +13,7 @@ function buildReviewState() {
     lenses: {
       aim: { description: '', horizon: '90d' },
       pattern: { routines: { Body: [], Resources: [], Creation: [], Focus: [] }, dailyTargets: [], defaultMinutes: 30 },
-      flow: { streams: [] }
+      flow: { streams: [] },
     },
     activeCycleId: 'cycle-review',
     cyclesById: {
@@ -21,16 +21,23 @@ function buildReviewState() {
         id: 'cycle-review',
         status: 'ended',
         startedAtDayKey: '2026-02-01',
-        definiteGoal: { outcome: 'Review goal', deadlineDayKey: '2026-12-31' }
-      }
+        definiteGoal: { outcome: 'Review goal', deadlineDayKey: '2026-12-31' },
+      },
     },
     goalExecutionContract: {
       goalId: 'goal-review',
       goalText: 'Review goal',
       startDayKey: '2026-02-01',
-      endDayKey: '2026-12-31'
+      endDayKey: '2026-12-31',
     },
-    today: { date: ANCHOR_DAY, blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
+    today: {
+      date: ANCHOR_DAY,
+      blocks: [],
+      completionRate: 0,
+      driftSignal: 'contained',
+      loadByPractice: {},
+      practices: [],
+    },
     currentWeek: { weekStart: ANCHOR_DAY, days: [], metrics: {} },
     cycle: [],
     templates: { objectives: {} },
@@ -42,8 +49,20 @@ function buildReviewState() {
     executionEvents: [],
     goalDirective: null,
     directiveEligibilityByGoal: {},
-    suggestionHistory: { dayKey: ANCHOR_DAY, count: 0, lastSuggestedAtISO: null, lastSuggestedAtISOByGoal: {}, dailyCountByGoal: {}, denials: [] },
-    appTime: { timeZone: TIME_ZONE, nowISO: `${ANCHOR_DAY}T12:00:00.000Z`, activeDayKey: ANCHOR_DAY, isFollowingNow: true }
+    suggestionHistory: {
+      dayKey: ANCHOR_DAY,
+      count: 0,
+      lastSuggestedAtISO: null,
+      lastSuggestedAtISOByGoal: {},
+      dailyCountByGoal: {},
+      denials: [],
+    },
+    appTime: {
+      timeZone: TIME_ZONE,
+      nowISO: `${ANCHOR_DAY}T12:00:00.000Z`,
+      activeDayKey: ANCHOR_DAY,
+      isFollowingNow: true,
+    },
   };
 }
 

@@ -1,34 +1,93 @@
 import { describe, it, expect } from 'vitest';
-import { attemptGoalAdmissionPure } from '../identityStore.js';
+import { DEFAULT_PROFILE_ID, attemptGoalAdmissionPure } from '../identityStore.js';
 import { computeContractHash } from '../../domain/goal/GoalAdmissionPolicy.ts';
 import { buildValidGoalContract } from '../../domain/goal/testHelpers.ts';
 import { GoalRejectionCode } from '../../domain/goal/GoalRejectionCode.ts';
 
 const NOW_ISO = '2026-01-10T12:00:00.000Z';
+const EXISTING_GOAL_ID = 'goal-1';
+const EXISTING_CYCLE_ID = 'cycle-1';
 
 function buildMinimalState() {
   return {
     appTime: { nowISO: NOW_ISO, timeZone: 'UTC', activeDayKey: '2026-01-10' },
+    activeProfileId: DEFAULT_PROFILE_ID,
+    profilesById: {
+      [DEFAULT_PROFILE_ID]: {
+        id: DEFAULT_PROFILE_ID,
+        label: 'Local Profile',
+        displayName: 'Local Profile',
+        goalIds: [],
+        activeGoalId: null,
+        masterCalendarId: `calendar-${DEFAULT_PROFILE_ID}`,
+        strategicClusterIds: [],
+        createdAtISO: NOW_ISO,
+        status: 'active',
+      },
+    },
+    goalsById: {},
+    goalAdmissionByGoal: {},
     cyclesById: {},
     activeCycleId: null,
     cycleOrder: [],
     aspirations: [],
     aspirationsByCycleId: {},
+    masterCalendarsById: {},
+    deliverablesByCycleId: {},
     // computeDerivedState will fill other defaults
   };
+}
+
+function attachExistingActiveCycle(state) {
+  state.cyclesById[EXISTING_CYCLE_ID] = {
+    id: EXISTING_CYCLE_ID,
+    status: 'Active',
+    profileId: DEFAULT_PROFILE_ID,
+    goalId: EXISTING_GOAL_ID,
+    goalContract: { goalId: EXISTING_GOAL_ID, terminalOutcome: { text: 'Other goal' } },
+  };
+  state.activeCycleId = EXISTING_CYCLE_ID;
+  state.cycleOrder = [EXISTING_CYCLE_ID];
+  state.goalsById[EXISTING_GOAL_ID] = {
+    id: EXISTING_GOAL_ID,
+    profileId: DEFAULT_PROFILE_ID,
+    cycleIds: [EXISTING_CYCLE_ID],
+    activeCycleId: EXISTING_CYCLE_ID,
+    status: 'active',
+    title: 'Other goal',
+  };
+  state.profilesById[DEFAULT_PROFILE_ID].goalIds = [EXISTING_GOAL_ID];
+  state.profilesById[DEFAULT_PROFILE_ID].activeGoalId = EXISTING_GOAL_ID;
+  state.aspirationsByCycleId[EXISTING_CYCLE_ID] = [];
 }
 
 function createValidContract(overrides = {}) {
   const contract = buildValidGoalContract({
     terminalOutcome: { text: 'Ship MVP feature X', verificationCriteria: 'Feature is live', isConcrete: true },
     deadline: { dayKey: '2026-02-20', isHardDeadline: true },
-    sacrifice: { whatIsGivenUp: 'Weekend social activities', duration: '6 weeks', quantifiedImpact: '10 hours/week', rationale: 'Focus on delivery' },
-    temporalBinding: { daysPerWeek: 5, activationTime: '09:00', sessionDurationMinutes: 120, weeklyMinutes: 600, startDayKey: '2026-01-10' },
+    sacrifice: {
+      whatIsGivenUp: 'Weekend social activities',
+      duration: '6 weeks',
+      quantifiedImpact: '10 hours/week',
+      rationale: 'Focus on delivery',
+    },
+    temporalBinding: {
+      daysPerWeek: 5,
+      activationTime: '09:00',
+      sessionDurationMinutes: 120,
+      weeklyMinutes: 600,
+      startDayKey: '2026-01-10',
+    },
     causalChain: { steps: [{ sequence: 1, description: 'Design', approximateDayOffset: 7 }] },
-    reinforcement: { dailyExposureEnabled: true, dailyMechanism: 'Calendar title', checkInFrequency: 'DAILY', triggerDescription: 'Morning' },
+    reinforcement: {
+      dailyExposureEnabled: true,
+      dailyMechanism: 'Calendar title',
+      checkInFrequency: 'DAILY',
+      triggerDescription: 'Morning',
+    },
     inscription: { inscribedAtISO: NOW_ISO, acknowledgment: 'I accept', isCompromised: false },
     isAspirational: false,
-    ...overrides
+    ...overrides,
   });
 
   if (contract.inscription) {
@@ -43,18 +102,14 @@ function createValidContract(overrides = {}) {
 
 function createRejectedContract() {
   const c = createValidContract();
-  // make it invalid by removing sacrifice
-  delete c.sacrifice;
+  c.terminalOutcome = undefined;
   return c;
 }
 
 describe('identityStore.attemptGoalAdmissionPure', () => {
   it('creates an aspiration on rejected contract and does not change activeCycle', () => {
     const state = buildMinimalState();
-    // add an existing active cycle to ensure invariant
-    state.cyclesById['cycle-1'] = { id: 'cycle-1', status: 'Active', goalContract: { terminalOutcome: { text: 'Other goal' } } };
-    state.activeCycleId = 'cycle-1';
-    state.cycleOrder = ['cycle-1'];
+    attachExistingActiveCycle(state);
 
     const badContract = createRejectedContract();
     const { nextState, result } = attemptGoalAdmissionPure(state, badContract);
@@ -64,17 +119,14 @@ describe('identityStore.attemptGoalAdmissionPure', () => {
     expect(Array.isArray(nextState.aspirations)).toBe(true);
     expect(nextState.aspirations.length).toBe(1);
     // active cycle unchanged
-    expect(nextState.activeCycleId).toBe('cycle-1');
+    expect(nextState.activeCycleId).toBe(EXISTING_CYCLE_ID);
     // no new cycles created
     expect(Object.keys(nextState.cyclesById).length).toBe(1);
   });
 
   it('creates a new active cycle on admitted contract and leaves aspirations unchanged', () => {
     const state = buildMinimalState();
-    // pre-existing cycle present
-    state.cyclesById['cycle-1'] = { id: 'cycle-1', status: 'Active', goalContract: { terminalOutcome: { text: 'Other goal' } } };
-    state.activeCycleId = 'cycle-1';
-    state.cycleOrder = ['cycle-1'];
+    attachExistingActiveCycle(state);
 
     const goodContract = createValidContract();
     const { nextState, result } = attemptGoalAdmissionPure(state, goodContract);
@@ -84,6 +136,9 @@ describe('identityStore.attemptGoalAdmissionPure', () => {
     expect(nextState.activeCycleId).toBe(result.cycleId);
     expect(nextState.cyclesById[result.cycleId]).toBeTruthy();
     expect(nextState.cyclesById[result.cycleId].status).toBe('Active');
+    expect(nextState.cyclesById[result.cycleId].goalContract?.admissionStatus).toBe('ADMITTED');
+    const goalId = nextState.cyclesById[result.cycleId].goalContract?.goalId;
+    expect(nextState.goalAdmissionByGoal?.[goalId]?.status).toBe('ADMITTED');
     expect(Array.isArray(nextState.aspirations)).toBe(true);
     // aspirations unchanged (still empty)
     expect(nextState.aspirations.length).toBe(0);
@@ -122,7 +177,7 @@ describe('identityStore.attemptGoalAdmissionPure', () => {
       executionEvents: [],
       suggestionEvents: [],
       suggestedBlocks: [],
-      truthEntries: []
+      truthEntries: [],
     };
     newState.activeCycleId = blankCycleId;
 
@@ -136,23 +191,75 @@ describe('identityStore.attemptGoalAdmissionPure', () => {
   it('rejects duplicates when multiple active cycles share the same signature', () => {
     const state = buildMinimalState();
     const contract = createValidContract({
-      terminalOutcome: { text: 'Duplicate goal', verificationCriteria: 'Goal complete', isConcrete: true }
+      terminalOutcome: { text: 'Duplicate goal', verificationCriteria: 'Goal complete', isConcrete: true },
     });
     // create two active cycles with same terminal outcome
     state.cyclesById['cycle-1'] = {
-      id: 'cycle-1',
+      id: EXISTING_CYCLE_ID,
       status: 'Active',
-      goalContract: { terminalOutcome: { text: 'Duplicate goal' } }
+      goalContract: { terminalOutcome: { text: 'Duplicate goal' } },
     };
     state.cyclesById['cycle-2'] = {
       id: 'cycle-2',
       status: 'Active',
-      goalContract: { terminalOutcome: { text: 'Duplicate goal' } }
+      goalContract: { terminalOutcome: { text: 'Duplicate goal' } },
     };
-    state.activeCycleId = 'cycle-1';
+    state.activeCycleId = EXISTING_CYCLE_ID;
 
     const result = attemptGoalAdmissionPure(state, contract);
     expect(result.result.status).toBe('REJECTED');
     expect(result.result.rejectionCodes).toContain(GoalRejectionCode.DUPLICATE_ACTIVE);
+  });
+
+  it('hard-rejects inferred start day earlier than app active day', () => {
+    const state = buildMinimalState();
+    state.appTime.activeDayKey = '2026-02-01';
+    state.appTime.nowISO = '2026-01-12T12:00:00.000Z';
+    const contract = createValidContract({
+      startDayKey: '2026-01-10',
+    });
+
+    const result = attemptGoalAdmissionPure(state, contract);
+    expect(result.result.status).toBe('REJECTED');
+    expect(result.result.rejectionCodes).toContain(GoalRejectionCode.START_DAY_BEFORE_ACTIVE_DAY);
+    expect(result.nextState.activeCycleId).toBeNull();
+  });
+
+  it('does not reject admission just because the browsed active day is ahead of today', () => {
+    const state = buildMinimalState();
+    state.appTime.activeDayKey = '2026-02-01';
+    state.appTime.nowISO = '2026-01-12T12:00:00.000Z';
+    const contract = createValidContract({
+      startDayKey: '2026-01-12',
+    });
+
+    const result = attemptGoalAdmissionPure(state, contract);
+    expect(result.result.status).toBe('ADMITTED');
+    expect(result.result.rejectionCodes || []).not.toContain(GoalRejectionCode.START_DAY_BEFORE_ACTIVE_DAY);
+  });
+
+  it('preserves explicit start and deadline day keys from midnight UTC ISO inputs', () => {
+    const state = buildMinimalState();
+    state.appTime.timeZone = 'America/Chicago';
+    state.appTime.nowISO = '2026-04-02T18:00:00.000Z';
+    state.appTime.activeDayKey = '2026-04-02';
+    const contract = createValidContract({
+      startDateISO: '2026-04-06T00:00:00.000Z',
+      deadlineISO: '2026-05-06T23:59:59.000Z',
+      deadline: { dayKey: '2026-05-06', isHardDeadline: true },
+      temporalBinding: {
+        ...createValidContract().temporalBinding,
+        startDayKey: undefined,
+      },
+    });
+
+    const result = attemptGoalAdmissionPure(state, contract);
+
+    expect(result.result.status).toBe('ADMITTED');
+    const admittedCycle = result.nextState.cyclesById[result.result.cycleId];
+    expect(admittedCycle.startedAtDayKey).toBe('2026-04-06');
+    expect(admittedCycle.goalContract.startDayKey).toBe('2026-04-06');
+    expect(admittedCycle.definiteGoal.deadlineDayKey).toBe('2026-05-06');
+    expect(result.nextState.goalExecutionContract.endDayKey).toBe('2026-05-06');
   });
 });

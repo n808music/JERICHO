@@ -1,3 +1,5 @@
+import { IS_PRODUCTION } from '../../utils/runtimeEnv.js';
+
 const DEFAULT_TIME_ZONE = 'America/Chicago';
 
 const dayKeyFormatter = (timeZone: string) =>
@@ -5,7 +7,7 @@ const dayKeyFormatter = (timeZone: string) =>
     timeZone,
     year: 'numeric',
     month: '2-digit',
-    day: '2-digit'
+    day: '2-digit',
   });
 
 export const APP_TIME_ZONE = DEFAULT_TIME_ZONE;
@@ -39,7 +41,7 @@ export function isValidISO(iso = '') {
 }
 
 export function assertValidISO(label = 'ISO', iso = '', meta: Record<string, unknown> = {}) {
-  if (process.env.NODE_ENV === 'production') return;
+  if (IS_PRODUCTION) return;
   if (isValidISO(iso)) return;
   // eslint-disable-next-line no-console
   console.warn(`${label} is invalid`, { iso, ...meta });

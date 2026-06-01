@@ -15,10 +15,7 @@ export default function TaskStreamPanel({ tasks = [], onComplete, onAck }) {
         {tasks.map((task) => {
           const explanation = task.explanation || explainTaskReasons(task);
           return (
-            <div
-              key={task.id}
-              className="rounded-lg border border-line/40 bg-jericho-bg/70 p-3 flex flex-col gap-2"
-            >
+            <div key={task.id} className="rounded-lg border border-line/40 bg-jericho-bg/70 p-3 flex flex-col gap-2">
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold">{task.title}</p>

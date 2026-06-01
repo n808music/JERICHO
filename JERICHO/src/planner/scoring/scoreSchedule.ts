@@ -14,6 +14,7 @@ export type ScheduleAssignment = {
 
 export type ScoreInputs = {
   assignments: ScheduleAssignment[];
+  assignmentsAreSorted?: boolean;
   actionGraph?: {
     dependenciesByActionId?: Record<string, string[]>;
   };
@@ -86,6 +87,26 @@ function computeDayLoads(assignments: ScheduleAssignment[]) {
   return loads;
 }
 
+function computeContextSwitchCount(assignments: ScheduleAssignment[]) {
+  let count = 0;
+  let currentDayKey = '';
+  let previousCategory = '';
+  assignments.forEach((assignment) => {
+    const dayKey = assignment.dayKey || '';
+    const category = (assignment.category || '').toLowerCase();
+    if (dayKey !== currentDayKey) {
+      currentDayKey = dayKey;
+      previousCategory = category;
+      return;
+    }
+    if (category !== previousCategory) {
+      count += 1;
+    }
+    previousCategory = category;
+  });
+  return count;
+}
+
 function computeStdDev(values: number[]) {
   if (!values.length) return 0;
   const avg = values.reduce((s, v) => s + v, 0) / values.length;
@@ -115,20 +136,12 @@ function estimateDependencyRisk(
 
 export function scoreSchedule(input: ScoreInputs): ScoreBreakdown {
   const policy = input.policy || getQualityPolicy(input.policyId);
-  const assignments = sortAssignments(input.assignments || []);
+  const assignments = input.assignmentsAreSorted
+    ? [...(input.assignments || [])]
+    : sortAssignments(input.assignments || []);
   const dayLoadsMap = computeDayLoads(assignments);
   const dayLoads = [...dayLoadsMap.keys()].sort().map((k) => dayLoadsMap.get(k) || 0);
-
-  const contextSwitchCount = [...dayLoadsMap.keys()].sort().reduce((count, dayKey) => {
-    const sequence = assignments
-      .filter((a) => a.dayKey === dayKey)
-      .sort((a, b) => a.startMin - b.startMin)
-      .map((a) => (a.category || '').toLowerCase());
-    for (let i = 1; i < sequence.length; i += 1) {
-      if (sequence[i] !== sequence[i - 1]) count += 1;
-    }
-    return count;
-  }, 0);
+  const contextSwitchCount = computeContextSwitchCount(assignments);
 
   const rawStdDev = computeStdDev(dayLoads);
   const dailyLoadStdDev = roundInt(rawStdDev);
@@ -155,8 +168,11 @@ export function scoreSchedule(input: ScoreInputs): ScoreBreakdown {
   }, 0);
   const milestoneRisk = roundInt(milestoneAtRiskCount * 20);
 
-  const latestDayKey = assignments.length ? assignments[assignments.length - 1].dayKey : input.horizons?.executionWindowStartDayKey || '';
-  const goalDeadlineDayKey = input.metricsContext?.goalDeadlineDayKey || input.horizons?.executionWindowEndDayKey || latestDayKey;
+  const latestDayKey = assignments.length
+    ? assignments[assignments.length - 1].dayKey
+    : input.horizons?.executionWindowStartDayKey || '';
+  const goalDeadlineDayKey =
+    input.metricsContext?.goalDeadlineDayKey || input.horizons?.executionWindowEndDayKey || latestDayKey;
   const deadlineOverrunDays = latestDayKey && goalDeadlineDayKey && latestDayKey > goalDeadlineDayKey ? 1 : 0;
   const deadlineRisk = roundInt(deadlineOverrunDays * 100 + deferralPenalty * 0.4);
 
@@ -170,7 +186,7 @@ export function scoreSchedule(input: ScoreInputs): ScoreBreakdown {
     dependencyRisk: depRisk.score,
     contextSwitching,
     loadSmoothness,
-    deferralPenalty
+    deferralPenalty,
   };
 
   const total = roundInt(
@@ -191,7 +207,7 @@ export function scoreSchedule(input: ScoreInputs): ScoreBreakdown {
       depTightCount: depRisk.tightCount,
       contextSwitchCount,
       dailyLoadStdDev,
-      outsideExecutionHorizonMinutes
-    }
+      outsideExecutionHorizonMinutes,
+    },
   };
 }

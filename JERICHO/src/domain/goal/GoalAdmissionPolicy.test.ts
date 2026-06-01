@@ -1,8 +1,7 @@
 /**
  * GoalAdmissionPolicy.test.ts
- * 
+ *
  * Test hard constraints enforcement:
- * - Missing sacrifice → rejected
  * - Missing deadline → rejected
  * - Mutable inscription → rejected
  * - Valid contract → admitted
@@ -97,17 +96,17 @@ describe('GoalAdmissionPolicy', () => {
       expect(result.rejectionCodes).toContain(GoalRejectionCode.DEADLINE_TOO_SOON);
     });
 
-    it('rejects when sacrifice is missing', () => {
+    it('admits when sacrifice is missing because planning constraints now live in structured intake', () => {
       const contract = createValidContract({
         sacrifice: undefined,
       });
       const result = validateGoalAdmission(contract, NOW_ISO);
 
-      expect(result.status).toBe('REJECTED');
-      expect(result.rejectionCodes).toContain(GoalRejectionCode.SACRIFICE_MISSING);
+      expect(result.status).toBe('ADMITTED');
+      expect(result.rejectionCodes).not.toContain(GoalRejectionCode.SACRIFICE_MISSING);
     });
 
-    it('rejects when sacrifice contains trivial language', () => {
+    it('admits when legacy sacrifice language is trivial because it no longer gates admission', () => {
       const contract = createValidContract({
         sacrifice: {
           whatIsGivenUp: 'maybe something',
@@ -119,24 +118,26 @@ describe('GoalAdmissionPolicy', () => {
       });
       const result = validateGoalAdmission(contract, NOW_ISO);
 
-      expect(result.status).toBe('REJECTED');
-      expect(result.rejectionCodes).toContain(GoalRejectionCode.SACRIFICE_NOT_BINDING);
+      expect(result.status).toBe('ADMITTED');
+      expect(result.rejectionCodes).not.toContain(GoalRejectionCode.SACRIFICE_NOT_BINDING);
     });
 
-    it('rejects when temporal binding is below 3 days/week', () => {
+    it('rejects when no work windows are configured', () => {
       const contract = createValidContract({
-        temporalBinding: {
-          daysPerWeek: 3,
-          activationTime: '',
-          sessionDurationMinutes: 60,
-          weeklyMinutes: 180,
-          startDayKey: '2026-01-10',
+        workWindows: {
+          mon: [],
+          tue: [],
+          wed: [],
+          thu: [],
+          fri: [],
+          sat: [],
+          sun: [],
         },
       });
       const result = validateGoalAdmission(contract, NOW_ISO);
 
       expect(result.status).toBe('REJECTED');
-      expect(result.rejectionCodes).toContain(GoalRejectionCode.TEMPORAL_BINDING_INVALID);
+      expect(result.rejectionCodes).toContain(GoalRejectionCode.NO_WORK_WINDOWS);
     });
 
     it('rejects when causal chain is empty', () => {
@@ -214,13 +215,12 @@ describe('GoalAdmissionPolicy', () => {
       const contract = createValidContract({
         terminalOutcome: undefined,
         deadline: undefined,
-        sacrifice: undefined,
       });
-      const result = validateGoalAdmission(contract, NOW_ISO);
+    const result = validateGoalAdmission(contract, NOW_ISO);
 
-      expect(result.status).toBe('REJECTED');
-      expect(result.rejectionCodes.length).toBeGreaterThanOrEqual(3);
-    });
+    expect(result.status).toBe('REJECTED');
+    expect(result.rejectionCodes.length).toBeGreaterThanOrEqual(2);
+  });
   });
 
   describe('verifyContractIntegrity', () => {

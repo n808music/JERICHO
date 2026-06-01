@@ -13,11 +13,13 @@ function makeBlock({ id, status = 'planned' }) {
     label: 'Outreach',
     start: iso('2025-12-03', '14:00'),
     end: iso('2025-12-03', '15:00'),
-    status
+    status,
   };
 }
 
-function clone(b) { return JSON.parse(JSON.stringify(b)); }
+function clone(b) {
+  return JSON.parse(JSON.stringify(b));
+}
 function makeStateWithBlockEverywhere(block) {
   return {
     ledger: [],
@@ -25,14 +27,26 @@ function makeStateWithBlockEverywhere(block) {
     currentWeek: { days: [{ date: '2025-12-03', blocks: [clone(block)] }], metrics: {} },
     cycle: [{ date: '2025-12-03', blocks: [clone(block)] }],
     vector: { day: 1, direction: '', stability: 'steady', drift: 'contained', momentum: 'active' },
-    lenses: { pattern: { dailyTargets: [], routines: {}, defaultMinutes: 30 }, aim: { description: '', horizon: '90d' }, flow: { streams: [] }, practice: { defaults: {} } },
+    lenses: {
+      pattern: { dailyTargets: [], routines: {}, defaultMinutes: 30 },
+      aim: { description: '', horizon: '90d' },
+      flow: { streams: [] },
+      practice: { defaults: {} },
+    },
     viewDate: '2025-12-03',
     templates: { objectives: {} },
-    meta: { version: '1.0.0', onboardingComplete: true, lastActiveDate: '2025-12-03', scenarioLabel: '', demoScenarioEnabled: false, showHints: false },
+    meta: {
+      version: '1.0.0',
+      onboardingComplete: true,
+      lastActiveDate: '2025-12-03',
+      scenarioLabel: '',
+      demoScenarioEnabled: false,
+      showHints: false,
+    },
     stability: { headline: '', actionLine: '' },
     recurringPatterns: [],
     lastSessionChange: null,
-    nextSuggestion: null
+    nextSuggestion: null,
   };
 }
 

@@ -34,10 +34,22 @@ function buildMinimalState() {
     cyclesById: {},
     deliverablesByCycleId: {},
     goalAdmissionByGoal: {},
-    appTime: { timeZone: APP_TIME_ZONE, nowISO: '2026-01-10T00:00:00.000Z', activeDayKey: '2026-01-10', isFollowingNow: true },
-    suggestionHistory: { dayKey: '2026-01-10', count: 0, lastSuggestedAtISO: null, lastSuggestedAtISOByGoal: {}, dailyCountByGoal: {}, denials: [] },
+    appTime: {
+      timeZone: APP_TIME_ZONE,
+      nowISO: '2026-01-10T00:00:00.000Z',
+      activeDayKey: '2026-01-10',
+      isFollowingNow: true,
+    },
+    suggestionHistory: {
+      dayKey: '2026-01-10',
+      count: 0,
+      lastSuggestedAtISO: null,
+      lastSuggestedAtISOByGoal: {},
+      dailyCountByGoal: {},
+      denials: [],
+    },
     directiveEligibilityByGoal: {},
-    goalDirective: null
+    goalDirective: null,
   };
 }
 
@@ -51,8 +63,8 @@ const actionGenerators = [
         start: `2026-01-10T${String(hour).padStart(2, '0')}:00:00.000Z`,
         durationMinutes: 30,
         domain: 'CREATION',
-        title: `Block ${hour}`
-      }
+        title: `Block ${hour}`,
+      },
     };
   },
   (state, rng) => {
@@ -63,13 +75,16 @@ const actionGenerators = [
       blockId: `draft-${Math.floor(rng() * 1000)}`,
       startISO: `2026-01-10T${String(hour).padStart(2, '0')}:30:00.000Z`,
       endISO: `2026-01-10T${String(hour + 1).padStart(2, '0')}:00:00.000Z`,
-      status: 'planned'
+      status: 'planned',
     };
   },
   () => ({ type: 'START_NEW_CYCLE', payload: { goalText: 'Prop test cycle', deadlineDayKey: '2026-02-01' } }),
   (state) => (state.activeCycleId ? { type: 'END_CYCLE', cycleId: state.activeCycleId } : null),
-  (state, rng) => (state.activeCycleId ? { type: 'ARCHIVE_AND_CLONE_CYCLE', cycleId: state.activeCycleId, overrides: { narrative: `Archived ${rng()}` } } : null),
-  (state) => (state.activeCycleId ? { type: 'DELETE_CYCLE', cycleId: state.activeCycleId } : null)
+  (state, rng) =>
+    state.activeCycleId
+      ? { type: 'ARCHIVE_AND_CLONE_CYCLE', cycleId: state.activeCycleId, overrides: { narrative: `Archived ${rng()}` } }
+      : null,
+  (state) => (state.activeCycleId ? { type: 'DELETE_CYCLE', cycleId: state.activeCycleId } : null),
 ];
 
 function pickAction(state, rng) {
@@ -95,7 +110,9 @@ function assertActiveCycleBlocks(state) {
 function assertOrphanCreates(state) {
   const eventMap = new Map(state.executionEvents?.map((event) => [`${event.kind}:${event.blockId}`, event]));
   (state.today?.blocks || []).forEach((block) => {
-    const match = eventMap.get(`create:${block.id}`) || state.executionEvents?.find((event) => event.blockId === block.id && event.kind === 'create');
+    const match =
+      eventMap.get(`create:${block.id}`) ||
+      state.executionEvents?.find((event) => event.blockId === block.id && event.kind === 'create');
     expect(match).toBeTruthy();
   });
 }
@@ -119,8 +136,8 @@ describe('Cycle boundary property invariants', () => {
           narrative: 'Guard cycles',
           focusAreas: ['Creation'],
           successDefinition: 'Done',
-          minimumDaysPerWeek: 2
-        }
+          minimumDaysPerWeek: 2,
+        },
       });
       const steps = 12;
       for (let step = 0; step < steps; step += 1) {
@@ -128,7 +145,7 @@ describe('Cycle boundary property invariants', () => {
         if (!action) continue;
         const first = computeDerivedState(state, action);
         const second = computeDerivedState(state, action);
-        const sanitizeEvent = ({ kind, startISO, endISO, dateISO, status, placementState, cycleId, origin, minutes }) => ({
+        const sanitizeEvent = ({
           kind,
           startISO,
           endISO,
@@ -137,7 +154,17 @@ describe('Cycle boundary property invariants', () => {
           placementState,
           cycleId,
           origin,
-          minutes
+          minutes,
+        }) => ({
+          kind,
+          startISO,
+          endISO,
+          dateISO,
+          status,
+          placementState,
+          cycleId,
+          origin,
+          minutes,
         });
         const snapshot = (value) => ({
           executionEvents: (value.executionEvents || []).map(sanitizeEvent),
@@ -148,13 +175,13 @@ describe('Cycle boundary property invariants', () => {
             status: block?.status,
             placementState: block?.placementState,
             origin: block?.origin,
-            domain: block?.domain
+            domain: block?.domain,
           })),
           currentWeek: (value.currentWeek?.days || []).map((day) => ({
             date: day?.date,
-            blockCount: (day?.blocks || []).length
+            blockCount: (day?.blocks || []).length,
           })),
-          activeCycleId: value.activeCycleId
+          activeCycleId: value.activeCycleId,
         });
         expect(snapshot(first)).toEqual(snapshot(second));
         assertActiveCycleBlocks(first);

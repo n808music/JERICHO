@@ -10,7 +10,7 @@ import {
   assertAutomationItemsHaveContext,
   buildAdvancementBaseState,
   commitFirstActionItem,
-  completeBlockByAction
+  completeBlockByAction,
 } from '../helpers/advancementHarness.js';
 
 function addCycleAction(state, action) {
@@ -25,7 +25,7 @@ function routeSuggestionsFromState(state, cycleId) {
       dayKey,
       totalBlocks: Number(forecast[dayKey]?.totalBlocks || 0),
       byDeliverable: forecast[dayKey]?.byDeliverable || {},
-      summary: forecast[dayKey]?.summary || ''
+      summary: forecast[dayKey]?.summary || '',
     }))
     .filter((entry) => entry.totalBlocks > 0);
 }
@@ -34,7 +34,7 @@ function buildNarrationSnapshot(state, cycleId, draftItems) {
   const cycleActions = state.actionsByCycleId?.[cycleId]?.actions || state.cyclesById?.[cycleId]?.actions || [];
   const boundary = getDraftBoundary(state, cycleId, {
     daysForward: DRAFT_WINDOW_DAYS,
-    mode: DEFAULT_BOUNDARY_MODE
+    mode: DEFAULT_BOUNDARY_MODE,
   });
   const diagnostics = getDraftDiagnostics({
     state,
@@ -46,21 +46,21 @@ function buildNarrationSnapshot(state, cycleId, draftItems) {
     boundaryLabel: boundary?.label || `Next ${DRAFT_WINDOW_DAYS} days`,
     routeSlotWindowDays: DRAFT_WINDOW_DAYS,
     graphInvalid: state?.lastPlanError?.code === 'ACTION_GRAPH_INVALID',
-    noActionPlan: cycleActions.length <= 0
+    noActionPlan: cycleActions.length <= 0,
   });
   const metrics = computeSpineNarrationMetrics({
     actions: cycleActions,
     blocks: normalizeBlocks(getAllBlocks(computeDerivedState(state, { type: 'NO_OP' })) || []),
     draftItems,
     diagnostics,
-    cycleId
+    cycleId,
   });
   const narration = buildDraftNarrationModel({
     diagnostics,
     spineMetrics: metrics,
     hasActionPlan: cycleActions.length > 0,
     hasActionContextGap: false,
-    cycleId
+    cycleId,
   });
   return { boundary, diagnostics, metrics, narration };
 }
@@ -75,7 +75,7 @@ describe('spine narration integration', () => {
     state.appTime.nowISO = NOW_ISO;
     state.cyclesById[cycleId].coldPlan.forecastByDayKey = {
       [DAY_KEY]: { totalBlocks: 1, byDeliverable: {}, summary: '' },
-      [day2]: { totalBlocks: 2, byDeliverable: {}, summary: '' }
+      [day2]: { totalBlocks: 2, byDeliverable: {}, summary: '' },
     };
 
     addCycleAction(state, {
@@ -89,7 +89,7 @@ describe('spine narration integration', () => {
       deps: [],
       status: 'todo',
       topoIndex: 0,
-      priority: 1
+      priority: 1,
     });
     addCycleAction(state, {
       id: `act:${cycleId}:B`,
@@ -102,7 +102,7 @@ describe('spine narration integration', () => {
       deps: [`act:${cycleId}:A`],
       status: 'todo',
       topoIndex: 1,
-      priority: 2
+      priority: 2,
     });
     addCycleAction(state, {
       id: `act:${cycleId}:C`,
@@ -115,7 +115,7 @@ describe('spine narration integration', () => {
       deps: [],
       status: 'todo',
       topoIndex: 2,
-      priority: 3
+      priority: 3,
     });
     state.deliverablesByCycleId[cycleId] = {
       deliverables: [
@@ -123,9 +123,9 @@ describe('spine narration integration', () => {
           id: 'deliv-season-spine',
           title: 'Season spine',
           dueDayKey: '2026-01-25',
-          actionIds: [`act:${cycleId}:A`, `act:${cycleId}:B`, `act:${cycleId}:C`]
-        }
-      ]
+          actionIds: [`act:${cycleId}:A`, `act:${cycleId}:B`, `act:${cycleId}:C`],
+        },
+      ],
     };
 
     state = computeDerivedState(state, { type: 'NO_OP' });
@@ -133,7 +133,7 @@ describe('spine narration integration', () => {
     const preCommitDraft = buildDraftScheduleItems(state, cycleId, {
       startDateISO: `${DAY_KEY}T00:00:00.000Z`,
       daysForward: DRAFT_WINDOW_DAYS,
-      boundaryMode: DEFAULT_BOUNDARY_MODE
+      boundaryMode: DEFAULT_BOUNDARY_MODE,
     });
     assertAutomationItemsHaveContext(preCommitDraft);
     expect(new Set(preCommitDraft.map((item) => item.dayKey)).size).toBeGreaterThan(0);
@@ -147,7 +147,7 @@ describe('spine narration integration', () => {
     const preCompletionDraft = buildDraftScheduleItems(preCompletionState, cycleId, {
       startDateISO: `${DAY_KEY}T00:00:00.000Z`,
       daysForward: DRAFT_WINDOW_DAYS,
-      boundaryMode: DEFAULT_BOUNDARY_MODE
+      boundaryMode: DEFAULT_BOUNDARY_MODE,
     });
     const before = buildNarrationSnapshot(preCompletionState, cycleId, preCompletionDraft);
 
@@ -156,7 +156,7 @@ describe('spine narration integration', () => {
     const postCompletionDraft = buildDraftScheduleItems(postCompletionState, cycleId, {
       startDateISO: `${DAY_KEY}T00:00:00.000Z`,
       daysForward: DRAFT_WINDOW_DAYS,
-      boundaryMode: DEFAULT_BOUNDARY_MODE
+      boundaryMode: DEFAULT_BOUNDARY_MODE,
     });
     const after = buildNarrationSnapshot(postCompletionState, cycleId, postCompletionDraft);
 

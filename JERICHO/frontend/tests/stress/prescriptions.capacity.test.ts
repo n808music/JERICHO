@@ -7,7 +7,7 @@ describe('prescriptions capacity', () => {
       unplacedEstimateMinTotal: 1200,
       unplacedEstimateMinByCategory: { FOCUS: 900, RESOURCES: 300 },
       placementWindowDays: 28,
-      maxScheduledMinutesPerWeek: 300
+      maxScheduledMinutesPerWeek: 300,
     });
 
     expect(bundle.primaryConstraint).toBe('CAPACITY');

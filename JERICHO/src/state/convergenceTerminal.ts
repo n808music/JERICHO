@@ -91,10 +91,10 @@
 export function derivePlanTerminalState(cycle = {}, planProof = null, deliverables = []) {
   const deadline = cycle?.definiteGoal?.deadlineDayKey || '';
   const deadlineType = cycle?.goalEquation?.deadlineType || 'HARD';
-  
+
   // P_end captures the cold plan targets
   const requiredBlocks = deliverables.reduce((sum, d) => sum + (d.requiredBlocks || 0), 0);
-  
+
   return {
     requiredUnits: requiredBlocks,
     unitType: 'blocks',
@@ -103,11 +103,11 @@ export function derivePlanTerminalState(cycle = {}, planProof = null, deliverabl
       deliverableTitle: d.title,
       requiredBlocks: d.requiredBlocks || 0,
       requiredMinutes: (d.requiredBlocks || 0) * 30, // assume 30m per block
-      criteria: d.criteria || []
+      criteria: d.criteria || [],
     })),
     deadline,
     deadlineType,
-    computedAt: new Date().toISOString()
+    computedAt: new Date().toISOString(),
   };
 }
 
@@ -122,14 +122,14 @@ export function derivePlanTerminalState(cycle = {}, planProof = null, deliverabl
  */
 export function deriveExecutionTerminalState(executionEvents = [], deadlineDayKey = '', deliverables = []) {
   const deliverableIds = new Set(deliverables.map((d) => d.id));
-  
+
   // Filter to linked, completed events only.
   // An event is "linked" if linkageStatus === 'LINKED' OR it has deliverableId/criterionId.
   const linkedCompleted = executionEvents.filter((e) => {
     // Must be completed
     if (!e?.completed || e.kind !== 'complete') return false;
     // Must be linked to a deliverable OR have criteria linkage
-    const isLinked = (e.linkageStatus === 'LINKED') || e.deliverableId || e.criterionId;
+    const isLinked = e.linkageStatus === 'LINKED' || e.deliverableId || e.criterionId;
     if (!isLinked) return false;
     return true;
   });
@@ -147,7 +147,10 @@ export function deriveExecutionTerminalState(executionEvents = [], deadlineDayKe
 
   // Unlinked activity (for reporting, not included in E_end units)
   const unlinkedActivity = executionEvents.filter(
-    (e) => e?.completed && e.kind === 'complete' && (e.linkageStatus === 'UNLINKED_ACTIVITY' || (!e.deliverableId && !e.criterionId))
+    (e) =>
+      e?.completed &&
+      e.kind === 'complete' &&
+      (e.linkageStatus === 'UNLINKED_ACTIVITY' || (!e.deliverableId && !e.criterionId))
   );
 
   // Aggregate by deliverable
@@ -158,7 +161,7 @@ export function deriveExecutionTerminalState(executionEvents = [], deadlineDayKe
       completedBlocks: eventsForDeliv.length,
       completedMinutes: eventsForDeliv.reduce((sum, e) => sum + (e.minutes || 30), 0),
       completionRate: d.requiredBlocks ? eventsForDeliv.length / d.requiredBlocks : 0,
-      criteria: d.criteria ? d.criteria.map((c) => ({ criterionId: c.id, isDone: c.isDone || false })) : []
+      criteria: d.criteria ? d.criteria.map((c) => ({ criterionId: c.id, isDone: c.isDone || false })) : [],
     };
   });
 
@@ -170,7 +173,7 @@ export function deriveExecutionTerminalState(executionEvents = [], deadlineDayKe
     completionsAfterDeadline,
     unlinkedActivityBlocks: unlinkedActivity.length,
     unlinkedActivityMinutes: unlinkedActivity.reduce((sum, e) => sum + (e.minutes || 30), 0),
-    computedAt: new Date().toISOString()
+    computedAt: new Date().toISOString(),
   };
 }
 
@@ -185,25 +188,22 @@ export function deriveExecutionTerminalState(executionEvents = [], deadlineDayKe
  */
 export function computeConvergenceVerdict(P_end = {}, E_end = {}, tolerance = 0) {
   const reasons = [];
-  const allDeliverablesMet =
-    (P_end.deliverables || []).every((pReq) => {
-      const eExec = (E_end.deliverables || []).find((e) => e.deliverableId === pReq.deliverableId);
-      const deficit = Math.max(0, pReq.requiredBlocks - (eExec?.completedBlocks || 0));
-      if (deficit > tolerance) {
-        reasons.push(
-          `${pReq.deliverableTitle}: required ${pReq.requiredBlocks}, completed ${eExec?.completedBlocks || 0} (deficit: ${deficit})`
-        );
-        return false;
-      }
-      return true;
-    });
+  const allDeliverablesMet = (P_end.deliverables || []).every((pReq) => {
+    const eExec = (E_end.deliverables || []).find((e) => e.deliverableId === pReq.deliverableId);
+    const deficit = Math.max(0, pReq.requiredBlocks - (eExec?.completedBlocks || 0));
+    if (deficit > tolerance) {
+      reasons.push(
+        `${pReq.deliverableTitle}: required ${pReq.requiredBlocks}, completed ${eExec?.completedBlocks || 0} (deficit: ${deficit})`
+      );
+      return false;
+    }
+    return true;
+  });
 
   // Check deadline: completion must be by deadline (unless SOFT)
   const allByDeadline = E_end.completionsAfterDeadline === 0 || P_end.deadlineType === 'SOFT';
   if (!allByDeadline) {
-    reasons.push(
-      `${E_end.completionsAfterDeadline} blocks completed after deadline (hard deadline required)`
-    );
+    reasons.push(`${E_end.completionsAfterDeadline} blocks completed after deadline (hard deadline required)`);
   }
 
   let verdict = 'CONVERGED';
@@ -222,7 +222,14 @@ export function computeConvergenceVerdict(P_end = {}, E_end = {}, tolerance = 0)
  * @param {{cycle, planProof, events, nowISO, timezone, deliverables}} input
  * @returns {ConvergenceReport}
  */
-export function buildConvergenceReport({ cycle = {}, planProof = null, events = [], nowISO = '', timezone = 'UTC', deliverables = [] }) {
+export function buildConvergenceReport({
+  cycle = {},
+  planProof = null,
+  events = [],
+  nowISO = '',
+  timezone = 'UTC',
+  deliverables = [],
+}) {
   const P_end = derivePlanTerminalState(cycle, planProof, deliverables);
   const E_end = deriveExecutionTerminalState(events, cycle?.definiteGoal?.deadlineDayKey || '', deliverables);
   const { verdict, reasons } = computeConvergenceVerdict(P_end, E_end, 0);
@@ -233,7 +240,7 @@ export function buildConvergenceReport({ cycle = {}, planProof = null, events = 
     P_end,
     E_end,
     tolerance: 0,
-    computedAtISO: nowISO || new Date().toISOString()
+    computedAtISO: nowISO || new Date().toISOString(),
   };
 }
 
@@ -256,7 +263,7 @@ export function computeTerminalConvergence({
   events = [],
   nowISO = '',
   timezone = 'UTC',
-  deliverables: deliverablesInput = null
+  deliverables: deliverablesInput = null,
 } = {}) {
   // Gather deliverables from explicit input or cycle state
   const source = deliverablesInput || cycle?.deliverables || cycle?.strategy?.deliverables || [];
@@ -264,7 +271,7 @@ export function computeTerminalConvergence({
     id: d.id || `deliv-${Date.now()}`,
     title: d.title || 'Deliverable',
     requiredBlocks: d.requiredBlocks || 0,
-    criteria: d.criteria || []
+    criteria: d.criteria || [],
   }));
 
   // If no deliverables, cannot converge (goal was not formally structured)
@@ -275,7 +282,7 @@ export function computeTerminalConvergence({
       P_end: derivePlanTerminalState(cycle, planProof, []),
       E_end: deriveExecutionTerminalState(events, cycle?.definiteGoal?.deadlineDayKey || '', []),
       tolerance: 0,
-      computedAtISO: nowISO || new Date().toISOString()
+      computedAtISO: nowISO || new Date().toISOString(),
     };
   }
 
@@ -286,6 +293,6 @@ export function computeTerminalConvergence({
     events,
     nowISO,
     timezone,
-    deliverables
+    deliverables,
   });
 }

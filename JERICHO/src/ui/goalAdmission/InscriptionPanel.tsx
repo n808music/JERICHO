@@ -8,11 +8,7 @@ interface InscriptionPanelProps {
   isValid: boolean;
 }
 
-export default function InscriptionPanel({
-  inscription,
-  onInscriptionChange,
-  isValid,
-}: InscriptionPanelProps) {
+export default function InscriptionPanel({ inscription, onInscriptionChange, isValid }: InscriptionPanelProps) {
   const [ackText, setAckText] = useState('');
 
   const current = inscription || {
@@ -59,7 +55,9 @@ export default function InscriptionPanel({
             <p className="text-[11px] text-green-800">
               Inscribed at {new Date(current.inscribedAtISO).toLocaleString()}
             </p>
-            <p className="text-[11px] text-green-700 font-mono break-all">Hash: {current.contractHash?.slice(0, 16)}…</p>
+            <p className="text-[11px] text-green-700 font-mono break-all">
+              Hash: {current.contractHash?.slice(0, 16)}…
+            </p>
             {current.isCompromised && (
               <p className="text-[11px] text-red-700 font-semibold">⚠ Contract has been modified since inscription.</p>
             )}

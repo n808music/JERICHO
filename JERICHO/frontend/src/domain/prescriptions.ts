@@ -66,7 +66,10 @@ function sortPrescriptions(items: Prescription[]) {
 
 export function computePrescriptions(input: PrescriptionInput = {}): PrescriptionsBundle {
   const unplacedEstimateMinTotal = Math.max(0, safeNumber(input.unplacedEstimateMinTotal));
-  const outsideExecutionHorizonEstimateMinTotal = Math.max(0, safeNumber(input.outsideExecutionHorizonEstimateMinTotal));
+  const outsideExecutionHorizonEstimateMinTotal = Math.max(
+    0,
+    safeNumber(input.outsideExecutionHorizonEstimateMinTotal)
+  );
   const outsideExecutionHorizonCount = Math.max(0, safeNumber(input.outsideExecutionHorizonCount));
   const maxScheduledMinutesPerWeek = Math.max(1, safeNumber(input.maxScheduledMinutesPerWeek, 1));
   const windowDays = safeNumber(input.placementWindowDays ?? input.executionHorizonDays ?? 0, 0);
@@ -78,7 +81,7 @@ export function computePrescriptions(input: PrescriptionInput = {}): Prescriptio
     .map(([milestoneId, value]) => ({
       milestoneId,
       slackMinutes: safeNumber(value?.slackMinutes, 0),
-      slackRatio: safeNumber(value?.slackRatio, 0)
+      slackRatio: safeNumber(value?.slackRatio, 0),
     }))
     .sort((lhs, rhs) => {
       if (lhs.slackRatio !== rhs.slackRatio) return lhs.slackRatio - rhs.slackRatio;
@@ -102,8 +105,8 @@ export function computePrescriptions(input: PrescriptionInput = {}): Prescriptio
       parameters: {
         unplacedEstimateMinTotal,
         horizonWeeks,
-        requiredExtraMinutesPerWeek
-      }
+        requiredExtraMinutesPerWeek,
+      },
     });
 
     const topCategory = Object.entries(input.unplacedEstimateMinByCategory || {})
@@ -119,8 +122,8 @@ export function computePrescriptions(input: PrescriptionInput = {}): Prescriptio
         rationale: 'Largest unplaced category indicates a scope reduction candidate.',
         parameters: {
           category: topCategory.category,
-          minutes: topCategory.minutes
-        }
+          minutes: topCategory.minutes,
+        },
       });
     }
   }
@@ -134,8 +137,8 @@ export function computePrescriptions(input: PrescriptionInput = {}): Prescriptio
       parameters: {
         outsideExecutionHorizonCount,
         outsideExecutionHorizonEstimateMinTotal,
-        requiredExtraWeeks
-      }
+        requiredExtraWeeks,
+      },
     });
   }
 
@@ -150,8 +153,8 @@ export function computePrescriptions(input: PrescriptionInput = {}): Prescriptio
           milestoneId: entry.milestoneId,
           extensionWeeks: Math.max(1, extensionWeeks),
           slackMinutes: entry.slackMinutes,
-          slackRatio: entry.slackRatio
-        }
+          slackRatio: entry.slackRatio,
+        },
       });
     });
   } else if (infeasibleMilestonesCount > 0) {
@@ -163,8 +166,8 @@ export function computePrescriptions(input: PrescriptionInput = {}): Prescriptio
         milestoneId: 'UNKNOWN',
         extensionWeeks: 1,
         slackMinutes: null,
-        slackRatio: null
-      }
+        slackRatio: null,
+      },
     });
   }
 
@@ -182,6 +185,6 @@ export function computePrescriptions(input: PrescriptionInput = {}): Prescriptio
     primaryConstraint,
     prescriptionsCount: ordered.length,
     mustIncludeCodes: ordered.map((entry) => entry.code),
-    prescriptions: ordered
+    prescriptions: ordered,
   };
 }

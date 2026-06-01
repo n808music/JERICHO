@@ -28,10 +28,30 @@ describe('aimDirectiveCompute', () => {
   it('tie-breaking is stable by start time then duration then title', () => {
     const profile = computeGoalProfile('Publish book', '2025-12-31', '2025-12-01');
     const candidates = [
-      { domain: profile.dominantDomain, title: 'B', durationMinutes: 30, start: '2025-12-01T10:00:00', kind: 'EXECUTE_EXISTING', blockId: '2', date: '2025-12-01' },
-      { domain: profile.dominantDomain, title: 'A', durationMinutes: 30, start: '2025-12-01T09:00:00', kind: 'EXECUTE_EXISTING', blockId: '1', date: '2025-12-01' }
+      {
+        domain: profile.dominantDomain,
+        title: 'B',
+        durationMinutes: 30,
+        start: '2025-12-01T10:00:00',
+        kind: 'EXECUTE_EXISTING',
+        blockId: '2',
+        date: '2025-12-01',
+      },
+      {
+        domain: profile.dominantDomain,
+        title: 'A',
+        durationMinutes: 30,
+        start: '2025-12-01T09:00:00',
+        kind: 'EXECUTE_EXISTING',
+        blockId: '1',
+        date: '2025-12-01',
+      },
     ];
-    const directive = computeNextBestMove(candidates, profile, { dayKey: '2025-12-01', patternDiagnostics: {}, userStats: {} });
+    const directive = computeNextBestMove(candidates, profile, {
+      dayKey: '2025-12-01',
+      patternDiagnostics: {},
+      userStats: {},
+    });
     expect(directive.blockId).toBe('1'); // earlier start wins
   });
 });

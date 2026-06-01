@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import AppShell from '../../JERICHO/src/components/AppShell.jsx';
 import IdentityCapture from './identity-capture.jsx';
 import TaskBoard from './task-board.jsx';
 import Dashboard from './dashboard.jsx';
@@ -13,6 +14,7 @@ import {
   runCycleNext
 } from './api-client.js';
 import { buildDefiniteGoalFromCapability } from './goal-utils.js';
+import { shouldRenderZionFromHash } from './hashRouting.js';
 
 function AnalysisStrip({ analysis }) {
   if (!analysis) return null;
@@ -360,6 +362,13 @@ function GovernanceTaskBoard({ taskBoard, onUpdateTaskStatus }) {
 }
 
 export default function App() {
+  const isZionHash = shouldRenderZionFromHash(
+    typeof window !== 'undefined' ? window.location.hash : ''
+  );
+  if (isZionHash) {
+    return <AppShell />;
+  }
+
   const isInternal = typeof window !== 'undefined' && window.location.pathname === '/internal';
   const [state, setState] = useState(null);
   const [pipeline, setPipeline] = useState(null);

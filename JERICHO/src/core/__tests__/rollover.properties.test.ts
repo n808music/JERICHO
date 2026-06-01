@@ -25,7 +25,7 @@ function createCommittedEvent(blockId, startHour, cycleId = 'cycle-1') {
     cycleId,
     domain: 'CREATION',
     origin: 'manual',
-    completed: false
+    completed: false,
   };
 }
 
@@ -42,7 +42,7 @@ describe('Rollover property checks', () => {
         currentWeek: { days: [] },
         cyclesById: {},
         lastRolloverDayISO: undefined,
-        appTime: { timeZone: APP_TIME_ZONE, nowISO }
+        appTime: { timeZone: APP_TIME_ZONE, nowISO },
       } as any;
       const blockIds = [];
       state.today.blocks = [];
@@ -59,7 +59,7 @@ describe('Rollover property checks', () => {
           placementState: 'COMMITTED',
           status: 'in_progress',
           domain: 'CREATION',
-          cycleId: 'cycle-1'
+          cycleId: 'cycle-1',
         };
         state.today.blocks.push(blockRecord);
         state.currentWeek.days.push({
@@ -70,11 +70,11 @@ describe('Rollover property checks', () => {
           loadByPractice: {},
           practices: [],
           plannedMinutes: 0,
-          completedMinutes: 0
+          completedMinutes: 0,
         });
       }
       state.cyclesById = {
-        'cycle-1': { id: 'cycle-1', status: 'active', blocks: state.today.blocks, startedAtDayKey: '2026-01-13' }
+        'cycle-1': { id: 'cycle-1', status: 'active', blocks: state.today.blocks, startedAtDayKey: '2026-01-13' },
       };
       const result = rolloverAtMidnight({ state, nowISO, timezone: APP_TIME_ZONE });
       const missed = result.eventsEmitted.filter((event) => event.kind === 'missed');

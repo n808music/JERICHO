@@ -1,6 +1,7 @@
 # Contributing to JERICHO
 
-Thank you for your interest in contributing to JERICHO! This guide will help you understand how to contribute effectively.
+Thank you for your interest in contributing to JERICHO! This guide will help you
+understand how to contribute effectively.
 
 ## Development Principles
 

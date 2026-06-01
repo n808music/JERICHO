@@ -10,7 +10,7 @@ function buildBaseState(date = FIXED_DAY) {
     lenses: {
       aim: { description: '', horizon: '90d', narrative: '' },
       pattern: { routines: { Body: [], Resources: [], Creation: [], Focus: [] }, dailyTargets: [], defaultMinutes: 30 },
-      flow: { streams: [] }
+      flow: { streams: [] },
     },
     today: { date, blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
     currentWeek: { weekStart: date, days: [], metrics: {} },
@@ -25,7 +25,7 @@ function buildBaseState(date = FIXED_DAY) {
       lastActiveDate: date,
       scenarioLabel: '',
       demoScenarioEnabled: false,
-      showHints: false
+      showHints: false,
     },
     recurringPatterns: [],
     lastSessionChange: null,
@@ -36,8 +36,8 @@ function buildBaseState(date = FIXED_DAY) {
       timeZone: 'UTC',
       nowISO: `${date}T12:00:00.000Z`,
       activeDayKey: date,
-      isFollowingNow: true
-    }
+      isFollowingNow: true,
+    },
   };
 }
 
@@ -60,19 +60,20 @@ describe('stress scale', () => {
       const dayKeyStr = dayKey.toISOString().slice(0, 10);
       suggestionEvents.push({
         id: `e-${i}`,
-        type: i % 3 === 0 ? 'suggested_block_created' : i % 3 === 1 ? 'suggested_block_accepted' : 'suggestion_rejected',
+        type:
+          i % 3 === 0 ? 'suggested_block_created' : i % 3 === 1 ? 'suggested_block_accepted' : 'suggestion_rejected',
         proposalId: `s-${i % 500}`,
         suggestionId: `s-${i % 500}`,
         reason: i % 3 === 2 ? 'OVERCOMMITTED' : undefined,
         dayKey: dayKeyStr,
-        atISO: `${dayKeyStr}T${String(i % 24).padStart(2, '0')}:00:00.000Z`
+        atISO: `${dayKeyStr}T${String(i % 24).padStart(2, '0')}:00:00.000Z`,
       });
     }
 
     const suggestionsById = new Map(
       Array.from({ length: 500 }).map((_, idx) => [
         `s-${idx}`,
-        { id: `s-${idx}`, title: `Suggestion ${idx}`, domain: idx % 2 ? 'Creation' : 'Focus' }
+        { id: `s-${idx}`, title: `Suggestion ${idx}`, domain: idx % 2 ? 'Creation' : 'Focus' },
       ])
     );
 
@@ -82,7 +83,7 @@ describe('stress scale', () => {
       suggestionsById,
       nowDayKey: FIXED_DAY,
       windowDays: 14,
-      timeZone: 'UTC'
+      timeZone: 'UTC',
     });
     const duration = Date.now() - start;
     expect(Array.isArray(rows)).toBe(true);

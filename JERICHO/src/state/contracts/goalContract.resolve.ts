@@ -24,6 +24,6 @@ export function resolveActiveContract(
   });
   return {
     contract: sorted[0],
-    reasonCode: active.length > 1 ? 'multiple_active' : 'none'
+    reasonCode: active.length > 1 ? 'multiple_active' : 'none',
   };
 }

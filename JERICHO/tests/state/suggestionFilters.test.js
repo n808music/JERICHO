@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   filterSuggestedBlocksByStartDate,
   filterSuggestionsByStartDayKey,
-  isBeforeStartDate
+  isBeforeStartDate,
 } from '../../src/state/suggestionFilters.js';
 
 describe('suggestion filters', () => {
@@ -11,7 +11,7 @@ describe('suggestion filters', () => {
     const blocks = [
       { id: 'before', startISO: '2026-01-19T08:00:00.000Z' },
       { id: 'during', startISO: '2026-01-20T09:00:00.000Z' },
-      { id: 'after', startISO: '2026-01-21T10:00:00.000Z' }
+      { id: 'after', startISO: '2026-01-21T10:00:00.000Z' },
     ];
     const result = filterSuggestedBlocksByStartDate(blocks, startISO, 'UTC');
     expect(result.map((b) => b.id)).toEqual(['during', 'after']);
@@ -25,7 +25,7 @@ describe('suggestion filters', () => {
       { id: 'pre', dayKey: '2026-01-19' },
       { id: 'start', dayKey: '2026-01-20' },
       { id: 'post', dayKey: '2026-01-21' },
-      { id: 'unknown' }
+      { id: 'unknown' },
     ];
     const filtered = filterSuggestionsByStartDayKey(suggestions, startDayKey, 'UTC');
     expect(filtered.map((s) => s.id)).toEqual(['start', 'post', 'unknown']);

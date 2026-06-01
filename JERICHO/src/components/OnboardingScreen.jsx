@@ -1,40 +1,46 @@
-import React, { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { ARCHETYPE_MATRIX_1_0 } from '../state/contracts/archetypeMatrix1_0';
+import { CUSTOM_TARGET_UNIT_OPTION, getTargetUnitOptions, inferTargetMetric } from '../domain/goal/targetUnitTaxonomy';
 
-const DEFAULT_BLOCK_MINUTES = 60;
-const OBJECTIVE_TYPES = [
-  { value: 'create', label: 'Create a deliverable' },
-  { value: 'practice', label: 'Practice a discipline' },
-  { value: 'build', label: 'Build a product' },
-  { value: 'learn', label: 'Learn a skill' },
-  { value: 'grow', label: 'Grow impact or revenue' }
-];
+const EXECUTION_TYPES = [...ARCHETYPE_MATRIX_1_0.map((entry) => entry.archetype), 'GenericStructured'];
+const EXECUTION_TYPE_LABELS = {
+  VentureLaunch: 'Venture Launch',
+  SkillAcquisition: 'Skill Acquisition',
+  ProfessionalQualification: 'Professional Qualification',
+  PhysicalTraining: 'Physical Training',
+  JobSearchPipeline: 'Job Search Pipeline',
+  CreativeProduction: 'Creative Production',
+  BrandLaunch: 'Brand Launch',
+  SalesPipeline: 'Sales Pipeline',
+  Fundraising: 'Fundraising',
+  GenericStructured: 'Generic Structured',
+};
 
-const DOMAINS = ['Creation', 'Focus', 'Resources', 'Body'];
-const WORK_MODES = ['CREATE', 'PRACTICE', 'SHIP', 'SELL', 'LEARN'];
 const MINUTES_PER_DAY_OPTIONS = [30, 45, 60, 90, 120, 180, 240];
 const TIME_WINDOWS = ['Any', 'Morning', 'Afternoon', 'Evening'];
-const TARGET_UNIT_OPTIONS = [
-  'songs recorded (rough takes)',
-  'songs written (drafts)',
-  'recording sessions completed',
-  'applications submitted',
-  'work sessions completed'
-];
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 const formatShortDate = (date) => {
-  if (!date) return '—';
+  if (!date) {
+    return '—';
+  }
   const iso = new Date(`${date}T00:00:00`);
-  if (Number.isNaN(iso.getTime())) return 'Invalid date';
+  if (Number.isNaN(iso.getTime())) {
+    return 'Invalid date';
+  }
   return iso.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
 const computeDaysUntil = (date) => {
-  if (!date) return null;
+  if (!date) {
+    return null;
+  }
   const now = new Date();
   const target = new Date(`${date}T00:00:00`);
-  if (Number.isNaN(target.getTime())) return null;
+  if (Number.isNaN(target.getTime())) {
+    return null;
+  }
   return Math.max(0, Math.round((target.getTime() - now.getTime()) / MS_PER_DAY));
 };
 
@@ -47,24 +53,23 @@ function buildHorizonFromDeadline(deadline) {
 export default function OnboardingScreen({ onComplete }) {
   const [startDate, setStartDate] = useState('');
   const [goalLabel, setGoalLabel] = useState('');
-  const [objectiveType, setObjectiveType] = useState('');
+  const [executionType, setExecutionType] = useState('');
   const [targetCount, setTargetCount] = useState('');
   const [targetUnit, setTargetUnit] = useState('');
+  const [customTargetUnit, setCustomTargetUnit] = useState('');
   const [definitionOfDone, setDefinitionOfDone] = useState('');
   const [deadline, setDeadline] = useState('');
   const [daysPerWeek, setDaysPerWeek] = useState('');
   const [minutesPerDay, setMinutesPerDay] = useState('');
   const [timeWindow, setTimeWindow] = useState(TIME_WINDOWS[0]);
-  const [primaryDomain, setPrimaryDomain] = useState('');
-  const [secondaryDomain, setSecondaryDomain] = useState('');
-  const [workMode, setWorkMode] = useState('');
-  const [notes, setNotes] = useState('');
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
   const targetNumber = Number(targetCount);
   const daysNumber = Number(daysPerWeek);
   const minutesNumber = Number(minutesPerDay);
-  const trimmedTargetUnit = (targetUnit || '').trim();
+  const inferredMetric = useMemo(() => inferTargetMetric(goalLabel, executionType), [goalLabel, executionType]);
+  const targetUnitValue = targetUnit === CUSTOM_TARGET_UNIT_OPTION ? customTargetUnit : targetUnit;
+  const trimmedTargetUnit = (targetUnitValue || '').trim();
   const trimmedDefinition = (definitionOfDone || '').trim();
 
   const startDateObj = startDate ? new Date(`${startDate}T00:00:00`) : null;
@@ -85,28 +90,15 @@ export default function OnboardingScreen({ onComplete }) {
 
   const requirementChecks = useMemo(
     () => [
-      { label: 'Objective', satisfied: Boolean(objectiveType) },
+      { label: 'Execution type', satisfied: Boolean(executionType) },
       { label: 'Start date', satisfied: Boolean(startDate) },
       { label: 'Deadline', satisfied: Boolean(deadline) },
       { label: 'Capacity', satisfied: daysNumber >= 1 && minutesNumber >= 1 },
-      { label: 'Primary domain', satisfied: Boolean(primaryDomain) },
-      { label: 'Work mode', satisfied: Boolean(workMode) },
       { label: 'Target count', satisfied: targetNumber > 0 },
       { label: 'Target unit', satisfied: Boolean(trimmedTargetUnit) },
-      { label: 'Definition of done', satisfied: Boolean(trimmedDefinition) }
+      { label: 'Definition of done', satisfied: Boolean(trimmedDefinition) },
     ],
-    [
-      objectiveType,
-      startDate,
-      deadline,
-      daysNumber,
-      minutesNumber,
-      primaryDomain,
-      workMode,
-      targetNumber,
-      trimmedTargetUnit,
-      trimmedDefinition
-    ]
+    [executionType, startDate, deadline, daysNumber, minutesNumber, targetNumber, trimmedTargetUnit, trimmedDefinition]
   );
   const missingFields = requirementChecks.filter((item) => !item.satisfied).map((item) => item.label);
   const contractValid = missingFields.length === 0 && !invalidWindow;
@@ -117,40 +109,56 @@ export default function OnboardingScreen({ onComplete }) {
   const showTargetUnitError = attemptedSubmit && !trimmedTargetUnit;
   const showDefinitionError = attemptedSubmit && !trimmedDefinition;
 
-  const handleObjectiveTypeChange = (value) => {
-    setObjectiveType(value);
+  const targetUnitOptions = useMemo(() => {
+    return getTargetUnitOptions(goalLabel, executionType);
+  }, [executionType, goalLabel]);
+
+  useEffect(() => {
+    if (!executionType) {
+      return;
+    }
+    if (!targetCount && inferredMetric.targetCount) {
+      setTargetCount(String(inferredMetric.targetCount));
+    }
+    if (!targetUnit && inferredMetric.targetUnit) {
+      setTargetUnit(inferredMetric.targetUnit);
+    }
+  }, [executionType, inferredMetric.targetCount, inferredMetric.targetUnit, targetCount, targetUnit]);
+
+  const handleExecutionTypeChange = (value) => {
+    setExecutionType(value);
     setTargetUnit('');
+    setCustomTargetUnit('');
   };
 
   const handleSubmit = (event) => {
     event.preventDefault();
     setAttemptedSubmit(true);
-    if (!contractValid) return;
-    const focusAreas = Array.from(new Set([primaryDomain, secondaryDomain]).values()).filter(Boolean);
-    const directionLabel = OBJECTIVE_TYPES.find((option) => option.value === objectiveType)?.label || 'Goal';
+    if (!contractValid) {
+      return;
+    }
+    const focusAreas = executionType ? [executionType] : [];
+    const directionLabel = EXECUTION_TYPE_LABELS[executionType] || 'Goal';
     const direction = (goalLabel || directionLabel).trim();
     const goalText = direction;
     const successDefinition = direction || `${targetNumber || 0} ${trimmedTargetUnit}`.trim();
     const contract = {
       label: goalLabel.trim(),
-      objectiveType,
+      objectiveType: executionType,
+      executionType,
       target: {
         count: targetNumber,
         unit: trimmedTargetUnit,
-        definitionOfDone: trimmedDefinition
+        definitionOfDone: trimmedDefinition,
       },
       deadlineISO: deadline ? `${deadline}T23:59:59.000Z` : undefined,
       startDateISO: startDate ? `${startDate}T00:00:00.000Z` : undefined,
       capacity: {
         daysPerWeek: daysNumber,
         minutesPerDay: minutesNumber,
-        timeWindow
+        timeWindow,
       },
-      domainPrimary: primaryDomain,
-      domainSecondary: secondaryDomain || undefined,
-      workMode,
-      notes: notes.trim(),
-      planWindowDays: windowDays || undefined
+      planWindowDays: windowDays || undefined,
     };
     onComplete?.({
       goalText,
@@ -159,8 +167,14 @@ export default function OnboardingScreen({ onComplete }) {
       focusAreas,
       successDefinition,
       minimumDaysPerWeek: daysNumber,
-      narrative: notes.trim(),
-      goalContract: contract
+      narrative: '',
+      executionType,
+      goalDraftV2: {
+        executionType,
+        goalLabel: goalText,
+        goalText,
+      },
+      goalContract: contract,
     });
   };
 
@@ -186,22 +200,20 @@ export default function OnboardingScreen({ onComplete }) {
               </p>
             </label>
             <label className="block space-y-1 text-sm">
-              <span className="text-muted">Objective type</span>
+              <span className="text-muted">Execution type</span>
               <select
-                className={`w-full rounded-lg border px-3 py-2 ${objectiveType ? 'border-line/60' : 'border-amber-500/80'}`}
-                value={objectiveType}
-                onChange={(e) => handleObjectiveTypeChange(e.target.value)}
+                className={`w-full rounded-lg border px-3 py-2 ${executionType ? 'border-line/60' : 'border-amber-500/80'}`}
+                value={executionType}
+                onChange={(e) => handleExecutionTypeChange(e.target.value)}
               >
-                <option value="">Select objective</option>
-                {OBJECTIVE_TYPES.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
+                <option value="">Select execution type</option>
+                {EXECUTION_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {EXECUTION_TYPE_LABELS[type] || type}
                   </option>
                 ))}
               </select>
-              <p className="text-[11px] text-muted">
-                Choose how to frame this goal. Example: Create a deliverable.
-              </p>
+              <p className="text-[11px] text-muted">Choose the same execution taxonomy used in the control room.</p>
             </label>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -250,9 +262,7 @@ export default function OnboardingScreen({ onComplete }) {
                 onChange={(e) => setTargetCount(e.target.value)}
                 placeholder="e.g., 6"
               />
-              <p className="text-[11px] text-muted">
-                How many units you’re aiming to complete. Example: 6.
-              </p>
+              <p className="text-[11px] text-muted">How many units you’re aiming to complete. Example: 6.</p>
               {showTargetCountError ? (
                 <span className="text-[11px] text-amber-600">Target count is required.</span>
               ) : null}
@@ -261,42 +271,80 @@ export default function OnboardingScreen({ onComplete }) {
               <span className="text-muted">Target unit (what you’re counting)</span>
               <select
                 className={`w-full rounded-lg border px-3 py-2 ${
-                  targetUnit ? 'border-line/60' : 'border-amber-500/80'
+                  trimmedTargetUnit ? 'border-line/60' : 'border-amber-500/80'
                 }`}
                 value={targetUnit}
                 onChange={(e) => setTargetUnit(e.target.value)}
               >
                 <option value="">Select unit</option>
-                {TARGET_UNIT_OPTIONS.map((option) => (
+                {targetUnitOptions.map((option) => (
                   <option key={option} value={option}>
                     {option}
                   </option>
                 ))}
+                <option value={CUSTOM_TARGET_UNIT_OPTION}>Other / custom unit</option>
               </select>
               <p className="text-[11px] text-muted">
-                What the number counts. Example: songs recorded (rough takes).
+                Suggestions adapt to your goal label. Use custom unit if the taxonomy does not fit your goal exactly.
               </p>
               {showTargetUnitError ? (
                 <span className="text-[11px] text-amber-600">Target unit is required.</span>
               ) : null}
             </label>
-            <label className="block space-y-1 text-sm">
-              <span className="text-muted">Definition of done</span>
-              <textarea
-                rows={2}
-                className="w-full rounded-lg border border-line/60 bg-jericho-bg px-3 py-2"
-                value={definitionOfDone}
-                onChange={(e) => setDefinitionOfDone(e.target.value)}
-                placeholder="Count it when..."
-              />
-              <p className="text-[11px] text-muted">
-                What “done” means in plain terms. Example: 6 songs written + rough recorded.
-              </p>
-              {showDefinitionError ? (
-                <span className="text-[11px] text-amber-600">Definition of done is required.</span>
-              ) : null}
-            </label>
+            {targetUnit === CUSTOM_TARGET_UNIT_OPTION ? (
+              <label className="block space-y-1 text-sm">
+                <span className="text-muted">Custom target unit</span>
+                <input
+                  className={`w-full rounded-lg border px-3 py-2 ${
+                    customTargetUnit ? 'border-line/60' : 'border-amber-500/80'
+                  }`}
+                  value={customTargetUnit}
+                  onChange={(e) => setCustomTargetUnit(e.target.value)}
+                  placeholder="e.g., pounds lost"
+                />
+                <p className="text-[11px] text-muted">
+                  This custom unit is stored in the goal contract and carried forward canonically.
+                </p>
+              </label>
+            ) : (
+              <label className="block space-y-1 text-sm">
+                <span className="text-muted">Definition of done</span>
+                <textarea
+                  rows={2}
+                  className="w-full rounded-lg border border-line/60 bg-jericho-bg px-3 py-2"
+                  value={definitionOfDone}
+                  onChange={(e) => setDefinitionOfDone(e.target.value)}
+                  placeholder="Count it when..."
+                />
+                <p className="text-[11px] text-muted">
+                  What “done” means in plain terms. Example: 6 songs written + rough recorded.
+                </p>
+                {showDefinitionError ? (
+                  <span className="text-[11px] text-amber-600">Definition of done is required.</span>
+                ) : null}
+              </label>
+            )}
           </div>
+          {targetUnit === CUSTOM_TARGET_UNIT_OPTION ? (
+            <div className="grid gap-4 sm:grid-cols-1">
+              <label className="block space-y-1 text-sm">
+                <span className="text-muted">Definition of done</span>
+                <textarea
+                  rows={2}
+                  className="w-full rounded-lg border border-line/60 bg-jericho-bg px-3 py-2"
+                  value={definitionOfDone}
+                  onChange={(e) => setDefinitionOfDone(e.target.value)}
+                  placeholder="Count it when..."
+                />
+                <p className="text-[11px] text-muted">
+                  What “done” means in plain terms. Example: 6 songs written + rough recorded.
+                </p>
+                {showDefinitionError ? (
+                  <span className="text-[11px] text-amber-600">Definition of done is required.</span>
+                ) : null}
+              </label>
+            </div>
+          ) : null}
           <div className="grid gap-4 sm:grid-cols-1">
             <label className="block space-y-1 text-sm">
               <span className="text-muted">Preferred time window (optional)</span>
@@ -331,9 +379,7 @@ export default function OnboardingScreen({ onComplete }) {
                   </option>
                 ))}
               </select>
-              <p className="text-[11px] text-muted">
-                How many days per week you can focus. Example: 5 days.
-              </p>
+              <p className="text-[11px] text-muted">How many days per week you can focus. Example: 5 days.</p>
             </label>
             <label className="block space-y-1 text-sm">
               <span className="text-muted">Minutes per day</span>
@@ -351,77 +397,6 @@ export default function OnboardingScreen({ onComplete }) {
               </select>
               <p className="text-[11px] text-muted">
                 How many focused minutes each selected day. Example: 90 minutes/day.
-              </p>
-            </label>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block space-y-1 text-sm">
-              <span className="text-muted">Primary domain</span>
-              <select
-                className={`w-full rounded-lg border px-3 py-2 ${primaryDomain ? 'border-line/60' : 'border-amber-500/80'}`}
-                value={primaryDomain}
-                onChange={(e) => setPrimaryDomain(e.target.value)}
-              >
-                <option value="">Select primary domain</option>
-                {DOMAINS.map((domain) => (
-                  <option key={domain} value={domain}>
-                    {domain}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] text-muted">
-                Primary focus area for this goal. Example: Creation.
-              </p>
-            </label>
-            <label className="block space-y-1 text-sm">
-              <span className="text-muted">Secondary domain (optional)</span>
-              <select
-                className="w-full rounded-lg border border-line/60 px-3 py-2"
-                value={secondaryDomain}
-                onChange={(e) => setSecondaryDomain(e.target.value)}
-              >
-                <option value="">None</option>
-                {DOMAINS.map((domain) => (
-                  <option key={domain} value={domain}>
-                    {domain}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] text-muted">
-                Optional secondary focus. Example: Focus.
-              </p>
-            </label>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block space-y-1 text-sm">
-              <span className="text-muted">Work mode</span>
-              <select
-                className={`w-full rounded-lg border px-3 py-2 ${workMode ? 'border-line/60' : 'border-amber-500/80'}`}
-                value={workMode}
-                onChange={(e) => setWorkMode(e.target.value)}
-              >
-                <option value="">Select work mode</option>
-                {WORK_MODES.map((mode) => (
-                  <option key={mode} value={mode}>
-                    {mode}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] text-muted">
-                How you’ll approach the work. Example: CREATE.
-              </p>
-            </label>
-            <label className="block space-y-1 text-sm">
-              <span className="text-muted">Notes (optional)</span>
-              <textarea
-                className="w-full rounded-lg border border-line/60 bg-jericho-bg px-3 py-2"
-                rows={3}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Share context or constraints..."
-              />
-              <p className="text-[11px] text-muted">
-                Optional context or constraints. Example: Keep weekends free for rest.
               </p>
             </label>
           </div>

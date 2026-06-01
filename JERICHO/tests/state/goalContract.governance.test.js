@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { authorizeProbability, authorizeSuggestion, isContractActive, validateContract } from '../../src/state/contracts/goalContract.validate.ts';
+import {
+  authorizeProbability,
+  authorizeSuggestion,
+  isContractActive,
+  validateContract,
+} from '../../src/state/contracts/goalContract.validate.ts';
 
 const baseContract = {
   contractId: 'gov-1',
@@ -10,18 +15,18 @@ const baseContract = {
   scope: {
     domainsAllowed: ['Body', 'Focus', 'Creation', 'Resources'],
     timeHorizon: 'week',
-    timezone: 'America/Chicago'
+    timezone: 'America/Chicago',
   },
   governance: {
     suggestionsEnabled: true,
     probabilityEnabled: true,
     minEvidenceEvents: 2,
-    cooldowns: { resuggestMinutes: 30, maxSuggestionsPerDay: 2 }
+    cooldowns: { resuggestMinutes: 30, maxSuggestionsPerDay: 2 },
   },
   constraints: {
     forbiddenDirectives: ['repair'],
-    maxActiveBlocks: 3
-  }
+    maxActiveBlocks: 3,
+  },
 };
 
 describe('goal governance contract', () => {
@@ -36,7 +41,7 @@ describe('goal governance contract', () => {
     const suggestionGate = authorizeSuggestion(baseContract, {
       nowISO,
       executionEventCount: 5,
-      activeBlocksCount: 0
+      activeBlocksCount: 0,
     });
     const probabilityGate = authorizeProbability(baseContract, { nowISO, executionEventCount: 5 });
     expect(suggestionGate.allowed).toBe(false);
@@ -54,7 +59,7 @@ describe('goal governance contract', () => {
       nowISO: '2026-01-10',
       executionEventCount: 3,
       activeBlocksCount: 0,
-      directiveTags: ['repair']
+      directiveTags: ['repair'],
     });
     expect(gate.allowed).toBe(false);
     expect(gate.reasons).toContain('forbidden_directive');
@@ -66,7 +71,7 @@ describe('goal governance contract', () => {
       executionEventCount: 3,
       activeBlocksCount: 0,
       lastSuggestedAtISO: '2026-01-10T00:10:00.000Z',
-      suggestionsTodayCount: 2
+      suggestionsTodayCount: 2,
     });
     expect(gate.allowed).toBe(false);
     expect(gate.reasons).toContain('cooldown');
@@ -77,7 +82,7 @@ describe('goal governance contract', () => {
     const gate = authorizeSuggestion(baseContract, {
       nowISO: '2026-01-10',
       executionEventCount: 3,
-      activeBlocksCount: 3
+      activeBlocksCount: 3,
     });
     expect(gate.allowed).toBe(false);
     expect(gate.reasons).toContain('max_active_blocks');

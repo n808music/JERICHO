@@ -14,6 +14,8 @@ export default function PlanningPanel({
   onAddBlock,
   onDeleteBlock,
   onComplete,
+  onMiss,
+  onSkip,
   onEdit,
   onLinkCriterion,
   metricsSlot = null,
@@ -24,8 +26,20 @@ export default function PlanningPanel({
   criteriaByDeliverable = {},
   whatMovedToday = null,
   strictMode = false,
-  criterionLabelById = {}
+  criterionLabelById = {},
+  lineageBlocks = null,
+  executionLocked = false,
+  executionLockReason = '',
 }) {
+  const deliverableLabelById = React.useMemo(
+    () =>
+      Object.fromEntries(
+        (deliverables || [])
+          .filter((d) => d?.deliverableId || d?.id)
+          .map((d) => [d.deliverableId || d.id, d.title || d.label || d.deliverableId || d.id])
+      ),
+    [deliverables]
+  );
   const sorted = [...(blocks || [])].sort((a, b) => new Date(a.start || 0) - new Date(b.start || 0));
   return (
     <div className="space-y-2">
@@ -42,20 +56,24 @@ export default function PlanningPanel({
         criteriaByDeliverable={criteriaByDeliverable}
         strictMode={strictMode}
       />
-      {errorMessage ? (
-        <p className="text-[11px] text-amber-600">{errorMessage}</p>
-      ) : null}
+      {errorMessage ? <p className="text-[11px] text-amber-600">{errorMessage}</p> : null}
       <BlockDetailsPanel
         blockId={selectedBlockId}
         blocks={sorted}
         surface={surface}
         onComplete={onComplete}
+        onMiss={onMiss}
+        onSkip={onSkip}
         onDelete={onDeleteBlock}
         onEdit={onEdit}
         onLinkCriterion={onLinkCriterion}
         criterionLabelById={criterionLabelById}
+        deliverableLabelById={deliverableLabelById}
+        lineageBlocks={lineageBlocks}
         timeZone={timeZone}
         readOnly={readOnly}
+        executionLocked={executionLocked}
+        executionLockReason={executionLockReason}
       />
       {whatMovedToday ? (
         <div className="rounded-md border border-line/60 bg-jericho-surface px-2 py-2 text-xs space-y-2">
@@ -103,7 +121,7 @@ export default function PlanningPanel({
             onClick={() => onSelectBlock?.(b.id)}
             disabled={readOnly}
           >
-            <div className="font-semibold">{b.practice || b.domain} · {b.label || 'Block'}</div>
+            <div className="font-semibold">{b.displayTitle || b.title || b.label || 'Untitled task'}</div>
             <div className="text-muted">
               {b.start?.slice(0, 10)} · {formatTimeRange(b.start, b.end)} · {b.status}
             </div>

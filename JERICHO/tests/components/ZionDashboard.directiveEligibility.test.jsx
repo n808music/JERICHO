@@ -9,7 +9,7 @@ const baseState = {
   lenses: {
     aim: { description: 'Test', horizon: '90d' },
     pattern: { routines: { Body: [], Resources: [], Creation: [], Focus: [] }, dailyTargets: [], defaultMinutes: 30 },
-    flow: { streams: [] }
+    flow: { streams: [] },
   },
   activeCycleId: 'cycle-1',
   cyclesById: {
@@ -28,18 +28,25 @@ const baseState = {
         scope: {
           domainsAllowed: ['Body', 'Focus', 'Creation', 'Resources'],
           timeHorizon: 'week',
-          timezone: 'America/Chicago'
+          timezone: 'America/Chicago',
         },
         governance: {
           suggestionsEnabled: true,
           probabilityEnabled: true,
-          minEvidenceEvents: 0
-        }
-      }
-    }
+          minEvidenceEvents: 0,
+        },
+      },
+    },
   },
   history: { cycles: [] },
-  today: { date: '2026-02-01', blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
+  today: {
+    date: '2026-02-01',
+    blocks: [],
+    completionRate: 0,
+    driftSignal: 'contained',
+    loadByPractice: {},
+    practices: [],
+  },
   currentWeek: { weekStart: '2026-02-01', days: [], metrics: {} },
   cycle: [],
   templates: { objectives: {} },
@@ -55,11 +62,11 @@ const baseState = {
     lastSuggestedAtISO: null,
     lastSuggestedAtISOByGoal: {},
     dailyCountByGoal: {},
-    denials: []
+    denials: [],
   },
   suggestionEligibility: {},
   directiveEligibilityByGoal: {
-    'goal-1': { allowed: false, reasons: ['inactive'], contractId: 'gov-1' }
+    'goal-1': { allowed: false, reasons: ['inactive'], contractId: 'gov-1' },
   },
   goalDirective: {
     goalId: 'goal-1',
@@ -67,9 +74,9 @@ const baseState = {
     domain: 'Focus',
     durationMinutes: 30,
     rationale: [],
-    doneWhen: 'When a block of this domain and duration is completed today.'
+    doneWhen: 'When a block of this domain and duration is completed today.',
   },
-  probabilityStatusByGoal: {}
+  probabilityStatusByGoal: {},
 };
 
 describe('ZionDashboard directive eligibility consumption', () => {

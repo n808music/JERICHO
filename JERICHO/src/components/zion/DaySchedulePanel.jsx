@@ -1,18 +1,28 @@
 import React, { useMemo, useState } from 'react';
+import { describeBlockMeaning } from './blockMeaning.js';
 
 /**
  * Shared day-level schedule panel for Month/Year planning surfaces.
  * Planning-only: add/delete; no execution controls.
  */
-export default function DaySchedulePanel({ dayKey, blocks = [], onAdd, onDelete, surfaceLabel = 'Planning surface' }) {
+export default function DaySchedulePanel({
+  dayKey,
+  blocks = [],
+  onAdd,
+  onDelete,
+  surfaceLabel = 'Planning surface',
+  lineageBlocks = null,
+  deliverableLabelById = {},
+  criterionLabelById = {},
+}) {
   const [time, setTime] = useState('09:00');
   const [duration, setDuration] = useState(30);
-  const [domain, setDomain] = useState('CREATION');
-  const [title, setTitle] = useState('Block');
+  const [title, setTitle] = useState('');
 
   const sortedBlocks = useMemo(() => {
     return [...(blocks || [])].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
   }, [blocks]);
+  const lineageSource = Array.isArray(lineageBlocks) && lineageBlocks.length > 0 ? lineageBlocks : sortedBlocks;
 
   const totals = useMemo(() => {
     return sortedBlocks.reduce(
@@ -35,31 +45,45 @@ export default function DaySchedulePanel({ dayKey, blocks = [], onAdd, onDelete,
           <p className="text-xs uppercase tracking-[0.14em] text-muted">Day Summary</p>
           <p className="text-sm text-jericho-text font-semibold">{dayKey || '—'}</p>
           <p className="text-xs text-muted">
-            Scheduled {totals.planned}m · Completed {totals.completed}m · {totals.planned ? Math.round((totals.completed / totals.planned) * 100) : 0}%
+            Scheduled {totals.planned}m · Completed {totals.completed}m ·{' '}
+            {totals.planned ? Math.round((totals.completed / totals.planned) * 100) : 0}%
           </p>
         </div>
       </div>
 
       <div className="space-y-2 text-xs">
-        {sortedBlocks.map((b) => (
-          <div
-            key={b.id}
-            className="flex items-center justify-between rounded-md border border-line/60 bg-jericho-surface px-2 py-1"
-          >
-            <div>
-              <div className="font-semibold">{b.label || `${b.practice || b.domain} block`}</div>
-              <div className="text-muted">
-                {b.practice || b.domain} · {b.start} → {b.end} · {b.status}
-              </div>
-            </div>
-            <button
-              className="rounded-full border border-jericho-accent px-3 py-1 text-jericho-accent hover:bg-jericho-accent/5"
-              onClick={() => onDelete?.(b.id)}
+        {sortedBlocks.map((b) => {
+          const meaning = describeBlockMeaning(b, lineageSource, { deliverableLabelById, criterionLabelById });
+          return (
+            <div
+              key={b.id}
+              className="flex items-center justify-between rounded-md border border-line/60 bg-jericho-surface px-2 py-1"
             >
-              Delete
-            </button>
-          </div>
-        ))}
+              <div className="min-w-0">
+                <div className="font-semibold">{b.displayTitle || b.title || b.label || 'Untitled task'}</div>
+                <div className="text-muted">
+                  {b.start} → {b.end} · {b.status}
+                </div>
+                {meaning?.lines?.length ? (
+                  <div className="mt-0.5 space-y-0.5 text-[10px] text-muted">
+                    {meaning.lines.slice(0, 3).map((line) => (
+                      <div key={line} className="truncate">
+                        {line}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+              <button
+                className="rounded-full border border-jericho-accent px-3 py-1 text-jericho-accent hover:bg-jericho-accent/5"
+                onClick={() => onDelete?.(b.id)}
+                disabled={Boolean(b?.requiredSystemBlock || String(b?.origin || '').trim() === 'schedule_active')}
+              >
+                Delete
+              </button>
+            </div>
+          );
+        })}
         {!sortedBlocks.length ? <p className="text-muted">No blocks on this day.</p> : null}
       </div>
 
@@ -79,17 +103,6 @@ export default function DaySchedulePanel({ dayKey, blocks = [], onAdd, onDelete,
             min={1}
             onChange={(e) => setDuration(Math.max(1, Number(e.target.value) || 1))}
           />
-          <select
-            className="rounded border border-line/60 bg-transparent px-2 py-1"
-            value={domain}
-            onChange={(e) => setDomain(e.target.value)}
-          >
-            {['BODY', 'RESOURCES', 'CREATION', 'FOCUS'].map((d) => (
-              <option key={d} value={d}>
-                {d.charAt(0) + d.slice(1).toLowerCase()}
-              </option>
-            ))}
-          </select>
           <input
             className="rounded border border-line/60 bg-transparent px-2 py-1 flex-1 min-w-[140px]"
             value={title}
@@ -100,10 +113,10 @@ export default function DaySchedulePanel({ dayKey, blocks = [], onAdd, onDelete,
             className="rounded-full border border-jericho-accent px-3 py-1 text-jericho-accent hover:bg-jericho-accent/5"
             onClick={() =>
               onAdd?.(dayKey, {
-                title,
-                domain,
+                title: title || 'Untitled task',
+                domain: 'FOCUS',
                 durationMinutes: duration,
-                time
+                time,
               })
             }
           >

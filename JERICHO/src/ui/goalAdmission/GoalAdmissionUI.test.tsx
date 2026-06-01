@@ -1,6 +1,6 @@
 /**
  * GoalAdmissionUI.test.tsx
- * 
+ *
  * Test UI validation and rendering:
  * - Rejection banner shows with rejection codes
  * - Admission banner shows when valid
@@ -18,13 +18,11 @@ import { buildValidGoalContract } from '../../domain/goal/testHelpers';
 const NOW_ISO = '2026-01-10T12:00:00.000Z';
 const DEADLINE_VALID = '2026-02-15';
 
-function createValidContract(
-  overrides: Partial<GoalExecutionContract> = {}
-): GoalExecutionContract {
+function createValidContract(overrides: Partial<GoalExecutionContract> = {}): GoalExecutionContract {
   return buildValidGoalContract({
     deadline: { dayKey: DEADLINE_VALID, isHardDeadline: true },
     createdAtISO: NOW_ISO,
-    ...overrides
+    ...overrides,
   });
 }
 
@@ -88,17 +86,17 @@ describe('GoalAdmissionPolicy.validateGoalAdmission (Integration Tests)', () => 
     expect(result.rejectionCodes).toContain(GoalRejectionCode.DEADLINE_TOO_SOON);
   });
 
-  it('rejects when sacrifice is missing', () => {
+  it('admits when sacrifice is missing because it no longer gates admission', () => {
     const contract = createValidContract({
       sacrifice: undefined,
     });
     const result = validateGoalAdmission(contract, NOW_ISO);
 
-    expect(result.status).toBe('REJECTED');
-    expect(result.rejectionCodes).toContain(GoalRejectionCode.SACRIFICE_MISSING);
+    expect(result.status).toBe('ADMITTED');
+    expect(result.rejectionCodes).not.toContain(GoalRejectionCode.SACRIFICE_MISSING);
   });
 
-  it('rejects when sacrifice contains trivial language (maybe)', () => {
+  it('admits when legacy sacrifice language is trivial because it no longer gates admission', () => {
     const contract = createValidContract({
       sacrifice: {
         whatIsGivenUp: 'maybe something',
@@ -110,24 +108,26 @@ describe('GoalAdmissionPolicy.validateGoalAdmission (Integration Tests)', () => 
     });
     const result = validateGoalAdmission(contract, NOW_ISO);
 
-    expect(result.status).toBe('REJECTED');
-    expect(result.rejectionCodes).toContain(GoalRejectionCode.SACRIFICE_NOT_BINDING);
+    expect(result.status).toBe('ADMITTED');
+    expect(result.rejectionCodes).not.toContain(GoalRejectionCode.SACRIFICE_NOT_BINDING);
   });
 
-  it('rejects when temporal binding is invalid (empty activation time)', () => {
+  it('rejects when work windows are not provided', () => {
     const contract = createValidContract({
-      temporalBinding: {
-        daysPerWeek: 3,
-        activationTime: '',
-        sessionDurationMinutes: 60,
-        weeklyMinutes: 180,
-        startDayKey: '2026-01-10',
+      workWindows: {
+        mon: [],
+        tue: [],
+        wed: [],
+        thu: [],
+        fri: [],
+        sat: [],
+        sun: [],
       },
     });
     const result = validateGoalAdmission(contract, NOW_ISO);
 
     expect(result.status).toBe('REJECTED');
-    expect(result.rejectionCodes).toContain(GoalRejectionCode.TEMPORAL_BINDING_INVALID);
+    expect(result.rejectionCodes).toContain(GoalRejectionCode.NO_WORK_WINDOWS);
   });
 
   it('rejects when causal chain is empty', () => {
@@ -190,7 +190,6 @@ describe('GoalAdmissionPolicy.validateGoalAdmission (Integration Tests)', () => 
   it('collects multiple rejection codes', () => {
     const contract = createValidContract({
       terminalOutcome: undefined,
-      sacrifice: undefined,
       causalChain: {
         steps: [],
         hash: 'x',
@@ -199,12 +198,11 @@ describe('GoalAdmissionPolicy.validateGoalAdmission (Integration Tests)', () => 
     const result = validateGoalAdmission(contract, NOW_ISO);
 
     expect(result.status).toBe('REJECTED');
-    expect(result.rejectionCodes.length).toBeGreaterThanOrEqual(3);
+    expect(result.rejectionCodes.length).toBeGreaterThanOrEqual(2);
   });
 
   it('returns rejection messages for each code', () => {
     const contract = createValidContract({
-      sacrifice: undefined,
       deadline: undefined,
     });
     const result = validateGoalAdmission(contract, NOW_ISO);
@@ -250,13 +248,13 @@ describe('hashField utility', () => {
 describe('Goal Admission Contract Behavior', () => {
   it('stores rejection codes on rejection', () => {
     const contract = createValidContract({
-      sacrifice: undefined,
+      deadline: undefined,
     });
     const result = validateGoalAdmission(contract, NOW_ISO);
 
     expect(result.status).toBe('REJECTED');
     expect(Array.isArray(result.rejectionCodes)).toBe(true);
-    expect(result.rejectionCodes[0]).toBe(GoalRejectionCode.SACRIFICE_MISSING);
+    expect(result.rejectionCodes).toContain(GoalRejectionCode.DEADLINE_MISSING);
   });
 
   it('stores no rejection codes on admission', () => {

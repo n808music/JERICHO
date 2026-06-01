@@ -6,7 +6,7 @@ describe('rehydrateSuggestionRejections', () => {
     const suggestions = [
       { id: 's1', status: 'suggested', rejectedReason: null, title: 'One' },
       { id: 's2', status: 'suggested', rejectedReason: null, title: 'Two' },
-      { id: 's3', status: 'suggested', rejectedReason: null, title: 'Three' }
+      { id: 's3', status: 'suggested', rejectedReason: null, title: 'Three' },
     ];
     const events = [
       {
@@ -16,14 +16,14 @@ describe('rehydrateSuggestionRejections', () => {
         dayKey: '2026-01-02',
         contractId: 'gov-1',
         planId: 'plan-1',
-        atISO: '2026-01-02T12:00:00.000Z'
-      }
+        atISO: '2026-01-02T12:00:00.000Z',
+      },
     ];
     const next = rehydrateSuggestionRejections(suggestions, events);
     expect(next).toEqual([
       { id: 's1', status: 'suggested', rejectedReason: null, title: 'One' },
       { id: 's2', status: 'rejected', rejectedReason: 'OVERCOMMITTED', title: 'Two' },
-      { id: 's3', status: 'suggested', rejectedReason: null, title: 'Three' }
+      { id: 's3', status: 'suggested', rejectedReason: null, title: 'Three' },
     ]);
     const again = rehydrateSuggestionRejections(next, events);
     expect(again).toEqual(next);
@@ -33,7 +33,7 @@ describe('rehydrateSuggestionRejections', () => {
     const suggestions = [
       { id: 'a', status: 'suggested', rejectedReason: null },
       { id: 'b', status: 'suggested', rejectedReason: null },
-      { id: 'c', status: 'suggested', rejectedReason: null }
+      { id: 'c', status: 'suggested', rejectedReason: null },
     ];
     const events = [
       {
@@ -43,7 +43,7 @@ describe('rehydrateSuggestionRejections', () => {
         dayKey: '2026-01-02',
         contractId: 'gov-1',
         planId: 'plan-1',
-        atISO: '2026-01-02T12:00:00.000Z'
+        atISO: '2026-01-02T12:00:00.000Z',
       },
       {
         type: 'suggestion_rejected',
@@ -52,7 +52,7 @@ describe('rehydrateSuggestionRejections', () => {
         dayKey: '2026-01-03',
         contractId: 'gov-1',
         planId: 'plan-1',
-        atISO: '2026-01-03T12:00:00.000Z'
+        atISO: '2026-01-03T12:00:00.000Z',
       },
       {
         type: 'calibration_days_per_week_set',
@@ -60,14 +60,14 @@ describe('rehydrateSuggestionRejections', () => {
         dayKey: '2026-01-03',
         contractId: 'gov-1',
         planId: 'plan-1',
-        atISO: '2026-01-03T12:00:00.000Z'
-      }
+        atISO: '2026-01-03T12:00:00.000Z',
+      },
     ];
     const next = rehydrateSuggestionRejections(suggestions, events);
     expect(next).toEqual([
       { id: 'a', status: 'rejected', rejectedReason: 'TOO_LONG' },
       { id: 'b', status: 'suggested', rejectedReason: null },
-      { id: 'c', status: 'rejected', rejectedReason: 'WRONG_TIME' }
+      { id: 'c', status: 'rejected', rejectedReason: 'WRONG_TIME' },
     ]);
   });
 });

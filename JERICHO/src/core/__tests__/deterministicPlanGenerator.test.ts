@@ -6,11 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  generateDeterministicPlan,
-  buildAutoDeliverables,
-  DeterministicGenInput,
-} from '../deterministicPlanGenerator';
+import { generateDeterministicPlan, buildAutoDeliverables, DeterministicGenInput } from '../deterministicPlanGenerator';
 
 const NOW = '2026-01-10';
 const DEADLINE = '2026-02-20';
@@ -288,9 +284,9 @@ describe('deterministicPlanGenerator', () => {
           timezone: 'UTC',
         },
       });
-      
+
       const result = generateDeterministicPlan(input);
-      
+
       // Must return INFEASIBLE, not hang or throw
       expect(result.status).toBe('INFEASIBLE');
       expect(result.error).toBeDefined();
@@ -322,9 +318,9 @@ describe('deterministicPlanGenerator', () => {
           timezone: 'UTC',
         },
       });
-      
+
       const result = generateDeterministicPlan(input);
-      
+
       // Must return INFEASIBLE, not hang or throw
       expect(result.status).toBe('INFEASIBLE');
       expect(result.error).toBeDefined();
@@ -345,11 +341,11 @@ describe('deterministicPlanGenerator', () => {
           timezone: 'UTC',
         },
       });
-      
+
       const start = performance.now();
       const result = generateDeterministicPlan(input);
       const duration = performance.now() - start;
-      
+
       // Must complete in reasonable time (< 5 seconds)
       expect(duration).toBeLessThan(5000);
       expect(result.status).toBe('INFEASIBLE');
@@ -370,12 +366,12 @@ describe('deterministicPlanGenerator', () => {
           timezone: 'UTC',
         },
       });
-      
+
       const result = generateDeterministicPlan(input);
-      
+
       expect(result.status).toBe('SUCCESS');
       expect(result.error).toBeUndefined();
-      
+
       // Iterations info should be available on success (for diagnostics)
       // For normal plans, day iterations ≈ number of days
       // which is ~41 days = ~41 iterations (very small)
@@ -394,12 +390,12 @@ describe('deterministicPlanGenerator', () => {
           timezone: 'UTC',
         },
       });
-      
+
       const result = generateDeterministicPlan(input);
-      
+
       expect(result.status).toBe('SUCCESS');
       expect(result.proposedBlocks.length).toBeGreaterThan(0);
-      
+
       // Even with tight constraints, iterations remain small relative to 50k cap
       // (would be ~14 days iteration, max 50k)
     });
@@ -417,12 +413,12 @@ describe('deterministicPlanGenerator', () => {
           timezone: 'UTC',
         },
       });
-      
+
       const result = generateDeterministicPlan(input);
-      
+
       expect(result.status).toBe('SUCCESS');
       expect(result.proposedBlocks.length).toBeGreaterThan(0);
-      
+
       // Even with 3 months (90 days), this is ~90 day iterations
       // Allocation loop: ~(8 deliverables * 90 days * attempt per day) in worst case
       // Still well below 50k cap with plenty of safety margin
@@ -441,11 +437,11 @@ describe('deterministicPlanGenerator', () => {
           timezone: 'UTC',
         },
       });
-      
+
       const result = generateDeterministicPlan(input);
-      
+
       expect(result.status).toBe('INFEASIBLE');
-      
+
       // Should NOT trigger PLAN_NON_TERMINATING_GUARD in this case
       // (fails feasibility check before reaching allocation loop)
       expect(result.error?.code).not.toBe('PLAN_NON_TERMINATING_GUARD');

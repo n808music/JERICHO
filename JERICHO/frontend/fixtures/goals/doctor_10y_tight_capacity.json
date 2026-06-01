@@ -46,56 +46,32 @@
       "title": "Undergraduate prerequisites complete",
       "windowStartDayKey": "2029-09-01",
       "windowEndDayKey": "2030-03-31",
-      "actionIds": [
-        "doctor_tight:080",
-        "doctor_tight:070"
-      ],
-      "checkpointActionIds": [
-        "doctor_tight:074",
-        "doctor_tight:078"
-      ]
+      "actionIds": ["doctor_tight:080", "doctor_tight:070"],
+      "checkpointActionIds": ["doctor_tight:074", "doctor_tight:078"]
     },
     {
       "id": "tight:mcat_taken",
       "title": "MCAT taken within window",
       "windowStartDayKey": "2030-05-01",
       "windowEndDayKey": "2030-10-31",
-      "actionIds": [
-        "doctor_tight:104",
-        "doctor_tight:098"
-      ],
-      "checkpointActionIds": [
-        "doctor_tight:096",
-        "doctor_tight:101"
-      ]
+      "actionIds": ["doctor_tight:104", "doctor_tight:098"],
+      "checkpointActionIds": ["doctor_tight:096", "doctor_tight:101"]
     },
     {
       "id": "tight:med_school_complete",
       "title": "Med school complete",
       "windowStartDayKey": "2034-01-01",
       "windowEndDayKey": "2034-09-30",
-      "actionIds": [
-        "doctor_tight:208",
-        "doctor_tight:198"
-      ],
-      "checkpointActionIds": [
-        "doctor_tight:200",
-        "doctor_tight:204"
-      ]
+      "actionIds": ["doctor_tight:208", "doctor_tight:198"],
+      "checkpointActionIds": ["doctor_tight:200", "doctor_tight:204"]
     },
     {
       "id": "tight:residency_start",
       "title": "Residency start",
       "windowStartDayKey": "2035-07-01",
       "windowEndDayKey": "2035-10-31",
-      "actionIds": [
-        "doctor_tight:240",
-        "doctor_tight:230"
-      ],
-      "checkpointActionIds": [
-        "doctor_tight:232",
-        "doctor_tight:236"
-      ]
+      "actionIds": ["doctor_tight:240", "doctor_tight:230"],
+      "checkpointActionIds": ["doctor_tight:232", "doctor_tight:236"]
     }
   ],
   "expectedRealityProfile": {
@@ -232,9 +208,7 @@
         "detail": "Adversarial stress action 2 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:001"
-        ],
+        "deps": ["doctor_tight:001"],
         "topoIndex": 1,
         "priority": 2,
         "status": "completed"
@@ -245,9 +219,7 @@
         "detail": "Adversarial stress action 3 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:002"
-        ],
+        "deps": ["doctor_tight:002"],
         "topoIndex": 2,
         "priority": 3,
         "status": "completed"
@@ -258,9 +230,7 @@
         "detail": "Adversarial stress action 4 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:003"
-        ],
+        "deps": ["doctor_tight:003"],
         "topoIndex": 3,
         "priority": 4,
         "status": "completed"
@@ -271,9 +241,7 @@
         "detail": "Adversarial stress action 5 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:004"
-        ],
+        "deps": ["doctor_tight:004"],
         "topoIndex": 4,
         "priority": 5,
         "status": "completed"
@@ -284,9 +252,7 @@
         "detail": "Adversarial stress action 6 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:005"
-        ],
+        "deps": ["doctor_tight:005"],
         "topoIndex": 5,
         "priority": 6,
         "status": "completed"
@@ -297,9 +263,7 @@
         "detail": "Adversarial stress action 7 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:006"
-        ],
+        "deps": ["doctor_tight:006"],
         "topoIndex": 6,
         "priority": 7,
         "status": "todo"
@@ -310,9 +274,7 @@
         "detail": "Adversarial stress action 8 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:007"
-        ],
+        "deps": ["doctor_tight:007"],
         "topoIndex": 7,
         "priority": 8,
         "status": "todo"
@@ -323,9 +285,7 @@
         "detail": "Adversarial stress action 9 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:008"
-        ],
+        "deps": ["doctor_tight:008"],
         "topoIndex": 8,
         "priority": 9,
         "status": "todo"
@@ -336,9 +296,7 @@
         "detail": "Adversarial stress action 10 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:009"
-        ],
+        "deps": ["doctor_tight:009"],
         "topoIndex": 9,
         "priority": 10,
         "status": "todo"
@@ -349,9 +307,7 @@
         "detail": "Adversarial stress action 11 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:010"
-        ],
+        "deps": ["doctor_tight:010"],
         "topoIndex": 10,
         "priority": 11,
         "status": "todo"
@@ -362,9 +318,7 @@
         "detail": "Adversarial stress action 12 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:011"
-        ],
+        "deps": ["doctor_tight:011"],
         "topoIndex": 11,
         "priority": 12,
         "status": "todo"
@@ -375,9 +329,7 @@
         "detail": "Adversarial stress action 13 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:012"
-        ],
+        "deps": ["doctor_tight:012"],
         "topoIndex": 12,
         "priority": 13,
         "status": "todo"
@@ -388,9 +340,7 @@
         "detail": "Adversarial stress action 14 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:013"
-        ],
+        "deps": ["doctor_tight:013"],
         "topoIndex": 13,
         "priority": 14,
         "status": "todo"
@@ -401,10 +351,7 @@
         "detail": "Adversarial stress action 15 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:014",
-          "doctor_tight:003"
-        ],
+        "deps": ["doctor_tight:014", "doctor_tight:003"],
         "topoIndex": 14,
         "priority": 15,
         "status": "todo"
@@ -415,9 +362,7 @@
         "detail": "Adversarial stress action 16 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:015"
-        ],
+        "deps": ["doctor_tight:015"],
         "topoIndex": 15,
         "priority": 16,
         "status": "todo"
@@ -428,9 +373,7 @@
         "detail": "Adversarial stress action 17 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:016"
-        ],
+        "deps": ["doctor_tight:016"],
         "topoIndex": 16,
         "priority": 17,
         "status": "todo"
@@ -441,9 +384,7 @@
         "detail": "Adversarial stress action 18 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:017"
-        ],
+        "deps": ["doctor_tight:017"],
         "topoIndex": 17,
         "priority": 18,
         "status": "todo"
@@ -454,9 +395,7 @@
         "detail": "Adversarial stress action 19 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:018"
-        ],
+        "deps": ["doctor_tight:018"],
         "topoIndex": 18,
         "priority": 19,
         "status": "todo"
@@ -467,10 +406,7 @@
         "detail": "Adversarial stress action 20 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:019",
-          "doctor_tight:008"
-        ],
+        "deps": ["doctor_tight:019", "doctor_tight:008"],
         "topoIndex": 19,
         "priority": 20,
         "status": "todo"
@@ -481,9 +417,7 @@
         "detail": "Adversarial stress action 21 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:020"
-        ],
+        "deps": ["doctor_tight:020"],
         "topoIndex": 20,
         "priority": 21,
         "status": "todo"
@@ -494,9 +428,7 @@
         "detail": "Adversarial stress action 22 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:021"
-        ],
+        "deps": ["doctor_tight:021"],
         "topoIndex": 21,
         "priority": 22,
         "status": "todo"
@@ -507,9 +439,7 @@
         "detail": "Adversarial stress action 23 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:022"
-        ],
+        "deps": ["doctor_tight:022"],
         "topoIndex": 22,
         "priority": 23,
         "status": "todo"
@@ -520,9 +450,7 @@
         "detail": "Adversarial stress action 24 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:023"
-        ],
+        "deps": ["doctor_tight:023"],
         "topoIndex": 23,
         "priority": 24,
         "status": "todo"
@@ -533,10 +461,7 @@
         "detail": "Adversarial stress action 25 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:024",
-          "doctor_tight:013"
-        ],
+        "deps": ["doctor_tight:024", "doctor_tight:013"],
         "topoIndex": 24,
         "priority": 25,
         "status": "todo"
@@ -547,9 +472,7 @@
         "detail": "Adversarial stress action 26 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:025"
-        ],
+        "deps": ["doctor_tight:025"],
         "topoIndex": 25,
         "priority": 26,
         "status": "todo"
@@ -560,9 +483,7 @@
         "detail": "Adversarial stress action 27 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:026"
-        ],
+        "deps": ["doctor_tight:026"],
         "topoIndex": 26,
         "priority": 27,
         "status": "todo"
@@ -573,9 +494,7 @@
         "detail": "Adversarial stress action 28 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:027"
-        ],
+        "deps": ["doctor_tight:027"],
         "topoIndex": 27,
         "priority": 28,
         "status": "todo"
@@ -586,9 +505,7 @@
         "detail": "Adversarial stress action 29 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:028"
-        ],
+        "deps": ["doctor_tight:028"],
         "topoIndex": 28,
         "priority": 29,
         "status": "todo"
@@ -599,10 +516,7 @@
         "detail": "Adversarial stress action 30 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:029",
-          "doctor_tight:018"
-        ],
+        "deps": ["doctor_tight:029", "doctor_tight:018"],
         "topoIndex": 29,
         "priority": 30,
         "status": "todo"
@@ -613,9 +527,7 @@
         "detail": "Adversarial stress action 31 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:030"
-        ],
+        "deps": ["doctor_tight:030"],
         "topoIndex": 30,
         "priority": 31,
         "status": "todo"
@@ -626,9 +538,7 @@
         "detail": "Adversarial stress action 32 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:031"
-        ],
+        "deps": ["doctor_tight:031"],
         "topoIndex": 31,
         "priority": 32,
         "status": "todo"
@@ -639,9 +549,7 @@
         "detail": "Adversarial stress action 33 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:032"
-        ],
+        "deps": ["doctor_tight:032"],
         "topoIndex": 32,
         "priority": 33,
         "status": "todo"
@@ -652,10 +560,7 @@
         "detail": "Adversarial stress action 34 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:033",
-          "doctor_tight:004"
-        ],
+        "deps": ["doctor_tight:033", "doctor_tight:004"],
         "topoIndex": 33,
         "priority": 34,
         "status": "todo"
@@ -666,10 +571,7 @@
         "detail": "Adversarial stress action 35 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:034",
-          "doctor_tight:023"
-        ],
+        "deps": ["doctor_tight:034", "doctor_tight:023"],
         "topoIndex": 34,
         "priority": 35,
         "status": "todo"
@@ -680,9 +582,7 @@
         "detail": "Adversarial stress action 36 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:035"
-        ],
+        "deps": ["doctor_tight:035"],
         "topoIndex": 35,
         "priority": 36,
         "status": "todo"
@@ -693,9 +593,7 @@
         "detail": "Adversarial stress action 37 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:036"
-        ],
+        "deps": ["doctor_tight:036"],
         "topoIndex": 36,
         "priority": 37,
         "status": "todo"
@@ -706,9 +604,7 @@
         "detail": "Adversarial stress action 38 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:037"
-        ],
+        "deps": ["doctor_tight:037"],
         "topoIndex": 37,
         "priority": 38,
         "status": "todo"
@@ -719,9 +615,7 @@
         "detail": "Adversarial stress action 39 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:038"
-        ],
+        "deps": ["doctor_tight:038"],
         "topoIndex": 38,
         "priority": 39,
         "status": "todo"
@@ -732,10 +626,7 @@
         "detail": "Adversarial stress action 40 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:039",
-          "doctor_tight:028"
-        ],
+        "deps": ["doctor_tight:039", "doctor_tight:028"],
         "topoIndex": 39,
         "priority": 40,
         "status": "todo"
@@ -746,9 +637,7 @@
         "detail": "Adversarial stress action 41 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:040"
-        ],
+        "deps": ["doctor_tight:040"],
         "topoIndex": 40,
         "priority": 41,
         "status": "todo"
@@ -759,9 +648,7 @@
         "detail": "Adversarial stress action 42 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:041"
-        ],
+        "deps": ["doctor_tight:041"],
         "topoIndex": 41,
         "priority": 42,
         "status": "todo"
@@ -772,9 +659,7 @@
         "detail": "Adversarial stress action 43 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:042"
-        ],
+        "deps": ["doctor_tight:042"],
         "topoIndex": 42,
         "priority": 43,
         "status": "todo"
@@ -785,9 +670,7 @@
         "detail": "Adversarial stress action 44 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:043"
-        ],
+        "deps": ["doctor_tight:043"],
         "topoIndex": 43,
         "priority": 44,
         "status": "todo"
@@ -798,10 +681,7 @@
         "detail": "Adversarial stress action 45 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:044",
-          "doctor_tight:033"
-        ],
+        "deps": ["doctor_tight:044", "doctor_tight:033"],
         "topoIndex": 44,
         "priority": 45,
         "status": "todo"
@@ -812,9 +692,7 @@
         "detail": "Adversarial stress action 46 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:045"
-        ],
+        "deps": ["doctor_tight:045"],
         "topoIndex": 45,
         "priority": 46,
         "status": "todo"
@@ -825,10 +703,7 @@
         "detail": "Adversarial stress action 47 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:046",
-          "doctor_tight:017"
-        ],
+        "deps": ["doctor_tight:046", "doctor_tight:017"],
         "topoIndex": 46,
         "priority": 47,
         "status": "todo"
@@ -839,9 +714,7 @@
         "detail": "Adversarial stress action 48 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:047"
-        ],
+        "deps": ["doctor_tight:047"],
         "topoIndex": 47,
         "priority": 48,
         "status": "todo"
@@ -852,9 +725,7 @@
         "detail": "Adversarial stress action 49 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:048"
-        ],
+        "deps": ["doctor_tight:048"],
         "topoIndex": 48,
         "priority": 49,
         "status": "todo"
@@ -865,10 +736,7 @@
         "detail": "Adversarial stress action 50 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:049",
-          "doctor_tight:038"
-        ],
+        "deps": ["doctor_tight:049", "doctor_tight:038"],
         "topoIndex": 49,
         "priority": 50,
         "status": "todo"
@@ -879,9 +747,7 @@
         "detail": "Adversarial stress action 51 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:050"
-        ],
+        "deps": ["doctor_tight:050"],
         "topoIndex": 50,
         "priority": 51,
         "status": "todo"
@@ -892,9 +758,7 @@
         "detail": "Adversarial stress action 52 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:051"
-        ],
+        "deps": ["doctor_tight:051"],
         "topoIndex": 51,
         "priority": 52,
         "status": "todo"
@@ -905,9 +769,7 @@
         "detail": "Adversarial stress action 53 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:052"
-        ],
+        "deps": ["doctor_tight:052"],
         "topoIndex": 52,
         "priority": 53,
         "status": "todo"
@@ -918,10 +780,7 @@
         "detail": "Adversarial stress action 54 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:053",
-          "doctor_tight:024"
-        ],
+        "deps": ["doctor_tight:053", "doctor_tight:024"],
         "topoIndex": 53,
         "priority": 54,
         "status": "todo"
@@ -932,10 +791,7 @@
         "detail": "Adversarial stress action 55 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:054",
-          "doctor_tight:043"
-        ],
+        "deps": ["doctor_tight:054", "doctor_tight:043"],
         "topoIndex": 54,
         "priority": 55,
         "status": "todo"
@@ -946,9 +802,7 @@
         "detail": "Adversarial stress action 56 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:055"
-        ],
+        "deps": ["doctor_tight:055"],
         "topoIndex": 55,
         "priority": 56,
         "status": "todo"
@@ -959,9 +813,7 @@
         "detail": "Adversarial stress action 57 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:056"
-        ],
+        "deps": ["doctor_tight:056"],
         "topoIndex": 56,
         "priority": 57,
         "status": "todo"
@@ -972,9 +824,7 @@
         "detail": "Adversarial stress action 58 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:057"
-        ],
+        "deps": ["doctor_tight:057"],
         "topoIndex": 57,
         "priority": 58,
         "status": "todo"
@@ -985,9 +835,7 @@
         "detail": "Adversarial stress action 59 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:058"
-        ],
+        "deps": ["doctor_tight:058"],
         "topoIndex": 58,
         "priority": 59,
         "status": "todo"
@@ -998,10 +846,7 @@
         "detail": "Adversarial stress action 60 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:059",
-          "doctor_tight:048"
-        ],
+        "deps": ["doctor_tight:059", "doctor_tight:048"],
         "topoIndex": 59,
         "priority": 60,
         "status": "todo"
@@ -1012,9 +857,7 @@
         "detail": "Adversarial stress action 61 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:060"
-        ],
+        "deps": ["doctor_tight:060"],
         "topoIndex": 60,
         "priority": 61,
         "status": "todo"
@@ -1025,9 +868,7 @@
         "detail": "Adversarial stress action 62 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:061"
-        ],
+        "deps": ["doctor_tight:061"],
         "topoIndex": 61,
         "priority": 62,
         "status": "todo"
@@ -1038,9 +879,7 @@
         "detail": "Adversarial stress action 63 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:062"
-        ],
+        "deps": ["doctor_tight:062"],
         "topoIndex": 62,
         "priority": 63,
         "status": "todo"
@@ -1051,9 +890,7 @@
         "detail": "Adversarial stress action 64 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:063"
-        ],
+        "deps": ["doctor_tight:063"],
         "topoIndex": 63,
         "priority": 64,
         "status": "todo"
@@ -1064,10 +901,7 @@
         "detail": "Adversarial stress action 65 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:064",
-          "doctor_tight:053"
-        ],
+        "deps": ["doctor_tight:064", "doctor_tight:053"],
         "topoIndex": 64,
         "priority": 65,
         "status": "todo"
@@ -1078,9 +912,7 @@
         "detail": "Adversarial stress action 66 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:065"
-        ],
+        "deps": ["doctor_tight:065"],
         "topoIndex": 65,
         "priority": 66,
         "status": "todo"
@@ -1091,10 +923,7 @@
         "detail": "Adversarial stress action 67 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:066",
-          "doctor_tight:037"
-        ],
+        "deps": ["doctor_tight:066", "doctor_tight:037"],
         "topoIndex": 66,
         "priority": 67,
         "status": "todo"
@@ -1105,9 +934,7 @@
         "detail": "Adversarial stress action 68 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:067"
-        ],
+        "deps": ["doctor_tight:067"],
         "topoIndex": 67,
         "priority": 68,
         "status": "todo"
@@ -1118,9 +945,7 @@
         "detail": "Adversarial stress action 69 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:068"
-        ],
+        "deps": ["doctor_tight:068"],
         "topoIndex": 68,
         "priority": 69,
         "status": "todo"
@@ -1131,10 +956,7 @@
         "detail": "Adversarial stress action 70 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:069",
-          "doctor_tight:058"
-        ],
+        "deps": ["doctor_tight:069", "doctor_tight:058"],
         "topoIndex": 69,
         "priority": 70,
         "status": "todo"
@@ -1145,9 +967,7 @@
         "detail": "Adversarial stress action 71 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:070"
-        ],
+        "deps": ["doctor_tight:070"],
         "topoIndex": 70,
         "priority": 71,
         "status": "todo"
@@ -1158,9 +978,7 @@
         "detail": "Adversarial stress action 72 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:071"
-        ],
+        "deps": ["doctor_tight:071"],
         "topoIndex": 71,
         "priority": 72,
         "status": "todo"
@@ -1171,9 +989,7 @@
         "detail": "Adversarial stress action 73 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:072"
-        ],
+        "deps": ["doctor_tight:072"],
         "topoIndex": 72,
         "priority": 73,
         "status": "todo"
@@ -1184,10 +1000,7 @@
         "detail": "Adversarial stress action 74 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:073",
-          "doctor_tight:044"
-        ],
+        "deps": ["doctor_tight:073", "doctor_tight:044"],
         "topoIndex": 73,
         "priority": 74,
         "status": "todo"
@@ -1198,10 +1011,7 @@
         "detail": "Adversarial stress action 75 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:074",
-          "doctor_tight:063"
-        ],
+        "deps": ["doctor_tight:074", "doctor_tight:063"],
         "topoIndex": 74,
         "priority": 75,
         "status": "todo"
@@ -1212,9 +1022,7 @@
         "detail": "Adversarial stress action 76 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:075"
-        ],
+        "deps": ["doctor_tight:075"],
         "topoIndex": 75,
         "priority": 76,
         "status": "todo"
@@ -1225,9 +1033,7 @@
         "detail": "Adversarial stress action 77 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:076"
-        ],
+        "deps": ["doctor_tight:076"],
         "topoIndex": 76,
         "priority": 77,
         "status": "todo"
@@ -1238,9 +1044,7 @@
         "detail": "Adversarial stress action 78 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:077"
-        ],
+        "deps": ["doctor_tight:077"],
         "topoIndex": 77,
         "priority": 78,
         "status": "todo"
@@ -1251,9 +1055,7 @@
         "detail": "Adversarial stress action 79 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:078"
-        ],
+        "deps": ["doctor_tight:078"],
         "topoIndex": 78,
         "priority": 79,
         "status": "todo"
@@ -1264,10 +1066,7 @@
         "detail": "Adversarial stress action 80 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Resources",
-        "deps": [
-          "doctor_tight:079",
-          "doctor_tight:068"
-        ],
+        "deps": ["doctor_tight:079", "doctor_tight:068"],
         "topoIndex": 79,
         "priority": 80,
         "status": "todo"
@@ -1278,9 +1077,7 @@
         "detail": "Adversarial stress action 81 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:080"
-        ],
+        "deps": ["doctor_tight:080"],
         "topoIndex": 80,
         "priority": 81,
         "status": "todo"
@@ -1291,9 +1088,7 @@
         "detail": "Adversarial stress action 82 for constrained doctor path scenario.",
         "estimateMin": 150,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:081"
-        ],
+        "deps": ["doctor_tight:081"],
         "topoIndex": 81,
         "priority": 82,
         "status": "todo"
@@ -1304,9 +1099,7 @@
         "detail": "Adversarial stress action 83 for constrained doctor path scenario.",
         "estimateMin": 105,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:082"
-        ],
+        "deps": ["doctor_tight:082"],
         "topoIndex": 82,
         "priority": 83,
         "status": "todo"
@@ -1317,9 +1110,7 @@
         "detail": "Adversarial stress action 84 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:083"
-        ],
+        "deps": ["doctor_tight:083"],
         "topoIndex": 83,
         "priority": 84,
         "status": "todo"
@@ -1330,10 +1121,7 @@
         "detail": "Adversarial stress action 85 for constrained doctor path scenario.",
         "estimateMin": 150,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:084",
-          "doctor_tight:073"
-        ],
+        "deps": ["doctor_tight:084", "doctor_tight:073"],
         "topoIndex": 84,
         "priority": 85,
         "status": "todo"
@@ -1344,9 +1132,7 @@
         "detail": "Adversarial stress action 86 for constrained doctor path scenario.",
         "estimateMin": 105,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:085"
-        ],
+        "deps": ["doctor_tight:085"],
         "topoIndex": 85,
         "priority": 86,
         "status": "todo"
@@ -1357,10 +1143,7 @@
         "detail": "Adversarial stress action 87 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:086",
-          "doctor_tight:057"
-        ],
+        "deps": ["doctor_tight:086", "doctor_tight:057"],
         "topoIndex": 86,
         "priority": 87,
         "status": "todo"
@@ -1371,9 +1154,7 @@
         "detail": "Adversarial stress action 88 for constrained doctor path scenario.",
         "estimateMin": 150,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:087"
-        ],
+        "deps": ["doctor_tight:087"],
         "topoIndex": 87,
         "priority": 88,
         "status": "todo"
@@ -1384,9 +1165,7 @@
         "detail": "Adversarial stress action 89 for constrained doctor path scenario.",
         "estimateMin": 105,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:088"
-        ],
+        "deps": ["doctor_tight:088"],
         "topoIndex": 88,
         "priority": 89,
         "status": "todo"
@@ -1397,10 +1176,7 @@
         "detail": "Adversarial stress action 90 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:089",
-          "doctor_tight:078"
-        ],
+        "deps": ["doctor_tight:089", "doctor_tight:078"],
         "topoIndex": 89,
         "priority": 90,
         "status": "todo"
@@ -1411,9 +1187,7 @@
         "detail": "Adversarial stress action 91 for constrained doctor path scenario.",
         "estimateMin": 150,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:090"
-        ],
+        "deps": ["doctor_tight:090"],
         "topoIndex": 90,
         "priority": 91,
         "status": "todo"
@@ -1424,9 +1198,7 @@
         "detail": "Adversarial stress action 92 for constrained doctor path scenario.",
         "estimateMin": 105,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:091"
-        ],
+        "deps": ["doctor_tight:091"],
         "topoIndex": 91,
         "priority": 92,
         "status": "todo"
@@ -1437,9 +1209,7 @@
         "detail": "Adversarial stress action 93 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:092"
-        ],
+        "deps": ["doctor_tight:092"],
         "topoIndex": 92,
         "priority": 93,
         "status": "todo"
@@ -1450,10 +1220,7 @@
         "detail": "Adversarial stress action 94 for constrained doctor path scenario.",
         "estimateMin": 150,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:093",
-          "doctor_tight:064"
-        ],
+        "deps": ["doctor_tight:093", "doctor_tight:064"],
         "topoIndex": 93,
         "priority": 94,
         "status": "todo"
@@ -1464,10 +1231,7 @@
         "detail": "Adversarial stress action 95 for constrained doctor path scenario.",
         "estimateMin": 105,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:094",
-          "doctor_tight:083"
-        ],
+        "deps": ["doctor_tight:094", "doctor_tight:083"],
         "topoIndex": 94,
         "priority": 95,
         "status": "todo"
@@ -1478,9 +1242,7 @@
         "detail": "Adversarial stress action 96 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:095"
-        ],
+        "deps": ["doctor_tight:095"],
         "topoIndex": 95,
         "priority": 96,
         "status": "todo"
@@ -1491,9 +1253,7 @@
         "detail": "Adversarial stress action 97 for constrained doctor path scenario.",
         "estimateMin": 150,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:096"
-        ],
+        "deps": ["doctor_tight:096"],
         "topoIndex": 96,
         "priority": 97,
         "status": "todo"
@@ -1504,9 +1264,7 @@
         "detail": "Adversarial stress action 98 for constrained doctor path scenario.",
         "estimateMin": 105,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:097"
-        ],
+        "deps": ["doctor_tight:097"],
         "topoIndex": 97,
         "priority": 98,
         "status": "todo"
@@ -1517,9 +1275,7 @@
         "detail": "Adversarial stress action 99 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:098"
-        ],
+        "deps": ["doctor_tight:098"],
         "topoIndex": 98,
         "priority": 99,
         "status": "todo"
@@ -1530,10 +1286,7 @@
         "detail": "Adversarial stress action 100 for constrained doctor path scenario.",
         "estimateMin": 150,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:099",
-          "doctor_tight:088"
-        ],
+        "deps": ["doctor_tight:099", "doctor_tight:088"],
         "topoIndex": 99,
         "priority": 100,
         "status": "todo"
@@ -1544,10 +1297,7 @@
         "detail": "Adversarial stress action 101 for constrained doctor path scenario.",
         "estimateMin": 105,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:100",
-          "doctor_tight:071"
-        ],
+        "deps": ["doctor_tight:100", "doctor_tight:071"],
         "topoIndex": 100,
         "priority": 101,
         "status": "todo"
@@ -1558,9 +1308,7 @@
         "detail": "Adversarial stress action 102 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:101"
-        ],
+        "deps": ["doctor_tight:101"],
         "topoIndex": 101,
         "priority": 102,
         "status": "todo"
@@ -1571,9 +1319,7 @@
         "detail": "Adversarial stress action 103 for constrained doctor path scenario.",
         "estimateMin": 150,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:102"
-        ],
+        "deps": ["doctor_tight:102"],
         "topoIndex": 102,
         "priority": 103,
         "status": "todo"
@@ -1584,9 +1330,7 @@
         "detail": "Adversarial stress action 104 for constrained doctor path scenario.",
         "estimateMin": 105,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:103"
-        ],
+        "deps": ["doctor_tight:103"],
         "topoIndex": 103,
         "priority": 104,
         "status": "todo"
@@ -1597,9 +1341,7 @@
         "detail": "Adversarial stress action 105 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:104"
-        ],
+        "deps": ["doctor_tight:104"],
         "topoIndex": 104,
         "priority": 105,
         "status": "todo"
@@ -1610,9 +1352,7 @@
         "detail": "Adversarial stress action 106 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:105"
-        ],
+        "deps": ["doctor_tight:105"],
         "topoIndex": 105,
         "priority": 106,
         "status": "todo"
@@ -1623,9 +1363,7 @@
         "detail": "Adversarial stress action 107 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:106"
-        ],
+        "deps": ["doctor_tight:106"],
         "topoIndex": 106,
         "priority": 107,
         "status": "todo"
@@ -1636,9 +1374,7 @@
         "detail": "Adversarial stress action 108 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:107"
-        ],
+        "deps": ["doctor_tight:107"],
         "topoIndex": 107,
         "priority": 108,
         "status": "todo"
@@ -1649,10 +1385,7 @@
         "detail": "Adversarial stress action 109 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:108",
-          "doctor_tight:097"
-        ],
+        "deps": ["doctor_tight:108", "doctor_tight:097"],
         "topoIndex": 108,
         "priority": 109,
         "status": "todo"
@@ -1663,9 +1396,7 @@
         "detail": "Adversarial stress action 110 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:109"
-        ],
+        "deps": ["doctor_tight:109"],
         "topoIndex": 109,
         "priority": 110,
         "status": "todo"
@@ -1676,10 +1407,7 @@
         "detail": "Adversarial stress action 111 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:110",
-          "doctor_tight:081"
-        ],
+        "deps": ["doctor_tight:110", "doctor_tight:081"],
         "topoIndex": 110,
         "priority": 111,
         "status": "todo"
@@ -1690,9 +1418,7 @@
         "detail": "Adversarial stress action 112 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:111"
-        ],
+        "deps": ["doctor_tight:111"],
         "topoIndex": 111,
         "priority": 112,
         "status": "todo"
@@ -1703,9 +1429,7 @@
         "detail": "Adversarial stress action 113 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:112"
-        ],
+        "deps": ["doctor_tight:112"],
         "topoIndex": 112,
         "priority": 113,
         "status": "todo"
@@ -1716,10 +1440,7 @@
         "detail": "Adversarial stress action 114 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:113",
-          "doctor_tight:102"
-        ],
+        "deps": ["doctor_tight:113", "doctor_tight:102"],
         "topoIndex": 113,
         "priority": 114,
         "status": "todo"
@@ -1730,9 +1451,7 @@
         "detail": "Adversarial stress action 115 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:114"
-        ],
+        "deps": ["doctor_tight:114"],
         "topoIndex": 114,
         "priority": 115,
         "status": "todo"
@@ -1743,9 +1462,7 @@
         "detail": "Adversarial stress action 116 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:115"
-        ],
+        "deps": ["doctor_tight:115"],
         "topoIndex": 115,
         "priority": 116,
         "status": "todo"
@@ -1756,9 +1473,7 @@
         "detail": "Adversarial stress action 117 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:116"
-        ],
+        "deps": ["doctor_tight:116"],
         "topoIndex": 116,
         "priority": 117,
         "status": "todo"
@@ -1769,10 +1484,7 @@
         "detail": "Adversarial stress action 118 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:117",
-          "doctor_tight:088"
-        ],
+        "deps": ["doctor_tight:117", "doctor_tight:088"],
         "topoIndex": 117,
         "priority": 118,
         "status": "todo"
@@ -1783,10 +1495,7 @@
         "detail": "Adversarial stress action 119 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:118",
-          "doctor_tight:107"
-        ],
+        "deps": ["doctor_tight:118", "doctor_tight:107"],
         "topoIndex": 118,
         "priority": 119,
         "status": "todo"
@@ -1797,9 +1506,7 @@
         "detail": "Adversarial stress action 120 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:119"
-        ],
+        "deps": ["doctor_tight:119"],
         "topoIndex": 119,
         "priority": 120,
         "status": "todo"
@@ -1810,9 +1517,7 @@
         "detail": "Adversarial stress action 121 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:120"
-        ],
+        "deps": ["doctor_tight:120"],
         "topoIndex": 120,
         "priority": 121,
         "status": "todo"
@@ -1823,9 +1528,7 @@
         "detail": "Adversarial stress action 122 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:121"
-        ],
+        "deps": ["doctor_tight:121"],
         "topoIndex": 121,
         "priority": 122,
         "status": "todo"
@@ -1836,9 +1539,7 @@
         "detail": "Adversarial stress action 123 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:122"
-        ],
+        "deps": ["doctor_tight:122"],
         "topoIndex": 122,
         "priority": 123,
         "status": "todo"
@@ -1849,10 +1550,7 @@
         "detail": "Adversarial stress action 124 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:123",
-          "doctor_tight:112"
-        ],
+        "deps": ["doctor_tight:123", "doctor_tight:112"],
         "topoIndex": 123,
         "priority": 124,
         "status": "todo"
@@ -1863,10 +1561,7 @@
         "detail": "Adversarial stress action 125 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:124",
-          "doctor_tight:095"
-        ],
+        "deps": ["doctor_tight:124", "doctor_tight:095"],
         "topoIndex": 124,
         "priority": 125,
         "status": "todo"
@@ -1877,9 +1572,7 @@
         "detail": "Adversarial stress action 126 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:125"
-        ],
+        "deps": ["doctor_tight:125"],
         "topoIndex": 125,
         "priority": 126,
         "status": "todo"
@@ -1890,9 +1583,7 @@
         "detail": "Adversarial stress action 127 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:126"
-        ],
+        "deps": ["doctor_tight:126"],
         "topoIndex": 126,
         "priority": 127,
         "status": "todo"
@@ -1903,9 +1594,7 @@
         "detail": "Adversarial stress action 128 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:127"
-        ],
+        "deps": ["doctor_tight:127"],
         "topoIndex": 127,
         "priority": 128,
         "status": "todo"
@@ -1916,9 +1605,7 @@
         "detail": "Adversarial stress action 129 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:128"
-        ],
+        "deps": ["doctor_tight:128"],
         "topoIndex": 128,
         "priority": 129,
         "status": "todo"
@@ -1929,9 +1616,7 @@
         "detail": "Adversarial stress action 130 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:129"
-        ],
+        "deps": ["doctor_tight:129"],
         "topoIndex": 129,
         "priority": 130,
         "status": "todo"
@@ -1942,9 +1627,7 @@
         "detail": "Adversarial stress action 131 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:130"
-        ],
+        "deps": ["doctor_tight:130"],
         "topoIndex": 130,
         "priority": 131,
         "status": "todo"
@@ -1955,9 +1638,7 @@
         "detail": "Adversarial stress action 132 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:131"
-        ],
+        "deps": ["doctor_tight:131"],
         "topoIndex": 131,
         "priority": 132,
         "status": "todo"
@@ -1968,10 +1649,7 @@
         "detail": "Adversarial stress action 133 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:132",
-          "doctor_tight:121"
-        ],
+        "deps": ["doctor_tight:132", "doctor_tight:121"],
         "topoIndex": 132,
         "priority": 133,
         "status": "todo"
@@ -1982,9 +1660,7 @@
         "detail": "Adversarial stress action 134 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:133"
-        ],
+        "deps": ["doctor_tight:133"],
         "topoIndex": 133,
         "priority": 134,
         "status": "todo"
@@ -1995,10 +1671,7 @@
         "detail": "Adversarial stress action 135 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:134",
-          "doctor_tight:105"
-        ],
+        "deps": ["doctor_tight:134", "doctor_tight:105"],
         "topoIndex": 134,
         "priority": 135,
         "status": "todo"
@@ -2009,9 +1682,7 @@
         "detail": "Adversarial stress action 136 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:135"
-        ],
+        "deps": ["doctor_tight:135"],
         "topoIndex": 135,
         "priority": 136,
         "status": "todo"
@@ -2022,9 +1693,7 @@
         "detail": "Adversarial stress action 137 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:136"
-        ],
+        "deps": ["doctor_tight:136"],
         "topoIndex": 136,
         "priority": 137,
         "status": "todo"
@@ -2035,10 +1704,7 @@
         "detail": "Adversarial stress action 138 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:137",
-          "doctor_tight:126"
-        ],
+        "deps": ["doctor_tight:137", "doctor_tight:126"],
         "topoIndex": 137,
         "priority": 138,
         "status": "todo"
@@ -2049,9 +1715,7 @@
         "detail": "Adversarial stress action 139 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:138"
-        ],
+        "deps": ["doctor_tight:138"],
         "topoIndex": 138,
         "priority": 139,
         "status": "todo"
@@ -2062,9 +1726,7 @@
         "detail": "Adversarial stress action 140 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:139"
-        ],
+        "deps": ["doctor_tight:139"],
         "topoIndex": 139,
         "priority": 140,
         "status": "todo"
@@ -2075,9 +1737,7 @@
         "detail": "Adversarial stress action 141 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:140"
-        ],
+        "deps": ["doctor_tight:140"],
         "topoIndex": 140,
         "priority": 141,
         "status": "todo"
@@ -2088,10 +1748,7 @@
         "detail": "Adversarial stress action 142 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:141",
-          "doctor_tight:112"
-        ],
+        "deps": ["doctor_tight:141", "doctor_tight:112"],
         "topoIndex": 141,
         "priority": 142,
         "status": "todo"
@@ -2102,10 +1759,7 @@
         "detail": "Adversarial stress action 143 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:142",
-          "doctor_tight:131"
-        ],
+        "deps": ["doctor_tight:142", "doctor_tight:131"],
         "topoIndex": 142,
         "priority": 143,
         "status": "todo"
@@ -2116,9 +1770,7 @@
         "detail": "Adversarial stress action 144 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:143"
-        ],
+        "deps": ["doctor_tight:143"],
         "topoIndex": 143,
         "priority": 144,
         "status": "todo"
@@ -2129,9 +1781,7 @@
         "detail": "Adversarial stress action 145 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:144"
-        ],
+        "deps": ["doctor_tight:144"],
         "topoIndex": 144,
         "priority": 145,
         "status": "todo"
@@ -2142,9 +1792,7 @@
         "detail": "Adversarial stress action 146 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:145"
-        ],
+        "deps": ["doctor_tight:145"],
         "topoIndex": 145,
         "priority": 146,
         "status": "todo"
@@ -2155,9 +1803,7 @@
         "detail": "Adversarial stress action 147 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:146"
-        ],
+        "deps": ["doctor_tight:146"],
         "topoIndex": 146,
         "priority": 147,
         "status": "todo"
@@ -2168,10 +1814,7 @@
         "detail": "Adversarial stress action 148 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:147",
-          "doctor_tight:136"
-        ],
+        "deps": ["doctor_tight:147", "doctor_tight:136"],
         "topoIndex": 147,
         "priority": 148,
         "status": "todo"
@@ -2182,10 +1825,7 @@
         "detail": "Adversarial stress action 149 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:148",
-          "doctor_tight:119"
-        ],
+        "deps": ["doctor_tight:148", "doctor_tight:119"],
         "topoIndex": 148,
         "priority": 149,
         "status": "todo"
@@ -2196,9 +1836,7 @@
         "detail": "Adversarial stress action 150 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:149"
-        ],
+        "deps": ["doctor_tight:149"],
         "topoIndex": 149,
         "priority": 150,
         "status": "todo"
@@ -2209,9 +1847,7 @@
         "detail": "Adversarial stress action 151 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:150"
-        ],
+        "deps": ["doctor_tight:150"],
         "topoIndex": 150,
         "priority": 151,
         "status": "todo"
@@ -2222,9 +1858,7 @@
         "detail": "Adversarial stress action 152 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:151"
-        ],
+        "deps": ["doctor_tight:151"],
         "topoIndex": 151,
         "priority": 152,
         "status": "todo"
@@ -2235,9 +1869,7 @@
         "detail": "Adversarial stress action 153 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:152"
-        ],
+        "deps": ["doctor_tight:152"],
         "topoIndex": 152,
         "priority": 153,
         "status": "todo"
@@ -2248,9 +1880,7 @@
         "detail": "Adversarial stress action 154 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:153"
-        ],
+        "deps": ["doctor_tight:153"],
         "topoIndex": 153,
         "priority": 154,
         "status": "todo"
@@ -2261,9 +1891,7 @@
         "detail": "Adversarial stress action 155 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:154"
-        ],
+        "deps": ["doctor_tight:154"],
         "topoIndex": 154,
         "priority": 155,
         "status": "todo"
@@ -2274,9 +1902,7 @@
         "detail": "Adversarial stress action 156 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:155"
-        ],
+        "deps": ["doctor_tight:155"],
         "topoIndex": 155,
         "priority": 156,
         "status": "todo"
@@ -2287,10 +1913,7 @@
         "detail": "Adversarial stress action 157 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:156",
-          "doctor_tight:145"
-        ],
+        "deps": ["doctor_tight:156", "doctor_tight:145"],
         "topoIndex": 156,
         "priority": 157,
         "status": "todo"
@@ -2301,9 +1924,7 @@
         "detail": "Adversarial stress action 158 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:157"
-        ],
+        "deps": ["doctor_tight:157"],
         "topoIndex": 157,
         "priority": 158,
         "status": "todo"
@@ -2314,10 +1935,7 @@
         "detail": "Adversarial stress action 159 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:158",
-          "doctor_tight:129"
-        ],
+        "deps": ["doctor_tight:158", "doctor_tight:129"],
         "topoIndex": 158,
         "priority": 159,
         "status": "todo"
@@ -2328,9 +1946,7 @@
         "detail": "Adversarial stress action 160 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:159"
-        ],
+        "deps": ["doctor_tight:159"],
         "topoIndex": 159,
         "priority": 160,
         "status": "todo"
@@ -2341,9 +1957,7 @@
         "detail": "Adversarial stress action 161 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:160"
-        ],
+        "deps": ["doctor_tight:160"],
         "topoIndex": 160,
         "priority": 161,
         "status": "todo"
@@ -2354,10 +1968,7 @@
         "detail": "Adversarial stress action 162 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:161",
-          "doctor_tight:150"
-        ],
+        "deps": ["doctor_tight:161", "doctor_tight:150"],
         "topoIndex": 161,
         "priority": 162,
         "status": "todo"
@@ -2368,9 +1979,7 @@
         "detail": "Adversarial stress action 163 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:162"
-        ],
+        "deps": ["doctor_tight:162"],
         "topoIndex": 162,
         "priority": 163,
         "status": "todo"
@@ -2381,9 +1990,7 @@
         "detail": "Adversarial stress action 164 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:163"
-        ],
+        "deps": ["doctor_tight:163"],
         "topoIndex": 163,
         "priority": 164,
         "status": "todo"
@@ -2394,9 +2001,7 @@
         "detail": "Adversarial stress action 165 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:164"
-        ],
+        "deps": ["doctor_tight:164"],
         "topoIndex": 164,
         "priority": 165,
         "status": "todo"
@@ -2407,10 +2012,7 @@
         "detail": "Adversarial stress action 166 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:165",
-          "doctor_tight:136"
-        ],
+        "deps": ["doctor_tight:165", "doctor_tight:136"],
         "topoIndex": 165,
         "priority": 166,
         "status": "todo"
@@ -2421,10 +2023,7 @@
         "detail": "Adversarial stress action 167 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:166",
-          "doctor_tight:155"
-        ],
+        "deps": ["doctor_tight:166", "doctor_tight:155"],
         "topoIndex": 166,
         "priority": 167,
         "status": "todo"
@@ -2435,9 +2034,7 @@
         "detail": "Adversarial stress action 168 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:167"
-        ],
+        "deps": ["doctor_tight:167"],
         "topoIndex": 167,
         "priority": 168,
         "status": "todo"
@@ -2448,9 +2045,7 @@
         "detail": "Adversarial stress action 169 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:168"
-        ],
+        "deps": ["doctor_tight:168"],
         "topoIndex": 168,
         "priority": 169,
         "status": "todo"
@@ -2461,9 +2056,7 @@
         "detail": "Adversarial stress action 170 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:169"
-        ],
+        "deps": ["doctor_tight:169"],
         "topoIndex": 169,
         "priority": 170,
         "status": "todo"
@@ -2474,9 +2067,7 @@
         "detail": "Adversarial stress action 171 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:170"
-        ],
+        "deps": ["doctor_tight:170"],
         "topoIndex": 170,
         "priority": 171,
         "status": "todo"
@@ -2487,10 +2078,7 @@
         "detail": "Adversarial stress action 172 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:171",
-          "doctor_tight:160"
-        ],
+        "deps": ["doctor_tight:171", "doctor_tight:160"],
         "topoIndex": 171,
         "priority": 172,
         "status": "todo"
@@ -2501,10 +2089,7 @@
         "detail": "Adversarial stress action 173 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:172",
-          "doctor_tight:143"
-        ],
+        "deps": ["doctor_tight:172", "doctor_tight:143"],
         "topoIndex": 172,
         "priority": 173,
         "status": "todo"
@@ -2515,9 +2100,7 @@
         "detail": "Adversarial stress action 174 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:173"
-        ],
+        "deps": ["doctor_tight:173"],
         "topoIndex": 173,
         "priority": 174,
         "status": "todo"
@@ -2528,9 +2111,7 @@
         "detail": "Adversarial stress action 175 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:174"
-        ],
+        "deps": ["doctor_tight:174"],
         "topoIndex": 174,
         "priority": 175,
         "status": "todo"
@@ -2541,9 +2122,7 @@
         "detail": "Adversarial stress action 176 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:175"
-        ],
+        "deps": ["doctor_tight:175"],
         "topoIndex": 175,
         "priority": 176,
         "status": "todo"
@@ -2554,9 +2133,7 @@
         "detail": "Adversarial stress action 177 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:176"
-        ],
+        "deps": ["doctor_tight:176"],
         "topoIndex": 176,
         "priority": 177,
         "status": "todo"
@@ -2567,9 +2144,7 @@
         "detail": "Adversarial stress action 178 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:177"
-        ],
+        "deps": ["doctor_tight:177"],
         "topoIndex": 177,
         "priority": 178,
         "status": "todo"
@@ -2580,9 +2155,7 @@
         "detail": "Adversarial stress action 179 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:178"
-        ],
+        "deps": ["doctor_tight:178"],
         "topoIndex": 178,
         "priority": 179,
         "status": "todo"
@@ -2593,9 +2166,7 @@
         "detail": "Adversarial stress action 180 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:179"
-        ],
+        "deps": ["doctor_tight:179"],
         "topoIndex": 179,
         "priority": 180,
         "status": "todo"
@@ -2606,10 +2177,7 @@
         "detail": "Adversarial stress action 181 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:180",
-          "doctor_tight:169"
-        ],
+        "deps": ["doctor_tight:180", "doctor_tight:169"],
         "topoIndex": 180,
         "priority": 181,
         "status": "todo"
@@ -2620,9 +2188,7 @@
         "detail": "Adversarial stress action 182 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:181"
-        ],
+        "deps": ["doctor_tight:181"],
         "topoIndex": 181,
         "priority": 182,
         "status": "todo"
@@ -2633,10 +2199,7 @@
         "detail": "Adversarial stress action 183 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:182",
-          "doctor_tight:153"
-        ],
+        "deps": ["doctor_tight:182", "doctor_tight:153"],
         "topoIndex": 182,
         "priority": 183,
         "status": "todo"
@@ -2647,9 +2210,7 @@
         "detail": "Adversarial stress action 184 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:183"
-        ],
+        "deps": ["doctor_tight:183"],
         "topoIndex": 183,
         "priority": 184,
         "status": "todo"
@@ -2660,9 +2221,7 @@
         "detail": "Adversarial stress action 185 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:184"
-        ],
+        "deps": ["doctor_tight:184"],
         "topoIndex": 184,
         "priority": 185,
         "status": "todo"
@@ -2673,10 +2232,7 @@
         "detail": "Adversarial stress action 186 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:185",
-          "doctor_tight:174"
-        ],
+        "deps": ["doctor_tight:185", "doctor_tight:174"],
         "topoIndex": 185,
         "priority": 186,
         "status": "todo"
@@ -2687,9 +2243,7 @@
         "detail": "Adversarial stress action 187 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:186"
-        ],
+        "deps": ["doctor_tight:186"],
         "topoIndex": 186,
         "priority": 187,
         "status": "todo"
@@ -2700,9 +2254,7 @@
         "detail": "Adversarial stress action 188 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:187"
-        ],
+        "deps": ["doctor_tight:187"],
         "topoIndex": 187,
         "priority": 188,
         "status": "todo"
@@ -2713,9 +2265,7 @@
         "detail": "Adversarial stress action 189 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:188"
-        ],
+        "deps": ["doctor_tight:188"],
         "topoIndex": 188,
         "priority": 189,
         "status": "todo"
@@ -2726,10 +2276,7 @@
         "detail": "Adversarial stress action 190 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:189",
-          "doctor_tight:160"
-        ],
+        "deps": ["doctor_tight:189", "doctor_tight:160"],
         "topoIndex": 189,
         "priority": 190,
         "status": "todo"
@@ -2740,10 +2287,7 @@
         "detail": "Adversarial stress action 191 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:190",
-          "doctor_tight:179"
-        ],
+        "deps": ["doctor_tight:190", "doctor_tight:179"],
         "topoIndex": 190,
         "priority": 191,
         "status": "todo"
@@ -2754,9 +2298,7 @@
         "detail": "Adversarial stress action 192 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:191"
-        ],
+        "deps": ["doctor_tight:191"],
         "topoIndex": 191,
         "priority": 192,
         "status": "todo"
@@ -2767,9 +2309,7 @@
         "detail": "Adversarial stress action 193 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:192"
-        ],
+        "deps": ["doctor_tight:192"],
         "topoIndex": 192,
         "priority": 193,
         "status": "todo"
@@ -2780,9 +2320,7 @@
         "detail": "Adversarial stress action 194 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:193"
-        ],
+        "deps": ["doctor_tight:193"],
         "topoIndex": 193,
         "priority": 194,
         "status": "todo"
@@ -2793,9 +2331,7 @@
         "detail": "Adversarial stress action 195 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:194"
-        ],
+        "deps": ["doctor_tight:194"],
         "topoIndex": 194,
         "priority": 195,
         "status": "todo"
@@ -2806,10 +2342,7 @@
         "detail": "Adversarial stress action 196 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:195",
-          "doctor_tight:184"
-        ],
+        "deps": ["doctor_tight:195", "doctor_tight:184"],
         "topoIndex": 195,
         "priority": 196,
         "status": "todo"
@@ -2820,10 +2353,7 @@
         "detail": "Adversarial stress action 197 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:196",
-          "doctor_tight:167"
-        ],
+        "deps": ["doctor_tight:196", "doctor_tight:167"],
         "topoIndex": 196,
         "priority": 197,
         "status": "todo"
@@ -2834,9 +2364,7 @@
         "detail": "Adversarial stress action 198 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:197"
-        ],
+        "deps": ["doctor_tight:197"],
         "topoIndex": 197,
         "priority": 198,
         "status": "todo"
@@ -2847,9 +2375,7 @@
         "detail": "Adversarial stress action 199 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:198"
-        ],
+        "deps": ["doctor_tight:198"],
         "topoIndex": 198,
         "priority": 199,
         "status": "todo"
@@ -2860,9 +2386,7 @@
         "detail": "Adversarial stress action 200 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Creation",
-        "deps": [
-          "doctor_tight:199"
-        ],
+        "deps": ["doctor_tight:199"],
         "topoIndex": 199,
         "priority": 200,
         "status": "todo"
@@ -2873,9 +2397,7 @@
         "detail": "Adversarial stress action 201 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:200"
-        ],
+        "deps": ["doctor_tight:200"],
         "topoIndex": 200,
         "priority": 201,
         "status": "todo"
@@ -2886,9 +2408,7 @@
         "detail": "Adversarial stress action 202 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:201"
-        ],
+        "deps": ["doctor_tight:201"],
         "topoIndex": 201,
         "priority": 202,
         "status": "todo"
@@ -2899,9 +2419,7 @@
         "detail": "Adversarial stress action 203 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:202"
-        ],
+        "deps": ["doctor_tight:202"],
         "topoIndex": 202,
         "priority": 203,
         "status": "todo"
@@ -2912,9 +2430,7 @@
         "detail": "Adversarial stress action 204 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:203"
-        ],
+        "deps": ["doctor_tight:203"],
         "topoIndex": 203,
         "priority": 204,
         "status": "todo"
@@ -2925,10 +2441,7 @@
         "detail": "Adversarial stress action 205 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:204",
-          "doctor_tight:193"
-        ],
+        "deps": ["doctor_tight:204", "doctor_tight:193"],
         "topoIndex": 204,
         "priority": 205,
         "status": "todo"
@@ -2939,9 +2452,7 @@
         "detail": "Adversarial stress action 206 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:205"
-        ],
+        "deps": ["doctor_tight:205"],
         "topoIndex": 205,
         "priority": 206,
         "status": "todo"
@@ -2952,10 +2463,7 @@
         "detail": "Adversarial stress action 207 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:206",
-          "doctor_tight:177"
-        ],
+        "deps": ["doctor_tight:206", "doctor_tight:177"],
         "topoIndex": 206,
         "priority": 207,
         "status": "todo"
@@ -2966,9 +2474,7 @@
         "detail": "Adversarial stress action 208 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:207"
-        ],
+        "deps": ["doctor_tight:207"],
         "topoIndex": 207,
         "priority": 208,
         "status": "todo"
@@ -2979,9 +2485,7 @@
         "detail": "Adversarial stress action 209 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:208"
-        ],
+        "deps": ["doctor_tight:208"],
         "topoIndex": 208,
         "priority": 209,
         "status": "todo"
@@ -2992,10 +2496,7 @@
         "detail": "Adversarial stress action 210 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:209",
-          "doctor_tight:198"
-        ],
+        "deps": ["doctor_tight:209", "doctor_tight:198"],
         "topoIndex": 209,
         "priority": 210,
         "status": "todo"
@@ -3006,9 +2507,7 @@
         "detail": "Adversarial stress action 211 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:210"
-        ],
+        "deps": ["doctor_tight:210"],
         "topoIndex": 210,
         "priority": 211,
         "status": "todo"
@@ -3019,9 +2518,7 @@
         "detail": "Adversarial stress action 212 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:211"
-        ],
+        "deps": ["doctor_tight:211"],
         "topoIndex": 211,
         "priority": 212,
         "status": "todo"
@@ -3032,9 +2529,7 @@
         "detail": "Adversarial stress action 213 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:212"
-        ],
+        "deps": ["doctor_tight:212"],
         "topoIndex": 212,
         "priority": 213,
         "status": "todo"
@@ -3045,10 +2540,7 @@
         "detail": "Adversarial stress action 214 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:213",
-          "doctor_tight:184"
-        ],
+        "deps": ["doctor_tight:213", "doctor_tight:184"],
         "topoIndex": 213,
         "priority": 214,
         "status": "todo"
@@ -3059,10 +2551,7 @@
         "detail": "Adversarial stress action 215 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:214",
-          "doctor_tight:203"
-        ],
+        "deps": ["doctor_tight:214", "doctor_tight:203"],
         "topoIndex": 214,
         "priority": 215,
         "status": "todo"
@@ -3073,9 +2562,7 @@
         "detail": "Adversarial stress action 216 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:215"
-        ],
+        "deps": ["doctor_tight:215"],
         "topoIndex": 215,
         "priority": 216,
         "status": "todo"
@@ -3086,9 +2573,7 @@
         "detail": "Adversarial stress action 217 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:216"
-        ],
+        "deps": ["doctor_tight:216"],
         "topoIndex": 216,
         "priority": 217,
         "status": "todo"
@@ -3099,9 +2584,7 @@
         "detail": "Adversarial stress action 218 for constrained doctor path scenario.",
         "estimateMin": 75,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:217"
-        ],
+        "deps": ["doctor_tight:217"],
         "topoIndex": 217,
         "priority": 218,
         "status": "todo"
@@ -3112,9 +2595,7 @@
         "detail": "Adversarial stress action 219 for constrained doctor path scenario.",
         "estimateMin": 90,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:218"
-        ],
+        "deps": ["doctor_tight:218"],
         "topoIndex": 218,
         "priority": 219,
         "status": "todo"
@@ -3125,10 +2606,7 @@
         "detail": "Adversarial stress action 220 for constrained doctor path scenario.",
         "estimateMin": 120,
         "category": "Focus",
-        "deps": [
-          "doctor_tight:219",
-          "doctor_tight:208"
-        ],
+        "deps": ["doctor_tight:219", "doctor_tight:208"],
         "topoIndex": 219,
         "priority": 220,
         "status": "todo"

@@ -17,15 +17,15 @@ function buildState() {
       status: 'todo',
       topoIndex: 0,
       priority: 1,
-      estimateMin: 75
-    }
+      estimateMin: 75,
+    },
   ];
   const forecastByDayKey = {
     '2026-01-01': { totalBlocks: 3, byDeliverable: {} },
     '2026-01-02': { totalBlocks: 3, byDeliverable: {} },
     '2026-01-03': { totalBlocks: 3, byDeliverable: {} },
     '2026-01-04': { totalBlocks: 3, byDeliverable: {} },
-    '2026-01-05': { totalBlocks: 3, byDeliverable: {} }
+    '2026-01-05': { totalBlocks: 3, byDeliverable: {} },
   };
   return {
     vector: {},
@@ -53,11 +53,11 @@ function buildState() {
           goalId: 'goal-1',
           startDate: startDay,
           deadline: { dayKey: deadlineDay },
-          temporalBinding: { daysPerWeek: 7, activationTime: '09:00', sessionDurationMinutes: 30 }
+          temporalBinding: { daysPerWeek: 7, activationTime: '09:00', sessionDurationMinutes: 30 },
         },
-        coldPlan: { forecastByDayKey, dailyProjection: { forecastByDayKey: {} } }
-      }
-    }
+        coldPlan: { forecastByDayKey, dailyProjection: { forecastByDayKey: {} } },
+      },
+    },
   };
 }
 
@@ -75,4 +75,3 @@ describe('FULL_PLAN diagnostics alignment', () => {
     expect(diagnostics.reasonCode).toBe('FULL_PLAN_PLACED_TO_DEADLINE');
   });
 });
-

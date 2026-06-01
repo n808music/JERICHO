@@ -29,7 +29,7 @@ describe('identityCompute.projectMonthDays (Month projection)', () => {
       id: 'b1',
       start: iso('2025-12-03', '14:00'),
       end: iso('2025-12-03', '15:00'),
-      status: 'planned'
+      status: 'planned',
     });
     const days = projectMonthDays({ monthKey: '2025-12-15', blocks: [block], includePadding: true });
     const day = days.find((d) => d.date === '2025-12-03');
@@ -45,9 +45,11 @@ describe('identityCompute.projectMonthDays (Month projection)', () => {
       id: 'z',
       start: iso('2025-12-03', '14:00'),
       end: iso('2025-12-03', '14:00'),
-      status: 'planned'
+      status: 'planned',
     });
-    const day = projectMonthDays({ monthKey: '2025-12-15', blocks: [block], includePadding: true }).find((d) => d.date === '2025-12-03');
+    const day = projectMonthDays({ monthKey: '2025-12-15', blocks: [block], includePadding: true }).find(
+      (d) => d.date === '2025-12-03'
+    );
     expect(day).toBeTruthy();
     expect(Math.round(day.plannedMinutes)).toBe(0);
     expect(Math.round(day.completedMinutes || 0)).toBe(0);
@@ -60,9 +62,11 @@ describe('identityCompute.projectMonthDays (Month projection)', () => {
       id: 'x',
       start: iso('2025-12-03', '23:30'),
       end: iso('2025-12-04', '00:30'),
-      status: 'planned'
+      status: 'planned',
     });
-    const day = projectMonthDays({ monthKey: '2025-12-15', blocks: [block], includePadding: true }).find((d) => d.date === '2025-12-03');
+    const day = projectMonthDays({ monthKey: '2025-12-15', blocks: [block], includePadding: true }).find(
+      (d) => d.date === '2025-12-03'
+    );
     expect(day).toBeTruthy();
     expect(day.blocks.some((b) => b.id === 'x')).toBe(true);
     expect(Math.round(day.plannedMinutes)).toBe(60);
@@ -73,9 +77,11 @@ describe('identityCompute.projectMonthDays (Month projection)', () => {
       id: 'c1',
       start: iso('2025-12-03', '14:00'),
       end: iso('2025-12-03', '15:00'),
-      status: 'completed'
+      status: 'completed',
     });
-    const day = projectMonthDays({ monthKey: '2025-12-15', blocks: [block], includePadding: true }).find((d) => d.date === '2025-12-03');
+    const day = projectMonthDays({ monthKey: '2025-12-15', blocks: [block], includePadding: true }).find(
+      (d) => d.date === '2025-12-03'
+    );
     expect(day).toBeTruthy();
     expect(Math.round(day.plannedMinutes)).toBe(60);
     expect(Math.round(day.completedMinutes)).toBe(60);

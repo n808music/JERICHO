@@ -238,7 +238,9 @@ export function scoreSchedule(inputs: ScoreInputs): ScoreBreakdown {
       criticalIds.forEach((id) => {
         total += Math.max(1, Number(actionById.get(id)?.estimateMin || 0));
         const rows = byAction.get(id) || [];
-        const inWindow = rows.some((row) => row.dayKey >= milestone.windowStartDayKey && row.dayKey <= milestone.windowEndDayKey);
+        const inWindow = rows.some(
+          (row) => row.dayKey >= milestone.windowStartDayKey && row.dayKey <= milestone.windowEndDayKey
+        );
         if (inWindow) placed += Math.max(1, Number(actionById.get(id)?.estimateMin || 0));
       });
       const ratio = placed / Math.max(1, total);
@@ -260,8 +262,12 @@ export function scoreSchedule(inputs: ScoreInputs): ScoreBreakdown {
     1,
     dayDiffInclusive(inputs.horizons.executionWindowStartDayKey, inputs.horizons.feasibilityWindowEndDayKey)
   );
-  const deadlineOverrunDays = Math.max(0, Math.ceil((outsideExecutionHorizonMinutes + unplacedMinutes) / capacityPerDay) - feasibilityDays);
-  const deadlineRisk = deadlineOverrunDays + (outsideExecutionHorizonMinutes + unplacedMinutes) / Math.max(1, capacityPerDay * 10);
+  const deadlineOverrunDays = Math.max(
+    0,
+    Math.ceil((outsideExecutionHorizonMinutes + unplacedMinutes) / capacityPerDay) - feasibilityDays
+  );
+  const deadlineRisk =
+    deadlineOverrunDays + (outsideExecutionHorizonMinutes + unplacedMinutes) / Math.max(1, capacityPerDay * 10);
 
   const components = {
     deadlineRisk: round(deadlineRisk),
@@ -269,7 +275,7 @@ export function scoreSchedule(inputs: ScoreInputs): ScoreBreakdown {
     dependencyRisk: round(dependencyRisk),
     contextSwitching: round(contextSwitchCount),
     loadSmoothness: round(dailyLoadStdDev / 30 + spikePenalty),
-    deferralPenalty: round(deferralPenalty)
+    deferralPenalty: round(deferralPenalty),
   };
 
   const total = round(
@@ -290,7 +296,7 @@ export function scoreSchedule(inputs: ScoreInputs): ScoreBreakdown {
       depTightCount,
       contextSwitchCount,
       dailyLoadStdDev: round(dailyLoadStdDev),
-      outsideExecutionHorizonMinutes: round(outsideExecutionHorizonMinutes)
-    }
+      outsideExecutionHorizonMinutes: round(outsideExecutionHorizonMinutes),
+    },
   };
 }

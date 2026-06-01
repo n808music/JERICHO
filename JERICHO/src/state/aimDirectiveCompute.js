@@ -2,12 +2,24 @@ import { computeUserCompletionStats } from './userStatsCompute.js';
 import { dayKeyFromDate } from './time/time.ts';
 
 const GOAL_TYPE_MAP = [
-  { type: 'SHIP_CREATIVE', domain: 'CREATION', tokens: ['ship', 'publish', 'launch', 'album', 'book', 'design', 'music', 'art'] },
-  { type: 'BUILD_SYSTEM', domain: 'FOCUS', tokens: ['system', 'process', 'automation', 'architecture', 'refactor', 'implementation'] },
+  {
+    type: 'SHIP_CREATIVE',
+    domain: 'CREATION',
+    tokens: ['ship', 'publish', 'launch', 'album', 'book', 'design', 'music', 'art'],
+  },
+  {
+    type: 'BUILD_SYSTEM',
+    domain: 'FOCUS',
+    tokens: ['system', 'process', 'automation', 'architecture', 'refactor', 'implementation'],
+  },
   { type: 'RAISE_CAPITAL', domain: 'RESOURCES', tokens: ['fund', 'capital', 'investor', 'pitch', 'deck', 'finance'] },
   { type: 'STABILIZE_SELF', domain: 'BODY', tokens: ['health', 'sleep', 'recovery', 'rest', 'stress'] },
-  { type: 'GROW_AUDIENCE', domain: 'RESOURCES', tokens: ['audience', 'subscribers', 'marketing', 'growth', 'followers'] },
-  { type: 'OPERATIONS', domain: 'FOCUS', tokens: ['operations', 'ops', 'support', 'tickets', 'maintenance'] }
+  {
+    type: 'GROW_AUDIENCE',
+    domain: 'RESOURCES',
+    tokens: ['audience', 'subscribers', 'marketing', 'growth', 'followers'],
+  },
+  { type: 'OPERATIONS', domain: 'FOCUS', tokens: ['operations', 'ops', 'support', 'tickets', 'maintenance'] },
 ];
 
 export function computeGoalProfile(goalText = '', deadlineISO = null, todayDayKey = null) {
@@ -24,18 +36,25 @@ export function computeGoalProfile(goalText = '', deadlineISO = null, todayDayKe
   });
   const today = todayDayKey ? new Date(`${todayDayKey}T00:00:00`) : new Date();
   const deadline = deadlineISO ? new Date(deadlineISO) : null;
-  const daysRemaining = deadline ? Math.max(0, Math.round((deadline.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))) : 90;
+  const daysRemaining = deadline
+    ? Math.max(0, Math.round((deadline.getTime() - today.getTime()) / (24 * 60 * 60 * 1000)))
+    : 90;
   const pressure = Math.max(0, Math.min(1, 1 - daysRemaining / 90));
   return {
     goalType: match.type,
     dominantDomain: match.domain,
     tokens: new Set(tokens),
     daysRemaining,
-    pressure
+    pressure,
   };
 }
 
-export function getTodayCandidates(blocksForDay = [], nowLocal = new Date(), profile, userStats = computeUserCompletionStats([])) {
+export function getTodayCandidates(
+  blocksForDay = [],
+  nowLocal = new Date(),
+  profile,
+  userStats = computeUserCompletionStats([])
+) {
   const pending = blocksForDay.filter((b) => (b.status || 'pending') === 'pending');
   const candidates = pending.map((b) => ({
     kind: 'EXECUTE_EXISTING',
@@ -45,7 +64,7 @@ export function getTodayCandidates(blocksForDay = [], nowLocal = new Date(), pro
     domain: (b.practice || b.domain || 'FOCUS').toUpperCase(),
     durationMinutes: b.durationMinutes || estimateDuration(b),
     start: b.start,
-    block: b
+    block: b,
   }));
 
   // Schedule candidate only if nothing to execute or zero pending
@@ -56,14 +75,21 @@ export function getTodayCandidates(blocksForDay = [], nowLocal = new Date(), pro
     title: `Goal-aligned work`,
     domain: profile?.dominantDomain || 'FOCUS',
     durationMinutes: recommendDuration(profile, userStats),
-    start: null
+    start: null,
   };
 
-  if (!candidates.length) candidates.push(scheduleCandidate);
+  if (!candidates.length) {
+    candidates.push(scheduleCandidate);
+  }
   return candidates;
 }
 
-export function scoreCandidate(candidate, profile, patternDiagnostics = {}, userStats = computeUserCompletionStats([])) {
+export function scoreCandidate(
+  candidate,
+  profile,
+  patternDiagnostics = {},
+  userStats = computeUserCompletionStats([])
+) {
   const domainMatch = candidate.domain === profile?.dominantDomain ? 40 : 0;
   const tokenOverlap = profile?.tokens ? overlapScore(candidate.title || '', profile.tokens) : 0; // 0-20
   const leverage = domainMatch + tokenOverlap;
@@ -79,19 +105,25 @@ export function computeNextBestMove(candidates = [], profile, dayContext = {}) {
       kind: 'NONE',
       dayKey: dayContext.dayKey || '',
       why: 'No feasible time remaining today.',
-      doneWhen: 'Day ends.'
+      doneWhen: 'Day ends.',
     };
   }
   const scored = candidates.map((c) => ({
     candidate: c,
-    score: scoreCandidate(c, profile, dayContext.patternDiagnostics, dayContext.userStats || {})
+    score: scoreCandidate(c, profile, dayContext.patternDiagnostics, dayContext.userStats || {}),
   }));
   scored.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
+    if (b.score !== a.score) {
+      return b.score - a.score;
+    }
     const aStart = a.candidate.start ? new Date(a.candidate.start).getTime() : Infinity;
     const bStart = b.candidate.start ? new Date(b.candidate.start).getTime() : Infinity;
-    if (aStart !== bStart) return aStart - bStart;
-    if ((b.candidate.durationMinutes || 0) !== (a.candidate.durationMinutes || 0)) return (b.candidate.durationMinutes || 0) - (a.candidate.durationMinutes || 0);
+    if (aStart !== bStart) {
+      return aStart - bStart;
+    }
+    if ((b.candidate.durationMinutes || 0) !== (a.candidate.durationMinutes || 0)) {
+      return (b.candidate.durationMinutes || 0) - (a.candidate.durationMinutes || 0);
+    }
     return (a.candidate.title || '').localeCompare(b.candidate.title || '');
   });
 
@@ -111,17 +143,22 @@ export function computeNextBestMove(candidates = [], profile, dayContext = {}) {
     durationMinutes: top.durationMinutes,
     startTimeCandidate: top.start,
     why,
-    doneWhen
+    doneWhen,
   };
 }
 
 // --- helpers ---
 
 function overlapScore(text, tokenSet) {
-  const words = (text || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const words = (text || '')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
   let hits = 0;
   words.forEach((w) => {
-    if (tokenSet.has(w)) hits += 1;
+    if (tokenSet.has(w)) {
+      hits += 1;
+    }
   });
   return Math.min(20, hits * 5);
 }
@@ -132,11 +169,17 @@ function feasibilityScore(candidate, userStats) {
   const timeBucket = h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 21 ? 'evening' : 'night';
   const dur = candidate.durationMinutes || 30;
   let durBucket = '30';
-  if (dur <= 15) durBucket = '15';
-  else if (dur <= 30) durBucket = '30';
-  else if (dur <= 60) durBucket = '60';
-  else if (dur <= 90) durBucket = '90';
-  else durBucket = '120';
+  if (dur <= 15) {
+    durBucket = '15';
+  } else if (dur <= 30) {
+    durBucket = '30';
+  } else if (dur <= 60) {
+    durBucket = '60';
+  } else if (dur <= 90) {
+    durBucket = '90';
+  } else {
+    durBucket = '120';
+  }
 
   const timeRate = userStats?.rateByTimeBucket?.[timeBucket] ?? 0;
   const durRate = userStats?.rateByDurationBucket?.[durBucket] ?? 0;
@@ -148,15 +191,21 @@ function stabilityScore(candidate, patternDiagnostics = {}) {
   // Simple penalty: if domain completion gap is large, reduce heroic planning
   const domain = candidate.domain || 'FOCUS';
   const gap = patternDiagnostics?.gaps?.[domain] || 0;
-  if (gap <= 0) return 0;
+  if (gap <= 0) {
+    return 0;
+  }
   return Math.min(10, Math.round(gap / 30)); // 1 penalty per 30m gap, capped at 10
 }
 
 function estimateDuration(block) {
-  if (block?.durationMinutes) return block.durationMinutes;
+  if (block?.durationMinutes) {
+    return block.durationMinutes;
+  }
   const start = block?.start ? new Date(block.start) : null;
   const end = block?.end ? new Date(block.end) : null;
-  if (start && end) return Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000));
+  if (start && end) {
+    return Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000));
+  }
   return 30;
 }
 
@@ -171,11 +220,19 @@ function recommendDuration(profile, userStats) {
 
 function buildWhy(candidate, profile, patternDiagnostics = {}) {
   const parts = [];
-  if (profile?.pressure) parts.push(`Deadline pressure ${(profile.pressure * 100).toFixed(0)}%`);
-  if (candidate.domain === profile?.dominantDomain) parts.push(`Matches dominant domain ${profile.dominantDomain}`);
+  if (profile?.pressure) {
+    parts.push(`Deadline pressure ${(profile.pressure * 100).toFixed(0)}%`);
+  }
+  if (candidate.domain === profile?.dominantDomain) {
+    parts.push(`Matches dominant domain ${profile.dominantDomain}`);
+  }
   const gap = patternDiagnostics?.gaps?.[candidate.domain];
-  if (gap > 0) parts.push(`Closes ${gap}m gap in ${candidate.domain}`);
-  if (parts.length === 0) parts.push('Aligned with goal tokens');
+  if (gap > 0) {
+    parts.push(`Closes ${gap}m gap in ${candidate.domain}`);
+  }
+  if (parts.length === 0) {
+    parts.push('Aligned with goal tokens');
+  }
   return parts.join('; ');
 }
 
@@ -183,5 +240,5 @@ export const __testables = {
   overlapScore,
   feasibilityScore,
   stabilityScore,
-  recommendDuration
+  recommendDuration,
 };

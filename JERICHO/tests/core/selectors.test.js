@@ -4,12 +4,12 @@ import { selectTodayTasks, selectTrajectory, selectDriftTrend } from '../../src/
 const mockState = {
   tasks: [
     { id: 'a', due: 'today', status: 'pending' },
-    { id: 'b', due: 'week', status: 'pending' }
+    { id: 'b', due: 'week', status: 'pending' },
   ],
   metrics: {
     cycleHistory: [40, 50, 60],
-    driftIndex: 25
-  }
+    driftIndex: 25,
+  },
 };
 
 describe('selectors', () => {

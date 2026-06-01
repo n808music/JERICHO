@@ -5,12 +5,17 @@ import { computeDerivedState } from '../state/identityCompute.js';
 import {
   materializeBlocksFromEvents,
   resetExecutionEventIdFactory,
-  setExecutionEventIdFactory
+  setExecutionEventIdFactory,
 } from '../state/engine/todayAuthority.ts';
 import { generateTemplateActionsForGoal } from '../domain/actions/actionTemplates.ts';
 import { evaluateStressInvariants, summarizeViolationsByClass, type InvariantViolation } from './invariants.ts';
 import { computeStressMetrics } from './metrics.ts';
-import { loadStressScenario, type StressAction, type StressScenarioFixture, type StressScenarioId } from './fixturesLoader.ts';
+import {
+  loadStressScenario,
+  type StressAction,
+  type StressScenarioFixture,
+  type StressScenarioId,
+} from './fixturesLoader.ts';
 
 type StressInputs = {
   writeReport?: boolean;
@@ -61,7 +66,7 @@ function normalizeAction(action: StressAction, scenario: StressScenarioFixture):
     deps: Array.isArray(action.deps) ? [...action.deps] : [],
     topoIndex: Number.isFinite(action.topoIndex) ? action.topoIndex : Number.MAX_SAFE_INTEGER,
     priority: Number.isFinite(action.priority) ? action.priority : Number.MAX_SAFE_INTEGER,
-    status: action.status || 'todo'
+    status: action.status || 'todo',
   };
 }
 
@@ -93,12 +98,16 @@ function buildStressState(scenario: StressScenarioFixture, actions: StressAction
     cycleId,
     goalId,
     brief: action.detail || '',
-    definitionOfDone: `Complete ${action.title}.`
+    definitionOfDone: `Complete ${action.title}.`,
   }));
 
   const state: any = {
     vector: { day: 1, direction: '', stability: 'steady', drift: 'contained', momentum: 'active' },
-    lenses: { aim: { description: scenario.goalText, horizon: '90d' }, pattern: { dailyTargets: [] }, flow: { streams: [] } },
+    lenses: {
+      aim: { description: scenario.goalText, horizon: '90d' },
+      pattern: { dailyTargets: [] },
+      flow: { streams: [] },
+    },
     today: { date: scenario.horizon.startDayKey, blocks: [], completionRate: 0, loadByPractice: {}, practices: [] },
     currentWeek: { weekStart: scenario.horizon.startDayKey, days: [], metrics: {} },
     cycle: [],
@@ -114,7 +123,7 @@ function buildStressState(scenario: StressScenarioFixture, actions: StressAction
       maxBlocksPerDay: scenario.availability.maxBlocksPerDay,
       maxScheduledMinutesPerDay: scenario.realismConstraints?.maxScheduledMinutesPerDay,
       maxScheduledMinutesPerWeek: scenario.realismConstraints?.maxScheduledMinutesPerWeek,
-      energyWindows: scenario.energyWindows || []
+      energyWindows: scenario.energyWindows || [],
     },
     probabilityByGoal: {},
     feasibilityByGoal: {},
@@ -124,7 +133,7 @@ function buildStressState(scenario: StressScenarioFixture, actions: StressAction
     activeCycleId: cycleId,
     activeGoalId: goalId,
     actionsByCycleId: {
-      [cycleId]: { cycleId, goalId, actions: normalizedActions }
+      [cycleId]: { cycleId, goalId, actions: normalizedActions },
     },
     cyclesById: {
       [cycleId]: {
@@ -142,16 +151,16 @@ function buildStressState(scenario: StressScenarioFixture, actions: StressAction
             startDayKey: scenario.horizon.startDayKey,
             daysPerWeek: scenario.availability.daysPerWeek,
             specificDays: scenario.availability.specificDays,
-            sessionDurationMinutes: scenario.availability.routeMinutesDefault
-          }
+            sessionDurationMinutes: scenario.availability.routeMinutesDefault,
+          },
         },
         coldPlan: {
           forecastByDayKey: {},
-          dailyProjection: { forecastByDayKey: {} }
+          dailyProjection: { forecastByDayKey: {} },
         },
         actions: normalizedActions,
-        summary: { completionCount: 0, completionRate: 0 }
-      }
+        summary: { completionCount: 0, completionRate: 0 },
+      },
     },
     goalExecutionContract: null,
     goalDirective: { goalId, directiveId: `dir:${scenario.scenarioId}` },
@@ -166,12 +175,12 @@ function buildStressState(scenario: StressScenarioFixture, actions: StressAction
       enableQualityOptimizer: Boolean(scenario.planDraft?.enableQualityOptimizer),
       optimizerMaxIterations: Number(scenario.planDraft?.optimizerMaxIterations || 2),
       optimizerMaxCandidates: Number(scenario.planDraft?.optimizerMaxCandidates || 30),
-      fullPlanMaxHorizonDays: Math.max(1, dayDiffInclusive(scenario.horizon.startDayKey, scenario.horizon.endDayKey))
+      fullPlanMaxHorizonDays: Math.max(1, dayDiffInclusive(scenario.horizon.startDayKey, scenario.horizon.endDayKey)),
     },
     planCalibration: null,
     correctionSignals: null,
     draftScheduleItemsByCycleId: {},
-    draftScheduleDiagnosticsByCycleId: {}
+    draftScheduleDiagnosticsByCycleId: {},
   };
 
   return { state, cycleId, goalId };
@@ -194,7 +203,7 @@ function summarizeInference(scenario: StressScenarioFixture) {
   const goalForInference = {
     goalText: scenario.goalText,
     terminalOutcome: { text: scenario.goalText },
-    deliverables: []
+    deliverables: [],
   };
   const inferred = generateTemplateActionsForGoal(goalForInference, `goal:${scenario.scenarioId}`) || [];
   const snapshot = scenario.inferredGraph.actions || [];
@@ -216,7 +225,7 @@ function summarizeInference(scenario: StressScenarioFixture) {
         ? 'No template inference available; fixture snapshot used as authority.'
         : inferenceDriftDetected
           ? 'Template inference drift detected against stored snapshot.'
-          : 'Template inference matches stored snapshot.'
+          : 'Template inference matches stored snapshot.',
   };
 }
 
@@ -224,13 +233,16 @@ function applyPreCompletedStatus(actions: StressAction[], preCompletedIds: strin
   const completed = new Set(preCompletedIds || []);
   return actions.map((action) => ({
     ...action,
-    status: completed.has(action.id) ? 'completed' : action.status || 'todo'
+    status: completed.has(action.id) ? 'completed' : action.status || 'todo',
   }));
 }
 
 function collectMaterializedForCycle(state: any, cycleId: string) {
   const materialized = materializeBlocksFromEvents(state.executionEvents || [], { todayISO: state.today?.date });
-  const merged = [...(materialized.todayBlocks || []), ...((materialized.days || []).flatMap((day: any) => day?.blocks || []))];
+  const merged = [
+    ...(materialized.todayBlocks || []),
+    ...(materialized.days || []).flatMap((day: any) => day?.blocks || []),
+  ];
   return stableSortSchedule(merged.filter((block: any) => block?.cycleId === cycleId));
 }
 
@@ -241,7 +253,11 @@ function reportPathForScenario(scenarioId: StressScenarioId) {
 }
 
 function printSummary(result: StressRunResult) {
-  const topViolations = result.invariantViolations.slice(0, 3).map((v) => v.code).join(', ') || 'none';
+  const topViolations =
+    result.invariantViolations
+      .slice(0, 3)
+      .map((v) => v.code)
+      .join(', ') || 'none';
   // eslint-disable-next-line no-console
   console.log(
     `[stress] ${result.scenarioId} actions=${result.metrics.actionCount} placed=${result.metrics.placedBlockCount} ` +
@@ -257,8 +273,8 @@ export function runStressScenario(scenarioId: StressScenarioId, inputs: StressIn
     ...(inputs.scenarioOverride || {}),
     inferredGraph: {
       ...baseFixture.inferredGraph,
-      ...((inputs.scenarioOverride?.inferredGraph as any) || {})
-    }
+      ...((inputs.scenarioOverride?.inferredGraph as any) || {}),
+    },
   };
 
   const inferenceSummary = summarizeInference(fixture);
@@ -286,7 +302,9 @@ export function runStressScenario(scenarioId: StressScenarioId, inputs: StressIn
 
     appliedState = computeDerivedState(rebuiltState, { type: 'APPLY_DRAFT_SCHEDULE_FULL', payload: { cycleId } });
     committedEvents = stableSortSchedule(
-      (appliedState.executionEvents || []).filter((event: any) => event?.cycleId === cycleId && event?.kind === 'create')
+      (appliedState.executionEvents || []).filter(
+        (event: any) => event?.cycleId === cycleId && event?.kind === 'create'
+      )
     );
     materializedSchedule = collectMaterializedForCycle(appliedState, cycleId);
   } finally {
@@ -295,7 +313,7 @@ export function runStressScenario(scenarioId: StressScenarioId, inputs: StressIn
   const scenarioExpectation = {
     requireAtLeastOneViolation: Boolean(fixture.expectedRealityProfile?.requireAtLeastOneViolation),
     requireDeterminism: true,
-    requireParity: true
+    requireParity: true,
   };
 
   const draftDiagnostics = appliedState?.draftScheduleDiagnosticsByCycleId?.[cycleId] || {};
@@ -305,7 +323,7 @@ export function runStressScenario(scenarioId: StressScenarioId, inputs: StressIn
     previewItems,
     materializedBlocks: materializedSchedule,
     rebuildPreviewItems,
-    diagnostics: draftDiagnostics
+    diagnostics: draftDiagnostics,
   });
 
   const invariantViolations = evaluateStressInvariants({
@@ -320,9 +338,9 @@ export function runStressScenario(scenarioId: StressScenarioId, inputs: StressIn
       ? {
           previewItems: inputs.determinismBaseline.proposedSchedulePreview,
           committedEvents: inputs.determinismBaseline.committedEvents,
-          materializedBlocks: inputs.determinismBaseline.materializedSchedule
+          materializedBlocks: inputs.determinismBaseline.materializedSchedule,
         }
-      : undefined
+      : undefined,
   });
   const violationSummary = summarizeViolationsByClass(invariantViolations);
   const topRealismViolations = [...invariantViolations]
@@ -367,13 +385,13 @@ export function runStressScenario(scenarioId: StressScenarioId, inputs: StressIn
       `scheduleTruthRatio:${metrics.scheduleTruthRatio}`,
       `scheduleCoverageRatio:${metrics.scheduleCoverageRatio}`,
       `unplacedEstimateMinTotal:${metrics.unplacedEstimateMinTotal}`,
-      `unplacedEstimateMinByCategory:${JSON.stringify(metrics.unplacedEstimateMinByCategory)}`
+      `unplacedEstimateMinByCategory:${JSON.stringify(metrics.unplacedEstimateMinByCategory)}`,
     ],
     topRealismViolations: topRealismViolations.map((violation) => ({
       code: violation.code,
       message: violation.message,
-      details: violation.details || {}
-    }))
+      details: violation.details || {},
+    })),
   };
 
   const result: StressRunResult = {
@@ -386,7 +404,7 @@ export function runStressScenario(scenarioId: StressScenarioId, inputs: StressIn
     scenarioExpectation,
     violationSummary,
     metrics,
-    invariantViolations
+    invariantViolations,
   };
 
   if (inputs.writeReport !== false) {

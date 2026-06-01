@@ -13,5 +13,5 @@ export const BASELINE_WEIGHTS: QualityScoreWeights = {
   dependencyRisk: 3,
   contextSwitching: 2,
   loadSmoothness: 2,
-  deferralPenalty: 3
+  deferralPenalty: 3,
 };

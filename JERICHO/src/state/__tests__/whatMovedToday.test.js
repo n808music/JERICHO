@@ -11,15 +11,15 @@ describe('what moved today', () => {
           title: 'Ship MVP',
           criteria: [
             { id: 'c1', text: 'Draft', isDone: true, doneAtDayKey: dayKey },
-            { id: 'c2', text: 'Polish', isDone: false }
-          ]
+            { id: 'c2', text: 'Polish', isDone: false },
+          ],
         },
         {
           id: 'd2',
           title: 'Launch',
-          criteria: [{ id: 'c3', text: 'Email', isDone: true, doneAtDayKey: dayKey }]
-        }
-      ]
+          criteria: [{ id: 'c3', text: 'Email', isDone: true, doneAtDayKey: dayKey }],
+        },
+      ],
     };
 
     const result = deriveWhatMovedToday({ deliverableWorkspace: workspace, dayKey });

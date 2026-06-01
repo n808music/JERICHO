@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 const localDayKey = (date) => {
-  if (!date) return '';
+  if (!date) {
+    return '';
+  }
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
@@ -9,7 +11,9 @@ const localDayKey = (date) => {
 };
 
 const minutesSinceMidnight = (date) => {
-  if (!date) return 0;
+  if (!date) {
+    return 0;
+  }
   return date.getHours() * 60 + date.getMinutes();
 };
 

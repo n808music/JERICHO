@@ -1,34 +1,54 @@
 import { dayKeyFromISO } from './time/time.ts';
-import { getContractStartDayKey, filterSuggestionsByStartDayKey, normalizeSuggestionDayKey } from './suggestionFilters.js';
+import {
+  getContractStartDayKey,
+  filterSuggestionsByStartDayKey,
+  normalizeSuggestionDayKey,
+} from './suggestionFilters.js';
 import { scoreSchedule } from '../planner/scoring/scoreSchedule.ts';
 import { optimizeSchedule } from '../planner/optimize/optimizeSchedule.ts';
 import { computePolicySelection } from '../planner/scoring/policySelector.ts';
 import { injectCheckpoints } from '../planner/milestones/injectCheckpoints.ts';
 
 const ensureISO = (dayKey, time = '09:00') => {
-  if (!dayKey) return null;
+  if (!dayKey) {
+    return null;
+  }
   return `${dayKey}T${time}:00.000Z`;
 };
 
 const sortDraftItems = (items = []) =>
   [...items].sort((a, b) => {
-    if (a.dayKey !== b.dayKey) return a.dayKey.localeCompare(b.dayKey);
-    if (a.startISO !== b.startISO) return (a.startISO || '').localeCompare(b.startISO || '');
+    if (a.dayKey !== b.dayKey) {
+      return a.dayKey.localeCompare(b.dayKey);
+    }
+    if (a.startISO !== b.startISO) {
+      return (a.startISO || '').localeCompare(b.startISO || '');
+    }
     return (a.title || '').localeCompare(b.title || '');
   });
 
 const sortAssignments = (assignments = []) =>
   [...assignments].sort((a, b) => {
-    if (a.dayKey !== b.dayKey) return a.dayKey.localeCompare(b.dayKey);
-    if (a.startMin !== b.startMin) return a.startMin - b.startMin;
-    if (a.actionId !== b.actionId) return a.actionId.localeCompare(b.actionId);
+    if (a.dayKey !== b.dayKey) {
+      return a.dayKey.localeCompare(b.dayKey);
+    }
+    if (a.startMin !== b.startMin) {
+      return a.startMin - b.startMin;
+    }
+    if (a.actionId !== b.actionId) {
+      return a.actionId.localeCompare(b.actionId);
+    }
     return (a.chunkIndex || 0) - (b.chunkIndex || 0);
   });
 
 function minutesFromISO(iso) {
-  if (!iso) return 0;
+  if (!iso) {
+    return 0;
+  }
   const parsed = new Date(iso);
-  if (!Number.isFinite(parsed.getTime())) return 0;
+  if (!Number.isFinite(parsed.getTime())) {
+    return 0;
+  }
   return parsed.getUTCHours() * 60 + parsed.getUTCMinutes();
 }
 
@@ -50,25 +70,34 @@ function toAssignments(suggestedBlocks = [], timeZone = 'UTC') {
 }
 
 function clampRatio(num, den) {
-  if (!Number.isFinite(num) || !Number.isFinite(den) || den <= 0) return 0;
-  return Math.max(0, Math.min(1, num / den));
+  if (!Number.isFinite(num) || !Number.isFinite(den) || den <= 0) {
+    return 0;
+  }
+  const ratio = Math.max(0, Math.min(1, num / den));
+  return Math.round(ratio * 1_000_000) / 1_000_000;
 }
 
 function daysBetween(start, end) {
   const s = Date.parse(`${start}T00:00:00.000Z`);
   const e = Date.parse(`${end}T00:00:00.000Z`);
-  if (!Number.isFinite(s) || !Number.isFinite(e)) return 0;
+  if (!Number.isFinite(s) || !Number.isFinite(e)) {
+    return 0;
+  }
   return Math.max(0, Math.round((e - s) / 86400000));
 }
 
 function addDays(dayKey, delta) {
   const ms = Date.parse(`${dayKey}T00:00:00.000Z`);
-  if (!Number.isFinite(ms)) return dayKey;
+  if (!Number.isFinite(ms)) {
+    return dayKey;
+  }
   return new Date(ms + delta * 86400000).toISOString().slice(0, 10);
 }
 
 function buildActionAssignments(actions = [], startDayKey = '', executionHorizonDays = 30) {
-  if (!actions.length || !startDayKey) return [];
+  if (!actions.length || !startDayKey) {
+    return [];
+  }
   const horizon = Math.max(1, executionHorizonDays);
   return sortAssignments(
     actions.map((action, idx) => {
@@ -107,14 +136,16 @@ function buildPacingDiagnostics({ milestones = [], injected = null, constraints 
       const pacingSlackRatio = availableWindowMinutes > 0 ? requiredCriticalMinutes / availableWindowMinutes : 0;
       const placedRatio = clampRatio(checkpointCount, pacingSegmentCount);
       const misses = Math.max(0, pacingSegmentCount - checkpointCount);
-      if (pacingSlackRatio > 1) infeasible += 1;
+      if (pacingSlackRatio > 1) {
+        infeasible += 1;
+      }
       anchoringMisses += misses;
       placedRatioSum += placedRatio;
       byMilestone[m.milestoneId] = {
         pacingSegmentCount,
         pacingRequiredCriticalMinutes: requiredCriticalMinutes,
         pacingAvailableWindowMinutes: availableWindowMinutes,
-        pacingSlackRatio: Math.round(pacingSlackRatio * 1000) / 1000,
+        pacingSlackRatio: Math.round(pacingSlackRatio * 1_000_000) / 1_000_000,
         checkpointCount,
         anchoringMisses: misses,
       };
@@ -124,7 +155,7 @@ function buildPacingDiagnostics({ milestones = [], injected = null, constraints 
     pacingByMilestone: byMilestone,
     pacingInfeasibleMilestonesCount: infeasible,
     pacingAnchoringMissCount: anchoringMisses,
-    milestonePlacedRatioAvg: Math.round((placedRatioSum / milestoneCount) * 1000) / 1000,
+    milestonePlacedRatioAvg: Math.round((placedRatioSum / milestoneCount) * 1_000_000) / 1_000_000,
   };
 }
 
@@ -134,13 +165,20 @@ export function buildPolicyAndQualityDiagnostics({
   contract = null,
   timeZone = 'UTC',
   policyState = null,
+  historyProfile = null,
 }) {
   const suggestedAssignments = toAssignments(suggestedBlocks, timeZone);
   const qualityPolicyIdRequested = planDraft?.qualityPolicyId || 'BALANCED';
   const minPolicyHoldDays = Number.isFinite(planDraft?.minPolicyHoldDays) ? planDraft.minPolicyHoldDays : 7;
+  const historyWindowCycles = Number.isFinite(planDraft?.historyWindowCycles)
+    ? Number(planDraft.historyWindowCycles)
+    : 5;
+  const historyInfluenceStrength = planDraft?.historyInfluenceStrength || 'standard';
   const milestones = Array.isArray(planDraft?.milestones) ? planDraft.milestones : [];
   const baseActions = Array.isArray(planDraft?.actions) ? planDraft.actions : [];
-  const executionHorizonDays = Number(planDraft?.executionHorizonDays || contract?.horizonDays || planDraft?.horizonDays || 30);
+  const executionHorizonDays = Number(
+    planDraft?.executionHorizonDays || contract?.horizonDays || planDraft?.horizonDays || 30
+  );
   const pacingEnabled = planDraft?.enableMilestonePacing === true;
   const injectedResult =
     pacingEnabled && baseActions.length > 0 && milestones.length > 0
@@ -158,9 +196,7 @@ export function buildPolicyAndQualityDiagnostics({
           policy: { cadenceMode: planDraft?.pacingCadenceMode || 'adaptive' },
         })
       : null;
-  const checkpointActions = injectedResult
-    ? injectedResult.actionsWithCheckpoints.filter((a) => a.isCheckpoint)
-    : [];
+  const checkpointActions = injectedResult ? injectedResult.actionsWithCheckpoints.filter((a) => a.isCheckpoint) : [];
   const checkpointAssignments = buildActionAssignments(
     checkpointActions,
     contract?.startDayKey || '',
@@ -221,6 +257,9 @@ export function buildPolicyAndQualityDiagnostics({
           priorPolicyAgeDays: policyState?.policyAgeDays,
           minPolicyHoldDays,
           priorSignalsSnapshot: policyState?.priorSignalsSnapshot,
+          historyProfile,
+          enableHistoryInfluence: planDraft?.enableHistoryPolicySelection === true,
+          historyInfluenceStrength,
         })
       : {
           selectedPolicyId: qualityPolicyIdRequested,
@@ -233,7 +272,8 @@ export function buildPolicyAndQualityDiagnostics({
           },
         };
 
-  const qualityPolicyIdUsed = policySelectionDecision.hysteresis?.stickyPolicyId || policySelectionDecision.selectedPolicyId;
+  const qualityPolicyIdUsed =
+    policySelectionDecision.hysteresis?.stickyPolicyId || policySelectionDecision.selectedPolicyId;
 
   const scoreBaseline = scoreSchedule({
     assignments,
@@ -299,6 +339,21 @@ export function buildPolicyAndQualityDiagnostics({
     policySelectionDecision,
     policySelectionReasonCodes: [...(policySelectionDecision.reasonCodes || [])],
     policySelectionSignalsSnapshot: selectionSignals,
+    historyProfileSnapshotUsed:
+      planDraft?.enableHistoryPolicySelection === true && historyProfile
+        ? {
+            cycleCount: Number(historyProfile.window?.cycleCount || 0),
+            avgCompletionRate: Number(historyProfile.aggregates?.avgCompletionRate || 0),
+            avgChurnIndex: Number(historyProfile.aggregates?.avgChurnIndex || 0),
+            avgVelocityMinPerDay: Number(historyProfile.aggregates?.avgVelocityMinPerDay || 0),
+            minEndDayKey: historyProfile.window?.minEndDayKey || '',
+            maxEndDayKey: historyProfile.window?.maxEndDayKey || '',
+            usedCycleIds: [...(historyProfile.window?.usedCycleIds || [])],
+            historyWindowCycles,
+            historyInfluenceStrength,
+          }
+        : null,
+    historyReasonCodes: (policySelectionDecision.reasonCodes || []).filter((code) => code.startsWith('HISTORY_')),
     qualityScoreBaseline: scoreBaseline.total,
     qualityScoreBaselineByComponent: { ...scoreBaseline.components },
     qualityScoreOptimized: scoreOptimized.total,
@@ -307,7 +362,10 @@ export function buildPolicyAndQualityDiagnostics({
     pacingCadenceModeUsed: planDraft?.pacingCadenceMode || 'adaptive',
     pacingInjectedCheckpointCount: injectedResult?.injected?.checkpointCount || 0,
     pacingInjectedByMilestone: injectedResult?.injected?.byMilestone || {},
-    pacingSegmentCount: Object.values(pacing.pacingByMilestone).reduce((sum, m) => sum + (m.pacingSegmentCount || 0), 0),
+    pacingSegmentCount: Object.values(pacing.pacingByMilestone).reduce(
+      (sum, m) => sum + (m.pacingSegmentCount || 0),
+      0
+    ),
     pacingRequiredCriticalMinutes: Object.values(pacing.pacingByMilestone).reduce(
       (sum, m) => sum + (m.pacingRequiredCriticalMinutes || 0),
       0
@@ -317,8 +375,11 @@ export function buildPolicyAndQualityDiagnostics({
       0
     ),
     pacingSlackRatio:
-      Object.values(pacing.pacingByMilestone).reduce((sum, m) => sum + (Number(m.pacingSlackRatio) || 0), 0) /
-      Math.max(1, milestones.length),
+      Math.round(
+        (Object.values(pacing.pacingByMilestone).reduce((sum, m) => sum + (Number(m.pacingSlackRatio) || 0), 0) /
+          Math.max(1, milestones.length)) *
+          1_000_000
+      ) / 1_000_000,
     pacingInfeasibleMilestonesCount: pacing.pacingInfeasibleMilestonesCount,
     pacingByMilestone: pacing.pacingByMilestone,
     pacingAnchoringMissCount: pacing.pacingAnchoringMissCount,
@@ -341,7 +402,7 @@ export function buildDraftScheduleItems({
   contract = null,
   timeZone = 'UTC',
   defaults = {},
-  contractStartDayKey: contractStartDayKeyOverride = null
+  contractStartDayKey: contractStartDayKeyOverride = null,
 } = {}) {
   const startDayKey = contractStartDayKeyOverride || getContractStartDayKey(contract, timeZone);
   const normalizedSuggested = filterSuggestionsByStartDayKey(suggestedBlocks, startDayKey, timeZone);
@@ -349,11 +410,7 @@ export function buildDraftScheduleItems({
 
   normalizedSuggested.forEach((suggestion) => {
     const dayKey = normalizeSuggestionDayKey(suggestion, timeZone) || defaults.todayKey || '';
-    const startISO =
-      suggestion.startISO ||
-      suggestion.start ||
-      ensureISO(dayKey, '09:00') ||
-      `${dayKey}T09:00:00.000Z`;
+    const startISO = suggestion.startISO || suggestion.start || ensureISO(dayKey, '09:00') || `${dayKey}T09:00:00.000Z`;
     const minutes = Number(suggestion.durationMinutes) || Number(suggestion.minutes) || 30;
     const title = suggestion.title || suggestion.label || 'Suggested block';
     items.push({
@@ -366,7 +423,7 @@ export function buildDraftScheduleItems({
       title,
       detail: suggestion.detail || suggestion.description || '',
       reason: 'Suggested path',
-      payload: suggestion
+      payload: suggestion,
     });
   });
 
@@ -383,21 +440,31 @@ export function buildDraftScheduleItems({
       title: `${total} forecast block${total !== 1 ? 's' : ''}`,
       detail: entry?.summary || '',
       reason: 'Cold plan',
-      payload: entry
+      payload: entry,
     };
   });
 
   const merged = sortDraftItems([...items, ...route]);
-  if (!startDayKey && !contract?.deadline?.dayKey) return merged;
+  if (!startDayKey && !contract?.deadline?.dayKey) {
+    return merged;
+  }
   return merged.filter((item) => {
-    if (!item.dayKey) return false;
-    if (startDayKey && item.dayKey < startDayKey) return false;
-    if (contract?.deadline?.dayKey && contract.deadline.dayKey && item.dayKey > contract.deadline.dayKey) return false;
+    if (!item.dayKey) {
+      return false;
+    }
+    if (startDayKey && item.dayKey < startDayKey) {
+      return false;
+    }
+    if (contract?.deadline?.dayKey && contract.deadline.dayKey && item.dayKey > contract.deadline.dayKey) {
+      return false;
+    }
     return true;
   });
 }
 
 export function filterDraftItemsByDay(items = [], dayKey) {
-  if (!dayKey) return [];
+  if (!dayKey) {
+    return [];
+  }
   return (items || []).filter((item) => item.dayKey === dayKey);
 }

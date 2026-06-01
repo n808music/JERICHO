@@ -59,7 +59,11 @@ export function authorizeSuggestion(
   const reasons: GovernanceReasonCode[] = [];
   if (!contract || !isContractActive(contract, context.nowISO)) reasons.push('inactive');
   if (contract && !contract.governance.suggestionsEnabled) reasons.push('suggestions_disabled');
-  if (contract && contract.governance.minEvidenceEvents > 0 && context.executionEventCount < contract.governance.minEvidenceEvents) {
+  if (
+    contract &&
+    contract.governance.minEvidenceEvents > 0 &&
+    context.executionEventCount < contract.governance.minEvidenceEvents
+  ) {
     reasons.push('insufficient_evidence');
   }
   if (contract?.constraints?.maxActiveBlocks && context.activeBlocksCount >= contract.constraints.maxActiveBlocks) {
@@ -101,7 +105,11 @@ export function authorizeProbability(
 ) {
   const reasons: GovernanceReasonCode[] = [];
   if (!contract || !isContractActive(contract, context.nowISO)) reasons.push('inactive');
-  if (contract && contract.governance.minEvidenceEvents > 0 && context.executionEventCount < contract.governance.minEvidenceEvents) {
+  if (
+    contract &&
+    contract.governance.minEvidenceEvents > 0 &&
+    context.executionEventCount < contract.governance.minEvidenceEvents
+  ) {
     reasons.push('insufficient_evidence');
   }
   return { allowed: reasons.length === 0, reasons };

@@ -16,7 +16,7 @@ export default function IntegrityDial({ metrics = {} }) {
     { label: 'Completion', value: completion, color: '#ef4444' }, // red
     { label: 'Low drift', value: drift, color: '#3b82f6' }, // blue
     { label: 'Streak', value: streak, color: '#16a34a' }, // distinct green
-    { label: 'Momentum', value: momentum, color: '#0ea5e9' } // cyan/blue-green
+    { label: 'Momentum', value: momentum, color: '#0ea5e9' }, // cyan/blue-green
   ];
 
   const total = slices.reduce((sum, s) => sum + s.value, 0) || 1;
@@ -62,7 +62,8 @@ export default function IntegrityDial({ metrics = {} }) {
         </div>
       </div>
       <p className="text-xs text-muted">
-        Stability reflects alignment, drift resistance, streak consistency, and momentum—surface it when you need a read.
+        Stability reflects alignment, drift resistance, streak consistency, and momentum—surface it when you need a
+        read.
       </p>
     </div>
   );

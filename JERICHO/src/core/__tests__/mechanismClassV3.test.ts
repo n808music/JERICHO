@@ -49,13 +49,7 @@ describe('PlanGenerationMechanismClass', () => {
     });
 
     it('rejects all other mechanisms as unsupported in v1', () => {
-      const unsupported = [
-        'TEMPLATE_PIPELINE',
-        'HABIT_LOOP',
-        'PROJECT_MILESTONE',
-        'DELIVERABLE_DRIVEN',
-        'CUSTOM',
-      ];
+      const unsupported = ['TEMPLATE_PIPELINE', 'HABIT_LOOP', 'PROJECT_MILESTONE', 'DELIVERABLE_DRIVEN', 'CUSTOM'];
       unsupported.forEach((m) => {
         expect(isPhase3SupportedMechanism(m as PlanGenerationMechanismClass)).toBe(false);
       });
@@ -84,13 +78,7 @@ describe('PlanGenerationMechanismClass', () => {
     });
 
     it('indicates future mechanisms', () => {
-      const futureList = [
-        'TEMPLATE_PIPELINE',
-        'HABIT_LOOP',
-        'PROJECT_MILESTONE',
-        'DELIVERABLE_DRIVEN',
-        'CUSTOM',
-      ];
+      const futureList = ['TEMPLATE_PIPELINE', 'HABIT_LOOP', 'PROJECT_MILESTONE', 'DELIVERABLE_DRIVEN', 'CUSTOM'];
       futureList.forEach((m) => {
         const desc = describePlanGenerationMechanism(m as PlanGenerationMechanismClass);
         expect(desc).toContain('future');

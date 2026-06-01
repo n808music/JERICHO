@@ -1,0 +1,58 @@
+export const gumBrandFounderIntake = {
+  goalClassification: 'regulated_physical_consumable',
+  goalDescription: 'Launch a caffeinated functional energy gum brand',
+  targetCategory: 'functional_food',
+  distributionChannel: 'direct_to_consumer',
+  legalFoundation: {
+    existingEntity: true,
+    existingEntityType: 'LLC',
+    existingEntityState: 'IL',
+    existingEntityPurpose: 'project_management',
+    gumEntityExists: false,
+  },
+  formulaPathway: 'undecided',
+  formulaDirection: {
+    caffeineSource: 'undecided',
+    flavorDirection: 'has_ideas',
+    texturePreference: 'undecided',
+    differentiator: 'marketing_vision_defined_formula_undefined',
+  },
+  capitalAvailable: 0,
+  capitalCommitmentConfidence: 'uncertain',
+  capitalAcquisitionRequired: true,
+  capitalAcquisitionAssets: {
+    existingAudience: {
+      spotifyListeners: 23000,
+      instagramFollowers: 1000,
+      audienceRelationship: 'music_career',
+      influencerNetwork: true,
+      entrepreneurNetwork: true,
+    },
+    existingRevenue: {
+      projectManagementCompany: true,
+      allocationToPossible: true,
+    },
+  },
+  weeklyHoursAvailable: 40,
+  executionContext: 'full_time',
+  employmentStatus: 'voluntarily_unemployed',
+  employmentChangeRisk: true,
+  hardDeadline: null,
+  recommendedTimeline: '15_months',
+  timelineSensitivity: 'marketing_window_protection',
+  existingDomainRelationships: [],
+  industryExperience: 'none',
+  location: {
+    state: 'IL',
+    country: 'US',
+  },
+  stopCondition: 'unknown',
+  personalProfile: {
+    resourceConstraint: 'high',
+    ambitionLevel: 'high',
+    directionNeed: 'high',
+    selfAwareness: 'high',
+    realityCheckTolerance: 'high',
+  },
+} as const;
+

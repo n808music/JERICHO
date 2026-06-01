@@ -12,12 +12,12 @@ describe('DRAFT_BLOCK_CREATE reducer', () => {
         'cycle-1': {
           id: 'cycle-1',
           status: 'active',
-          goalContract: { goalId: 'goal-1', startDateISO: '2026-01-01T00:00:00.000Z' }
-        }
+          goalContract: { goalId: 'goal-1', startDateISO: '2026-01-01T00:00:00.000Z' },
+        },
       },
       goalExecutionContract: { goalId: 'goal-1', startDateISO: '2026-01-01T00:00:00.000Z' },
       probabilityByGoal: {},
-      feasibilityByGoal: {}
+      feasibilityByGoal: {},
     };
     const next = computeDerivedState(baseState, {
       type: 'DRAFT_BLOCK_CREATE',
@@ -25,7 +25,7 @@ describe('DRAFT_BLOCK_CREATE reducer', () => {
       endISO: '2026-01-20T10:00:00.000Z',
       domain: 'CREATION',
       title: 'Promoted suggestion',
-      durationMinutes: 60
+      durationMinutes: 60,
     });
     const createEvent = (next.executionEvents || []).find((event) => event.kind === 'create');
     expect(createEvent).toBeTruthy();
@@ -33,40 +33,62 @@ describe('DRAFT_BLOCK_CREATE reducer', () => {
     expect(blockExists).toBe(true);
   });
 
-  it('applies draft schedule items into create events', () => {
+  it('applies draft schedule items into review blocks and activates them into create events', () => {
     const baseState = {
       executionEvents: [],
       appTime: { nowISO: '2026-01-20T00:00:00.000Z', timeZone: 'UTC', activeDayKey: '2026-01-20' },
       today: { date: '2026-01-20', blocks: [] },
       activeCycleId: 'cycle-1',
       planDraft: { blocksPerWeek: 2, daysPerWeek: 4, minutesPerDay: 60 },
-      suggestedBlocks: [
+      proposedBlocks: [
         {
           id: 's1',
+          cycleId: 'cycle-1',
+          goalId: 'goal-1',
           title: 'Suggested block',
           startISO: '2026-01-20T09:30:00.000Z',
+          dayKey: '2026-01-20',
           durationMinutes: 30,
           domain: 'CREATION',
-          status: 'suggested'
-        }
+          status: 'suggested',
+        },
       ],
+      suggestedBlocks: [],
       cyclesById: {
         'cycle-1': {
           id: 'cycle-1',
           status: 'active',
           goalContract: { goalId: 'goal-1', startDateISO: '2026-01-01T00:00:00.000Z' },
+          proposedBlocks: [
+            {
+              id: 's1',
+              cycleId: 'cycle-1',
+              goalId: 'goal-1',
+              title: 'Suggested block',
+              startISO: '2026-01-20T09:30:00.000Z',
+              dayKey: '2026-01-20',
+              durationMinutes: 30,
+              domain: 'CREATION',
+              status: 'suggested',
+            },
+          ],
           coldPlan: {
             forecastByDayKey: {
-              '2026-01-20': { totalBlocks: 1, summary: 'Forecast' }
-            }
-          }
-        }
+              '2026-01-20': { totalBlocks: 1, summary: 'Forecast' },
+            },
+          },
+        },
       },
       goalExecutionContract: { goalId: 'goal-1', startDateISO: '2026-01-01T00:00:00.000Z' },
       probabilityByGoal: {},
       feasibilityByGoal: {},
     };
-    const next = computeDerivedState(baseState, { type: 'APPLY_DRAFT_SCHEDULE' });
+    const reviewed = computeDerivedState(baseState, { type: 'APPLY_DRAFT_SCHEDULE' });
+    expect((reviewed.executionEvents || []).filter((event) => event.kind === 'create')).toHaveLength(0);
+    expect(reviewed.scheduleLifecycle).toBe('applied_review');
+    expect((reviewed.scheduleReviewBlocks || []).length).toBeGreaterThan(0);
+
+    const next = computeDerivedState(reviewed, { type: 'ACTIVATE_SCHEDULE' });
     const createEvents = (next.executionEvents || []).filter((event) => event.kind === 'create');
     expect(createEvents.length).toBeGreaterThan(0);
     expect(next.today?.blocks?.length).toBeGreaterThan(0);

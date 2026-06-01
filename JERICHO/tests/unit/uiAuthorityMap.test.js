@@ -39,7 +39,7 @@ const REQUIRED_IDS = [
   'proof.probability',
   'proof.conflicts',
   'cycle.switch',
-  'cycle.new'
+  'cycle.new',
 ];
 
 describe('UI authority map coverage', () => {

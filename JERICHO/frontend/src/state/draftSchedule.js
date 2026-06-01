@@ -1,5 +1,9 @@
 import { addDays, dayKeyFromISO } from './time/time.ts';
-import { getContractStartDayKey, filterSuggestionsByStartDayKey, normalizeSuggestionDayKey } from './suggestionFilters.js';
+import {
+  getContractStartDayKey,
+  filterSuggestionsByStartDayKey,
+  normalizeSuggestionDayKey,
+} from './suggestionFilters.js';
 import { compileStrategicPlan_OUTPUT, scheduleStrategicPlanToDraftBlocks } from './strategicPlan.ts';
 import { computePlanningActions, computeReadyActions } from '../domain/actions/actionSelectors.ts';
 import { materializeBlocksFromEvents } from './engine/todayAuthority.ts';
@@ -10,7 +14,7 @@ import {
   MAX_BLOCKS_PER_DAY,
   SPINE_FALLBACK_DAYS,
   SPINE_HARD_CAP_DAYS,
-  SPINE_SCHEDULE_MODE
+  SPINE_SCHEDULE_MODE,
 } from './plannerConfig.ts';
 import { getSpineBoundary } from './spineBoundary.ts';
 import { computePrescriptions } from '../domain/prescriptions.ts';
@@ -116,7 +120,9 @@ function collectMilestonesForPlanning(cycle = null, contract = null, state = nul
   if (fromCycle.length) return fromCycle;
   const fromContract = Array.isArray(contract?.milestones) ? contract.milestones : [];
   if (fromContract.length) return fromContract;
-  const fromState = Array.isArray(state?.goalExecutionContract?.milestones) ? state.goalExecutionContract.milestones : [];
+  const fromState = Array.isArray(state?.goalExecutionContract?.milestones)
+    ? state.goalExecutionContract.milestones
+    : [];
   return fromState;
 }
 
@@ -173,7 +179,7 @@ export function buildMilestonePriorityContext(milestones = [], actions = [], slo
       milestoneId: milestone?.id || `milestone:${index + 1}`,
       demandSlots,
       windowStart: milestone.windowStartDayKey,
-      windowEnd: milestone.windowEndDayKey
+      windowEnd: milestone.windowEndDayKey,
     });
 
     allActionIds.forEach((actionId) => {
@@ -183,7 +189,7 @@ export function buildMilestonePriorityContext(milestones = [], actions = [], slo
         hasMilestoneBinding: true,
         milestoneId: milestone?.id || `milestone:${index + 1}`,
         windowStartDayKey: milestone.windowStartDayKey,
-        windowEndDayKey: milestone.windowEndDayKey
+        windowEndDayKey: milestone.windowEndDayKey,
       };
       const current = actionPriority.get(actionId);
       if (!current) {
@@ -203,7 +209,7 @@ export function buildMilestonePriorityContext(milestones = [], actions = [], slo
   return {
     hasMilestones: orderedMilestones.length > 0,
     actionPriority,
-    milestonePrioritySummary
+    milestonePrioritySummary,
   };
 }
 
@@ -220,7 +226,7 @@ function computeMilestoneCriticalContext(milestones = [], actions = []) {
       isMilestoneCritical: true,
       milestoneId: milestone?.id || null,
       windowStartDayKey: milestone?.windowStartDayKey || null,
-      windowEndDayKey: milestone?.windowEndDayKey || null
+      windowEndDayKey: milestone?.windowEndDayKey || null,
     };
     const current = criticalByActionId.get(actionId);
     if (!current) {
@@ -251,7 +257,7 @@ function computeMilestoneCriticalContext(milestones = [], actions = []) {
   });
 
   return {
-    criticalByActionId
+    criticalByActionId,
   };
 }
 
@@ -260,11 +266,11 @@ export function compareActionsStrategic(a, b, context = {}) {
   const criticalDepthMap = context?.criticalDepthMap || new Map();
   const lhsPriority = actionPriority.get(a?.id) || {
     milestoneRank: Number.POSITIVE_INFINITY,
-    isCheckpointAction: false
+    isCheckpointAction: false,
   };
   const rhsPriority = actionPriority.get(b?.id) || {
     milestoneRank: Number.POSITIVE_INFINITY,
-    isCheckpointAction: false
+    isCheckpointAction: false,
   };
 
   if (lhsPriority.milestoneRank !== rhsPriority.milestoneRank) {
@@ -323,14 +329,18 @@ function resolveFullPlanPlacementWindow({
   milestones = [],
   fallbackDays = DRAFT_WINDOW_DAYS,
   guardDays = SPINE_HARD_CAP_DAYS,
-  timeZone = 'UTC'
+  timeZone = 'UTC',
 } = {}) {
-  const fallbackEndDayKey = startDayKey ? addDays(startDayKey, Math.max(0, Number(fallbackDays || 7) - 1), timeZone) : null;
+  const fallbackEndDayKey = startDayKey
+    ? addDays(startDayKey, Math.max(0, Number(fallbackDays || 7) - 1), timeZone)
+    : null;
   const milestoneEndDayKeys = (milestones || [])
     .map((milestone) => normalizeDayKey(milestone?.windowEndDayKey, timeZone))
     .filter(Boolean)
     .sort();
-  const latestMilestoneEndDayKey = milestoneEndDayKeys.length ? milestoneEndDayKeys[milestoneEndDayKeys.length - 1] : null;
+  const latestMilestoneEndDayKey = milestoneEndDayKeys.length
+    ? milestoneEndDayKeys[milestoneEndDayKeys.length - 1]
+    : null;
   let horizonMode = 'ROUTE_WINDOW';
   let requestedEndDayKey = fallbackEndDayKey || goalDeadlineDayKey || startDayKey || null;
 
@@ -353,7 +363,9 @@ function resolveFullPlanPlacementWindow({
   }
   const guardApplied = Boolean(endDayKey && requestedEndDayKey && endDayKey !== requestedEndDayKey);
   const horizonDays =
-    startDayKey && endDayKey ? Math.max(1, dayDiffInclusive(startDayKey, endDayKey)) : Math.max(1, Number(fallbackDays || 7));
+    startDayKey && endDayKey
+      ? Math.max(1, dayDiffInclusive(startDayKey, endDayKey))
+      : Math.max(1, Number(fallbackDays || 7));
   return {
     horizonMode,
     startDayKey: startDayKey || null,
@@ -361,7 +373,7 @@ function resolveFullPlanPlacementWindow({
     horizonDays,
     requestedEndDayKey: requestedEndDayKey || null,
     guardApplied,
-    guardDays: resolvedGuardDays
+    guardDays: resolvedGuardDays,
   };
 }
 
@@ -443,7 +455,7 @@ function getScheduledActionIds(state, cycleId) {
   const materialized = materializeBlocksFromEvents(events, { todayISO: state?.today?.date });
   const blocks = [
     ...(materialized?.todayBlocks || []),
-    ...((materialized?.days || []).flatMap((day) => day?.blocks || []))
+    ...(materialized?.days || []).flatMap((day) => day?.blocks || []),
   ];
   return blocks.reduce((set, block) => {
     if (!block?.actionId) return set;
@@ -514,7 +526,7 @@ export function buildRouteSlotsWindow(state, cycleIdOrOptions = {}, maybeOptions
     routeMinutes = 30,
     timeZone = 'UTC',
     existingDraftItems = [],
-    excludeOverlaps = true
+    excludeOverlaps = true,
   } = options;
   const cycle = getCycle(state, cycleId);
   const startDayKey = normalizeDayKey(startDateISO || state?.appTime?.activeDayKey || state?.today?.date, timeZone);
@@ -537,11 +549,19 @@ export function buildRouteSlotsWindow(state, cycleIdOrOptions = {}, maybeOptions
     if (!occupiedByDay.has(dayKey)) occupiedByDay.set(dayKey, []);
     occupiedByDay.get(dayKey).push({ start, end });
   };
-  const occupiedStatuses = new Set(['planned', 'scheduled', 'pending', 'active', 'in_progress', 'in-progress', 'started']);
+  const occupiedStatuses = new Set([
+    'planned',
+    'scheduled',
+    'pending',
+    'active',
+    'in_progress',
+    'in-progress',
+    'started',
+  ]);
   const materialized = materializeBlocksFromEvents(state?.executionEvents || [], { todayISO: state?.today?.date });
   const materializedBlocks = [
     ...(materialized?.todayBlocks || []),
-    ...((materialized?.days || []).flatMap((day) => day?.blocks || []))
+    ...(materialized?.days || []).flatMap((day) => day?.blocks || []),
   ];
   materializedBlocks.forEach((block) => {
     if (!block || block.cycleId !== cycleId) return;
@@ -592,7 +612,7 @@ export function buildRouteSlotsWindow(state, cycleIdOrOptions = {}, maybeOptions
         minutes,
         slotIndex,
         deliverableId: deliverableSlots[slotIndex] || null,
-        source: 'forecast_window'
+        source: 'forecast_window',
       });
     }
   }
@@ -615,9 +635,14 @@ export function getDraftBoundary(
     const timeZone = state?.appTime?.timeZone || 'UTC';
     const startDayKey = normalizeDayKey(state?.appTime?.activeDayKey || state?.today?.date, timeZone);
     const endDayKey = normalizeDayKey(boundary?.boundaryEndISO, timeZone);
-    const cappedEndDayKey = startDayKey && endDayKey ? addDays(startDayKey, Math.max(0, hardCapDays - 1), timeZone) : endDayKey;
-    const effectiveEndDayKey = endDayKey && cappedEndDayKey && endDayKey > cappedEndDayKey ? cappedEndDayKey : endDayKey;
-    const resolvedDays = startDayKey && effectiveEndDayKey ? dayDiffInclusive(startDayKey, effectiveEndDayKey) : Number(daysForward || SPINE_FALLBACK_DAYS);
+    const cappedEndDayKey =
+      startDayKey && endDayKey ? addDays(startDayKey, Math.max(0, hardCapDays - 1), timeZone) : endDayKey;
+    const effectiveEndDayKey =
+      endDayKey && cappedEndDayKey && endDayKey > cappedEndDayKey ? cappedEndDayKey : endDayKey;
+    const resolvedDays =
+      startDayKey && effectiveEndDayKey
+        ? dayDiffInclusive(startDayKey, effectiveEndDayKey)
+        : Number(daysForward || SPINE_FALLBACK_DAYS);
     const clamped = Boolean(endDayKey && effectiveEndDayKey && endDayKey !== effectiveEndDayKey);
     const kind =
       clamped || boundary?.boundaryKind === 'HORIZON_FALLBACK'
@@ -635,21 +660,26 @@ export function getDraftBoundary(
       covered: false,
       deadlineISO: boundary?.boundaryDeadlineISO || null,
       boundaryEndISO: effectiveEndDayKey ? `${effectiveEndDayKey}T23:59:59.000Z` : boundary?.boundaryEndISO || null,
-      capped: Boolean(boundary?.capped || clamped)
+      capped: Boolean(boundary?.capped || clamped),
     };
   }
   const actions = getCycleActions(state, cycleId, []);
   const deliverables = getCycleDeliverables(state, cycleId, []);
   const scheduledActionIds = getScheduledActionIds(state, cycleId);
-  const startDayKey = normalizeDayKey(state?.appTime?.activeDayKey || state?.today?.date, state?.appTime?.timeZone || 'UTC');
-  const horizonEndISO = startDayKey ? `${addDays(startDayKey, daysForward - 1, state?.appTime?.timeZone || 'UTC')}T23:59:59.000Z` : null;
+  const startDayKey = normalizeDayKey(
+    state?.appTime?.activeDayKey || state?.today?.date,
+    state?.appTime?.timeZone || 'UTC'
+  );
+  const horizonEndISO = startDayKey
+    ? `${addDays(startDayKey, daysForward - 1, state?.appTime?.timeZone || 'UTC')}T23:59:59.000Z`
+    : null;
   if (_mode === 'HORIZON_ONLY') {
     return {
       kind: 'HORIZON',
       daysForward,
       label: `Next ${daysForward} days`,
       covered: false,
-      horizonEndISO
+      horizonEndISO,
     };
   }
   const orderedDeliverables = (deliverables || [])
@@ -658,8 +688,11 @@ export function getDraftBoundary(
       index,
       dueKey:
         deliverable?.dueDayKey ||
-        normalizeDayKey(deliverable?.dueISO || deliverable?.dueDateISO || deliverable?.dueDate, state?.appTime?.timeZone || 'UTC') ||
-        ''
+        normalizeDayKey(
+          deliverable?.dueISO || deliverable?.dueDateISO || deliverable?.dueDate,
+          state?.appTime?.timeZone || 'UTC'
+        ) ||
+        '',
     }))
     .sort((a, b) => {
       if (a.dueKey !== b.dueKey) return `${a.dueKey}`.localeCompare(`${b.dueKey}`);
@@ -679,7 +712,7 @@ export function getDraftBoundary(
       daysForward,
       label: formatBoundaryLabel(entry.deliverable, daysForward),
       covered,
-      deadlineISO: entry.dueKey ? `${entry.dueKey}T23:59:59.000Z` : null
+      deadlineISO: entry.dueKey ? `${entry.dueKey}T23:59:59.000Z` : null,
     };
     if (!covered) return boundary;
     if (!firstCovered) firstCovered = boundary;
@@ -691,7 +724,7 @@ export function getDraftBoundary(
     daysForward,
     label: `Next ${daysForward} days`,
     covered: false,
-    horizonEndISO
+    horizonEndISO,
   };
 }
 
@@ -714,12 +747,12 @@ export function buildRouteSlotsUntilBoundary(
     routeMinutes,
     timeZone,
     existingDraftItems,
-    excludeOverlaps: true
+    excludeOverlaps: true,
   });
   return {
     slots: window.slots || [],
     daysCovered: window.daysCovered || 0,
-    routeSlotsCount: (window.slots || []).length
+    routeSlotsCount: (window.slots || []).length,
   };
 }
 
@@ -739,7 +772,7 @@ export function buildRouteSlotsToDeadline(
       daysCovered: 0,
       startDateISO: startDayKey ? `${startDayKey}T00:00:00.000Z` : null,
       effectiveDeadlineISO: rawDeadlineDayKey ? `${rawDeadlineDayKey}T23:59:59.000Z` : null,
-      hardCapApplied: false
+      hardCapApplied: false,
     };
   }
   const cappedDeadlineDayKey = addDays(startDayKey, Math.max(0, SPINE_HARD_CAP_DAYS - 1), timeZone);
@@ -752,7 +785,7 @@ export function buildRouteSlotsToDeadline(
       daysCovered: 0,
       startDateISO: `${startDayKey}T00:00:00.000Z`,
       effectiveDeadlineISO: `${effectiveDeadlineDayKey}T23:59:59.000Z`,
-      hardCapApplied
+      hardCapApplied,
     };
   }
 
@@ -768,11 +801,19 @@ export function buildRouteSlotsToDeadline(
     if (!occupiedByDay.has(dayKey)) occupiedByDay.set(dayKey, []);
     occupiedByDay.get(dayKey).push({ start, end });
   };
-  const occupiedStatuses = new Set(['planned', 'scheduled', 'pending', 'active', 'in_progress', 'in-progress', 'started']);
+  const occupiedStatuses = new Set([
+    'planned',
+    'scheduled',
+    'pending',
+    'active',
+    'in_progress',
+    'in-progress',
+    'started',
+  ]);
   const materialized = materializeBlocksFromEvents(state?.executionEvents || [], { todayISO: state?.today?.date });
   const materializedBlocks = [
     ...(materialized?.todayBlocks || []),
-    ...((materialized?.days || []).flatMap((day) => day?.blocks || []))
+    ...(materialized?.days || []).flatMap((day) => day?.blocks || []),
   ];
   materializedBlocks.forEach((block) => {
     if (!block || block.cycleId !== cycleId) return;
@@ -821,7 +862,7 @@ export function buildRouteSlotsToDeadline(
         minutes,
         slotIndex,
         deliverableId: deliverableSlots[slotIndex] || null,
-        source: 'forecast_deadline'
+        source: 'forecast_deadline',
       });
       emittedForDay += 1;
     }
@@ -839,7 +880,7 @@ export function buildRouteSlotsToDeadline(
     daysCovered: new Set(slots.map((slot) => slot.dayKey)).size,
     startDateISO: `${startDayKey}T00:00:00.000Z`,
     effectiveDeadlineISO: `${effectiveDeadlineDayKey}T23:59:59.000Z`,
-    hardCapApplied
+    hardCapApplied,
   };
 }
 
@@ -853,7 +894,7 @@ export function buildEvenlySpacedSlots(
     slotDurationMin = 30,
     eligibleWeekdays = null,
     maxBlocksPerDay = MAX_BLOCKS_PER_DAY,
-    selectionMode = 'target_count'
+    selectionMode = 'target_count',
   } = {}
 ) {
   if (!Number.isFinite(actionsCount) || actionsCount <= 0 || !startDayKey || !deadlineDayKey) return [];
@@ -890,7 +931,7 @@ export function buildEvenlySpacedSlots(
         routeKey: `route:${dayKey}`,
         slotKey: `slot:${dayKey}:${startMin}`,
         deliverableId: null,
-        source: 'full_plan_even_spread'
+        source: 'full_plan_even_spread',
       });
     }
   });
@@ -899,7 +940,7 @@ export function buildEvenlySpacedSlots(
   if (selectionMode === 'all_candidates') {
     return candidateSlots.map((slot, index) => ({
       ...slot,
-      slotIndex: index
+      slotIndex: index,
     }));
   }
 
@@ -913,7 +954,7 @@ export function buildEvenlySpacedSlots(
     const selected = candidateSlots[boundedIndex];
     slots.push({
       ...selected,
-      slotIndex: i
+      slotIndex: i,
     });
     previousIndex = boundedIndex;
   }
@@ -935,7 +976,7 @@ export function filterSlotsByCapacityCaps(
     maxScheduledMinutesPerDay = null,
     maxScheduledMinutesPerWeek = null,
     existingDayUsage = null,
-    existingWeekUsage = null
+    existingWeekUsage = null,
   } = {}
 ) {
   const dayCap = Number.isFinite(maxScheduledMinutesPerDay) ? Math.max(1, Number(maxScheduledMinutesPerDay)) : null;
@@ -969,7 +1010,7 @@ export function filterSlotsByCapacityCaps(
   return {
     slots: allowed,
     dayUsage: Object.fromEntries(dayUsage.entries()),
-    weekUsage: Object.fromEntries(weekUsage.entries())
+    weekUsage: Object.fromEntries(weekUsage.entries()),
   };
 }
 
@@ -995,7 +1036,7 @@ export function assignActionsToSlotsSequential(actionsOrdered = [], slots = []) 
       requiredSlots,
       availableSlots,
       missingSlots,
-      unassignedActions
+      unassignedActions,
     };
   }
   return {
@@ -1004,7 +1045,7 @@ export function assignActionsToSlotsSequential(actionsOrdered = [], slots = []) 
     requiredSlots,
     availableSlots,
     unusedSlots,
-    unassignedActions
+    unassignedActions,
   };
 }
 
@@ -1029,17 +1070,13 @@ function resolveActionDependencyBufferMinutes(action = null, fallbackBufferMinut
   return Number.isFinite(fallback) ? Math.max(0, Math.round(fallback)) : 0;
 }
 
-export function computeDepReadyCutoffTs(
-  action = null,
-  placedChunksByActionId = new Map(),
-  fallbackBufferMinutes = 0
-) {
+export function computeDepReadyCutoffTs(action = null, placedChunksByActionId = new Map(), fallbackBufferMinutes = 0) {
   const depIds = resolveActionDependencyIds(action);
   if (!depIds.length) {
     return {
       cutoffTs: -Infinity,
       unresolvedDepIds: [],
-      bufferMinutesUsed: resolveActionDependencyBufferMinutes(action, fallbackBufferMinutes)
+      bufferMinutesUsed: resolveActionDependencyBufferMinutes(action, fallbackBufferMinutes),
     };
   }
 
@@ -1064,7 +1101,7 @@ export function computeDepReadyCutoffTs(
   return {
     cutoffTs: depMaxEndAt + bufferMinutesUsed * 60000,
     unresolvedDepIds: [],
-    bufferMinutesUsed
+    bufferMinutesUsed,
   };
 }
 
@@ -1106,12 +1143,10 @@ function toScoreAssignments(assignments = []) {
     .map((row) => {
       const dayKey = row?.slot?.dayKey || row?.slot?.dateISO || null;
       const startISO = row?.slot?.startISO || null;
-      const startMin =
-        Number.isFinite(row?.slot?.startMin) ? Number(row.slot.startMin) : minutesFromISO(startISO || '') || 0;
-      const durationMin = Math.max(
-        1,
-        Number(row?.allocatedMin || row?.slot?.minutes || row?.durationMin || 30)
-      );
+      const startMin = Number.isFinite(row?.slot?.startMin)
+        ? Number(row.slot.startMin)
+        : minutesFromISO(startISO || '') || 0;
+      const durationMin = Math.max(1, Number(row?.allocatedMin || row?.slot?.minutes || row?.durationMin || 30));
       if (!row?.action?.id || !dayKey) return null;
       return {
         actionId: row.action.id,
@@ -1120,7 +1155,7 @@ function toScoreAssignments(assignments = []) {
         dayKey,
         startMin,
         durationMin,
-        category: row?.action?.category || null
+        category: row?.action?.category || null,
       };
     })
     .filter(Boolean)
@@ -1137,7 +1172,7 @@ function buildQualityMetricsContext(stats = {}) {
     milestoneWindowSlack: null,
     unplacedEstimateMinTotal: Number(stats?.unplacedEstimateMinTotal || 0),
     outsideExecutionHorizonEstimateMinTotal: Number(stats?.outsideExecutionHorizonEstimateMinTotal || 0),
-    outsideExecutionHorizonCount: Number(stats?.outsideExecutionHorizonCount || 0)
+    outsideExecutionHorizonCount: Number(stats?.outsideExecutionHorizonCount || 0),
   };
 }
 
@@ -1145,7 +1180,7 @@ function applyOptimizedAssignmentsToRows(rows = [], optimizedAssignments = []) {
   const byKey = new Map(
     (optimizedAssignments || []).map((assignment) => [
       `${assignment.actionId}::${Number(assignment.chunkIndex || 0)}`,
-      assignment
+      assignment,
     ])
   );
   return (rows || []).map((row) => {
@@ -1166,8 +1201,8 @@ function applyOptimizedAssignmentsToRows(rows = [], optimizedAssignments = []) {
         endMin: optimized.startMin + durationMin,
         startISO,
         endISO,
-        minutes: durationMin
-      }
+        minutes: durationMin,
+      },
     };
   });
 }
@@ -1182,7 +1217,10 @@ function usageFromIntervalsByDay(intervalsByDay = new Map()) {
   const dayUsage = new Map();
   const weekUsage = new Map();
   intervalsByDay.forEach((intervals, dayKey) => {
-    const minutes = (intervals || []).reduce((sum, interval) => sum + Math.max(1, Math.round((interval.endTs - interval.startTs) / 60000)), 0);
+    const minutes = (intervals || []).reduce(
+      (sum, interval) => sum + Math.max(1, Math.round((interval.endTs - interval.startTs) / 60000)),
+      0
+    );
     if (minutes <= 0) return;
     dayUsage.set(dayKey, (dayUsage.get(dayKey) || 0) + minutes);
     const weekKey = weekKeyForDay(dayKey) || dayKey;
@@ -1202,18 +1240,8 @@ function normalizeReservationFromItem(item, source = 'unknown') {
     : null;
   const endTs = toTs(endISO) ?? inferredEndTs;
   if (!Number.isFinite(startTs) || !Number.isFinite(endTs) || endTs <= startTs) return null;
-  const chunkIndex = Number(
-    item?.chunkIndex ??
-      item?.meta?.chunkIndex ??
-      item?.payload?.chunkIndex ??
-      0
-  );
-  const chunkCount = Number(
-    item?.chunkCount ??
-      item?.meta?.chunkCount ??
-      item?.payload?.chunkCount ??
-      1
-  );
+  const chunkIndex = Number(item?.chunkIndex ?? item?.meta?.chunkIndex ?? item?.payload?.chunkIndex ?? 0);
+  const chunkCount = Number(item?.chunkCount ?? item?.meta?.chunkCount ?? item?.payload?.chunkCount ?? 1);
   const allocatedMin = Math.max(
     1,
     Number(
@@ -1237,19 +1265,14 @@ function normalizeReservationFromItem(item, source = 'unknown') {
     blockId: item?.id || item?.blockId || null,
     source: normalizeReservationSource(source),
     startISO: startISO || new Date(startTs).toISOString(),
-    endISO: endISO || new Date(endTs).toISOString()
+    endISO: endISO || new Date(endTs).toISOString(),
   };
 }
 
 function collectExistingReservations(
   state,
   cycleId,
-  {
-    executionWindowStartDayKey,
-    executionWindowEndDayKey,
-    planningActions = [],
-    slotDurationMin = 30
-  } = {}
+  { executionWindowStartDayKey, executionWindowEndDayKey, planningActions = [], slotDurationMin = 30 } = {}
 ) {
   const actionById = buildActionIndexById(planningActions);
   const actionPlanById = buildActionPlanById(planningActions, slotDurationMin);
@@ -1268,18 +1291,15 @@ function collectExistingReservations(
           ? startTs + Math.max(1, Number(entry.minutes)) * 60000
           : null;
       const resolvedEndTs = endTs ?? inferredEndTs;
-      const dayKey = entry?.dayKey || entry?.dateISO || dayKeyFromISO(entry?.startISO || entry?.start || '', 'UTC') || null;
+      const dayKey =
+        entry?.dayKey || entry?.dateISO || dayKeyFromISO(entry?.startISO || entry?.start || '', 'UTC') || null;
       if (Number.isFinite(startTs) && Number.isFinite(resolvedEndTs) && resolvedEndTs > startTs) {
         addIntervalByDay(immutableIntervalsByDay, dayKey, startTs, resolvedEndTs, { reason: 'ORPHAN_RESERVATION' });
         orphanReservationCount += 1;
       }
       return;
     }
-    if (
-      executionWindowStartDayKey &&
-      reservation.dayKey &&
-      reservation.dayKey < executionWindowStartDayKey
-    ) {
+    if (executionWindowStartDayKey && reservation.dayKey && reservation.dayKey < executionWindowStartDayKey) {
       return;
     }
     if (executionWindowEndDayKey && reservation.dayKey && reservation.dayKey > executionWindowEndDayKey) {
@@ -1287,7 +1307,7 @@ function collectExistingReservations(
     }
     if (!actionById.has(reservation.actionId)) {
       addIntervalByDay(immutableIntervalsByDay, reservation.dayKey, reservation.startTs, reservation.endTs, {
-        reason: 'ACTION_REMOVED'
+        reason: 'ACTION_REMOVED',
       });
       orphanReservationCount += 1;
       return;
@@ -1295,7 +1315,7 @@ function collectExistingReservations(
     const actionPlan = actionPlanById.get(reservation.actionId);
     if (!actionPlan || reservation.chunkIndex >= actionPlan.chunkCount) {
       addIntervalByDay(immutableIntervalsByDay, reservation.dayKey, reservation.startTs, reservation.endTs, {
-        reason: 'USER_EDITED_BLOCK'
+        reason: 'USER_EDITED_BLOCK',
       });
       orphanReservationCount += 1;
       return;
@@ -1315,7 +1335,7 @@ function collectExistingReservations(
   const materialized = materializeBlocksFromEvents(state?.executionEvents || [], { todayISO: state?.today?.date });
   const blocks = [
     ...(materialized?.todayBlocks || []),
-    ...((materialized?.days || []).flatMap((day) => day?.blocks || []))
+    ...(materialized?.days || []).flatMap((day) => day?.blocks || []),
   ];
   blocks.forEach((block) => {
     if (!block || block?.cycleId !== cycleId) return;
@@ -1340,9 +1360,7 @@ function collectExistingReservations(
       });
       return;
     }
-    rows
-      .sort((lhs, rhs) => lhs.chunkIndex - rhs.chunkIndex)
-      .forEach((row) => reservations.push(row));
+    rows.sort((lhs, rhs) => lhs.chunkIndex - rhs.chunkIndex).forEach((row) => reservations.push(row));
   });
 
   return { reservations, immutableIntervalsByDay, orphanReservationCount };
@@ -1363,7 +1381,7 @@ export function buildActionChunkPlan(action, slotDurationMin = 30, fallbackMin =
     actionId: action?.id || null,
     estimateMin,
     chunkCount,
-    chunks
+    chunks,
   };
 }
 
@@ -1377,7 +1395,7 @@ export function assignActionChunksToSlots(
   const {
     actionConstraintsById = new Map(),
     dependencyBufferMinutes = 0,
-    seedAssignmentRowsByActionId = null
+    seedAssignmentRowsByActionId = null,
   } = options || {};
   const assignments = [];
   const requiredChunks = [];
@@ -1402,7 +1420,7 @@ export function assignActionChunksToSlots(
         chunkIndex,
         chunkCount: plan.chunkCount,
         allocatedMin: plan.chunks[chunkIndex],
-        estimateMin: plan.estimateMin
+        estimateMin: plan.estimateMin,
       });
     }
   });
@@ -1498,7 +1516,9 @@ export function assignActionChunksToSlots(
             ? 'DEP_NOT_READY_IN_WINDOW'
             : 'MILESTONE_WINDOW_NO_SLOT';
       } else {
-        unassignedActionReasons[actionId] = enforceDependencyCutoff ? 'DEPENDENCY_NOT_READY' : 'INSUFFICIENT_ROUTE_SLOTS_TO_DEADLINE';
+        unassignedActionReasons[actionId] = enforceDependencyCutoff
+          ? 'DEPENDENCY_NOT_READY'
+          : 'INSUFFICIENT_ROUTE_SLOTS_TO_DEADLINE';
       }
       continue;
     }
@@ -1513,14 +1533,14 @@ export function assignActionChunksToSlots(
         chunkCount: plan.chunkCount,
         allocatedMin: plan.chunks[chunkIndex],
         estimateMin: plan.estimateMin,
-        slot: selected.slot
+        slot: selected.slot,
       });
       rows.push({
         chunkIndex,
         chunkCount: plan.chunkCount,
         allocatedMin: plan.chunks[chunkIndex],
         estimateMin: plan.estimateMin,
-        slot: selected.slot
+        slot: selected.slot,
       });
     }
     assignmentRowsByActionId.set(actionId, rows);
@@ -1539,7 +1559,7 @@ export function assignActionChunksToSlots(
       unusedSlots,
       unassignedActions,
       unassignedActionReasons,
-      softWindowFallbackCount
+      softWindowFallbackCount,
     };
   }
 
@@ -1552,7 +1572,7 @@ export function assignActionChunksToSlots(
     unusedSlots,
     unassignedActions,
     unassignedActionReasons,
-    softWindowFallbackCount
+    softWindowFallbackCount,
   };
 }
 
@@ -1568,15 +1588,19 @@ function buildStickyExecutionAssignments({
   maxScheduledMinutesPerWeek = null,
   executionStartDayKey = null,
   executionEndDayKey = null,
-  strategicComparator = null
+  strategicComparator = null,
 } = {}) {
   const actionById = buildActionIndexById(planningActions);
-  const { reservations, immutableIntervalsByDay, orphanReservationCount } = collectExistingReservations(state, cycleId, {
-    executionWindowStartDayKey: executionStartDayKey,
-    executionWindowEndDayKey: executionEndDayKey,
-    planningActions,
-    slotDurationMin
-  });
+  const { reservations, immutableIntervalsByDay, orphanReservationCount } = collectExistingReservations(
+    state,
+    cycleId,
+    {
+      executionWindowStartDayKey: executionStartDayKey,
+      executionWindowEndDayKey: executionEndDayKey,
+      planningActions,
+      slotDurationMin,
+    }
+  );
   const reservationsByAction = new Map();
   reservations.forEach((reservation) => {
     if (!reservationsByAction.has(reservation.actionId)) reservationsByAction.set(reservation.actionId, []);
@@ -1596,7 +1620,8 @@ function buildStickyExecutionAssignments({
       const strategic = strategicComparator(leftAction, rightAction);
       if (strategic !== 0) return strategic;
     }
-    if ((lhs?.actionId || '') !== (rhs?.actionId || '')) return (lhs?.actionId || '').localeCompare(rhs?.actionId || '');
+    if ((lhs?.actionId || '') !== (rhs?.actionId || ''))
+      return (lhs?.actionId || '').localeCompare(rhs?.actionId || '');
     if ((lhs?.chunkIndex || 0) !== (rhs?.chunkIndex || 0)) return (lhs?.chunkIndex || 0) - (rhs?.chunkIndex || 0);
     return `${lhs?.blockId || ''}`.localeCompare(`${rhs?.blockId || ''}`);
   };
@@ -1622,7 +1647,7 @@ function buildStickyExecutionAssignments({
       oldStartISO: reservation.startISO,
       oldEndISO: reservation.endISO,
       reason,
-      outcome
+      outcome,
     });
   };
 
@@ -1685,7 +1710,7 @@ function buildStickyExecutionAssignments({
     weekUsage.set(weekKey, weekUsed + minutes);
     addIntervalByDay(preservedIntervalsByDay, reservation.dayKey, reservation.startTs, reservation.endTs, {
       actionId: reservation.actionId,
-      chunkIndex: reservation.chunkIndex
+      chunkIndex: reservation.chunkIndex,
     });
     const row = {
       action,
@@ -1698,9 +1723,9 @@ function buildStickyExecutionAssignments({
         dateISO: reservation.dayKey,
         startISO: reservation.startISO,
         endISO: reservation.endISO,
-        minutes
+        minutes,
       },
-      stickyPreserved: true
+      stickyPreserved: true,
     };
     preservedRows.push(row);
     if (!assignmentRowsByActionId.has(reservation.actionId)) assignmentRowsByActionId.set(reservation.actionId, []);
@@ -1711,7 +1736,7 @@ function buildStickyExecutionAssignments({
       oldStartISO: reservation.startISO,
       oldEndISO: reservation.endISO,
       reason: null,
-      outcome: 'preserved'
+      outcome: 'preserved',
     });
   });
 
@@ -1738,15 +1763,21 @@ function buildStickyExecutionAssignments({
           maxScheduledMinutesPerDay: dayCap,
           maxScheduledMinutesPerWeek: weekCap,
           existingDayUsage,
-          existingWeekUsage
+          existingWeekUsage,
         }).slots
       : remainingCandidateSlots;
 
-  const fillAssignment = assignActionChunksToSlots(remainingActions, filteredRemainingSlots, slotDurationMin, slotDurationMin, {
-    actionConstraintsById,
-    dependencyBufferMinutes,
-    seedAssignmentRowsByActionId: assignmentRowsByActionId
-  });
+  const fillAssignment = assignActionChunksToSlots(
+    remainingActions,
+    filteredRemainingSlots,
+    slotDurationMin,
+    slotDurationMin,
+    {
+      actionConstraintsById,
+      dependencyBufferMinutes,
+      seedAssignmentRowsByActionId: assignmentRowsByActionId,
+    }
+  );
 
   const finalAssignments = [...preservedRows, ...(fillAssignment.assignments || [])];
   const finalRowsByActionId = new Map();
@@ -1799,7 +1830,7 @@ function buildStickyExecutionAssignments({
   const reflow = assignActionChunksToSlots(demotedActions, availableAfterDemotion, slotDurationMin, slotDurationMin, {
     actionConstraintsById,
     dependencyBufferMinutes,
-    seedAssignmentRowsByActionId: stableRowsByActionId
+    seedAssignmentRowsByActionId: stableRowsByActionId,
   });
   reflow.assignments.forEach((row) => stableAssignments.push(row));
 
@@ -1834,7 +1865,7 @@ function buildStickyExecutionAssignments({
           oldStartISO: reservation.startISO,
           oldEndISO: reservation.endISO,
           reason: 'UNKNOWN_INVALIDATION',
-          outcome: 'dropped'
+          outcome: 'dropped',
         });
       }
       return;
@@ -1854,14 +1885,14 @@ function buildStickyExecutionAssignments({
       oldStartISO: reservation.startISO,
       oldEndISO: reservation.endISO,
       reason,
-      outcome: 'moved'
+      outcome: 'moved',
     });
   });
 
   return {
     assignment: {
       ...fillAssignment,
-      assignments: stableAssignments
+      assignments: stableAssignments,
     },
     stickyStats: {
       reservationInputCount: reservations.length,
@@ -1874,8 +1905,8 @@ function buildStickyExecutionAssignments({
       droppedChunkCount,
       churnMovedMinutesTotal,
       churnReasonsCount,
-      rescheduleDecisions
-    }
+      rescheduleDecisions,
+    },
   };
 }
 
@@ -1963,14 +1994,11 @@ export function getDraftDiagnostics({
   graphInvalid = false,
   noActionPlan = false,
   scheduleMode = SPINE_SCHEDULE_MODE,
-  reasonCodeOverride = null
+  reasonCodeOverride = null,
 } = {}) {
   const requestedAutomationSlots = Number.isFinite(routeSlotsCount)
     ? Math.max(0, Number(routeSlotsCount))
-    : (routeSuggestions || []).reduce(
-    (sum, entry) => sum + Math.max(0, Number(entry?.totalBlocks) || 0),
-    0
-  );
+    : (routeSuggestions || []).reduce((sum, entry) => sum + Math.max(0, Number(entry?.totalBlocks) || 0), 0);
   const actionCount = (actions || []).length;
   const readyActionsCount = buildReadyActionCandidates(actions).length;
   const scopedDraftItems = Array.isArray(fullDraftItems) ? fullDraftItems : draftItems || [];
@@ -1984,7 +2012,8 @@ export function getDraftDiagnostics({
     const estimateMin = resolveActionEstimateMin(action, routeDurationMin);
     return sum + Math.max(1, Math.ceil(estimateMin / routeDurationMin));
   }, 0);
-  const draftedActionsCount = new Set(scopedDraftItems.filter((item) => item?.actionId).map((item) => item.actionId)).size;
+  const draftedActionsCount = new Set(scopedDraftItems.filter((item) => item?.actionId).map((item) => item.actionId))
+    .size;
   const blockedDraftedCount = scopedDraftItems.filter((item) => Boolean(item?.meta?.blocked || item?.blocked)).length;
   const planningActions = buildPlanningActionCandidates(actions);
   const blockedPlannedCount = planningActions.filter((action) => action?.blocked).length;
@@ -2018,7 +2047,7 @@ export function getDraftDiagnostics({
           deadlineISO: resolvedDeadlineISO,
           maxBlocksPerDay,
           routeMinutes: 30,
-          timeZone: state?.appTime?.timeZone || 'UTC'
+          timeZone: state?.appTime?.timeZone || 'UTC',
         }).availableSlotsCount
       : null;
   const resolvedRequiredSlotsWeighted = Number.isFinite(requiredSlotsWeighted)
@@ -2032,10 +2061,10 @@ export function getDraftDiagnostics({
   const resolvedAvailableSlots = Number.isFinite(availableSlotsFromPlacement)
     ? Math.max(0, Number(availableSlotsFromPlacement))
     : Number.isFinite(availableSlots)
-    ? Math.max(0, Number(availableSlots))
-    : Number.isFinite(derivedAvailableSlots)
-      ? Math.max(0, Number(derivedAvailableSlots))
-    : requestedAutomationSlots;
+      ? Math.max(0, Number(availableSlots))
+      : Number.isFinite(derivedAvailableSlots)
+        ? Math.max(0, Number(derivedAvailableSlots))
+        : requestedAutomationSlots;
   const resolvedMissingSlots = Number.isFinite(missingSlots)
     ? Math.max(0, Number(missingSlots))
     : Math.max(0, resolvedRequiredSlots - resolvedAvailableSlots);
@@ -2054,14 +2083,16 @@ export function getDraftDiagnostics({
     unassignedActionReasons && typeof unassignedActionReasons === 'object' ? { ...unassignedActionReasons } : {};
   const resolvedMilestoneWindowMissCountPlacement = Number.isFinite(milestoneWindowMissCountPlacement)
     ? Math.max(0, Number(milestoneWindowMissCountPlacement))
-    : Object.values(resolvedUnassignedActionReasons).filter((code) =>
-        code === 'MILESTONE_WINDOW_NO_SLOT' || code === 'DEP_NOT_READY_IN_WINDOW'
+    : Object.values(resolvedUnassignedActionReasons).filter(
+        (code) => code === 'MILESTONE_WINDOW_NO_SLOT' || code === 'DEP_NOT_READY_IN_WINDOW'
       ).length;
   const resolvedDepWindowBlockedCount = Number.isFinite(depWindowBlockedCount)
     ? Math.max(0, Number(depWindowBlockedCount))
     : Object.values(resolvedUnassignedActionReasons).filter((code) => code === 'DEP_NOT_READY_IN_WINDOW').length;
   const resolvedDepWindowBlockedByMilestone =
-    depWindowBlockedByMilestone && typeof depWindowBlockedByMilestone === 'object' ? { ...depWindowBlockedByMilestone } : {};
+    depWindowBlockedByMilestone && typeof depWindowBlockedByMilestone === 'object'
+      ? { ...depWindowBlockedByMilestone }
+      : {};
   const resolvedDepBufferBlockedCount = Number.isFinite(depBufferBlockedCount)
     ? Math.max(0, Number(depBufferBlockedCount))
     : resolvedDepWindowBlockedCount;
@@ -2069,7 +2100,9 @@ export function getDraftDiagnostics({
     depBufferBlockedByMilestone && typeof depBufferBlockedByMilestone === 'object'
       ? { ...depBufferBlockedByMilestone }
       : resolvedDepWindowBlockedByMilestone;
-  const resolvedReservationInputCount = Number.isFinite(reservationInputCount) ? Math.max(0, Number(reservationInputCount)) : 0;
+  const resolvedReservationInputCount = Number.isFinite(reservationInputCount)
+    ? Math.max(0, Number(reservationInputCount))
+    : 0;
   const resolvedReservationAcceptedPass1Count = Number.isFinite(reservationAcceptedPass1Count)
     ? Math.max(0, Number(reservationAcceptedPass1Count))
     : 0;
@@ -2082,7 +2115,9 @@ export function getDraftDiagnostics({
   const resolvedOrphanReservationCount = Number.isFinite(orphanReservationCount)
     ? Math.max(0, Number(orphanReservationCount))
     : 0;
-  const resolvedPreservedChunkCount = Number.isFinite(preservedChunkCount) ? Math.max(0, Number(preservedChunkCount)) : 0;
+  const resolvedPreservedChunkCount = Number.isFinite(preservedChunkCount)
+    ? Math.max(0, Number(preservedChunkCount))
+    : 0;
   const resolvedMovedChunkCount = Number.isFinite(movedChunkCount) ? Math.max(0, Number(movedChunkCount)) : 0;
   const resolvedDroppedChunkCount = Number.isFinite(droppedChunkCount) ? Math.max(0, Number(droppedChunkCount)) : 0;
   const resolvedChurnMovedMinutesTotal = Number.isFinite(churnMovedMinutesTotal)
@@ -2116,10 +2151,11 @@ export function getDraftDiagnostics({
       ? placementHorizonGuardApplied
       : Boolean(
           placementHorizonRequestedEndISO &&
-            placementHorizonGuardedEndISO &&
-            placementHorizonRequestedEndISO !== placementHorizonGuardedEndISO
+          placementHorizonGuardedEndISO &&
+          placementHorizonRequestedEndISO !== placementHorizonGuardedEndISO
         );
-  const resolvedPlacementWindowStartISO = placementWindowStartISO || (startDateISO ? `${startDateISO}T00:00:00.000Z` : null);
+  const resolvedPlacementWindowStartISO =
+    placementWindowStartISO || (startDateISO ? `${startDateISO}T00:00:00.000Z` : null);
   const resolvedPlacementWindowEndISO = placementWindowEndISO || placementHorizonEndISO || boundaryEndISO || null;
   const resolvedExecutionHorizonDays = Number.isFinite(executionHorizonDays)
     ? Math.max(1, Number(executionHorizonDays))
@@ -2139,18 +2175,18 @@ export function getDraftDiagnostics({
   const resolvedQualityScoreBaseline =
     qualityScoreBaseline && typeof qualityScoreBaseline === 'object' ? { ...qualityScoreBaseline } : null;
   const resolvedQualityScoreOptimized =
-    qualityScoreOptimized && typeof qualityScoreOptimized === 'object' ? { ...qualityScoreOptimized } : resolvedQualityScoreBaseline;
+    qualityScoreOptimized && typeof qualityScoreOptimized === 'object'
+      ? { ...qualityScoreOptimized }
+      : resolvedQualityScoreBaseline;
   const resolvedQualityImprovementDelta = Number.isFinite(qualityImprovementDelta)
     ? Number(qualityImprovementDelta)
-    : Number(
-        ((resolvedQualityScoreOptimized?.total || 0) - (resolvedQualityScoreBaseline?.total || 0)).toFixed(6)
-      );
+    : Number(((resolvedQualityScoreOptimized?.total || 0) - (resolvedQualityScoreBaseline?.total || 0)).toFixed(6));
   const resolvedChosenMovesSummary =
     chosenMovesSummary && typeof chosenMovesSummary === 'object'
       ? {
           iterations: Math.max(0, Number(chosenMovesSummary.iterations || 0)),
           candidatesEvaluated: Math.max(0, Number(chosenMovesSummary.candidatesEvaluated || 0)),
-          moves: Array.isArray(chosenMovesSummary.moves) ? [...chosenMovesSummary.moves] : []
+          moves: Array.isArray(chosenMovesSummary.moves) ? [...chosenMovesSummary.moves] : [],
         }
       : { iterations: 0, candidatesEvaluated: 0, moves: [] };
   const maxScheduledMinutesPerWeek = Number(state?.constraints?.maxScheduledMinutesPerWeek);
@@ -2165,7 +2201,7 @@ export function getDraftDiagnostics({
     executionHorizonDays: resolvedExecutionHorizonDays,
     placementWindowDays: resolvedPlacementHorizonDays,
     maxScheduledMinutesPerWeek: resolvedMaxScheduledMinutesPerWeek || undefined,
-    milestoneWindowMissCountPlacement: resolvedMilestoneWindowMissCountPlacement
+    milestoneWindowMissCountPlacement: resolvedMilestoneWindowMissCountPlacement,
   });
   const effectiveRequestedSlots = scheduleMode === 'FULL_PLAN' ? resolvedAvailableSlots : requestedAutomationSlots;
   const startDayKey = normalizeDayKey(startDateISO, state?.appTime?.timeZone || 'UTC');
@@ -2183,8 +2219,7 @@ export function getDraftDiagnostics({
   else if (!resolvedDeadlineISO) reasonCode = 'NO_GOAL_DEADLINE';
   else if (scheduleMode === 'FULL_PLAN' && resolvedMissingSlots > 0 && emittedAutomationSlots <= 0) {
     reasonCode = 'INSUFFICIENT_ROUTE_SLOTS_TO_DEADLINE';
-  }
-  else if (effectiveRequestedSlots <= 0) reasonCode = 'NO_ROUTE_SLOTS';
+  } else if (effectiveRequestedSlots <= 0) reasonCode = 'NO_ROUTE_SLOTS';
   else if (scheduleMode === 'READY_ONLY' && readyActionsCount <= 0) reasonCode = 'NO_READY_ACTIONS';
   else if (boundaryKind === 'HORIZON_FALLBACK' && hardCapReached) reasonCode = 'HIT_HARD_CAP';
   else if (boundaryKind === 'DELIVERABLE' && deliverableCovered) reasonCode = 'DELIVERABLE_COVERED';
@@ -2282,7 +2317,7 @@ export function getDraftDiagnostics({
     chosenMovesSummary: resolvedChosenMovesSummary,
     prescriptions,
     routeSlotWindowDays: resolvedPlacementHorizonDays,
-    routeSlotsCount: effectiveRequestedSlots
+    routeSlotsCount: effectiveRequestedSlots,
   };
 }
 
@@ -2302,7 +2337,7 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
     timeZone = 'UTC',
     defaults = {},
     contractStartDayKey: contractStartDayKeyOverride = null,
-    captureStats = null
+    captureStats = null,
   } = options || {};
   const resolvedActions = state && cycleId ? getCycleActions(state, cycleId, actions || []) : actions || [];
   const resolvedDeliverables =
@@ -2313,13 +2348,13 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
         getDraftBoundary(state, cycleId, {
           daysForward: daysForward || DRAFT_WINDOW_DAYS,
           mode: boundaryMode,
-          hardCapDays
+          hardCapDays,
         })
       : boundary || {
           kind: 'HORIZON_FALLBACK',
           daysForward: daysForward || DRAFT_WINDOW_DAYS,
           label: `Next ${daysForward || DRAFT_WINDOW_DAYS} days`,
-          covered: false
+          covered: false,
         };
   const resolvedWindowDays = Math.max(
     1,
@@ -2327,7 +2362,8 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
   );
   const actionCandidates = buildReadyActionCandidates(resolvedActions);
   const hasActionPlan = (resolvedActions || []).length > 0;
-  const keepAutomationItem = (item) => !hasActionPlan || !isAutomationScheduleItem(item) || (item?.actionId && item?.title && item?.detail);
+  const keepAutomationItem = (item) =>
+    !hasActionPlan || !isAutomationScheduleItem(item) || (item?.actionId && item?.title && item?.detail);
 
   if (scheduleMode === 'FULL_PLAN' && state && cycleId) {
     const cycle = getCycle(state, cycleId);
@@ -2341,11 +2377,7 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
       timeZone
     );
     const resolvedStartDateISO =
-      startDateISO ||
-      state?.appTime?.activeDayKey ||
-      state?.today?.date ||
-      defaults.todayKey ||
-      null;
+      startDateISO || state?.appTime?.activeDayKey || state?.today?.date || defaults.todayKey || null;
     const normalizedStartDayKey = normalizeDayKey(resolvedStartDateISO, timeZone);
     if (!goalDeadlineDayKey || !normalizedStartDayKey) {
       return [];
@@ -2358,7 +2390,9 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
         .filter((action) => action?.state === 'completed' || action?.status === 'completed')
         .map((action) => action.id)
     );
-    const planningMetadataById = new Map(buildPlanningActionCandidates(resolvedActions).map((action) => [action.id, action]));
+    const planningMetadataById = new Map(
+      buildPlanningActionCandidates(resolvedActions).map((action) => [action.id, action])
+    );
     const milestones = collectMilestonesForPlanning(cycle, contract, state);
     const eligibleWeekdays = resolveEligibleWeekdays(cycle?.goalContract || null);
     const slotDurationMin = Number(defaults.routeMinutes) || 30;
@@ -2374,7 +2408,7 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
       milestones,
       fallbackDays: resolvedWindowDays,
       guardDays: defaults.fullPlanMaxHorizonDays || SPINE_HARD_CAP_DAYS,
-      timeZone
+      timeZone,
     });
     const placementEndDayKey = placementWindow.endDayKey || goalDeadlineDayKey;
     const criticalDepthMap = computeActionCriticalDepthMap(resolvedActions || []);
@@ -2383,7 +2417,7 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
         ? (lhs, rhs) =>
             compareActionsStrategic(lhs, rhs, {
               actionPriority: milestoneContext.actionPriority,
-              criticalDepthMap
+              criticalDepthMap,
             })
         : compareActions
     );
@@ -2397,7 +2431,10 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
         const priority = milestoneContext.actionPriority.get(action?.id) || null;
         const critical = milestoneCriticalContext.criticalByActionId.get(action?.id) || null;
         const hasDirectMilestoneBinding = Boolean(
-          priority?.hasMilestoneBinding && priority?.milestoneId && priority?.windowStartDayKey && priority?.windowEndDayKey
+          priority?.hasMilestoneBinding &&
+          priority?.milestoneId &&
+          priority?.windowStartDayKey &&
+          priority?.windowEndDayKey
         );
         const resolvedMilestoneId =
           (hasDirectMilestoneBinding ? priority?.milestoneId : null) || critical?.milestoneId || null;
@@ -2412,7 +2449,7 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
           milestoneId: resolvedMilestoneId,
           windowStartDayKey: resolvedWindowStartDayKey,
           windowEndDayKey: resolvedWindowEndDayKey,
-          constraintMode: milestoneWindowConstraintMode
+          constraintMode: milestoneWindowConstraintMode,
         });
       });
     }
@@ -2422,7 +2459,11 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
     const resolvedExecutionHorizonDays = Number.isFinite(rawExecutionHorizonDays)
       ? Math.max(1, Math.round(rawExecutionHorizonDays))
       : 90;
-    const requestedExecutionEndDayKey = addDays(normalizedStartDayKey, Math.max(0, resolvedExecutionHorizonDays - 1), timeZone);
+    const requestedExecutionEndDayKey = addDays(
+      normalizedStartDayKey,
+      Math.max(0, resolvedExecutionHorizonDays - 1),
+      timeZone
+    );
     const executionEndDayKey =
       requestedExecutionEndDayKey < placementEndDayKey ? requestedExecutionEndDayKey : placementEndDayKey;
 
@@ -2432,7 +2473,7 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
       slotDurationMin,
       eligibleWeekdays,
       maxBlocksPerDay: MAX_BLOCKS_PER_DAY,
-      selectionMode: hasCapacityCaps ? 'target_count' : 'all_candidates'
+      selectionMode: hasCapacityCaps ? 'target_count' : 'all_candidates',
     });
     const feasibilityCandidateSlots = hasCapacityCaps
       ? buildEvenlySpacedSlots(chunkDemand, normalizedStartDayKey, placementEndDayKey, {
@@ -2441,7 +2482,7 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
           slotDurationMin,
           eligibleWeekdays,
           maxBlocksPerDay: MAX_BLOCKS_PER_DAY,
-          selectionMode: 'all_candidates'
+          selectionMode: 'all_candidates',
         })
       : feasibilitySelectedSlots;
     const executionSelectedSlots = buildEvenlySpacedSlots(chunkDemand, normalizedStartDayKey, executionEndDayKey, {
@@ -2450,7 +2491,7 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
       slotDurationMin,
       eligibleWeekdays,
       maxBlocksPerDay: MAX_BLOCKS_PER_DAY,
-      selectionMode: hasCapacityCaps ? 'target_count' : 'all_candidates'
+      selectionMode: hasCapacityCaps ? 'target_count' : 'all_candidates',
     });
     const executionCandidateSlots = hasCapacityCaps
       ? buildEvenlySpacedSlots(chunkDemand, normalizedStartDayKey, executionEndDayKey, {
@@ -2459,20 +2500,20 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
           slotDurationMin,
           eligibleWeekdays,
           maxBlocksPerDay: MAX_BLOCKS_PER_DAY,
-          selectionMode: 'all_candidates'
+          selectionMode: 'all_candidates',
         })
       : executionSelectedSlots;
 
     const feasibilitySlots = hasCapacityCaps
       ? filterSlotsByCapacityCaps(feasibilitySelectedSlots, {
           maxScheduledMinutesPerDay,
-          maxScheduledMinutesPerWeek
+          maxScheduledMinutesPerWeek,
         }).slots
       : feasibilitySelectedSlots;
     const executionSlots = hasCapacityCaps
       ? filterSlotsByCapacityCaps(executionSelectedSlots, {
           maxScheduledMinutesPerDay,
-          maxScheduledMinutesPerWeek
+          maxScheduledMinutesPerWeek,
         }).slots
       : executionSelectedSlots;
 
@@ -2484,16 +2525,17 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
       slotDurationMin,
       {
         actionConstraintsById,
-        dependencyBufferMinutes: defaultDependencyBufferMinutes
+        dependencyBufferMinutes: defaultDependencyBufferMinutes,
       }
     );
-    const strategicComparator = hasCapacityCaps && milestoneContext.hasMilestones
-      ? (lhs, rhs) =>
-          compareActionsStrategic(lhs, rhs, {
-            actionPriority: milestoneContext.actionPriority,
-            criticalDepthMap
-          })
-      : compareActions;
+    const strategicComparator =
+      hasCapacityCaps && milestoneContext.hasMilestones
+        ? (lhs, rhs) =>
+            compareActionsStrategic(lhs, rhs, {
+              actionPriority: milestoneContext.actionPriority,
+              criticalDepthMap,
+            })
+        : compareActions;
     const stickyExecution = buildStickyExecutionAssignments({
       state,
       cycleId,
@@ -2506,7 +2548,7 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
       maxScheduledMinutesPerWeek,
       executionStartDayKey: normalizedStartDayKey,
       executionEndDayKey,
-      strategicComparator
+      strategicComparator,
     });
     let assignmentExecution = stickyExecution.assignment;
     const stickyStats = stickyExecution.stickyStats;
@@ -2516,20 +2558,20 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
       constraints: {
         maxScheduledMinutesPerDay,
         maxScheduledMinutesPerWeek,
-        executionHorizonDays: resolvedExecutionHorizonDays
+        executionHorizonDays: resolvedExecutionHorizonDays,
       },
       horizons: {
         executionWindowStartDayKey: normalizedStartDayKey,
         executionWindowEndDayKey: executionEndDayKey,
-        feasibilityWindowEndDayKey: placementEndDayKey
+        feasibilityWindowEndDayKey: placementEndDayKey,
       },
       milestones: (milestones || []).map((milestone) => ({
         milestoneId: milestone?.id || '',
         windowStartDayKey: milestone?.windowStartDayKey,
         windowEndDayKey: milestone?.windowEndDayKey,
         checkpointActionIds: Array.isArray(milestone?.checkpointActionIds) ? milestone.checkpointActionIds : [],
-        actionIds: Array.isArray(milestone?.actionIds) ? milestone.actionIds : []
-      }))
+        actionIds: Array.isArray(milestone?.actionIds) ? milestone.actionIds : [],
+      })),
     };
     const baselineScoreAssignments = toScoreAssignments(assignmentExecution.assignments || []);
     let qualityScoreBaseline = scoreSchedule({
@@ -2541,8 +2583,8 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
           0
         ),
         outsideExecutionHorizonEstimateMinTotal: 0,
-        outsideExecutionHorizonCount: 0
-      })
+        outsideExecutionHorizonCount: 0,
+      }),
     });
     const optimizerEnabled = Boolean(state?.planDraft?.enableQualityOptimizer);
     let qualityScoreOptimized = qualityScoreBaseline;
@@ -2555,7 +2597,7 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
           .filter((row) => Boolean(row?.stickyPreserved))
           .map((row) => ({
             actionId: row?.action?.id,
-            chunkIndex: Number(row?.chunkIndex || 0)
+            chunkIndex: Number(row?.chunkIndex || 0),
           }))
           .filter((row) => Boolean(row.actionId)),
         actionGraph: qualityScoreInputs.actionGraph,
@@ -2568,12 +2610,12 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
             0
           ),
           outsideExecutionHorizonEstimateMinTotal: 0,
-          outsideExecutionHorizonCount: 0
+          outsideExecutionHorizonCount: 0,
         }),
         actionConstraintsById,
         dependencyBufferMinutes: defaultDependencyBufferMinutes,
         maxIterations: Number(state?.planDraft?.optimizerMaxIterations || 2),
-        maxCandidatesPerIter: Number(state?.planDraft?.optimizerMaxCandidates || 30)
+        maxCandidatesPerIter: Number(state?.planDraft?.optimizerMaxCandidates || 30),
       });
       if (optimized.bestAssignments?.length) {
         assignmentExecution = {
@@ -2581,7 +2623,7 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
           assignments: applyOptimizedAssignmentsToRows(
             assignmentExecution.assignments || [],
             optimized.bestAssignments || []
-          )
+          ),
         };
       }
       qualityScoreOptimized = optimized.bestScore;
@@ -2589,8 +2631,12 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
       chosenMovesSummary = optimized.chosenMovesSummary || chosenMovesSummary;
     }
 
-    const feasibilityPlacedActionIds = new Set((assignmentFeasibility.assignments || []).map((row) => row?.action?.id).filter(Boolean));
-    const executionPlacedActionIds = new Set((assignmentExecution.assignments || []).map((row) => row?.action?.id).filter(Boolean));
+    const feasibilityPlacedActionIds = new Set(
+      (assignmentFeasibility.assignments || []).map((row) => row?.action?.id).filter(Boolean)
+    );
+    const executionPlacedActionIds = new Set(
+      (assignmentExecution.assignments || []).map((row) => row?.action?.id).filter(Boolean)
+    );
     const outsideExecutionHorizonActionIds = Array.from(feasibilityPlacedActionIds).filter(
       (actionId) => !executionPlacedActionIds.has(actionId)
     );
@@ -2615,8 +2661,8 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
       metricsContext: buildQualityMetricsContext({
         unplacedEstimateMinTotal,
         outsideExecutionHorizonEstimateMinTotal,
-        outsideExecutionHorizonCount: outsideExecutionHorizonActionIds.length
-      })
+        outsideExecutionHorizonCount: outsideExecutionHorizonActionIds.length,
+      }),
     });
     qualityScoreOptimized = scoreSchedule({
       ...qualityScoreInputs,
@@ -2624,8 +2670,8 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
       metricsContext: buildQualityMetricsContext({
         unplacedEstimateMinTotal,
         outsideExecutionHorizonEstimateMinTotal,
-        outsideExecutionHorizonCount: outsideExecutionHorizonActionIds.length
-      })
+        outsideExecutionHorizonCount: outsideExecutionHorizonActionIds.length,
+      }),
     });
     if (optimizerEnabled) {
       qualityImprovementDelta = Number((qualityScoreOptimized.total - qualityScoreBaseline.total).toFixed(6));
@@ -2637,14 +2683,18 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
     Object.entries(assignmentFeasibility.unassignedActionReasons || {}).forEach(([actionId, reason]) => {
       if (reason !== 'DEP_NOT_READY_IN_WINDOW') return;
       const milestoneId =
-        actionConstraintsById.get(actionId)?.milestoneId || milestoneContext.actionPriority.get(actionId)?.milestoneId || null;
+        actionConstraintsById.get(actionId)?.milestoneId ||
+        milestoneContext.actionPriority.get(actionId)?.milestoneId ||
+        null;
       const key = milestoneId || 'UNKNOWN';
       depWindowBlockedByMilestone[key] = (depWindowBlockedByMilestone[key] || 0) + 1;
     });
     Object.entries(assignmentFeasibility.unassignedActionReasons || {}).forEach(([actionId, reason]) => {
       if (reason !== 'DEP_NOT_READY_IN_WINDOW' && reason !== 'DEPENDENCY_NOT_READY') return;
       const milestoneId =
-        actionConstraintsById.get(actionId)?.milestoneId || milestoneContext.actionPriority.get(actionId)?.milestoneId || null;
+        actionConstraintsById.get(actionId)?.milestoneId ||
+        milestoneContext.actionPriority.get(actionId)?.milestoneId ||
+        null;
       const key = milestoneId || 'UNKNOWN';
       depBufferBlockedByMilestone[key] = (depBufferBlockedByMilestone[key] || 0) + 1;
     });
@@ -2720,7 +2770,7 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
       qualityScoreBaseline,
       qualityScoreOptimized,
       qualityImprovementDelta,
-      chosenMovesSummary
+      chosenMovesSummary,
     };
     if (typeof captureStats === 'function') {
       captureStats(placementStats);
@@ -2734,8 +2784,9 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
         const unmetDepIds = isCompleted ? [] : planningMeta?.unmetDepIds || [];
         const unmetDepTitles = isCompleted ? [] : planningMeta?.unmetDepTitles || [];
         const dateISO = slot.dateISO || slot.dayKey;
-        const startMin =
-          Number.isFinite(slot.startMin) ? slot.startMin : minutesFromISO(slot.startISO || ensureISO(dateISO, '09:00')) || 9 * 60;
+        const startMin = Number.isFinite(slot.startMin)
+          ? slot.startMin
+          : minutesFromISO(slot.startISO || ensureISO(dateISO, '09:00')) || 9 * 60;
         const durationMin = Math.max(1, Number(allocatedMin) || Number(slot.minutes) || 30);
         const endMin = startMin + durationMin;
         const startISO = slot.startISO || ensureISO(dateISO, formatMinutes(startMin));
@@ -2778,7 +2829,7 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
             estimateMin,
             allocatedMin: durationMin,
             chunkIndex,
-            chunkCount
+            chunkCount,
           },
           reason: 'Forecast',
           payload: {
@@ -2794,8 +2845,8 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
             estimateMin,
             allocatedMin: durationMin,
             chunkIndex,
-            chunkCount
-          }
+            chunkCount,
+          },
         };
       })
       .filter((item) => keepAutomationItem(item));
@@ -2819,16 +2870,13 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
             startISO: block.startISO,
             minutes: block.minutes,
             domainKey:
-              linkedAction?.category?.toUpperCase() ||
-              contract?.domainPrimary ||
-              contract?.primaryDomain ||
-              'FOCUS',
+              linkedAction?.category?.toUpperCase() || contract?.domainPrimary || contract?.primaryDomain || 'FOCUS',
             category: linkedAction?.category || contract?.domainPrimary || contract?.primaryDomain || 'Focus',
             actionId: linkedAction?.id || null,
             title: linkedAction?.title || block.title,
             detail: linkedAction?.brief || block.advances || '',
             reason: 'Strategic plan',
-            payload: block
+            payload: block,
           };
         });
         return sortDraftItems(strategicItems.filter((item) => keepAutomationItem(item)));
@@ -2846,11 +2894,7 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
       : actionCandidates[actionCursor] || null;
     if (!suggestion?.actionId && linkedAction) actionCursor += 1;
     const dayKey = normalizeSuggestionDayKey(suggestion, timeZone) || defaults.todayKey || '';
-    const startISO =
-      suggestion.startISO ||
-      suggestion.start ||
-      ensureISO(dayKey, '09:00') ||
-      `${dayKey}T09:00:00.000Z`;
+    const startISO = suggestion.startISO || suggestion.start || ensureISO(dayKey, '09:00') || `${dayKey}T09:00:00.000Z`;
     const minutes = Number(suggestion.durationMinutes) || Number(suggestion.minutes) || 30;
     const title = suggestion.title || linkedAction?.title || suggestion.label || 'Suggested block';
     items.push({
@@ -2866,11 +2910,13 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
       title,
       detail: suggestion.detail || linkedAction?.brief || suggestion.description || '',
       reason: 'Suggested path',
-      payload: { ...suggestion, actionId: suggestion.actionId || linkedAction?.id || null }
+      payload: { ...suggestion, actionId: suggestion.actionId || linkedAction?.id || null },
     });
   });
 
-  const deliverableTitleById = new Map((resolvedDeliverables || []).filter(Boolean).map((d) => [d.id, d.title || d.id]));
+  const deliverableTitleById = new Map(
+    (resolvedDeliverables || []).filter(Boolean).map((d) => [d.id, d.title || d.id])
+  );
   const baseStartMinutes = 9 * 60;
   const routeMinutes = defaults.routeMinutes || 30;
   const buildRouteItemsForDay = (entry) => {
@@ -2880,14 +2926,12 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
     if (!dayKey || total <= 0) return [];
     const orderedIds = [
       ...deliverableTitleById.keys(),
-      ...Object.keys(byDeliverable || {}).filter((id) => !deliverableTitleById.has(id))
+      ...Object.keys(byDeliverable || {}).filter((id) => !deliverableTitleById.has(id)),
     ];
     const counts = orderedIds
       .map((id) => ({ id, count: Number(byDeliverable?.[id] || 0) }))
       .filter((entryCount) => entryCount.count > 0);
-    const resolvedCounts = counts.length
-      ? counts
-      : [{ id: null, count: total }];
+    const resolvedCounts = counts.length ? counts : [{ id: null, count: total }];
     const items = [];
     let slotIndex = 0;
     resolvedCounts.forEach(({ id, count }) => {
@@ -2896,8 +2940,7 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
         const action = actionCandidates[actionCursor] || null;
         if (action) actionCursor += 1;
         const timeStr = formatMinutes(baseStartMinutes + slotIndex * routeMinutes);
-        const title =
-          action?.title || baseTitle || entry?.summary || 'Missing action context';
+        const title = action?.title || baseTitle || entry?.summary || 'Missing action context';
         const suffix = count > 1 ? ` (${i + 1}/${count})` : '';
         items.push({
           id: `route:${dayKey}:${id || 'deliverable'}:${i + 1}:${action?.id || 'legacy'}`,
@@ -2910,11 +2953,9 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
           category: action?.category || defaults.primaryDomain || 'Focus',
           actionId: action?.id || null,
           title: `${title}${suffix}`,
-          detail:
-            action?.brief ||
-            (baseTitle ? `Deliverable: ${baseTitle}` : entry?.summary || ''),
+          detail: action?.brief || (baseTitle ? `Deliverable: ${baseTitle}` : entry?.summary || ''),
           reason: 'Forecast',
-          payload: { ...entry, deliverableId: id || null, actionId: action?.id || null }
+          payload: { ...entry, deliverableId: id || null, actionId: action?.id || null },
         });
         slotIndex += 1;
       }
@@ -2934,7 +2975,7 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
       startDateISO: startDateISO || startDayKey || defaults.todayKey,
       routeMinutes,
       timeZone,
-      existingDraftItems: items
+      existingDraftItems: items,
     });
     const routeSlots = routeWindow.slots || [];
     routeWindowDays = routeWindow.daysCovered || resolvedWindowDays;
@@ -2945,16 +2986,16 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
     const existingScheduledActionIds = getScheduledActionIds(state, cycleId);
     const planningActions = buildPlanningActionCandidates(resolvedActions);
     const planningById = new Map(planningActions.map((action) => [action.id, action]));
-    const targetActions = (boundaryActions || []).filter((action) => !isDoneLike(action?.status) && !isSkippedLike(action?.status));
+    const targetActions = (boundaryActions || []).filter(
+      (action) => !isDoneLike(action?.status) && !isSkippedLike(action?.status)
+    );
     const uncoveredTargetActions = targetActions.filter((action) => !existingScheduledActionIds.has(action.id));
     if (resolvedBoundary?.kind === 'DELIVERABLE' && uncoveredTargetActions.length === 0) {
       deliverableCovered = true;
     }
     const queue =
       scheduleMode === 'FULL_PLAN'
-        ? uncoveredTargetActions
-            .map((action) => planningById.get(action.id) || action)
-            .sort(compareActions)
+        ? uncoveredTargetActions.map((action) => planningById.get(action.id) || action).sort(compareActions)
         : uncoveredTargetActions.filter((action) => readyById.has(action.id)).sort(compareActions);
     route = [];
     const emittedActionIds = new Set();
@@ -2964,7 +3005,7 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
       emittedActionIds.add(nextAction.id);
       const blocked = Boolean(
         FULL_PLAN_PLACE_BLOCKED &&
-          (nextAction?.blocked || (scheduleMode !== 'FULL_PLAN' ? false : !readyById.has(nextAction.id)))
+        (nextAction?.blocked || (scheduleMode !== 'FULL_PLAN' ? false : !readyById.has(nextAction.id)))
       );
       const unmetDepIds = nextAction?.unmetDepIds || [];
       const unmetDepTitles = nextAction?.unmetDepTitles || [];
@@ -2987,7 +3028,7 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
           blocked,
           unmetDepIds,
           unmetDepTitles,
-          blockReason: blocked ? 'DEPS_UNMET' : null
+          blockReason: blocked ? 'DEPS_UNMET' : null,
         },
         reason: 'Forecast',
         payload: {
@@ -2997,8 +3038,8 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
           blocked,
           unmetDepIds,
           unmetDepTitles,
-          blockReason: blocked ? 'DEPS_UNMET' : null
-        }
+          blockReason: blocked ? 'DEPS_UNMET' : null,
+        },
       });
       if (resolvedBoundary?.kind === 'DELIVERABLE') {
         const coveredCount = targetActions.filter(
@@ -3025,11 +3066,13 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
     boundaryDeadlineISO: resolvedBoundary?.deadlineISO || resolvedBoundary?.boundaryEndISO || null,
     boundaryEndISO: resolvedBoundary?.boundaryEndISO || resolvedBoundary?.deadlineISO || null,
     routeSlotWindowDays: routeWindowDays,
-    routeSlotsCount: routeSlotsCount || (effectiveRouteSuggestions || []).reduce((sum, entry) => sum + Math.max(0, Number(entry?.totalBlocks) || 0), 0),
+    routeSlotsCount:
+      routeSlotsCount ||
+      (effectiveRouteSuggestions || []).reduce((sum, entry) => sum + Math.max(0, Number(entry?.totalBlocks) || 0), 0),
     deliverableCovered,
     graphInvalid: state?.lastPlanError?.code === 'ACTION_GRAPH_INVALID',
     noActionPlan: resolvedActions.length <= 0,
-    scheduleMode
+    scheduleMode,
   });
   if (
     process.env.NODE_ENV !== 'production' &&
@@ -3045,7 +3088,7 @@ export function buildDraftScheduleItems(state, cycleId, options = {}) {
       readyActionsCount: diagnostics.readyActionsCount,
       requestedSlots: diagnostics.requestedAutomationSlots,
       emittedSlots: diagnostics.emittedAutomationSlots,
-      droppedForMissingContext: diagnostics.droppedForMissingContext
+      droppedForMissingContext: diagnostics.droppedForMissingContext,
     });
   }
   if (!startDayKey && !contract?.deadline?.dayKey) return contextFiltered;

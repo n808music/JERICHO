@@ -181,9 +181,9 @@ describe('Midnight Rollover', () => {
 
       const result1 = computeDerivedState(state, action);
       const result2 = computeDerivedState(state, action);
-    const result3 = computeDerivedState(state, action);
+      const result3 = computeDerivedState(state, action);
 
-    expect(JSON.stringify(result1)).toEqual(JSON.stringify(result2));
+      expect(JSON.stringify(result1)).toEqual(JSON.stringify(result2));
       expect(JSON.stringify(result1)).toEqual(JSON.stringify(result3));
     });
   });

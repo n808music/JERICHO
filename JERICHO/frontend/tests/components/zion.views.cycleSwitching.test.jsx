@@ -15,7 +15,7 @@ function makeBlock(id, dayKey, label) {
     start: `${dayKey}T09:00:00.000Z`,
     end: `${dayKey}T10:00:00.000Z`,
     status: 'planned',
-    practice: 'Creation'
+    practice: 'Creation',
   };
 }
 
@@ -26,7 +26,7 @@ function buildState(activeCycleId, blockLabel) {
     lenses: {
       aim: { description: '', horizon: '90d' },
       pattern: { routines: { Body: [], Resources: [], Creation: [], Focus: [] }, dailyTargets: [], defaultMinutes: 30 },
-      flow: { streams: [] }
+      flow: { streams: [] },
     },
     activeCycleId,
     cyclesById: {
@@ -39,19 +39,35 @@ function buildState(activeCycleId, blockLabel) {
           goalId: `goal-${activeCycleId}`,
           goalText: `${blockLabel} goal`,
           startDate: '2026-02-01',
-          deadline: { dayKey: '2026-12-31' }
-        }
-      }
+          deadline: { dayKey: '2026-12-31' },
+        },
+      },
     },
     goalExecutionContract: {
       goalId: `goal-${activeCycleId}`,
       goalText: `${blockLabel} goal`,
       startDayKey: '2026-02-01',
-      endDayKey: '2026-12-31'
+      endDayKey: '2026-12-31',
     },
-    today: { date: ANCHOR_DAY, blocks: [block], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
+    today: {
+      date: ANCHOR_DAY,
+      blocks: [block],
+      completionRate: 0,
+      driftSignal: 'contained',
+      loadByPractice: {},
+      practices: [],
+    },
     currentWeek: { weekStart: ANCHOR_DAY, days: [], metrics: {} },
-    cycle: [{ date: ANCHOR_DAY, blocks: [block], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] }],
+    cycle: [
+      {
+        date: ANCHOR_DAY,
+        blocks: [block],
+        completionRate: 0,
+        driftSignal: 'contained',
+        loadByPractice: {},
+        practices: [],
+      },
+    ],
     templates: { objectives: {} },
     stability: { headline: '', actionLine: '' },
     meta: { version: '1.0.0', onboardingComplete: true },
@@ -61,15 +77,27 @@ function buildState(activeCycleId, blockLabel) {
     executionEvents: [],
     goalDirective: null,
     directiveEligibilityByGoal: {},
-    suggestionHistory: { dayKey: ANCHOR_DAY, count: 0, lastSuggestedAtISO: null, lastSuggestedAtISOByGoal: {}, dailyCountByGoal: {}, denials: [] },
-    appTime: { timeZone: TIME_ZONE, nowISO: `${ANCHOR_DAY}T12:00:00.000Z`, activeDayKey: ANCHOR_DAY, isFollowingNow: true }
+    suggestionHistory: {
+      dayKey: ANCHOR_DAY,
+      count: 0,
+      lastSuggestedAtISO: null,
+      lastSuggestedAtISOByGoal: {},
+      dailyCountByGoal: {},
+      denials: [],
+    },
+    appTime: {
+      timeZone: TIME_ZONE,
+      nowISO: `${ANCHOR_DAY}T12:00:00.000Z`,
+      activeDayKey: ANCHOR_DAY,
+      isFollowingNow: true,
+    },
   };
 }
 
 describe('Zion view cycle switching', () => {
   it('renders cycle-scoped data for the active cycle', () => {
     const htmlA = ReactDOMServer.renderToString(
-        <IdentityProvider initialState={buildState('cycle-a', 'Alpha')}>
+      <IdentityProvider initialState={buildState('cycle-a', 'Alpha')}>
         <ZionDashboard initialView="today" initialZionView="day" initialAnchorDayKey={ANCHOR_DAY} />
       </IdentityProvider>
     );

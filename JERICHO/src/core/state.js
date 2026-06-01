@@ -6,7 +6,7 @@ function derivePriorityField(state) {
   // Priority field = today’s ranked actions, density adapts by user condition
   const today = selectTodayTasks(state).map((task) => ({
     ...task,
-    explanation: explainTaskReasons(task)
+    explanation: explainTaskReasons(task),
   }));
   const density = state.userToday?.condition === 'overwhelmed' ? 2 : state.userToday?.condition === 'ahead' ? 5 : 3;
   const sorted = today.sort((a, b) => priorityRank(b.priority) - priorityRank(a.priority));
@@ -14,9 +14,15 @@ function derivePriorityField(state) {
 }
 
 function priorityRank(priority) {
-  if (priority === 'high') return 3;
-  if (priority === 'medium') return 2;
-  if (priority === 'low') return 1;
+  if (priority === 'high') {
+    return 3;
+  }
+  if (priority === 'medium') {
+    return 2;
+  }
+  if (priority === 'low') {
+    return 1;
+  }
   return 0;
 }
 
@@ -26,23 +32,23 @@ export const initialState = {
     traits: ['stable', 'precise'],
     gaps: ['reach'],
     band: 'neutral',
-    regulation: 'aligned' // S: Self-Discipline state descriptor
+    regulation: 'aligned', // S: Self-Discipline state descriptor
   },
   goal: {
     id: 'goal-definite',
     title: 'Grow revenue to $10k/month',
     targetDate: '2025-06-01',
-    relevance: 'anchor' // Definite goal as anchor
+    relevance: 'anchor', // Definite goal as anchor
   },
   userToday: {
     // user self-report for gap co-creation (III)
     condition: 'stable', // stable | low-energy | overwhelmed | ahead
-    note: ''
+    note: '',
   },
   projects: [
     { id: 'p1', name: 'Cycle Orchestration', status: 'active', progress: 0.35 },
     { id: 'p2', name: 'Signal Ingestion', status: 'blocked', progress: 0.18 },
-    { id: 'p3', name: 'Advisor Panel', status: 'active', progress: 0.52 }
+    { id: 'p3', name: 'Advisor Panel', status: 'active', progress: 0.52 },
   ],
   tasks: [
     {
@@ -57,7 +63,7 @@ export const initialState = {
       domain: 'Creation',
       horizon: 'Today',
       start: '09:00',
-      end: '10:30'
+      end: '10:30',
     },
     {
       id: 't2',
@@ -71,7 +77,7 @@ export const initialState = {
       domain: 'Focus',
       horizon: 'Today',
       start: '11:00',
-      end: '12:00'
+      end: '12:00',
     },
     {
       id: 't3',
@@ -85,7 +91,7 @@ export const initialState = {
       domain: 'Resources',
       horizon: 'Week',
       start: '14:00',
-      end: '15:00'
+      end: '15:00',
     },
     {
       id: 't4',
@@ -97,8 +103,8 @@ export const initialState = {
       due: 'goal',
       priority: 'none',
       domain: 'Creation',
-      horizon: 'Goal'
-    }
+      horizon: 'Goal',
+    },
   ],
   priorityField: [], // Today priority field (IV/V)
   disciplines: {
@@ -106,66 +112,121 @@ export const initialState = {
       Today: { label: 'Body', metric: 'light', delta: 1, state: 'pending' },
       Week: { label: 'Rest', metric: 'holding', delta: 0.2, state: 'active' },
       Month: { label: 'Recovery', metric: 'easing', delta: -1, state: 'drifting' },
-      Goal: { label: 'Capacity', metric: 'tracked', delta: 0, state: 'pending' }
+      Goal: { label: 'Capacity', metric: 'tracked', delta: 0, state: 'pending' },
     },
     Resources: {
       Today: { label: 'Resources', metric: 'moderate', delta: 0, state: 'active' },
       Week: { label: 'Leads', metric: 'holding', delta: 1, state: 'active' },
       Month: { label: 'Runway', metric: 'steady', delta: 0.3, state: 'active' },
-      Goal: { label: 'Sustain', metric: 'tracked', delta: 0, state: 'pending' }
+      Goal: { label: 'Sustain', metric: 'tracked', delta: 0, state: 'pending' },
     },
     Creation: {
       Today: { label: 'Creation', metric: 'heavy', delta: 0, state: 'active' },
       Week: { label: 'Review', metric: 'holding', delta: 0, state: 'active' },
       Month: { label: 'Feature', metric: 'planned', delta: 0, state: 'pending' },
-      Goal: { label: 'Quality', metric: 'tracked', delta: 0, state: 'active' }
+      Goal: { label: 'Quality', metric: 'tracked', delta: 0, state: 'active' },
     },
     Focus: {
       Today: { label: 'Focus', metric: '90m', delta: 0, state: 'active' },
       Week: { label: 'Streak', metric: 'holding', delta: 0, state: 'pending' },
       Month: { label: 'Identity', metric: 'tracked', delta: 0, state: 'active' },
-      Goal: { label: 'Definite', metric: 'aligned', delta: 0, state: 'active' }
-    }
+      Goal: { label: 'Definite', metric: 'aligned', delta: 0, state: 'active' },
+    },
   },
   schedule: {
     today: [
-      { id: 'b1', taskId: 't1', label: 'Assign capabilities', discipline: 'Creation', start: '09:00', end: '10:30', priority: true, state: 'in_progress' },
-      { id: 'b2', taskId: 't2', label: 'Pipeline build', discipline: 'Focus', start: '11:00', end: '12:00', priority: false, state: 'pending' }
+      {
+        id: 'b1',
+        taskId: 't1',
+        label: 'Assign capabilities',
+        discipline: 'Creation',
+        start: '09:00',
+        end: '10:30',
+        priority: true,
+        state: 'in_progress',
+      },
+      {
+        id: 'b2',
+        taskId: 't2',
+        label: 'Pipeline build',
+        discipline: 'Focus',
+        start: '11:00',
+        end: '12:00',
+        priority: false,
+        state: 'pending',
+      },
     ],
     week: {
       Mon: [
-        { id: 'wb1', taskId: 't1', label: 'Assign capabilities', discipline: 'Creation', start: '09:00', end: '10:30', priority: true, state: 'in_progress' },
-        { id: 'wb2', taskId: 't2', label: 'Pipeline build', discipline: 'Focus', start: '11:00', end: '12:00', priority: false, state: 'pending' }
+        {
+          id: 'wb1',
+          taskId: 't1',
+          label: 'Assign capabilities',
+          discipline: 'Creation',
+          start: '09:00',
+          end: '10:30',
+          priority: true,
+          state: 'in_progress',
+        },
+        {
+          id: 'wb2',
+          taskId: 't2',
+          label: 'Pipeline build',
+          discipline: 'Focus',
+          start: '11:00',
+          end: '12:00',
+          priority: false,
+          state: 'pending',
+        },
       ],
       Tue: [
-        { id: 'wb3', label: 'Resource push', discipline: 'Resources', start: '10:00', end: '11:00', priority: false, state: 'pending' }
+        {
+          id: 'wb3',
+          label: 'Resource push',
+          discipline: 'Resources',
+          start: '10:00',
+          end: '11:00',
+          priority: false,
+          state: 'pending',
+        },
       ],
       Wed: [
-        { id: 'wb4', label: 'Outcome projection', discipline: 'Resources', start: '14:00', end: '15:00', priority: false, state: 'queued', taskId: 't3' }
+        {
+          id: 'wb4',
+          label: 'Outcome projection',
+          discipline: 'Resources',
+          start: '14:00',
+          end: '15:00',
+          priority: false,
+          state: 'queued',
+          taskId: 't3',
+        },
       ],
       Thu: [],
       Fri: [],
       Sat: [],
-      Sun: []
-    }
+      Sun: [],
+    },
   },
   metrics: {
     driftIndex: 12,
     completionRate: 68,
     streak: 0, // non-punitive; kept neutral
     riskFlags: ['Integration lag', 'Capacity compression'],
-    cycleHistory: [42, 55, 61, 68, 70]
+    cycleHistory: [42, 55, 61, 68, 70],
   },
-  focusProjectId: 'p1'
+  focusProjectId: 'p1',
 };
 
 const initialStore = {
   mode: 'zion',
-  state: initialState
+  state: initialState,
 };
 
 function attachModeToDom(mode) {
-  if (typeof document === 'undefined') return;
+  if (typeof document === 'undefined') {
+    return;
+  }
   document.documentElement.dataset.mode = mode;
 }
 
@@ -181,22 +242,20 @@ function jerichoReducer(store, action) {
       const priorityField = derivePriorityField(store.state);
       const updatedTasks = store.state.tasks.map((task) => ({
         ...task,
-        explanation: explainTaskReasons(task)
+        explanation: explainTaskReasons(task),
       }));
       return {
         ...store,
         state: {
           ...store.state,
           tasks: updatedTasks,
-          priorityField
-        }
+          priorityField,
+        },
       };
     }
     case 'completeTask': {
       const updatedTasks = store.state.tasks.map((task) =>
-        task.id === action.taskId
-          ? { ...task, status: 'completed', completedAt: new Date().toISOString() }
-          : task
+        task.id === action.taskId ? { ...task, status: 'completed', completedAt: new Date().toISOString() } : task
       );
       const completionRate = Math.min(100, store.state.metrics.completionRate + 5);
       const driftIndex = Math.max(0, (store.state.metrics.driftIndex || 0) - 3);
@@ -209,8 +268,8 @@ function jerichoReducer(store, action) {
           ...store.state,
           tasks: updatedTasks,
           schedule: { ...store.state.schedule, today: updatedScheduleToday },
-          metrics: { ...store.state.metrics, completionRate, driftIndex }
-        }
+          metrics: { ...store.state.metrics, completionRate, driftIndex },
+        },
       };
     }
     case 'acknowledgeTask': {
@@ -236,7 +295,7 @@ function jerichoReducer(store, action) {
         start,
         end,
         priority: !!block.priority,
-        state: 'pending'
+        state: 'pending',
       };
       return {
         ...store,
@@ -244,9 +303,9 @@ function jerichoReducer(store, action) {
           ...store.state,
           schedule: {
             ...store.state.schedule,
-            today: [...todaySchedule, newBlock]
-          }
-        }
+            today: [...todaySchedule, newBlock],
+          },
+        },
       };
     }
     case 'setUserCondition': {
@@ -259,13 +318,17 @@ function jerichoReducer(store, action) {
 }
 
 function suggestStart(blocks = []) {
-  if (!blocks.length) return '08:00';
+  if (!blocks.length) {
+    return '08:00';
+  }
   const last = blocks[blocks.length - 1];
   return last.end || '09:00';
 }
 
 function suggestEnd(start, durationMinutes = 60) {
-  if (!start) return '09:00';
+  if (!start) {
+    return '09:00';
+  }
   const [h, m] = start.split(':').map(Number);
   const total = h * 60 + (m || 0) + durationMinutes;
   const newH = Math.floor(total / 60)
@@ -281,7 +344,7 @@ export const JerichoProvider = ({ children, initialMode, initialData }) => {
   const seed = useMemo(
     () => ({
       mode: initialMode || initialStore.mode,
-      state: initialData || initialStore.state
+      state: initialData || initialStore.state,
     }),
     [initialMode, initialData]
   );
@@ -300,7 +363,7 @@ export const JerichoProvider = ({ children, initialMode, initialData }) => {
       acknowledgeTask: (taskId) => dispatch({ type: 'acknowledgeTask', taskId }),
       focusProject: (projectId) => dispatch({ type: 'focusProject', projectId }),
       planBlock: (block) => dispatch({ type: 'planBlock', block }),
-      setUserCondition: (condition) => dispatch({ type: 'setUserCondition', condition })
+      setUserCondition: (condition) => dispatch({ type: 'setUserCondition', condition }),
     }),
     []
   );
@@ -312,7 +375,9 @@ export const JerichoProvider = ({ children, initialMode, initialData }) => {
 
 export const useJericho = () => {
   const ctx = useContext(JerichoContext);
-  if (!ctx) throw new Error('useJericho must be used within JerichoProvider');
+  if (!ctx) {
+    throw new Error('useJericho must be used within JerichoProvider');
+  }
   return ctx;
 };
 

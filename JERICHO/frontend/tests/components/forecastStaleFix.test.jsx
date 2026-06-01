@@ -21,7 +21,7 @@ function buildState() {
     deps: ['goal-1:blocked-dep'],
     status: 'todo',
     topoIndex: 0,
-    priority: 1
+    priority: 1,
   };
   return {
     vector: {},
@@ -47,7 +47,7 @@ function buildState() {
     profileLearning: {},
     activeCycleId: cycleId,
     actionsByCycleId: {
-      [cycleId]: { cycleId, goalId: 'goal-1', actions: [action] }
+      [cycleId]: { cycleId, goalId: 'goal-1', actions: [action] },
     },
     cyclesById: {
       [cycleId]: {
@@ -58,28 +58,28 @@ function buildState() {
           goalId: 'goal-1',
           goalLabel: 'ship deterministic planner validation',
           startDateISO: `${DAY_KEY}T00:00:00.000Z`,
-          deadline: { dayKey: '2026-02-20' }
+          deadline: { dayKey: '2026-02-20' },
         },
         coldPlan: {
           forecastByDayKey: {
-            [DAY_KEY]: { totalBlocks: 2, byDeliverable: {} }
+            [DAY_KEY]: { totalBlocks: 2, byDeliverable: {} },
           },
-          dailyProjection: { forecastByDayKey: {} }
+          dailyProjection: { forecastByDayKey: {} },
         },
-        summary: { completionCount: 0, completionRate: 0 }
-      }
+        summary: { completionCount: 0, completionRate: 0 },
+      },
     },
     goalExecutionContract: {
       goalId: 'goal-1',
       goalLabel: 'ship deterministic planner validation',
       startDateISO: `${DAY_KEY}T00:00:00.000Z`,
-      deadline: { dayKey: '2026-02-20' }
+      deadline: { dayKey: '2026-02-20' },
     },
     planDraft: { blocksPerWeek: 4, daysPerWeek: 4, primaryDomain: 'CREATION', minutesPerDay: 90 },
     planCalibration: null,
     correctionSignals: null,
     goalDirective: { goalId: 'goal-1', directiveId: 'dir-1' },
-    directiveEligibilityByGoal: { 'goal-1': { eligible: true } }
+    directiveEligibilityByGoal: { 'goal-1': { eligible: true } },
   };
 }
 

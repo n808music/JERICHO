@@ -17,7 +17,9 @@ function makeDay({ date, blocks = [], inMonth = true }) {
     const e = new Date(b.end).getTime();
     const mins = Math.max(0, (e - s) / 60000);
     planned += mins;
-    if (b.status === 'completed') completed += mins;
+    if (b.status === 'completed') {
+      completed += mins;
+    }
   }
   const cr = planned > 0 ? completed / planned : 0;
 
@@ -27,7 +29,7 @@ function makeDay({ date, blocks = [], inMonth = true }) {
     plannedMinutes: planned,
     completedMinutes: completed,
     completionRate: Number.isFinite(cr) ? cr : 0,
-    inMonth
+    inMonth,
   };
 }
 
@@ -41,10 +43,10 @@ describe('computeStability (month window)', () => {
             id: 'a',
             start: iso('2025-12-01', '10:00'),
             end: iso('2025-12-01', '11:00'),
-            status: 'planned'
-          })
-        ]
-      })
+            status: 'planned',
+          }),
+        ],
+      }),
     ];
 
     const s = computeStability({ monthDays: days });
@@ -70,7 +72,9 @@ describe('computeStability (month window)', () => {
     const padded = makeDay({
       date: '2025-11-30',
       inMonth: false,
-      blocks: [makeBlock({ id: 'p', start: iso('2025-11-30', '10:00'), end: iso('2025-11-30', '12:00'), status: 'completed' })]
+      blocks: [
+        makeBlock({ id: 'p', start: iso('2025-11-30', '10:00'), end: iso('2025-11-30', '12:00'), status: 'completed' }),
+      ],
     });
     const real = makeDay({ date: '2025-12-01', blocks: [] });
 
@@ -84,16 +88,32 @@ describe('computeStability (month window)', () => {
     const days = [
       makeDay({
         date: '2025-12-01',
-        blocks: [makeBlock({ id: 'a', start: iso('2025-12-01', '10:00'), end: iso('2025-12-01', '11:00'), status: 'completed' })]
+        blocks: [
+          makeBlock({
+            id: 'a',
+            start: iso('2025-12-01', '10:00'),
+            end: iso('2025-12-01', '11:00'),
+            status: 'completed',
+          }),
+        ],
       }),
       makeDay({
         date: '2025-12-02',
-        blocks: [makeBlock({ id: 'b', start: iso('2025-12-02', '10:00'), end: iso('2025-12-02', '11:00'), status: 'completed' })]
+        blocks: [
+          makeBlock({
+            id: 'b',
+            start: iso('2025-12-02', '10:00'),
+            end: iso('2025-12-02', '11:00'),
+            status: 'completed',
+          }),
+        ],
       }),
       makeDay({
         date: '2025-12-03',
-        blocks: [makeBlock({ id: 'c', start: iso('2025-12-03', '10:00'), end: iso('2025-12-03', '11:00'), status: 'planned' })]
-      })
+        blocks: [
+          makeBlock({ id: 'c', start: iso('2025-12-03', '10:00'), end: iso('2025-12-03', '11:00'), status: 'planned' }),
+        ],
+      }),
     ];
 
     const s = computeStability({ monthDays: days });
@@ -111,10 +131,10 @@ describe('computeStability (month window)', () => {
             practice: 'Focus',
             start: iso('2025-12-01', '10:00'),
             end: iso('2025-12-01', '12:00'),
-            status: 'planned'
-          })
-        ]
-      })
+            status: 'planned',
+          }),
+        ],
+      }),
     ];
 
     const s = computeStability({ monthDays: days });
@@ -136,7 +156,7 @@ describe('computeStability (month window)', () => {
     const days = [makeDay({ date: '2025-12-01', blocks: [] })];
     const s = computeStability({
       monthDays: days,
-      targetMix: { Body: 0.25, Resources: 0.25, Creation: 0.25, Focus: 0.25 }
+      targetMix: { Body: 0.25, Resources: 0.25, Creation: 0.25, Focus: 0.25 },
     });
     expect(s.integrityStatus).toBe('low');
     expect(s.recommendations.length).toBe(1);

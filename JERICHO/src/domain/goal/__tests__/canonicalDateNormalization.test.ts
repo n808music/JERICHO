@@ -2,7 +2,7 @@
  * canonicalDateNormalization.test.ts
  *
  * Tests for canonical date format enforcement (Phase 3)
- * Deadline and temporalBinding.startDayKey must be YYYY-MM-DD format (dayKey)
+ * Deadline dayKey must be YYYY-MM-DD format (dayKey)
  * No ISO timestamps in contract core fields
  * Validated at admission time to prevent post-admission DEADLINE_INVALID
  */
@@ -13,7 +13,6 @@ import { GoalRejectionCode } from '../GoalRejectionCode';
 
 const NOW_ISO = '2026-01-10T12:00:00.000Z';
 const DEADLINE_VALID = '2026-02-20';
-const START_VALID = '2026-01-10';
 
 // Minimal valid contract for testing
 const buildMinimalValidContract = (overrides: any = {}) => ({
@@ -37,13 +36,14 @@ const buildMinimalValidContract = (overrides: any = {}) => ({
     rationale: 'To complete project',
     hash: 'hash2',
   },
-  temporalBinding: {
-    daysPerWeek: 5,
-    specificDays: 'Mon-Fri',
-    activationTime: '09:00',
-    sessionDurationMinutes: 60,
-    weeklyMinutes: 300,
-    startDayKey: START_VALID,
+  workWindows: {
+    mon: [{ start: '09:00', end: '11:00' }],
+    tue: [{ start: '09:00', end: '11:00' }],
+    wed: [{ start: '09:00', end: '11:00' }],
+    thu: [{ start: '09:00', end: '11:00' }],
+    fri: [{ start: '09:00', end: '11:00' }],
+    sat: [],
+    sun: [],
   },
   causalChain: {
     steps: [
@@ -150,137 +150,65 @@ describe('Canonical Date Normalization (Phase 3)', () => {
     });
   });
 
-  describe('temporalBinding.startDayKey format validation', () => {
-    it('accepts valid YYYY-MM-DD format', () => {
+  describe('work windows are required', () => {
+    it('rejects when no windows exist', () => {
       const contract = buildMinimalValidContract({
-        temporalBinding: {
-          daysPerWeek: 5,
-          specificDays: 'Mon-Fri',
-          activationTime: '09:00',
-          sessionDurationMinutes: 60,
-          weeklyMinutes: 300,
-          startDayKey: '2026-01-10',
+        workWindows: {
+          mon: [],
+          tue: [],
+          wed: [],
+          thu: [],
+          fri: [],
+          sat: [],
+          sun: [],
         },
       });
       const result = validateGoalAdmission(contract, NOW_ISO);
-      expect(result.rejectionCodes).not.toContain(GoalRejectionCode.TEMPORAL_BINDING_INVALID);
-    });
-
-    it('rejects ISO timestamp format in startDayKey', () => {
-      const contract = buildMinimalValidContract({
-        temporalBinding: {
-          daysPerWeek: 5,
-          specificDays: 'Mon-Fri',
-          activationTime: '09:00',
-          sessionDurationMinutes: 60,
-          weeklyMinutes: 300,
-          startDayKey: '2026-01-10T00:00:00Z',
-        },
-      });
-      const result = validateGoalAdmission(contract, NOW_ISO);
-      expect(result.rejectionCodes).toContain(GoalRejectionCode.TEMPORAL_BINDING_INVALID);
-    });
-
-    it('rejects incomplete date (YYYY-MM)', () => {
-      const contract = buildMinimalValidContract({
-        temporalBinding: {
-          daysPerWeek: 5,
-          specificDays: 'Mon-Fri',
-          activationTime: '09:00',
-          sessionDurationMinutes: 60,
-          weeklyMinutes: 300,
-          startDayKey: '2026-01',
-        },
-      });
-      const result = validateGoalAdmission(contract, NOW_ISO);
-      expect(result.rejectionCodes).toContain(GoalRejectionCode.TEMPORAL_BINDING_INVALID);
-    });
-
-    it('rejects date with time', () => {
-      const contract = buildMinimalValidContract({
-        temporalBinding: {
-          daysPerWeek: 5,
-          specificDays: 'Mon-Fri',
-          activationTime: '09:00',
-          sessionDurationMinutes: 60,
-          weeklyMinutes: 300,
-          startDayKey: '2026-01-10 09:00',
-        },
-      });
-      const result = validateGoalAdmission(contract, NOW_ISO);
-      expect(result.rejectionCodes).toContain(GoalRejectionCode.TEMPORAL_BINDING_INVALID);
-    });
-
-    it('rejects non-numeric date', () => {
-      const contract = buildMinimalValidContract({
-        temporalBinding: {
-          daysPerWeek: 5,
-          specificDays: 'Mon-Fri',
-          activationTime: '09:00',
-          sessionDurationMinutes: 60,
-          weeklyMinutes: 300,
-          startDayKey: 'January 10, 2026',
-        },
-      });
-      const result = validateGoalAdmission(contract, NOW_ISO);
-      expect(result.rejectionCodes).toContain(GoalRejectionCode.TEMPORAL_BINDING_INVALID);
-    });
-
-    it('rejects empty startDayKey', () => {
-      const contract = buildMinimalValidContract({
-        temporalBinding: {
-          daysPerWeek: 5,
-          specificDays: 'Mon-Fri',
-          activationTime: '09:00',
-          sessionDurationMinutes: 60,
-          weeklyMinutes: 300,
-          startDayKey: '',
-        },
-      });
-      const result = validateGoalAdmission(contract, NOW_ISO);
-      expect(result.rejectionCodes).toContain(GoalRejectionCode.TEMPORAL_BINDING_INVALID);
+      expect(result.rejectionCodes).toContain(GoalRejectionCode.NO_WORK_WINDOWS);
     });
   });
 
-  describe('integration: both dates must be canonical', () => {
-    it('rejects when both deadline and startDayKey are invalid', () => {
+  describe('integration: canonical deadline + windows requirement', () => {
+    it('rejects when deadline is invalid and windows are missing', () => {
       const contract = buildMinimalValidContract({
         deadline: {
           dayKey: '2026-02-20T00:00:00Z',
           isHardDeadline: true,
         },
-        temporalBinding: {
-          daysPerWeek: 5,
-          specificDays: 'Mon-Fri',
-          activationTime: '09:00',
-          sessionDurationMinutes: 60,
-          weeklyMinutes: 300,
-          startDayKey: '2026-01-10T00:00:00Z',
+        workWindows: {
+          mon: [],
+          tue: [],
+          wed: [],
+          thu: [],
+          fri: [],
+          sat: [],
+          sun: [],
         },
       });
       const result = validateGoalAdmission(contract, NOW_ISO);
       expect(result.rejectionCodes).toContain(GoalRejectionCode.DEADLINE_MISSING);
-      expect(result.rejectionCodes).toContain(GoalRejectionCode.TEMPORAL_BINDING_INVALID);
+      expect(result.rejectionCodes).toContain(GoalRejectionCode.NO_WORK_WINDOWS);
     });
 
-    it('admits when both dates are valid YYYY-MM-DD', () => {
+    it('admits when deadline is canonical and windows are valid', () => {
       const contract = buildMinimalValidContract({
         deadline: {
           dayKey: '2026-02-20',
           isHardDeadline: true,
         },
-        temporalBinding: {
-          daysPerWeek: 5,
-          specificDays: 'Mon-Fri',
-          activationTime: '09:00',
-          sessionDurationMinutes: 60,
-          weeklyMinutes: 300,
-          startDayKey: '2026-01-10',
+        workWindows: {
+          mon: [{ start: '08:00', end: '10:00' }],
+          tue: [],
+          wed: [],
+          thu: [],
+          fri: [],
+          sat: [],
+          sun: [],
         },
       });
       const result = validateGoalAdmission(contract, NOW_ISO);
       expect(result.rejectionCodes).not.toContain(GoalRejectionCode.DEADLINE_MISSING);
-      expect(result.rejectionCodes).not.toContain(GoalRejectionCode.TEMPORAL_BINDING_INVALID);
+      expect(result.rejectionCodes).not.toContain(GoalRejectionCode.NO_WORK_WINDOWS);
     });
   });
 
@@ -294,7 +222,7 @@ describe('Canonical Date Normalization (Phase 3)', () => {
       // If admitted, dates are guaranteed canonical
       if (result.status === 'ADMITTED') {
         expect(contract.deadline.dayKey).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-        expect(contract.temporalBinding.startDayKey).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        expect(contract.workWindows.mon[0].start).toMatch(/^\d{2}:\d{2}$/);
       }
     });
   });

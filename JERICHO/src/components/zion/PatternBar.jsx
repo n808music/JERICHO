@@ -16,7 +16,7 @@ export default function PatternBar({ weeks = [] }) {
                 className="h-full"
                 style={{
                   width: `${Math.max(5, seg.share)}%`,
-                  background: seg.color || 'var(--color-jericho-accent)'
+                  background: seg.color || 'var(--color-jericho-accent)',
                 }}
                 title={`${seg.discipline}: ${seg.share}%`}
               />

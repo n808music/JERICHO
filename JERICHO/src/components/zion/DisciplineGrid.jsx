@@ -20,10 +20,7 @@ export default function DisciplineGrid({ domains = [], horizons = [], data = {},
               onReveal={() => (tile.onReveal ? tile.onReveal() : onReveal?.(tile))}
             />
           ) : (
-            <div
-              key={`${domain}-${horizons[0]}`}
-              className="p-3 text-xs text-muted flex items-center justify-center"
-            >
+            <div key={`${domain}-${horizons[0]}`} className="p-3 text-xs text-muted flex items-center justify-center">
               —
             </div>
           );

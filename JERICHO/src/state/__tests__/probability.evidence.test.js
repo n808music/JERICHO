@@ -11,7 +11,7 @@ function buildStateWithEvidence(days) {
     kind: 'complete',
     completed: true,
     dateISO: dayKey,
-    minutes: 60
+    minutes: 60,
   }));
   return {
     goalExecutionContract: { goalId: GOAL_ID, startDayKey: '2026-01-01', endDayKey: '2026-02-01' },
@@ -24,7 +24,7 @@ function buildStateWithEvidence(days) {
           activeFromISO: '2026-01-01',
           activeUntilISO: '2026-02-01',
           scope: { domainsAllowed: ['Focus'], timeHorizon: 'week', timezone: 'UTC' },
-          governance: { suggestionsEnabled: true, probabilityEnabled: true, minEvidenceEvents: 0 }
+          governance: { suggestionsEnabled: true, probabilityEnabled: true, minEvidenceEvents: 0 },
         },
         definiteGoal: { deadlineDayKey: '2026-02-01' },
         goalPlan: {
@@ -38,17 +38,26 @@ function buildStateWithEvidence(days) {
             slackRatio: 0.5,
             intensityRatio: 0.2,
             feasibilityStatus: 'FEASIBLE',
-            feasibilityReasons: []
+            feasibilityReasons: [],
           },
           scheduleBlocks: [],
-          generatedAtISO: NOW_ISO
-        }
-      }
+          generatedAtISO: NOW_ISO,
+        },
+      },
     },
     goalWorkById: {
-      [GOAL_ID]: [{ workItemId: 'work-1', blocksRemaining: 10, category: 'Focus', focusMode: 'deep', energyCost: 'low', producesOutput: true }]
+      [GOAL_ID]: [
+        {
+          workItemId: 'work-1',
+          blocksRemaining: 10,
+          category: 'Focus',
+          focusMode: 'deep',
+          energyCost: 'low',
+          producesOutput: true,
+        },
+      ],
     },
-    executionEvents
+    executionEvents,
   };
 }
 
@@ -68,7 +77,7 @@ describe('probability evidence updates', () => {
       '2026-01-04',
       '2026-01-05',
       '2026-01-06',
-      '2026-01-07'
+      '2026-01-07',
     ]);
     const result = scoreGoalSuccessProbability(GOAL_ID, state, { timezone: 'UTC', maxBlocksPerDay: 4 }, NOW_ISO);
     expect(result.status).toBe('ELIGIBLE');

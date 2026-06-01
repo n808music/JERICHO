@@ -83,11 +83,13 @@ function dominantCategory(actions: MilestoneAction[]) {
     const key = (a.category || 'CHECKPOINT').toString().toUpperCase();
     counts.set(key, (counts.get(key) || 0) + 1);
   });
-  return [...counts.keys()].sort((a, b) => {
-    const delta = (counts.get(b) || 0) - (counts.get(a) || 0);
-    if (delta !== 0) return delta;
-    return a.localeCompare(b);
-  })[0] || 'CHECKPOINT';
+  return (
+    [...counts.keys()].sort((a, b) => {
+      const delta = (counts.get(b) || 0) - (counts.get(a) || 0);
+      if (delta !== 0) return delta;
+      return a.localeCompare(b);
+    })[0] || 'CHECKPOINT'
+  );
 }
 
 export function injectCheckpoints(input: InjectCheckpointsInput) {
@@ -104,19 +106,14 @@ export function injectCheckpoints(input: InjectCheckpointsInput) {
         actions.filter((a) => a.id.startsWith(`CHECKPOINT::${milestone.milestoneId}::S`)).map((a) => a.id)
       );
 
-      const criticalSet = new Set<string>([
-        ...(milestone.actionIds || []),
-        ...(milestone.checkpointActionIds || []),
-      ]);
+      const criticalSet = new Set<string>([...(milestone.actionIds || []), ...(milestone.checkpointActionIds || [])]);
       [...criticalSet].forEach((id) => {
         const action = byId.get(id);
         if (!action) return;
         (action.dependencies || []).forEach((dep) => criticalSet.add(dep));
       });
 
-      const criticalActions = [...criticalSet]
-        .map((id) => byId.get(id))
-        .filter(Boolean) as MilestoneAction[];
+      const criticalActions = [...criticalSet].map((id) => byId.get(id)).filter(Boolean) as MilestoneAction[];
 
       const windowDays = daysBetween(milestone.windowStartDayKey, milestone.windowEndDayKey) + 1;
       const intervalDays = inferIntervalDays(windowDays, cadenceMode);

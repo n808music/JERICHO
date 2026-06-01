@@ -5,11 +5,13 @@ import { loadStressScenario, type StressScenarioId } from '../../src/stress/fixt
 function summarize(result: ReturnType<typeof runStressScenario>) {
   return {
     scenarioId: result.scenarioId,
-    hard: result.invariantViolations.filter((violation) => violation.severity === 'hard').map((violation) => violation.code),
+    hard: result.invariantViolations
+      .filter((violation) => violation.severity === 'hard')
+      .map((violation) => violation.code),
     realism: result.invariantViolations
       .filter((violation) => violation.severity === 'realism')
       .map((violation) => violation.code)
-      .sort()
+      .sort(),
   };
 }
 
@@ -31,8 +33,8 @@ describe('stress aggregate gate', () => {
         determinismBaseline: {
           proposedSchedulePreview: baseline.proposedSchedulePreview,
           committedEvents: baseline.committedEvents,
-          materializedSchedule: baseline.materializedSchedule
-        }
+          materializedSchedule: baseline.materializedSchedule,
+        },
       });
       return { scenarioId, run, fixture: loadStressScenario(scenarioId) };
     });
@@ -132,10 +134,18 @@ describe('stress aggregate gate', () => {
         );
       }
       if (metricTargets.milestoneWindowSlackRatioMin) {
-        assertRange(run.metrics.milestoneWindowSlack.slackRatioMin, metricTargets.milestoneWindowSlackRatioMin, summary);
+        assertRange(
+          run.metrics.milestoneWindowSlack.slackRatioMin,
+          metricTargets.milestoneWindowSlackRatioMin,
+          summary
+        );
       }
       if (metricTargets.infeasibleMilestonesCount) {
-        assertRange(run.metrics.milestoneWindowSlack.infeasibleMilestonesCount, metricTargets.infeasibleMilestonesCount, summary);
+        assertRange(
+          run.metrics.milestoneWindowSlack.infeasibleMilestonesCount,
+          metricTargets.infeasibleMilestonesCount,
+          summary
+        );
       }
       if (metricTargets.prescriptionsCount) {
         assertRange(run.metrics.prescriptionsCount, metricTargets.prescriptionsCount, summary);
@@ -161,7 +171,10 @@ describe('stress aggregate gate', () => {
       }
       if ((targets.prescriptions?.mustIncludeCodes || []).length > 0) {
         const required = targets.prescriptions?.mustIncludeCodes || [];
-        expect(required.some((code) => run.metrics.prescriptionsCodes.includes(code)), summary).toBe(true);
+        expect(
+          required.some((code) => run.metrics.prescriptionsCodes.includes(code)),
+          summary
+        ).toBe(true);
       }
     });
   });

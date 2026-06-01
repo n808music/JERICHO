@@ -17,19 +17,15 @@ function DayCell({ day, onSelect }) {
       </div>
       <div className="flex items-center gap-1">
         {day.streakDots?.map((filled, idx) => (
-          <span
-            key={idx}
-            className={`h-1.5 w-1.5 rounded-full ${filled ? 'bg-jericho-accent' : 'bg-line/60'}`}
-          />
+          <span key={idx} className={`h-1.5 w-1.5 rounded-full ${filled ? 'bg-jericho-accent' : 'bg-line/60'}`} />
         ))}
       </div>
       <div className="h-1.5 rounded-full bg-line/20 overflow-hidden">
-        <div
-          className="h-full bg-jericho-accent/70"
-          style={{ width: `${Math.min(100, completionPercent)}%` }}
-        />
+        <div className="h-full bg-jericho-accent/70" style={{ width: `${Math.min(100, completionPercent)}%` }} />
       </div>
-      <div className="text-[11px] text-muted">{(day.blocks || []).length} · {completionPercent}%</div>
+      <div className="text-[11px] text-muted">
+        {(day.blocks || []).length} · {completionPercent}%
+      </div>
     </button>
   );
 }
@@ -71,11 +67,7 @@ export default function MonthMatrix({ days = [], onSelect }) {
         {calendar.flatMap((week, wi) =>
           week.map((day, di) =>
             day ? (
-              <DayCell
-                key={day.label || day.date}
-                day={day}
-                onSelect={(d) => onSelect?.(d)}
-              />
+              <DayCell key={day.label || day.date} day={day} onSelect={(d) => onSelect?.(d)} />
             ) : (
               <div key={`empty-${wi}-${di}`} className="p-2 rounded-md border border-transparent" />
             )

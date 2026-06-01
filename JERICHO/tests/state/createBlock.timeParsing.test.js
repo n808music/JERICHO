@@ -23,10 +23,10 @@ function buildBaseState(date = '2026-01-09', timeZone = 'UTC') {
       timeZone,
       nowISO,
       activeDayKey: date,
-      isFollowingNow: true
+      isFollowingNow: true,
     },
     directiveEligibilityByGoal: {},
-    goalDirective: null
+    goalDirective: null,
   };
 }
 
@@ -39,8 +39,8 @@ describe('createBlock time parsing', () => {
         start: 'not-an-iso',
         durationMinutes: 30,
         domain: 'FOCUS',
-        title: 'Bad'
-      }
+        title: 'Bad',
+      },
     });
 
     expect(next.executionEvents.length).toBe(0);
@@ -57,8 +57,8 @@ describe('createBlock time parsing', () => {
         durationMinutes: 30,
         domain: 'FOCUS',
         title: 'Late',
-        timeZone: 'UTC'
-      }
+        timeZone: 'UTC',
+      },
     });
 
     const block = (next.today?.blocks || [])[0];
@@ -66,5 +66,22 @@ describe('createBlock time parsing', () => {
     expect(dayKeyFromISO(block?.start, 'UTC')).toBe('2026-01-09');
     const cycleDay = (next.cycle || []).find((day) => day.date === '2026-01-09');
     expect(cycleDay).toBeTruthy();
+  });
+
+  it('does not use legacy category/domain as a title fallback', () => {
+    const base = buildBaseState();
+    const next = computeDerivedState(base, {
+      type: 'CREATE_BLOCK',
+      payload: {
+        start: '2026-01-09T09:00:00.000Z',
+        durationMinutes: 30,
+        domain: 'FOCUS',
+        timeZone: 'UTC',
+      },
+    });
+
+    const block = (next.today?.blocks || [])[0];
+    expect(block?.label).toBe('Untitled task');
+    expect(block?.label).not.toBe('Focus');
   });
 });

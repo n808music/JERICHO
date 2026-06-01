@@ -20,17 +20,31 @@ import evaluateTeamGovernance from './team-governance-engine.js';
 import compileTeamNarrative from './team-narrative-engine.js';
 import { normalizeGoalInput } from './goal-domain.js';
 import { selectPacingMode } from './behavioral-control-engine.js';
+import { assessFeasibility } from './feasibility-agent.js';
+import { classifyGoalCategory } from './identity-requirements.js';
+import { startTrace, addTraceEvent } from './diagnostics.js';
+import { runIntegrationVerification } from './integration-verification-agent.js';
 
 /**
  * Run the closed-loop pipeline once for the provided goal input and identity state.
  * goalInput: { goals: string[] }
  */
 export function runPipeline(goalInput, identity, history = [], tasks = [], team = undefined) {
+  // Start trace for this pipeline run
+  const traceId = startTrace('pipeline_run', goalInput?.goals?.[0]?.id || 'unknown');
+
   const rawGoal = Array.isArray(goalInput?.goals) ? goalInput.goals[0] : '';
   const validation = validateGoal(rawGoal);
   const identityState = normalizeIdentity(identity);
 
+  addTraceEvent('pipeline', 'goal_validation', validation.valid ? 'success' : 'failure',
+    { rawGoal: rawGoal.substring(0, 100) },
+    { valid: validation.valid, goal: validation.goal?.raw },
+    validation.valid ? null : 'INVALID_GOAL_INPUT'
+  );
+
   if (!validation.valid) {
+    addTraceEvent('pipeline', 'early_exit', 'failure', {}, {}, 'INVALID_GOAL_INPUT');
     return {
       goal: null,
       error: validation.error,
@@ -65,11 +79,26 @@ export function runPipeline(goalInput, identity, history = [], tasks = [], team 
   const goal = validation.goal;
 
   const requirements = deriveIdentityRequirements(goal);
+  addTraceEvent('pipeline', 'requirements_derivation', 'success',
+    { goal: goal.raw },
+    { requirementsCount: requirements.length }
+  );
+
   const gapsBefore = computeCapabilityGaps(identityState, requirements);
   const rankedGapsBefore = rankCapabilityGaps(gapsBefore);
+  addTraceEvent('pipeline', 'gap_analysis', 'success',
+    { requirementsCount: requirements.length },
+    { gapsCount: gapsBefore.length, rankedGapsCount: rankedGapsBefore.length }
+  );
+
   const goalMeta = normalizeGoalInput(goal.raw);
 
   const integritySummary = computeIntegrityScore(tasks);
+  addTraceEvent('pipeline', 'integrity_scoring', 'success',
+    { tasksCount: tasks.length },
+    { integrityScore: integritySummary.score, completedCount: integritySummary.completedCount }
+  );
+
   const integrityExplanation = explainIntegrityScore(tasks);
 
   const { updatedIdentity, changes } = applyIdentityUpdate(
@@ -77,6 +106,10 @@ export function runPipeline(goalInput, identity, history = [], tasks = [], team 
     rankedGapsBefore,
     integritySummary,
     tasks
+  );
+  addTraceEvent('pipeline', 'identity_update', 'success',
+    { gapsCount: rankedGapsBefore.length },
+    { changesCount: changes.length }
   );
 
   const gapsAfter = computeCapabilityGaps(updatedIdentity, requirements);
@@ -112,6 +145,13 @@ export function runPipeline(goalInput, identity, history = [], tasks = [], team 
           }
         ];
 
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const cycleStartIso = nowIso;
+  const cycleEnd = new Date(now);
+  cycleEnd.setDate(cycleEnd.getDate() + 7);
+  const cycleEndIso = cycleEnd.toISOString();
+
   const nextCycleTasks = generateTasksForCycle(goal, withFallbackGaps, {
     maxTasks: 4 + (pacing.maxTasksDelta ?? 0),
     cycleDays: 7,
@@ -119,7 +159,8 @@ export function runPipeline(goalInput, identity, history = [], tasks = [], team 
     capabilityHint: goalMeta.capability,
     integrityScore: integritySummary.score,
     goalLink: goal.raw || goal.outcome || 'goal',
-    difficultyBias: pacing.difficultyBias
+    difficultyBias: pacing.difficultyBias,
+    now: nowIso
   }).map(
     (task, idx) => ({
       ...task,
@@ -130,18 +171,12 @@ export function runPipeline(goalInput, identity, history = [], tasks = [], team 
     nextCycleTasks.push(buildFallbackTask(goal, goalMeta));
   }
 
-  const now = new Date();
-  const nowIso = now.toISOString();
-  const cycleStartIso = nowIso;
-  const cycleEnd = new Date(now);
-  cycleEnd.setDate(cycleEnd.getDate() + 7);
-  const cycleEndIso = cycleEnd.toISOString();
-
   const daySlots = buildDaySlots(cycleStartIso, cycleEndIso);
   const { daySlots: scheduledDaySlots, overflowTasks, todayPriorityTaskId } = scheduleTasksIntoSlots(
     nextCycleTasks,
     daySlots,
-    integritySummary
+    integritySummary,
+    { currentDate: nowIso.split('T')[0] } // Pass deterministic current date
   );
   const finalToday = todayPriorityTaskId || nextCycleTasks[0]?.id || null;
 
@@ -160,6 +195,43 @@ export function runPipeline(goalInput, identity, history = [], tasks = [], team 
 
   const failureAnalysis = analyzeFailurePatterns(updatedHistory, integritySummary);
   const forecast = computeForecast(goal, requirements, updatedHistory);
+
+  // Feasibility assessment (Module 3) - use a default capacity vector for pipeline runs
+  const category = classifyGoalCategory(goal);
+  const familyMap = {
+    product_launch: 'VentureLaunch',
+    creative_project: 'CreativeProduction',
+    body_composition: 'PhysicalTraining',
+    learning_goal: 'SkillAcquisition',
+    generic_execution: 'VentureLaunch'
+  };
+  const goalFamily = familyMap[category] || 'VentureLaunch';
+  const goalSubtype = goalFamily === 'VentureLaunch' ? 'SaaS Product Launch' : null;
+
+  const feasibilityInputs = {
+    availableHoursPerWeek: 10,
+    availableDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+    sessionLengthPreference: '1_hour',
+    goalStartDate: nowIso,
+    goalDeadline: goal.deadline || nowIso,
+    currentLoadLevel: 'moderate',
+    priorExperience: 'some_experience',
+    externalDependencyCount: 0,
+    familySpecificInputs: {}
+  };
+
+  const feasibilityResult = assessFeasibility(feasibilityInputs, goalFamily, goalSubtype);
+  const capacityVector = feasibilityResult.capacityVector || {};
+  const effortEstimate = feasibilityResult.effortEstimate || {};
+  const feasibility = feasibilityResult.feasibility || { baselineFeasibilityScore: 0, limitingFactors: [] };
+  const feasibilityScore = feasibility.baselineFeasibilityScore;
+  const reasonCodes = feasibility.limitingFactors || [];
+
+  addTraceEvent('pipeline', 'baseline_feasibility', 'success',
+    { requirementsCount: requirements.length, gapsCount: rankedGapsAfter.length },
+    { feasibilityScore, reasonCodes }
+  );
+
   const totalScheduledTasks = scheduledDaySlots
     .flatMap((d) => d.slots)
     .reduce((acc, slot) => acc + slot.taskIds.length, 0);
@@ -174,7 +246,8 @@ export function runPipeline(goalInput, identity, history = [], tasks = [], team 
     integritySummary,
     scheduleSummary,
     failureAnalysis,
-    forecast
+    forecast,
+    feasibilityScore
   });
 
   const milestones = decomposeGoal(goal, requirements, forecast);
@@ -291,6 +364,40 @@ export function runPipeline(goalInput, identity, history = [], tasks = [], team 
     }
   };
 
+  // Final trace event for pipeline completion
+  addTraceEvent('pipeline', 'pipeline_complete', 'success',
+    { totalSteps: 8 }, // Rough count of major steps
+    {
+      requirementsCount: requirements.length,
+      tasksCount: nextCycleTasks.length,
+      integrityScore: integritySummary.score,
+      scheduledTasksCount: totalScheduledTasks,
+      forecastAvailable: !!forecast
+    }
+  );
+
+  // Agent 8: Integration Verification
+  const verificationContext = {
+    traceId,
+    goal,
+    actionGraph: [], // Not implemented yet
+    graphValidation: { graphValidationStatus: 'VALID' }, // Placeholder
+    capacityVector,
+    effortEstimate,
+    feasibility,
+    schedulingPolicy: {}, // Not implemented yet
+    scheduleProposal: {}, // Not implemented yet
+    committedBlocks: [], // Not implemented yet
+    executionSignals: [],
+    stabilityRecords: [],
+    driftDetection: {},
+    failureClassification: {},
+    recoveryRecommendation: {},
+    userConfirmations: [] // No confirmations in pipeline run
+  };
+
+  const verificationRecord = runIntegrationVerification(verificationContext);
+
   return {
     goal,
     identityBefore: identityState,
@@ -327,7 +434,8 @@ export function runPipeline(goalInput, identity, history = [], tasks = [], team 
     teamIdentity,
     teamGovernance,
     teamNarrative
-  }
+  },
+    verification: verificationRecord
   };
 }
 

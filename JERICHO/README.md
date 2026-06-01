@@ -2,7 +2,9 @@
 
 **Deterministic Goal Planning & Execution System**
 
-A production-ready goal planning system that transforms high-level objectives into executable, time-bound plans through deterministic auto-generation and mechanism-class-based templates.
+A production-ready goal planning system that transforms high-level objectives
+into executable, time-bound plans through deterministic auto-generation and
+mechanism-class-based templates.
 
 ## 🚀 Quick Start
 
@@ -23,12 +25,16 @@ npm test
 
 ## 📋 What is JERICHO?
 
-JERICHO is a goal planning system that automatically generates executable plans from user goals without requiring manual task entry. The system uses:
+JERICHO is a goal planning system that automatically generates executable plans
+from user goals without requiring manual task entry. The system uses:
 
-- **Mechanism-Class Auto-Generation**: Automatically categorizes goals into 6 types (CREATE, PUBLISH, MARKET, LEARN, OPS, REVIEW)
-- **Deterministic Templates**: Pre-built deliverable templates for each goal type
+- **Mechanism-Class Auto-Generation**: Automatically categorizes goals into 6
+  types (CREATE, PUBLISH, MARKET, LEARN, OPS, REVIEW)
+- **Deterministic Templates**: Pre-built deliverable templates for each goal
+  type
 - **Time-Block Allocation**: Automatic scheduling with capacity-based planning
-- **Zero-Input Planning**: "Regenerate Route" produces complete plans without manual deliverable entry
+- **Zero-Input Planning**: "Regenerate Route" produces complete plans without
+  manual deliverable entry
 
 ## 🏗️ Architecture
 
@@ -55,20 +61,24 @@ JERICHO is a goal planning system that automatically generates executable plans 
 
 ### 🚀 For New Users
 
-- [Getting Started Guide](docs/development/SETUP.md) - Installation and first steps
+- [Getting Started Guide](docs/development/SETUP.md) - Installation and first
+  steps
 - [User Guide](docs/user/USER_GUIDE.md) - How to use JERICHO effectively
 
 ### 👨‍💻 For Developers
 
 - [Developer Setup](docs/development/SETUP.md) - Development environment setup
-- [Contributing Guidelines](docs/development/CONTRIBUTING.md) - How to contribute
+- [Contributing Guidelines](docs/development/CONTRIBUTING.md) - How to
+  contribute
 - [Testing Guide](docs/development/TESTING.md) - Testing practices and patterns
 
 ### 🏛️ Technical Architecture
 
-- [System Architecture](docs/architecture/EXECUTION_PLAN.md) - High-level system design
+- [System Architecture](docs/architecture/EXECUTION_PLAN.md) - High-level system
+  design
 - [Authority Maps](docs/architecture/) - UI and Probability authority mappings
-- [Mechanism Classes](docs/phases/PHASE_2_IMPLEMENTATION_SUMMARY.md) - Auto-generation system
+- [Mechanism Classes](docs/phases/PHASE_2_IMPLEMENTATION_SUMMARY.md) -
+  Auto-generation system
 - [API Documentation](docs/api/) - Backend API reference
 
 ### 📊 Project Status
@@ -150,7 +160,8 @@ JERICHO is a goal planning system that automatically generates executable plans 
 4. Ensure all tests pass (`npm test`)
 5. Submit a pull request
 
-See [Contributing Guidelines](docs/development/CONTRIBUTING.md) for detailed instructions.
+See [Contributing Guidelines](docs/development/CONTRIBUTING.md) for detailed
+instructions.
 
 ## 📄 License
 

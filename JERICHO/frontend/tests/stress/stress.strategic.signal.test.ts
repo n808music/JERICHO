@@ -12,7 +12,7 @@ function mapPlacement(items: any[] = []) {
       if (map.has(id)) return;
       map.set(id, {
         dayKey: item.dayKey || item.dateISO || (item.startISO || '').slice(0, 10),
-        startISO: item.startISO || ''
+        startISO: item.startISO || '',
       });
     });
   return map;
@@ -53,7 +53,7 @@ describe('stress strategic signal scenarios', () => {
       return {
         ...action,
         topoIndex: 1,
-        priority: 0
+        priority: 0,
       };
     });
     const perturbed = runStressScenario('doctor_10y', {
@@ -61,9 +61,9 @@ describe('stress strategic signal scenarios', () => {
       scenarioOverride: {
         inferredGraph: {
           ...fixture.inferredGraph,
-          actions: perturbedActions
-        }
-      }
+          actions: perturbedActions,
+        },
+      },
     });
 
     const moved = movedCount(baseline.proposedSchedulePreview, perturbed.proposedSchedulePreview);
@@ -79,16 +79,16 @@ describe('stress strategic signal scenarios', () => {
       scenarioOverride: {
         horizon: {
           startDayKey: '2026-02-01',
-          endDayKey: '2026-02-01'
+          endDayKey: '2026-02-01',
         },
         availability: {
           daysPerWeek: 7,
           specificDays: 'sun,mon,tue,wed,thu,fri,sat',
           maxBlocksPerDay: 3,
-          routeMinutesDefault: 30
+          routeMinutesDefault: 30,
         },
         dependencies: {
-          defaultBufferMinutes: 12 * 60
+          defaultBufferMinutes: 12 * 60,
         },
         inferredGraph: {
           source: 'fixture_snapshot',
@@ -103,7 +103,7 @@ describe('stress strategic signal scenarios', () => {
               deps: [],
               topoIndex: 0,
               priority: 1,
-              status: 'todo'
+              status: 'todo',
             },
             {
               id: 'dep_micro:B',
@@ -114,11 +114,11 @@ describe('stress strategic signal scenarios', () => {
               deps: ['dep_micro:A'],
               topoIndex: 1,
               priority: 2,
-              status: 'todo'
-            }
-          ]
-        }
-      }
+              status: 'todo',
+            },
+          ],
+        },
+      },
     });
 
     expect(result.invariantViolations.some((entry) => entry.code === 'DEPENDENCY_TIMING_VIOLATIONS')).toBe(false);
@@ -130,13 +130,13 @@ describe('stress strategic signal scenarios', () => {
       scenarioOverride: {
         realismConstraints: {
           maxScheduledMinutesPerDay: 30,
-          toleranceMinutes: 0
+          toleranceMinutes: 0,
         },
         horizon: {
           startDayKey: '2026-02-01',
-          endDayKey: '2026-03-02'
-        }
-      }
+          endDayKey: '2026-03-02',
+        },
+      },
     });
 
     const medium = runStressScenario('podcast_30d', {
@@ -144,13 +144,13 @@ describe('stress strategic signal scenarios', () => {
       scenarioOverride: {
         realismConstraints: {
           maxScheduledMinutesPerDay: 30,
-          toleranceMinutes: 0
+          toleranceMinutes: 0,
         },
         horizon: {
           startDayKey: '2026-02-01',
-          endDayKey: '2026-05-01'
-        }
-      }
+          endDayKey: '2026-05-01',
+        },
+      },
     });
 
     const long = runStressScenario('podcast_30d', {
@@ -158,13 +158,13 @@ describe('stress strategic signal scenarios', () => {
       scenarioOverride: {
         realismConstraints: {
           maxScheduledMinutesPerDay: 30,
-          toleranceMinutes: 0
+          toleranceMinutes: 0,
         },
         horizon: {
           startDayKey: '2026-02-01',
-          endDayKey: '2027-02-01'
-        }
-      }
+          endDayKey: '2027-02-01',
+        },
+      },
     });
 
     expect(medium.metrics.capacityOverageDaysCount).toBeLessThanOrEqual(short.metrics.capacityOverageDaysCount);
@@ -181,9 +181,9 @@ describe('stress strategic signal scenarios', () => {
           executionHorizonDays: 90,
           enableQualityOptimizer: true,
           optimizerMaxIterations: 2,
-          optimizerMaxCandidates: 30
-        }
-      }
+          optimizerMaxCandidates: 30,
+        },
+      },
     });
     expect(optimized.metrics.qualityScoreTotal).toBeLessThanOrEqual(baseline.metrics.qualityScoreTotal + 1e-9);
     expect(optimized.metrics.churnIndex).toBeLessThanOrEqual(Math.max(0.4, baseline.metrics.churnIndex + 0.1));

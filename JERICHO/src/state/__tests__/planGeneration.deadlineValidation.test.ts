@@ -17,16 +17,14 @@ describe('planGeneration deadline validation', () => {
           goalId: 'goal_456',
           deadline: {
             dayKey: '2026-04-08',
-            isHardDeadline: true
+            isHardDeadline: true,
           },
           admissionStatus: 'ADMITTED',
-          admittedAtISO: '2026-01-12T10:30:00Z'
+          admittedAtISO: '2026-01-12T10:30:00Z',
         },
         strategy: {
-          deliverables: [
-            { id: 'del_1', title: 'Build feature', requiredBlocks: 8 }
-          ]
-        }
+          deliverables: [{ id: 'del_1', title: 'Build feature', requiredBlocks: 8 }],
+        },
       };
 
       // Extract deadline using the fixed logic
@@ -54,8 +52,8 @@ describe('planGeneration deadline validation', () => {
         goalContract: {
           goalId: 'goal_999',
           deadlineISO: '2026-04-08T00:00:00Z', // Legacy format
-          admissionStatus: 'ADMITTED'
-        }
+          admissionStatus: 'ADMITTED',
+        },
       };
 
       // Simulate dayKeyFromISO conversion (already exists in codebase)
@@ -86,16 +84,15 @@ describe('planGeneration deadline validation', () => {
         goalId: 'goal_123',
         deadline: {
           dayKey: '2026-04-15', // Should be set at admission
-          isHardDeadline: true
+          isHardDeadline: true,
         },
         admissionStatus: 'ADMITTED',
-        admittedAtISO: '2026-01-12T10:30:00Z'
+        admittedAtISO: '2026-01-12T10:30:00Z',
       };
 
       // Check invariant: admitted contract always has deadline.dayKey
       const hasCanonicalDeadline = Boolean(
-        admittedContract.deadline?.dayKey &&
-        /^\d{4}-\d{2}-\d{2}$/.test(admittedContract.deadline.dayKey)
+        admittedContract.deadline?.dayKey && /^\d{4}-\d{2}-\d{2}$/.test(admittedContract.deadline.dayKey)
       );
 
       expect(hasCanonicalDeadline).toBe(true);
@@ -105,7 +102,7 @@ describe('planGeneration deadline validation', () => {
       // Before admission, draft might have deadlineISO
       const draftContract = {
         goalId: 'goal_456',
-        deadlineISO: '2026-04-08T00:00:00Z'
+        deadlineISO: '2026-04-08T00:00:00Z',
       };
 
       // At admission, normalize to canonical format
@@ -114,7 +111,7 @@ describe('planGeneration deadline validation', () => {
           const dayKey = contract.deadlineISO.split('T')[0];
           contract.deadline = {
             dayKey,
-            isHardDeadline: true // Default
+            isHardDeadline: true, // Default
           };
           // Keep deadlineISO for backward compat
         }
@@ -160,8 +157,8 @@ describe('planGeneration deadline validation', () => {
         goalId: 'goal_999',
         deadline: {
           dayKey: 'invalid-date-format',
-          isHardDeadline: true
-        }
+          isHardDeadline: true,
+        },
       };
 
       const isValidDayKey = (key: any) => /^\d{4}-\d{2}-\d{2}$/.test(key);
@@ -212,18 +209,16 @@ describe('planGeneration deadline validation', () => {
           goalId: 'goal_main',
           deadline: {
             dayKey: '2026-04-15', // 3 months away - very valid
-            isHardDeadline: true
+            isHardDeadline: true,
           },
           admissionStatus: 'ADMITTED',
-          admittedAtISO: '2026-01-12T10:30:00Z'
+          admittedAtISO: '2026-01-12T10:30:00Z',
         },
         strategy: {
           deadlineISO: '2026-04-15T23:59:59Z',
-          deliverables: [
-            { id: 'd1', title: 'Build', requiredBlocks: 8 }
-          ],
-          constraints: { tz: 'UTC' }
-        }
+          deliverables: [{ id: 'd1', title: 'Build', requiredBlocks: 8 }],
+          constraints: { tz: 'UTC' },
+        },
       };
 
       // Extract deadline using fixed logic

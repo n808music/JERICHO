@@ -15,7 +15,7 @@ describe('explanations', () => {
     const task = {
       decision: 'keep',
       governanceEligible: true,
-      reasons: ['identity_priority']
+      reasons: ['identity_priority'],
     };
     const before = { ...task, reasons: [...task.reasons] };
     const explanation = explainTaskReasons(task);
@@ -28,7 +28,7 @@ describe('explanations', () => {
     const task = {
       decision: 'keep',
       governanceEligible: false,
-      reasons: ['above_cycle_cap']
+      reasons: ['above_cycle_cap'],
     };
     const explanation = explainTaskReasons(task);
     expect(explanation.headline).toMatch(/inactive/);
@@ -39,7 +39,7 @@ describe('explanations', () => {
     const task = {
       decision: 'defer',
       governanceEligible: false,
-      reasons: ['deferred_by_compression']
+      reasons: ['deferred_by_compression'],
     };
     const explanation = explainTaskReasons(task);
     expect(explanation.headline).toMatch(/Deferred/);

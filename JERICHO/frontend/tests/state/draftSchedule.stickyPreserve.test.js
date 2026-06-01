@@ -25,15 +25,15 @@ function buildState({ startDay = '2026-01-01', deadlineDay = '2026-01-10', actio
             temporalBinding: {
               daysPerWeek: 7,
               specificDays: 'mon,tue,wed,thu,fri,sat,sun',
-              sessionDurationMinutes: 30
-            }
+              sessionDurationMinutes: 30,
+            },
           },
-          coldPlan: { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } }
-        }
+          coldPlan: { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } },
+        },
       },
-      deliverablesByCycleId: { [cycleId]: { cycleId, deliverables: [] } }
+      deliverablesByCycleId: { [cycleId]: { cycleId, deliverables: [] } },
     },
-    cycleId
+    cycleId,
   };
 }
 
@@ -47,7 +47,7 @@ describe('draftSchedule sticky preserve', () => {
       estimateMin: 30,
       deps: [],
       topoIndex: index,
-      priority: index + 1
+      priority: index + 1,
     }));
 
     const { state, cycleId } = buildState({ actions });
@@ -60,7 +60,7 @@ describe('draftSchedule sticky preserve', () => {
       defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01', executionHorizonDays: 90 },
       captureStats: (stats) => {
         firstStats = stats;
-      }
+      },
     });
 
     state.draftScheduleItemsByCycleId[cycleId] = first;
@@ -74,7 +74,7 @@ describe('draftSchedule sticky preserve', () => {
       defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01', executionHorizonDays: 90 },
       captureStats: (stats) => {
         secondStats = stats;
-      }
+      },
     });
 
     expect(second).toEqual(first);

@@ -15,9 +15,9 @@ function buildBaseState() {
         goalContract: {
           goalId: 'goal-album',
           startDate: '2026-01-20',
-          deadline: { dayKey: '2026-01-25', isHardDeadline: true }
-        }
-      }
+          deadline: { dayKey: '2026-01-25', isHardDeadline: true },
+        },
+      },
     },
     activeCycleId: 'c1',
     executionEvents: [],
@@ -25,7 +25,7 @@ function buildBaseState() {
     planDraft: null,
     suggestionEvents: [],
     suggestedBlocks: [],
-    lastPlanError: null
+    lastPlanError: null,
   };
 }
 
@@ -42,28 +42,26 @@ describe('commitPreviewItems invariant', () => {
             startISO: '2026-01-20T03:00:00.000Z',
             minutes: 60,
             title: 'Outline: Tracklist',
-            domainKey: 'CREATION'
+            domainKey: 'CREATION',
           },
           {
             dayKey: '2026-01-21',
             startISO: '2026-01-21T11:00:00.000Z',
             minutes: 60,
             title: 'Draft: Verse pass',
-            domainKey: 'CREATION'
-          }
-        ]
-      }
+            domainKey: 'CREATION',
+          },
+        ],
+      },
     };
 
     const next = computeDerivedState(state, action);
     expect(next.lastPlanError).toBeNull();
-    expect(next.executionEvents.length).toBe(2);
-    const committedDayKeys = next.executionEvents.map((event) => dayKeyFromISO(event.dateISO, 'UTC'));
+    const createEvents = next.executionEvents.filter((event) => event.kind === 'create');
+    expect(createEvents.length).toBe(2);
+    const committedDayKeys = createEvents.map((event) => dayKeyFromISO(event.dateISO, 'UTC'));
     expect(new Set(committedDayKeys)).toEqual(
-      new Set([
-        dayKeyFromISO('2026-01-20T03:00:00.000Z', 'UTC'),
-        dayKeyFromISO('2026-01-21T11:00:00.000Z', 'UTC')
-      ])
+      new Set([dayKeyFromISO('2026-01-20T03:00:00.000Z', 'UTC'), dayKeyFromISO('2026-01-21T11:00:00.000Z', 'UTC')])
     );
   });
 

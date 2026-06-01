@@ -15,7 +15,7 @@ function buildState() {
     deps: [],
     status: 'todo',
     topoIndex: i,
-    priority: 1
+    priority: 1,
   }));
   const forecastByDayKey = {};
   for (let i = 0; i < 6; i += 1) {
@@ -38,11 +38,11 @@ function buildState() {
           goalId: 'goal-1',
           startDate: startDay,
           deadline: { dayKey: deadlineDay },
-          temporalBinding: { daysPerWeek: 7, activationTime: '09:00', sessionDurationMinutes: 90 }
+          temporalBinding: { daysPerWeek: 7, activationTime: '09:00', sessionDurationMinutes: 90 },
         },
-        coldPlan: { forecastByDayKey, dailyProjection: { forecastByDayKey: {} } }
-      }
-    }
+        coldPlan: { forecastByDayKey, dailyProjection: { forecastByDayKey: {} } },
+      },
+    },
   };
 }
 
@@ -53,7 +53,7 @@ describe('draft schedule insufficient slots', () => {
     const items = buildDraftScheduleItems(state, cycleId, {
       startDateISO: state.appTime.activeDayKey,
       actions: state.actionsByCycleId[cycleId].actions,
-      scheduleMode: 'FULL_PLAN'
+      scheduleMode: 'FULL_PLAN',
     });
     expect(Array.isArray(items)).toBe(true);
 
@@ -65,7 +65,7 @@ describe('draft schedule insufficient slots', () => {
       fullDraftItems: items,
       scheduleMode: 'FULL_PLAN',
       startDateISO: `${state.appTime.activeDayKey}T00:00:00.000Z`,
-      deadlineISO: '2026-01-10T23:59:59.000Z'
+      deadlineISO: '2026-01-10T23:59:59.000Z',
     });
     expect(['INSUFFICIENT_ROUTE_SLOTS_TO_DEADLINE', 'HIT_BOUNDARY']).toContain(diagnostics.reasonCode);
     expect(diagnostics.requiredSlots).toBe(24);

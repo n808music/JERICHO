@@ -31,12 +31,15 @@ describe('policy selector no oscillation', () => {
       minPolicyHoldDays: 7,
       priorSignalsSnapshot: base,
     });
-    const second = computePolicySelection({ ...base, contextSwitchCount: base.contextSwitchCount + 1 }, {
-      priorPolicyId: 'DEEP_WORK',
-      priorPolicyAgeDays: 8,
-      minPolicyHoldDays: 7,
-      priorSignalsSnapshot: base,
-    });
+    const second = computePolicySelection(
+      { ...base, contextSwitchCount: base.contextSwitchCount + 1 },
+      {
+        priorPolicyId: 'DEEP_WORK',
+        priorPolicyAgeDays: 8,
+        minPolicyHoldDays: 7,
+        priorSignalsSnapshot: base,
+      }
+    );
     expect(first.selectedPolicyId).toBe('DEEP_WORK');
     expect(second.selectedPolicyId).toBe('DEEP_WORK');
   });

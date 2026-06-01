@@ -15,8 +15,8 @@ function baseState(cycleId = 'cycle-1') {
         status: 'active',
         executionEvents: [],
         suggestionEvents: [],
-        suggestedBlocks: []
-      }
+        suggestedBlocks: [],
+      },
     },
     activeCycleId: cycleId,
     cycle: [],
@@ -27,7 +27,14 @@ function baseState(cycleId = 'cycle-1') {
     lastAdaptedDate: null,
     nextSuggestion: null,
     deliverablesByCycleId: {},
-    goalAdmissionByGoal: {}
+    goalAdmissionByGoal: {},
+    pendingOnboardingInputs: {
+      goalText: 'Old goal',
+      goalContract: {
+        terminalOutcome: { text: 'Old goal', verificationCriteria: 'done', isConcrete: true },
+        sacrifice: { whatIsGivenUp: 'weekends', duration: '30d', quantifiedImpact: '2h/day', rationale: 'focus' },
+      },
+    },
   };
 }
 
@@ -36,7 +43,7 @@ const blockPayload = {
   durationMinutes: 30,
   domain: 'CREATION',
   title: 'QA Block',
-  linkToGoal: true
+  linkToGoal: true,
 };
 
 describe('Cycle UX invariants', () => {
@@ -58,8 +65,11 @@ describe('Cycle UX invariants', () => {
   it('deletes an active cycle and keeps projections clean', () => {
     const state = computeDerivedState(baseState(), { type: 'CREATE_BLOCK', payload: blockPayload });
     const deleted = computeDerivedState(state, { type: 'DELETE_CYCLE', cycleId: state.activeCycleId });
-    expect(deleted.activeCycleId).toBeNull();
+    expect(deleted.activeCycleId).toBeTruthy();
+    expect(deleted.activeCycleId).not.toBe(state.activeCycleId);
     expect(deleted.today.blocks.length).toBe(0);
     expect(deleted.cyclesById[state.activeCycleId]).toBeUndefined();
+    expect(deleted.cyclesById[deleted.activeCycleId]?.goalContract).toBeNull();
+    expect(deleted.pendingOnboardingInputs).toBeNull();
   });
 });

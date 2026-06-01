@@ -19,8 +19,8 @@ describe('stress scenario: doctor_10y_tight_capacity', () => {
       determinismBaseline: {
         proposedSchedulePreview: first.proposedSchedulePreview,
         committedEvents: first.committedEvents,
-        materializedSchedule: first.materializedSchedule
-      }
+        materializedSchedule: first.materializedSchedule,
+      },
     });
 
     const hardFailures = second.invariantViolations.filter((violation) => violation.severity === 'hard');
@@ -42,7 +42,9 @@ describe('stress scenario: doctor_10y_tight_capacity', () => {
     expect(second.metrics.depWindowBlockedCount).toBeGreaterThanOrEqual(0);
     expect(second.metrics.milestoneWindowSlack.infeasibleMilestonesCount).toBeGreaterThan(0);
     expect(second.metrics.milestoneWindowSlack.slackRatioMin).toBeLessThan(1);
-    expect(second.metrics.milestoneWindowSlack.byMilestone['tight:undergrad_complete']?.overlapDays || 0).toBeGreaterThan(0);
+    expect(
+      second.metrics.milestoneWindowSlack.byMilestone['tight:undergrad_complete']?.overlapDays || 0
+    ).toBeGreaterThan(0);
     expect(second.metrics.milestoneWindowSlack.byMilestone['tight:mcat_taken']?.overlapDays || 0).toBeGreaterThan(0);
     expect(['CAPACITY_BOUND_UNPLACED', 'MILESTONE_WINDOW_NO_SLOT', 'DEP_NOT_READY_IN_WINDOW']).toContain(
       (second.diagnostics as any)?.reasonCode

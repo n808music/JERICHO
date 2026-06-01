@@ -11,7 +11,7 @@ function mkAction(id, topoIndex) {
     deps: [],
     status: 'todo',
     topoIndex,
-    priority: 1
+    priority: 1,
   };
 }
 
@@ -36,14 +36,14 @@ function buildState() {
           goalId: 'goal-1',
           startDate: '2026-01-20',
           deadline: { dayKey: '2026-01-29' },
-          temporalBinding: { daysPerWeek: 7 }
+          temporalBinding: { daysPerWeek: 7 },
         },
         actions,
-        coldPlan: { forecastByDayKey, dailyProjection: { forecastByDayKey: {} } }
-      }
+        coldPlan: { forecastByDayKey, dailyProjection: { forecastByDayKey: {} } },
+      },
     },
     deliverablesByCycleId: { [cycleId]: { cycleId, deliverables: [] } },
-    planDraft: { executionHorizonDays: 365 }
+    planDraft: { executionHorizonDays: 365 },
   };
 }
 

@@ -5,8 +5,8 @@ export default function IdentityHeader({ identity, metrics }) {
     identity.band === 'positive'
       ? 'bg-jericho-accent text-jericho-bg'
       : identity.band === 'negative'
-      ? 'bg-hot text-jericho-bg'
-      : 'bg-glass text-jericho-text';
+        ? 'bg-hot text-jericho-bg'
+        : 'bg-glass text-jericho-text';
 
   return (
     <div className="rounded-xl border border-line/60 bg-jericho-surface/90 shadow-glass p-4 space-y-3">
@@ -22,18 +22,12 @@ export default function IdentityHeader({ identity, metrics }) {
       <div className="text-xs text-muted">Regulation (S): {identity.regulation || 'steady'}</div>
       <div className="flex flex-wrap gap-2">
         {identity.traits.map((trait) => (
-          <span
-            key={trait}
-            className="px-2 py-1 text-xs rounded-lg bg-glass text-jericho-text border border-line/50"
-          >
+          <span key={trait} className="px-2 py-1 text-xs rounded-lg bg-glass text-jericho-text border border-line/50">
             {trait}
           </span>
         ))}
         {identity.gaps.map((gap) => (
-          <span
-            key={gap}
-            className="px-2 py-1 text-xs rounded-lg bg-hot/20 text-jericho-text border border-line/50"
-          >
+          <span key={gap} className="px-2 py-1 text-xs rounded-lg bg-hot/20 text-jericho-text border border-line/50">
             Gap: {gap}
           </span>
         ))}

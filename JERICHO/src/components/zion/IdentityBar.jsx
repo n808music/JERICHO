@@ -9,7 +9,7 @@ export default function IdentityBar({
   momentum = 'active',
   trend = [],
   driftLabel,
-  driftHint
+  driftHint,
 }) {
   return (
     <div className="rounded-xl border border-line/60 bg-jericho-surface/90 px-4 py-3 flex items-center justify-between gap-4">

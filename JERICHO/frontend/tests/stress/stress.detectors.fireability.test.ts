@@ -17,14 +17,14 @@ describe('stress realism detector fireability', () => {
         realismConstraints: {
           maxScheduledMinutesPerDay: 10,
           maxScheduledMinutesPerWeek: 30,
-          toleranceMinutes: 0
-        }
-      }
+          toleranceMinutes: 0,
+        },
+      },
     });
 
     const diagnostics: any = result.diagnostics || {};
     expect(result.metrics.scheduleCoverageRatio).toBeLessThan(1);
-    expect((diagnostics.missingSlotsWeighted ?? 0)).toBeGreaterThan(0);
+    expect(diagnostics.missingSlotsWeighted ?? 0).toBeGreaterThan(0);
     expect(['CAPACITY_BOUND_UNPLACED', 'MILESTONE_WINDOW_NO_SLOT', 'DEP_NOT_READY_IN_WINDOW']).toContain(
       diagnostics.reasonCode
     );
@@ -34,9 +34,9 @@ describe('stress realism detector fireability', () => {
     const result = runStressScenario('podcast_30d', {
       scenarioOverride: {
         dependencies: {
-          defaultBufferMinutes: 3000
-        }
-      }
+          defaultBufferMinutes: 3000,
+        },
+      },
     });
 
     expect(result.metrics.depCheckCoverage.eligibleActions).toBeGreaterThan(0);
@@ -53,10 +53,10 @@ describe('stress realism detector fireability', () => {
             windowStartDayKey: '2026-01-01',
             windowEndDayKey: '2026-01-03',
             actionIds: ['podcast:24', 'podcast:23'],
-            checkpointActionIds: ['podcast:22']
-          }
-        ]
-      }
+            checkpointActionIds: ['podcast:22'],
+          },
+        ],
+      },
     });
 
     expect(result.invariantViolations.some((entry) => entry.code === 'MILESTONE_ANCHORING')).toBe(true);
@@ -78,9 +78,9 @@ describe('stress realism detector fireability', () => {
         realismConstraints: {
           maxScheduledMinutesPerDay: 10,
           maxScheduledMinutesPerWeek: 30,
-          toleranceMinutes: 0
-        }
-      }
+          toleranceMinutes: 0,
+        },
+      },
     });
     const diagnostics: any = result.diagnostics || {};
 

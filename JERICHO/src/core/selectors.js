@@ -1,5 +1,7 @@
 export function selectTodayTasks(state) {
-  if (!state?.tasks) return [];
+  if (!state?.tasks) {
+    return [];
+  }
   return state.tasks.filter((t) => t.due === 'today' && t.status !== 'completed');
 }
 
@@ -12,8 +14,12 @@ export function selectTrajectory(state) {
 
 export function selectDriftTrend(state) {
   const drift = state?.metrics?.driftIndex ?? 0;
-  if (drift > 50) return 'high';
-  if (drift > 20) return 'moderate';
+  if (drift > 50) {
+    return 'high';
+  }
+  if (drift > 20) {
+    return 'moderate';
+  }
   return 'low';
 }
 

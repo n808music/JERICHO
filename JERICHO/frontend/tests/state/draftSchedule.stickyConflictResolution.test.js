@@ -5,7 +5,7 @@ function buildState({ draftItems = [] } = {}) {
   const cycleId = 'cycle-sticky-conflict';
   const actions = [
     { id: 'a', title: 'A', detail: 'A', category: 'Focus', estimateMin: 30, deps: [], topoIndex: 0, priority: 1 },
-    { id: 'b', title: 'B', detail: 'B', category: 'Focus', estimateMin: 30, deps: [], topoIndex: 1, priority: 2 }
+    { id: 'b', title: 'B', detail: 'B', category: 'Focus', estimateMin: 30, deps: [], topoIndex: 1, priority: 2 },
   ];
   return {
     state: {
@@ -29,16 +29,16 @@ function buildState({ draftItems = [] } = {}) {
             temporalBinding: {
               daysPerWeek: 7,
               specificDays: 'mon,tue,wed,thu,fri,sat,sun',
-              sessionDurationMinutes: 30
-            }
+              sessionDurationMinutes: 30,
+            },
           },
-          coldPlan: { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } }
-        }
+          coldPlan: { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } },
+        },
       },
-      deliverablesByCycleId: { [cycleId]: { cycleId, deliverables: [] } }
+      deliverablesByCycleId: { [cycleId]: { cycleId, deliverables: [] } },
     },
     cycleId,
-    actions
+    actions,
   };
 }
 
@@ -57,7 +57,7 @@ describe('draftSchedule sticky conflict resolution', () => {
         minutes: 30,
         chunkIndex: 0,
         chunkCount: 1,
-        allocatedMin: 30
+        allocatedMin: 30,
       },
       {
         id: 'draft-b',
@@ -71,8 +71,8 @@ describe('draftSchedule sticky conflict resolution', () => {
         minutes: 30,
         chunkIndex: 0,
         chunkCount: 1,
-        allocatedMin: 30
-      }
+        allocatedMin: 30,
+      },
     ];
 
     const { state, cycleId, actions } = buildState({ draftItems: overlapDraft });
@@ -86,7 +86,7 @@ describe('draftSchedule sticky conflict resolution', () => {
       defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' },
       captureStats: (stats) => {
         firstStats = stats;
-      }
+      },
     });
 
     let secondStats = null;
@@ -98,7 +98,7 @@ describe('draftSchedule sticky conflict resolution', () => {
       defaults: { routeMinutes: 30, primaryDomain: 'FOCUS', todayKey: '2026-01-01' },
       captureStats: (stats) => {
         secondStats = stats;
-      }
+      },
     });
 
     expect(first).toEqual(second);

@@ -14,12 +14,12 @@ describe('DRAFT_BLOCK_CREATE reducer', () => {
         'cycle-1': {
           id: 'cycle-1',
           status: 'active',
-          goalContract: { goalId: 'goal-1', startDateISO: '2026-01-01T00:00:00.000Z' }
-        }
+          goalContract: { goalId: 'goal-1', startDateISO: '2026-01-01T00:00:00.000Z' },
+        },
       },
       goalExecutionContract: { goalId: 'goal-1', startDateISO: '2026-01-01T00:00:00.000Z' },
       probabilityByGoal: {},
-      feasibilityByGoal: {}
+      feasibilityByGoal: {},
     };
     const next = computeDerivedState(baseState, {
       type: 'DRAFT_BLOCK_CREATE',
@@ -27,7 +27,7 @@ describe('DRAFT_BLOCK_CREATE reducer', () => {
       endISO: '2026-01-20T10:00:00.000Z',
       domain: 'CREATION',
       title: 'Promoted suggestion',
-      durationMinutes: 60
+      durationMinutes: 60,
     });
     const createEvent = (next.executionEvents || []).find((event) => event.kind === 'create');
     expect(createEvent).toBeTruthy();
@@ -51,8 +51,8 @@ describe('DRAFT_BLOCK_CREATE reducer', () => {
           startISO: '2026-01-20T09:30:00.000Z',
           durationMinutes: 30,
           domain: 'CREATION',
-          status: 'suggested'
-        }
+          status: 'suggested',
+        },
       ],
       cyclesById: {
         'cycle-1': {
@@ -61,10 +61,10 @@ describe('DRAFT_BLOCK_CREATE reducer', () => {
           goalContract: { goalId: 'goal-1', startDateISO: '2026-01-01T00:00:00.000Z' },
           coldPlan: {
             forecastByDayKey: {
-              '2026-01-20': { totalBlocks: 1, summary: 'Forecast' }
-            }
-          }
-        }
+              '2026-01-20': { totalBlocks: 1, summary: 'Forecast' },
+            },
+          },
+        },
       },
       goalExecutionContract: { goalId: 'goal-1', startDateISO: '2026-01-01T00:00:00.000Z' },
       probabilityByGoal: {},
@@ -84,10 +84,10 @@ describe('DRAFT_BLOCK_CREATE reducer', () => {
             detail: '',
             domainKey: 'CREATION',
             minutes: 30,
-            source: 'strategic_plan'
-          }
-        ]
-      }
+            source: 'strategic_plan',
+          },
+        ],
+      },
     });
     const createEvents = (next.executionEvents || []).filter((event) => event.kind === 'create');
     expect(createEvents.length).toBeGreaterThan(0);

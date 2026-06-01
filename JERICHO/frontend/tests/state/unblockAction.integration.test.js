@@ -17,7 +17,7 @@ function buildState() {
     deps: [],
     status: 'skipped',
     topoIndex: 0,
-    priority: 1
+    priority: 1,
   };
   const a2 = {
     id: 'goal-1:a-2',
@@ -30,7 +30,7 @@ function buildState() {
     deps: ['goal-1:a-1'],
     status: 'todo',
     topoIndex: 1,
-    priority: 1
+    priority: 1,
   };
   return {
     vector: {},
@@ -56,7 +56,7 @@ function buildState() {
     profileLearning: {},
     activeCycleId: cycleId,
     actionsByCycleId: {
-      [cycleId]: { cycleId, goalId: 'goal-1', actions: [a1, a2] }
+      [cycleId]: { cycleId, goalId: 'goal-1', actions: [a1, a2] },
     },
     cyclesById: {
       [cycleId]: {
@@ -67,28 +67,28 @@ function buildState() {
           goalId: 'goal-1',
           goalLabel: 'ship deterministic planner validation',
           startDate: dayKey,
-          deadline: { dayKey: '2026-02-20' }
+          deadline: { dayKey: '2026-02-20' },
         },
         coldPlan: {
           forecastByDayKey: {
-            [dayKey]: { totalBlocks: 1, byDeliverable: {} }
+            [dayKey]: { totalBlocks: 1, byDeliverable: {} },
           },
-          dailyProjection: { forecastByDayKey: {} }
+          dailyProjection: { forecastByDayKey: {} },
         },
-        summary: { completionCount: 0, completionRate: 0 }
-      }
+        summary: { completionCount: 0, completionRate: 0 },
+      },
     },
     goalExecutionContract: {
       goalId: 'goal-1',
       goalLabel: 'ship deterministic planner validation',
       startDate: dayKey,
-      deadline: { dayKey: '2026-02-20' }
+      deadline: { dayKey: '2026-02-20' },
     },
     goalDirective: { goalId: 'goal-1', directiveId: 'dir-1' },
     directiveEligibilityByGoal: { 'goal-1': { eligible: true } },
     planDraft: { blocksPerWeek: 4, daysPerWeek: 4, primaryDomain: 'CREATION', minutesPerDay: 90 },
     planCalibration: null,
-    correctionSignals: null
+    correctionSignals: null,
   };
 }
 
@@ -113,14 +113,14 @@ describe('unblock action integration', () => {
     const routeSuggestions = Object.keys(cycle.coldPlan?.forecastByDayKey || {}).map((key) => ({
       dayKey: key,
       totalBlocks: cycle.coldPlan.forecastByDayKey[key].totalBlocks || 0,
-      byDeliverable: cycle.coldPlan.forecastByDayKey[key].byDeliverable || {}
+      byDeliverable: cycle.coldPlan.forecastByDayKey[key].byDeliverable || {},
     }));
     const draft = buildDraftScheduleItems(next, 'cycle-1', {
       suggestedBlocks: [],
       routeSuggestions,
       actions,
       contract: cycle.goalContract,
-      defaults: { todayKey: '2026-01-20', primaryDomain: 'FOCUS', routeMinutes: 30 }
+      defaults: { todayKey: '2026-01-20', primaryDomain: 'FOCUS', routeMinutes: 30 },
     });
     expect(draft.length).toBeGreaterThan(0);
     expect(draft[0].actionId).toBe('unblock:cycle-1');

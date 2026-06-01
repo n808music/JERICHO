@@ -11,7 +11,7 @@ describe('cold plan sum and caps', () => {
       deliverables: [{ id: 'd1', title: 'Primary', requiredBlocks: 10 }],
       deadlineISO: '2026-01-08T23:59:00.000Z',
       constraints: { tz: 'UTC' },
-      assumptionsHash: ''
+      assumptionsHash: '',
     };
     strategy.assumptionsHash = buildAssumptionsHash(strategy);
 
@@ -20,7 +20,7 @@ describe('cold plan sum and caps', () => {
       nowISO: '2026-01-01T12:00:00.000Z',
       strategy,
       completedCountToDate: 0,
-      rebaseMode: 'NONE'
+      rebaseMode: 'NONE',
     });
 
     const total = Object.values(plan.forecastByDayKey).reduce((sum, d) => sum + (d.totalBlocks || 0), 0);
@@ -35,7 +35,7 @@ describe('cold plan sum and caps', () => {
       deliverables: [{ id: 'd1', title: 'Primary', requiredBlocks: 14 }],
       deadlineISO: '2026-01-08T23:59:00.000Z',
       constraints: { tz: 'UTC', maxBlocksPerDay: 1, maxBlocksPerWeek: 5 },
-      assumptionsHash: ''
+      assumptionsHash: '',
     };
     strategy.assumptionsHash = buildAssumptionsHash(strategy);
 
@@ -44,7 +44,7 @@ describe('cold plan sum and caps', () => {
       nowISO: '2026-01-01T12:00:00.000Z',
       strategy,
       completedCountToDate: 0,
-      rebaseMode: 'NONE'
+      rebaseMode: 'NONE',
     });
 
     expect(plan.infeasible).toBeTruthy();

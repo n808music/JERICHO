@@ -16,7 +16,7 @@ function buildState() {
     status: 'todo',
     topoIndex: index,
     priority: index + 1,
-    estimateMin: 90
+    estimateMin: 90,
   }));
 
   return {
@@ -38,7 +38,7 @@ function buildState() {
     activeCycleId: cycleId,
     constraints: {
       maxScheduledMinutesPerDay: 60,
-      maxScheduledMinutesPerWeek: 180
+      maxScheduledMinutesPerWeek: 180,
     },
     cyclesById: {
       [cycleId]: {
@@ -49,17 +49,20 @@ function buildState() {
           goalId: 'goal-1',
           startDate: startDay,
           deadline: { dayKey: deadlineDay },
-          temporalBinding: { daysPerWeek: 7, activationTime: '09:00', sessionDurationMinutes: 30 }
+          temporalBinding: { daysPerWeek: 7, activationTime: '09:00', sessionDurationMinutes: 30 },
         },
-        coldPlan: { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } }
-      }
-    }
+        coldPlan: { forecastByDayKey: {}, dailyProjection: { forecastByDayKey: {} } },
+      },
+    },
   };
 }
 
 describe('FULL_PLAN prescriptions diagnostics', () => {
   it('includes prescriptions bundle with primaryConstraint and at least one code', () => {
-    const rebuilt = computeDerivedState(buildState(), { type: 'REBUILD_SCHEDULE', payload: { cycleId: 'cycle-prescriptions' } });
+    const rebuilt = computeDerivedState(buildState(), {
+      type: 'REBUILD_SCHEDULE',
+      payload: { cycleId: 'cycle-prescriptions' },
+    });
     const diagnostics = rebuilt.draftScheduleDiagnosticsByCycleId?.['cycle-prescriptions'] || {};
 
     expect(diagnostics.prescriptions).toBeTruthy();

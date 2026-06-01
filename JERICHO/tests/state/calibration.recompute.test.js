@@ -9,7 +9,7 @@ function buildBaseState(date = FIXED_DAY) {
     lenses: {
       aim: { description: '', horizon: '90d', narrative: '' },
       pattern: { routines: { Body: [], Resources: [], Creation: [], Focus: [] }, dailyTargets: [], defaultMinutes: 30 },
-      flow: { streams: [] }
+      flow: { streams: [] },
     },
     today: { date, blocks: [], completionRate: 0, driftSignal: 'contained', loadByPractice: {}, practices: [] },
     currentWeek: { weekStart: date, days: [], metrics: {} },
@@ -24,13 +24,13 @@ function buildBaseState(date = FIXED_DAY) {
       lastActiveDate: date,
       scenarioLabel: '',
       demoScenarioEnabled: false,
-      showHints: false
+      showHints: false,
     },
     recurringPatterns: [],
     lastSessionChange: null,
     nextSuggestion: null,
     executionEvents: [],
-    ledger: []
+    ledger: [],
   };
 }
 
@@ -45,8 +45,8 @@ function seedOnboardingState() {
       horizon: '30d',
       narrative: '',
       focusAreas: ['Creation', 'Focus'],
-      successDefinition: 'MVP shipped'
-    }
+      successDefinition: 'MVP shipped',
+    },
   });
 }
 
@@ -74,14 +74,14 @@ describe('calibration recompute', () => {
   });
 
   it('does not mutate accepted/rejected suggestions when recalibrating', () => {
-    const state0 = seedOnboardingState();
+    const state0 = computeDerivedState(seedOnboardingState(), { type: 'SET_CALIBRATION_DAYS', daysPerWeek: 3 });
     const first = state0.suggestedBlocks[0];
     const second = state0.suggestedBlocks[1];
     const accepted = computeDerivedState(state0, { type: 'ACCEPT_SUGGESTED_BLOCK', proposalId: first.id });
     const rejected = computeDerivedState(accepted, {
       type: 'REJECT_SUGGESTED_BLOCK',
       proposalId: second.id,
-      reason: 'no_time'
+      reason: 'no_time',
     });
 
     const acceptedBefore = rejected.suggestedBlocks.find((s) => s.id === first.id);
@@ -125,8 +125,7 @@ describe('calibration recompute', () => {
   });
 
   it('round-trips suggestion ids across 3→5→3 and preserves reserved ids', () => {
-    const getSuggestedIds = (state) =>
-      state.suggestedBlocks.filter((s) => s.status === 'suggested').map((s) => s.id);
+    const getSuggestedIds = (state) => state.suggestedBlocks.filter((s) => s.status === 'suggested').map((s) => s.id);
 
     const state0 = seedOnboardingState();
     const state3a = computeDerivedState(state0, { type: 'SET_CALIBRATION_DAYS', daysPerWeek: 3 });
@@ -139,7 +138,7 @@ describe('calibration recompute', () => {
     const rejected = computeDerivedState(accepted, {
       type: 'REJECT_SUGGESTED_BLOCK',
       proposalId: rejectedId,
-      reason: 'no_time'
+      reason: 'no_time',
     });
     const expectedSuggested3a = ids3a.filter((id) => id !== acceptedId && id !== rejectedId);
 
@@ -164,12 +163,12 @@ describe('calibration recompute', () => {
   });
 
   it('reject sets reason, emits event, and is idempotent', () => {
-    const state0 = seedOnboardingState();
+    const state0 = computeDerivedState(seedOnboardingState(), { type: 'SET_CALIBRATION_DAYS', daysPerWeek: 3 });
     const suggestionId = state0.suggestedBlocks[0].id;
     const rejected = computeDerivedState(state0, {
       type: 'REJECT_SUGGESTED_BLOCK',
       proposalId: suggestionId,
-      reason: 'TOO_LONG'
+      reason: 'TOO_LONG',
     });
     const rejectedItem = rejected.suggestedBlocks.find((s) => s.id === suggestionId);
     expect(rejectedItem?.status).toBe('rejected');
@@ -182,7 +181,7 @@ describe('calibration recompute', () => {
     const rejectedAgain = computeDerivedState(rejected, {
       type: 'REJECT_SUGGESTED_BLOCK',
       proposalId: suggestionId,
-      reason: 'WRONG_TIME'
+      reason: 'WRONG_TIME',
     });
     const rejectEventsAfter = (rejectedAgain.suggestionEvents || []).filter((e) => e.type === 'suggestion_rejected');
     expect(rejectEventsAfter.length).toBe(1);

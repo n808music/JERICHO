@@ -28,7 +28,7 @@
  */
 
 /**
- * @typedef {{ id: string; practice: PracticeName; label: string; start: string; end: string; status: 'planned' | 'in_progress' | 'completed' | 'missed'; linkedAimId?: string; domain?: import('./domain').Domain; deliverableId?: string | null; criterionId?: string | null; lockedUntilDayKey?: string }} Block
+ * @typedef {{ id: string; practice: PracticeName; label: string; start: string; end: string; status: 'planned' | 'in_progress' | 'completed' | 'missed' | 'expired'; linkedAimId?: string; domain?: import('./domain').Domain; deliverableId?: string | null; criterionId?: string | null; lockedUntilDayKey?: string; requiredSystemBlock?: boolean }} Block
  */
 
 /**
@@ -102,6 +102,78 @@
  *   definiteGoal: { outcome: string; deadlineDayKey: string };
  *   goalContract?: import('./contracts/goalContract').GoalExecutionContract | null;
  *   goalGovernanceContract?: import('./contracts/goalContract').GoalGovernanceContract | null;
+ *   scheduleLifecycle?: 'no_schedule' | 'draft_schedule_ready' | 'applied_review' | 'active_schedule' | 'reschedule_pending' | 'stale_draft_invalidated';
+ *   scheduleReviewBlocks?: Array<{
+ *     id: string;
+ *     cycleId: string;
+ *     goalId?: string | null;
+ *     title?: string;
+ *     startISO?: string;
+ *     durationMinutes?: number;
+ *     status?: string;
+ *   }>;
+ *   scheduleDraftHash?: string | null;
+ *   scheduleActiveHash?: string | null;
+ *   scheduleAppliedAtISO?: string | null;
+ *   scheduleActivatedAtISO?: string | null;
+ *   scheduleGeneratedAtISO?: string | null;
+ *   generatedForStartDayKey?: string | null;
+ *   validUntilDayKey?: string | null;
+ *   activationRequestedAtISO?: string | null;
+ *   executionStartDayKey?: string | null;
+ *   temporalStatus?: 'fresh' | 'drifted' | 'stale' | 'rebase_required' | 'rebased';
+ *   rebaseRequired?: boolean;
+ *   pastDatedBlockCount?: number;
+ *   scheduleDebtMinutes?: number;
+ *   compressionDelta?: number;
+ *   temporalReasonCodes?: string[];
+ *   activationDelayAssessment?: {
+ *     status?: 'not_required' | 'requires_user_investigation' | 'ready_to_rebase' | 'ready_for_backfill' | 'requires_regeneration' | 'blocked';
+ *     appliedAtISO?: string | null;
+ *     activationRequestedAtISO?: string | null;
+ *     appliedStartDayKey?: string | null;
+ *     requestedExecutionStartDayKey?: string | null;
+ *     delayDays?: number;
+ *     userDelayExplanation?: string | null;
+ *     workHappenedDuringDelay?: 'none' | 'some' | 'most' | 'unknown';
+ *     selectedResolution?: 'rebase' | 'backfill' | 'regenerate' | 'change_start_date' | null;
+ *     pastDatedBlockCount?: number;
+ *     scheduleDebtMinutes?: number;
+ *     reasonCodes?: string[];
+ *   };
+ *   lastTemporalAudit?: {
+ *     generatedAtISO?: string | null;
+ *     generatedForStartDayKey?: string | null;
+ *     validUntilDayKey?: string | null;
+ *     activationRequestedAtISO?: string | null;
+ *     executionStartDayKey?: string | null;
+ *     temporalStatus?: string | null;
+ *     rebaseRequired?: boolean;
+ *     pastDatedBlockCount?: number;
+ *     scheduleDebtMinutes?: number;
+ *     compressionDelta?: number;
+ *     daysSinceGenerated?: number;
+ *     temporalReasonCodes?: string[];
+ *   };
+ *   selectedPlanResolutionKind?: string | null;
+ *   lastResolvedPlanSummary?: {
+ *     planStatus?: string | null;
+ *     requiredBlockCount?: number;
+ *     scheduledBlockCount?: number;
+ *     unscheduledBlockCount?: number;
+ *     acceptedBlockCount?: number;
+ *     horizonDayCount?: number;
+ *     candidateResolutionKinds?: string[];
+ *     recommendations?: Array<any>;
+ *   } | null;
+ *   deferredScheduleBlocks?: Array<{
+ *     id: string;
+ *     title?: string;
+ *     actionId?: string | null;
+ *     deferredReason?: string | null;
+ *     targetDayKey?: string | null;
+ *     hardGateFloorISO?: string | null;
+ *   }>;
  *   aim?: { text?: string };
  *   pattern: { dailyTargets: PracticeTarget[] };
  *   flow?: FlowConfig;
@@ -120,6 +192,71 @@
  *   lastPolicySelectionDecision?: any;
  *   lastPlanAppliedAtISO?: string | null;
  *   goalAdmission?: { status: AdmissionStatus; reasonCodes: AdmissionReasonCode[]; admittedAtISO?: string };
+ *   contractFailure?: {
+ *     state:
+ *       | 'ON_TRACK'
+ *       | 'RECOVERABLE_DRIFT'
+ *       | 'OVERLOADED_CURRENT_CONTRACT'
+ *       | 'INFEASIBLE_CURRENT_CONTRACT'
+ *       | 'DEADLINE_FAILED_RENEGOTIATION_REQUIRED';
+ *     reasons: string[];
+ *     renegotiationRequired: boolean;
+ *     details?: {
+ *       deadlineDayKey?: string | null;
+ *       deadlinePassed?: boolean;
+ *       remainingRequiredWork?: number;
+ *       requiredWeeklyThroughput?: number | null;
+ *       capacityWeekly?: number | null;
+ *     };
+ *     updatedAtISO?: string;
+ *   };
+ *   recoveryContract?: {
+ *     state: 'RECOVERY_WITHIN_CONTRACT' | 'RECOVERY_RENEGOTIATION_REQUIRED';
+ *     reasons: string[];
+ *     metrics?: {
+ *       missedExpiredBurden?: number;
+ *       unscheduledRequiredBurden?: number;
+ *       remainingRequiredBurden?: number;
+ *       availableRecoverySlack?: number;
+ *       recoverableWithinCurrentContract?: boolean;
+ *       overloadDetected?: boolean;
+ *       overloadReasonCodes?: string[];
+ *       requiredWeeklyThroughputAfterRecovery?: number | null;
+ *       requiredBlocksPerDayAfterRecovery?: number | null;
+ *       requiredMinutesPerDayAfterRecovery?: number | null;
+ *       minutesCapPerDay?: number | null;
+ *       projectedSlackAfterRecovery?: number | null;
+ *       overCapacityAmount?: number | null;
+ *     };
+ *     renegotiationRequired: boolean;
+ *     options?: Array<{ type: string; summary: string; delta?: number | null; unit?: string | null; reasonCode?: string }>;
+ *     updatedAtISO?: string;
+ *   };
+ *   lastRenegotiationApplied?: {
+ *     id: string;
+ *     atISO: string;
+ *     cycleId: string;
+ *     goalId?: string | null;
+ *     optionType: string;
+ *     optionSummary?: string;
+ *     optionDelta?: number | null;
+ *     optionUnit?: string | null;
+ *     status: 'APPLIED' | 'UNSUPPORTED';
+ *     priorContract?: Record<string, any>;
+ *     appliedContractChanges?: Record<string, any>;
+ *     unsupportedReason?: string | null;
+ *   };
+ *   renegotiationHistory?: Array<{
+ *     id: string;
+ *     atISO: string;
+ *     cycleId: string;
+ *     goalId?: string | null;
+ *     optionType: string;
+ *     status: 'APPLIED' | 'UNSUPPORTED';
+ *     priorContract?: Record<string, any>;
+ *     appliedContractChanges?: Record<string, any>;
+ *     unsupportedReason?: string | null;
+ *   }>;
  * }} Cycle
  */
 
@@ -149,6 +286,7 @@
 /**
  * @typedef {{
  *   id: string;
+ *   outputType?: 'deliverable' | 'milestone';
  *   cycleId: string;
  *   domain: DomainKey;
  *   title: string;
@@ -355,6 +493,9 @@
  *   daysPerWeek: number;
  *   qualityPolicyId?: string;
  *   autoPolicySelection?: boolean;
+ *   enableHistoryPolicySelection?: boolean;
+ *   historyWindowCycles?: number;
+ *   historyInfluenceStrength?: 'light'|'standard'|'strong';
  *   minPolicyHoldDays?: number;
  *   enableQualityOptimizer?: boolean;
  *   optimizerMaxIterations?: number;
@@ -454,6 +595,8 @@
  *   policySelectionDecision?: any;
  *   policySelectionReasonCodes?: string[];
  *   policySelectionSignalsSnapshot?: any;
+ *   historyProfileSnapshotUsed?: any;
+ *   historyReasonCodes?: string[];
  *   qualityScoreBaseline?: number;
  *   qualityScoreBaselineByComponent?: Record<string, number>;
  *   qualityScoreOptimized?: number;
@@ -582,10 +725,65 @@
  *       expectedTotal: number;
  *     };
  *   }>;
+ *   goalPolicyByGoalId?: Record<string, {
+ *     goalId: string | null;
+ *     macroBoundaryPolicy: {
+ *       required: string[];
+ *       bounded: string[];
+ *       prohibited: string[];
+ *       assumptionsNeedingConfirmation: string[];
+ *     };
+ *     intakeReadiness: {
+ *       state: 'fully_admitted' | 'assumption_marked_draft' | 'intake_blocked';
+ *       isReadyForPlanning: boolean;
+ *       reasonCodes: string[];
+ *       assumptions: string[];
+ *     };
+ *     planQuality: {
+ *       state: 'policy_clean' | 'policy_degraded' | 'policy_blocked';
+ *       reasonCodes: string[];
+ *       endpointClarity: 'clear' | 'ambiguous' | 'missing';
+ *       startingPointHonesty: 'explicit' | 'assumed' | 'unknown';
+ *       scopeDiscipline: 'clean' | 'degraded' | 'inflated';
+ *       blockMeasurability: 'clear' | 'weak';
+ *       feasibilityHonesty: 'clear' | 'degraded' | 'blocked';
+ *     };
+ *     posTrust: { state: 'trusted' | 'provisional' | 'withheld'; reasonCodes: string[]; explanation: string };
+ *     scopeClassification: {
+ *       required: string[];
+ *       recommended: string[];
+ *       optional: string[];
+ *       blockedByUnconfirmedContext: string[];
+ *       assumedBaselineSupporting: string[];
+ *     };
+ *     evaluatedAtISO: string;
+ *   }>;
  *   progressCreditByGoal?: Record<string, {
  *     creditedUnits: number;
  *     activityUnits: number;
  *     completedUnitsTotal: number;
+ *   }>;
+ *   cycleDynamicsByCycleId?: Record<string, {
+ *     generatedAtISO: string;
+ *     cycleId: string | null;
+ *     goalId: string | null;
+ *     totals: {
+ *       totalBlocks: number;
+ *       completed: number;
+ *       inProgress: number;
+ *       planned: number;
+ *       missed: number;
+ *       expired: number;
+ *       dueToday: number;
+ *       overdueUnfinished: number;
+ *     };
+ *     recommendedTransitions: Array<{
+ *       blockId: string;
+ *       fromStatus: string;
+ *       toStatus: 'MISSED' | 'EXPIRED';
+ *       reasonCode: 'OVERDUE_UNFINISHED' | 'MISSED_GRACE_ELAPSED';
+ *       effectiveAtISO: string;
+ *     }>;
  *   }>;
  *   goalAdmissionByGoal?: Record<string, { status: AdmissionStatus; reasonCodes: AdmissionReasonCode[]; admittedAtISO?: string }>;
  *   aspirationsByCycleId?: Record<string, Aspiration[]>;

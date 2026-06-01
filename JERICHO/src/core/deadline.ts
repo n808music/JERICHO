@@ -109,7 +109,7 @@ export function debugDeadline(goalContract: any, timeZone = 'UTC'): DeadlineDiag
       dayKey: null,
       source: 'unknown',
       isValid: false,
-      error: 'No goal contract provided'
+      error: 'No goal contract provided',
     };
   }
 
@@ -119,7 +119,7 @@ export function debugDeadline(goalContract: any, timeZone = 'UTC'): DeadlineDiag
       raw: goalContract.deadline.dayKey,
       dayKey: goalContract.deadline.dayKey,
       source: 'deadline.dayKey',
-      isValid: true
+      isValid: true,
     };
   }
 
@@ -131,7 +131,7 @@ export function debugDeadline(goalContract: any, timeZone = 'UTC'): DeadlineDiag
           raw: goalContract.deadlineISO,
           dayKey,
           source: 'deadlineISO',
-          isValid: true
+          isValid: true,
         };
       }
     } catch (err) {
@@ -144,7 +144,7 @@ export function debugDeadline(goalContract: any, timeZone = 'UTC'): DeadlineDiag
       raw: goalContract.deadlineDayKey,
       dayKey: goalContract.deadlineDayKey,
       source: 'deadlineDayKey',
-      isValid: true
+      isValid: true,
     };
   }
 
@@ -153,7 +153,7 @@ export function debugDeadline(goalContract: any, timeZone = 'UTC'): DeadlineDiag
       raw: goalContract.definiteGoal.deadlineDayKey,
       dayKey: goalContract.definiteGoal.deadlineDayKey,
       source: 'definiteGoal.deadlineDayKey',
-      isValid: true
+      isValid: true,
     };
   }
 
@@ -163,6 +163,6 @@ export function debugDeadline(goalContract: any, timeZone = 'UTC'): DeadlineDiag
     dayKey: null,
     source: 'invalid',
     isValid: false,
-    error: 'Could not extract valid deadline from contract'
+    error: 'Could not extract valid deadline from contract',
   };
 }
