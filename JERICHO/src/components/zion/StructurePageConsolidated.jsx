@@ -34,6 +34,7 @@ import { materializeBlocksFromEvents } from '../../state/engine/todayAuthority.t
 import { isCanonicalBlankState } from '../../state/identityCompute.js';
 import { describeBlockMeaning } from '../zion/blockMeaning.js';
 import CycleTransitionModal from './CycleTransitionModal.jsx';
+import ExportFullScheduleButton from './ExportFullScheduleButton.jsx';
 import HorizonResolutionPanel from './HorizonResolutionPanel.jsx';
 import WorkWindowsEditor from './WorkWindowsEditor.tsx';
 
@@ -239,7 +240,8 @@ function MasterPlanStructureSection({
                   : 'No active execution cycle yet. Start Execution Cycle to create one.'}
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <ExportFullScheduleButton />
               <button
                 type="button"
                 onClick={onClearGoal}
