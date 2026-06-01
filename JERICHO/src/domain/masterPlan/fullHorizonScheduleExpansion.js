@@ -855,6 +855,32 @@ function resolvePassEvidence(blockType, descriptor) {
   }
 }
 
+// Phase 4 — gate criteria + failure-branch substrate. Every gate block must
+// declare what pass means, what fail means, what evidence is required to
+// decide, who decides, and the downstream branch on either outcome. Derived
+// deterministically from the descriptor title, phase, and lane so the
+// expansion engine and forecast emitter both produce the same substrate.
+function resolveGateCriteria({ descriptor, phase, lane }) {
+  const phaseLabel = phase?.label || null;
+  const laneId = lane?.id || lane?.laneId || 'unknown';
+  const laneTitle = getLaneTitle(lane) || 'lane';
+  const expectedOutput = descriptor?.expectedOutput || 'gate evidence packet';
+  const title = descriptor?.title || `${phaseLabel || ''} gate`.trim();
+  const nextPhase = phaseLabel === 'P1' ? 'P2' : phaseLabel === 'P2' ? 'P3' : 'terminal-review';
+  const gateName = `${phaseLabel || 'phase'}→${nextPhase} gate: ${laneTitle}`;
+  return {
+    gateName,
+    passCriteria: `${expectedOutput} demonstrates upstream proof threshold cleared for ${laneTitle} — advance to ${nextPhase}.`,
+    failCriteria: `${expectedOutput} shows upstream proof threshold NOT met for ${laneTitle} — hold and remediate before retry.`,
+    evidenceRequired: descriptor?.evidenceRequired || expectedOutput || `Documented ${laneTitle} proof package supporting gate decision`,
+    decisionAuthority: 'gate_authority',
+    passBranch: nextPhase === 'terminal-review'
+      ? `advance:terminal-review:${laneId}`
+      : `advance:phase:${nextPhase}:${laneId}`,
+    failBranch: `hold:${phaseLabel || 'phase'}:${laneId}:remediate-upstream`,
+  };
+}
+
 // Derives a machine-verifiable downstream reference from the block's primary unlock entry.
 // consumedBy carries the human-readable label; consumedByRef carries the typed reference.
 function deriveConsumedByRef(occurrenceDescriptor) {
@@ -900,6 +926,7 @@ function buildBlock({
   const idKey = idDayKey || dayKey;
   const family = inferLaneFamily(lane);
   const laneTitle = getLaneTitle(lane);
+  const gateCriteria = blockType === 'gate' ? resolveGateCriteria({ descriptor: occurrenceDescriptor, phase, lane }) : null;
 
   return {
     id: mkId(planId, phase?.label, laneId || 'lane', idKey, idx),
@@ -945,7 +972,13 @@ function buildBlock({
     prerequisiteType: occurrenceDescriptor.prerequisiteType || null,
     dependencyGate: occurrenceDescriptor.dependencyGate || null,
     unlockRequirement: occurrenceDescriptor.unlockRequirement || null,
-    evidenceRequired: occurrenceDescriptor.evidenceRequired || null,
+    evidenceRequired: (gateCriteria && gateCriteria.evidenceRequired) || occurrenceDescriptor.evidenceRequired || null,
+    gateName: gateCriteria ? gateCriteria.gateName : null,
+    passCriteria: gateCriteria ? gateCriteria.passCriteria : null,
+    failCriteria: gateCriteria ? gateCriteria.failCriteria : null,
+    decisionAuthority: gateCriteria ? gateCriteria.decisionAuthority : null,
+    passBranch: gateCriteria ? gateCriteria.passBranch : null,
+    failBranch: gateCriteria ? gateCriteria.failBranch : null,
     isReadinessOnly: occurrenceDescriptor.isReadinessOnly === true,
     isExpansionAction: occurrenceDescriptor.isExpansionAction === true,
     isProofSeeking: occurrenceDescriptor.isProofSeeking === true,

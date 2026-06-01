@@ -1348,6 +1348,24 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
   executionArtifacts.forEach((block, index) => {
     const blockId = normalizeText(block?.id) || `block-${index + 1}`;
     const title = normalizeText(block?.title);
+    // Gate Criteria Substrate (Phase 4): gate blocks are execution-substrate
+    // exempt, but they MUST declare pass criteria, fail criteria, and a failure
+    // branch — otherwise a "gate" is just a label that authorizes neither
+    // advance nor remediation.
+    if (block?.blockType === 'gate') {
+      if (!normalizeText(block?.passCriteria)) {
+        failureCodes.add('MISSING_GATE_PASS_CRITERIA');
+        reasonCodes.add('MISSING_GATE_PASS_CRITERIA');
+      }
+      if (!normalizeText(block?.failCriteria)) {
+        failureCodes.add('MISSING_GATE_FAIL_CRITERIA');
+        reasonCodes.add('MISSING_GATE_FAIL_CRITERIA');
+      }
+      if (!normalizeText(block?.failBranch)) {
+        failureCodes.add('MISSING_GATE_FAILURE_BRANCH');
+        reasonCodes.add('MISSING_GATE_FAILURE_BRANCH');
+      }
+    }
     if (isReviewClassBlock(block)) {
       reviewClassCount++;
       return;

@@ -198,6 +198,29 @@ function resolveForecastPassEvidence(blockType) {
   }
 }
 
+// Phase 4 — mirrors resolveGateCriteria in fullHorizonScheduleExpansion.js so
+// forecast-emitted gates carry the same six substrate fields as
+// expansion-engine gates.
+function resolveForecastGateCriteria({ phase, lane, expectedOutput, title }) {
+  const phaseLabel = phase?.label || null;
+  const laneId = lane?.laneId || lane?.id || 'cross-lane';
+  const laneTitleResolved = lane ? laneLabel({ domain: lane.domain, title: lane.laneTitle }) : 'cross-lane';
+  const nextPhase = phaseLabel === 'P1' ? 'P2' : phaseLabel === 'P2' ? 'P3' : 'terminal-review';
+  const gateName = `${phaseLabel || 'phase'}→${nextPhase} gate: ${laneTitleResolved}`;
+  const evidence = expectedOutput || title || `${laneTitleResolved} proof packet`;
+  return {
+    gateName,
+    passCriteria: `${evidence} demonstrates upstream proof threshold cleared for ${laneTitleResolved} — advance to ${nextPhase}.`,
+    failCriteria: `${evidence} shows upstream proof threshold NOT met for ${laneTitleResolved} — hold and remediate before retry.`,
+    evidenceRequired: evidence,
+    decisionAuthority: 'gate_authority',
+    passBranch: nextPhase === 'terminal-review'
+      ? `advance:terminal-review:${laneId}`
+      : `advance:phase:${nextPhase}:${laneId}`,
+    failBranch: `hold:${phaseLabel || 'phase'}:${laneId}:remediate-upstream`,
+  };
+}
+
 function buildForecastBlock({
   planId,
   phase,
@@ -234,6 +257,7 @@ function buildForecastBlock({
         : { type: 'block', id: primaryUnlock }
     : null;
   const expectedOutput = buildForecastExpectedOutput({ blockType, lane, phase, title });
+  const gateCriteria = blockType === 'gate' ? resolveForecastGateCriteria({ phase, lane, expectedOutput, title }) : null;
   return {
     id: forecastBlockId(planId, phase.label, dayKey, index),
     title,
@@ -261,6 +285,13 @@ function buildForecastBlock({
     consumedBy: unlocks,
     consumedByRef,
     passEvidence: resolveForecastPassEvidence(blockType),
+    gateName: gateCriteria ? gateCriteria.gateName : null,
+    passCriteria: gateCriteria ? gateCriteria.passCriteria : null,
+    failCriteria: gateCriteria ? gateCriteria.failCriteria : null,
+    evidenceRequired: gateCriteria ? gateCriteria.evidenceRequired : null,
+    decisionAuthority: gateCriteria ? gateCriteria.decisionAuthority : null,
+    passBranch: gateCriteria ? gateCriteria.passBranch : null,
+    failBranch: gateCriteria ? gateCriteria.failBranch : null,
     sourceInputs: [
       `plan:${planId}`,
       phase?.id ? `phase:${phase.id}` : null,
