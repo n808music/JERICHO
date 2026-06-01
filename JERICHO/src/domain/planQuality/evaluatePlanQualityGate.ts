@@ -35,6 +35,30 @@ type PlanArtifact = {
   // Lane context — present on full-horizon blocks
   laneId?: string | null;
   laneLabel?: string | null;
+  // Execution context — carries lane family + lane status for BD professionalism checks
+  executionContext?: {
+    laneFamily?: string | null;
+    laneStatus?: string | null;
+    planOrientation?: string | null;
+  } | null;
+  // Phase 4 — gate criteria substrate
+  gateName?: string | null;
+  passCriteria?: string | null;
+  failCriteria?: string | null;
+  decisionAuthority?: string | null;
+  passBranch?: string | null;
+  failBranch?: string | null;
+  evidenceRequired?: string | null;
+  // Phase 5 — BD professionalism flags
+  isExternalBdMechanic?: boolean;
+  isExternalStakeholderTouchpoint?: boolean;
+  // Phase 6 — title-family used for cadence-loop detection
+  titleFamily?: string | null;
+  // Phase 7 — backfill/historical/imported markers exempt past-dated blocks
+  // from STALE_ACTIVE_CYCLE_STATE.
+  isHistorical?: boolean;
+  isBackfilled?: boolean;
+  isImported?: boolean;
 };
 
 // Block types that are exempt from execution-substrate requirements.
@@ -107,6 +131,11 @@ type EvaluatePlanQualityGateInput = {
   actions?: PlanAction[];
   proposedBlocks?: PlanArtifact[];
   committedBlocks?: PlanArtifact[];
+  // Phase 7 — active-cycle rebasing inputs. evaluationDate is the day the
+  // plan is being evaluated (ISO 'YYYY-MM-DD' or Date); allowsBackdatedStart
+  // signals the user has explicitly confirmed the cycle is backdated.
+  evaluationDate?: string | Date | null;
+  allowsBackdatedStart?: boolean;
   branchCoverageSummary?: BranchCoverageSummary;
   phases?: PhaseObjectiveInput[];
   lanes?: LaneInput[];
@@ -1027,6 +1056,15 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
   const proposedBlocks = Array.isArray(input.proposedBlocks) ? input.proposedBlocks.filter(Boolean) : [];
   const committedBlocks = Array.isArray(input.committedBlocks) ? input.committedBlocks.filter(Boolean) : [];
   const executionArtifacts = [...proposedBlocks, ...committedBlocks];
+  // Phase 7 — normalize evaluationDate into an ISO day key for past-date checks.
+  const evaluationDayKey = (() => {
+    const raw = input.evaluationDate;
+    if (!raw) return null;
+    if (raw instanceof Date) return raw.toISOString().slice(0, 10);
+    const s = String(raw).trim();
+    return s.length >= 10 ? s.slice(0, 10) : null;
+  })();
+  const allowsBackdatedStart = input.allowsBackdatedStart === true;
 
   const failureCodes = new Set<PlanQualityFailureCode>();
   const reasonCodes = new Set<string>();
@@ -1441,6 +1479,146 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
   if (totalClassifiedBlocks >= 3 && reviewClassCount / totalClassifiedBlocks > 0.5) {
     failureCodes.add('MONITORING_WITHOUT_PRODUCTION');
     reasonCodes.add('MONITORING_WITHOUT_PRODUCTION');
+  }
+
+  // Business Development Professionalism (Phase 5): commercial/capital/institution/civic
+  // lanes that have ANY active execution work must include real external-facing BD
+  // mechanics (outreach, proposal, pilot, partnership) and at least one external
+  // stakeholder touchpoint. Capital lanes must additionally declare a budget amount,
+  // budget range, or an explicit unknown-budget flag for resolution. Blocked /
+  // incubating / gated lanes (no active execution work) are exempt — they are allowed
+  // to carry only readiness / audit / gate work until upstream dependencies clear.
+  const BD_REQUIRED_LANE_FAMILIES = new Set([
+    'income_stream',
+    'capital_real_estate',
+    'institution_education',
+    'civic_development',
+  ]);
+  const CAPITAL_BUDGET_PATTERN = /\$\s*\d|\b\d+\s*(?:k|m|b)\b|\bbudget\s+(?:range|amount)\b|\bfunding\s+amount\b|\bcapital\s+(?:range|amount)\b|\bunknown[- ]budget\b/i;
+  const bdLaneBlocks = new Map<string, { laneFamily: string; activeBlocks: PlanArtifact[]; allBlocks: PlanArtifact[] }>();
+  executionArtifacts.forEach((block) => {
+    const laneId = normalizeText(block?.laneId);
+    if (!laneId) return;
+    const laneFamily = String(block?.executionContext?.laneFamily || '').trim();
+    if (!BD_REQUIRED_LANE_FAMILIES.has(laneFamily)) return;
+    const entry = bdLaneBlocks.get(laneId) || { laneFamily, activeBlocks: [], allBlocks: [] };
+    entry.allBlocks.push(block);
+    if (String(block?.executionContext?.laneStatus || '').trim() === 'active') {
+      entry.activeBlocks.push(block);
+    }
+    bdLaneBlocks.set(laneId, entry);
+  });
+  bdLaneBlocks.forEach(({ laneFamily, activeBlocks }) => {
+    if (activeBlocks.length === 0) return;
+    const hasBdMechanic = activeBlocks.some((b) => b?.isExternalBdMechanic === true);
+    if (!hasBdMechanic) {
+      failureCodes.add('MISSING_BD_EXECUTION_MECHANICS');
+      reasonCodes.add('MISSING_BD_EXECUTION_MECHANICS');
+    }
+    const hasStakeholderTouchpoint = activeBlocks.some((b) => b?.isExternalStakeholderTouchpoint === true);
+    if (!hasStakeholderTouchpoint) {
+      failureCodes.add('MISSING_EXTERNAL_STAKEHOLDER_TOUCHPOINT');
+      reasonCodes.add('MISSING_EXTERNAL_STAKEHOLDER_TOUCHPOINT');
+    }
+    if (laneFamily === 'capital_real_estate') {
+      const hasBudget = activeBlocks.some((b) => CAPITAL_BUDGET_PATTERN.test(normalizeText(b?.producesArtifact)));
+      if (!hasBudget) {
+        failureCodes.add('MISSING_CAPITAL_AMOUNT_OR_BUDGET_RANGE');
+        reasonCodes.add('MISSING_CAPITAL_AMOUNT_OR_BUDGET_RANGE');
+      }
+    }
+  });
+
+  // Review/Audit Artifact Pairing (Phase 6): every review-class block must
+  // declare what upstream artifact it is reviewing. evidenceRequired carries
+  // that pointer; without it, a "review" is just a calendar event consuming
+  // time without authority.
+  const REVIEW_CLASS_REQUIRING_EVIDENCE = new Set(['review', 'audit', 'validation', 'readiness']);
+  executionArtifacts.forEach((block) => {
+    if (!REVIEW_CLASS_REQUIRING_EVIDENCE.has(String(block?.blockType))) return;
+    if (!normalizeText(block?.evidenceRequired)) {
+      failureCodes.add('REVIEW_WITHOUT_PRIOR_ARTIFACT');
+      reasonCodes.add('REVIEW_WITHOUT_PRIOR_ARTIFACT');
+    }
+  });
+
+  // Review/Action Ratio (Phase 6): per (lane, phase) the production-to-review
+  // ratio must be defensible. P1 demands action-heavy work (action ≥ review);
+  // P2 allows audit/gate structure to grow but still requires production; P3
+  // may add validation/terminal-readiness without limit. Gated/blocked/
+  // incubating/deferred lanes are exempt — they are allowed to carry only
+  // readiness/audit/gate work while upstream dependencies clear.
+  const REVIEW_CLASS_TYPES = new Set(['review', 'audit', 'validation', 'readiness']);
+  const ACTION_CLASS_TYPES = new Set(['action', 'milestone']);
+  const EXEMPT_LANE_STATUSES = new Set(['gated', 'blocked', 'incubating', 'deferred']);
+  const lanePhaseCounts = new Map<string, { reviewCount: number; actionCount: number; laneStatus: string; phaseLabel: string }>();
+  executionArtifacts.forEach((block) => {
+    const laneId = normalizeText(block?.laneId);
+    const phaseLabel = normalizeText(block?.phaseLabel);
+    if (!laneId || !phaseLabel) return;
+    const key = `${laneId}::${phaseLabel}`;
+    const laneStatus = String(block?.executionContext?.laneStatus || 'active').trim();
+    const entry = lanePhaseCounts.get(key) || { reviewCount: 0, actionCount: 0, laneStatus, phaseLabel };
+    if (REVIEW_CLASS_TYPES.has(String(block?.blockType))) entry.reviewCount += 1;
+    if (ACTION_CLASS_TYPES.has(String(block?.blockType))) entry.actionCount += 1;
+    lanePhaseCounts.set(key, entry);
+  });
+  lanePhaseCounts.forEach(({ reviewCount, actionCount, laneStatus, phaseLabel }) => {
+    if (EXEMPT_LANE_STATUSES.has(laneStatus)) return;
+    if (reviewCount + actionCount < 3) return;
+    const phaseThreshold = phaseLabel === 'P1' ? 1.0 : phaseLabel === 'P2' ? 1.5 : 2.5;
+    if (actionCount === 0 || reviewCount / Math.max(actionCount, 1) > phaseThreshold) {
+      failureCodes.add('EXCESSIVE_REVIEW_AUDIT_RATIO');
+      reasonCodes.add('EXCESSIVE_REVIEW_AUDIT_RATIO');
+    }
+  });
+
+  // Mechanical Cadence Loop (Phase 6): a single (lane, phase) carrying 4+
+  // review-class blocks that share the same titleFamily is recycling the
+  // same check at fixed intervals without artifact progression.
+  const lanePhaseFamilyCounts = new Map<string, number>();
+  executionArtifacts.forEach((block) => {
+    if (!REVIEW_CLASS_TYPES.has(String(block?.blockType))) return;
+    const laneId = normalizeText(block?.laneId);
+    const phaseLabel = normalizeText(block?.phaseLabel);
+    const titleFamily = normalizeText(block?.titleFamily);
+    if (!laneId || !phaseLabel || !titleFamily) return;
+    const key = `${laneId}::${phaseLabel}::${titleFamily}`;
+    lanePhaseFamilyCounts.set(key, (lanePhaseFamilyCounts.get(key) || 0) + 1);
+  });
+  for (const count of lanePhaseFamilyCounts.values()) {
+    if (count >= 4) {
+      failureCodes.add('MECHANICAL_CADENCE_LOOP');
+      reasonCodes.add('MECHANICAL_CADENCE_LOOP');
+      break;
+    }
+  }
+
+  // Active Cycle Rebasing (Phase 7): a plan evaluated on day X should not
+  // silently schedule actionable blocks before X. Past-dated blocks must
+  // either be flagged as historical/backfilled/imported (intentional backfill)
+  // or the entire plan must declare allowsBackdatedStart. Without these
+  // signals, the active cycle has either drifted off the real execution
+  // timeline (STALE_ACTIVE_CYCLE_STATE) or started in the past without
+  // confirmation (ACTIVE_CYCLE_STARTS_IN_PAST_WITHOUT_CONFIRMATION).
+  if (evaluationDayKey && proposedBlocks.length > 0) {
+    const stalePastBlocks = proposedBlocks.filter((b) => {
+      const dayKey = normalizeText(b?.dayKey);
+      if (!dayKey || dayKey >= evaluationDayKey) return false;
+      return b?.isHistorical !== true && b?.isBackfilled !== true && b?.isImported !== true;
+    });
+    if (stalePastBlocks.length > 0) {
+      failureCodes.add('STALE_ACTIVE_CYCLE_STATE');
+      reasonCodes.add('STALE_ACTIVE_CYCLE_STATE');
+    }
+    const earliestProposedDayKey = proposedBlocks
+      .map((b) => normalizeText(b?.dayKey))
+      .filter((k) => k)
+      .sort()[0];
+    if (earliestProposedDayKey && earliestProposedDayKey < evaluationDayKey && !allowsBackdatedStart) {
+      failureCodes.add('ACTIVE_CYCLE_STARTS_IN_PAST_WITHOUT_CONFIRMATION');
+      reasonCodes.add('ACTIVE_CYCLE_STARTS_IN_PAST_WITHOUT_CONFIRMATION');
+    }
   }
 
   // Dependency Chain Authenticity: execution blocks must reference a real downstream plan object.

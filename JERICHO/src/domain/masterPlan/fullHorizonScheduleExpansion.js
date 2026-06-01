@@ -594,11 +594,19 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Validate immediate revenue path for ${laneTitle} in P1 income stream lane`, 'validation', 'Immediate revenue path with proof assumptions logged'],
         [`Review cashflow protection steps for ${laneTitle} in P1 income stream lane`, 'review', 'Cashflow protection review with deadlines'],
         [`Define service-to-recurring offer bridge for ${laneTitle} in P1 income stream lane`, 'action', 'Offer bridge linking near-term cash to long-term engine'],
+        [`Define paid offer and pricing for ${laneTitle} in P1 income stream lane`, 'action', 'Offer definition with pricing, scope, and target buyer profile', null, { isExternalBdMechanic: true }],
+        [`Build prospect list for ${laneTitle} outreach in P1 income stream lane`, 'action', 'Prospect list with at least 25 named targets, channel, and contact path', null, { isExternalBdMechanic: true }],
+        [`Send outreach batch to prospect list for ${laneTitle}`, 'action', 'Outreach log with batch size, channel, message, and reply tracking', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+        [`Run discovery call with qualified prospect for ${laneTitle}`, 'action', 'Discovery call notes with prospect needs, objections, and next-step commitment', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+        [`Draft proposal and pricing memo for ${laneTitle} qualified prospect`, 'action', 'Proposal memo with scope, deliverables, price, and signature path', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+        [`Close first paying engagement and invoice for ${laneTitle}`, 'action', 'Signed agreement and first invoice issued with payment terms recorded', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
       ],
       P2: [
         [`Audit repeatable conversion signals for ${laneTitle} in P2 income stream lane`, 'audit', 'Repeatable conversion audit with proof thresholds'],
         [`Assess margin-readiness for ${laneTitle} in P2 income stream lane`, 'readiness', 'Margin-readiness decision and next revisions'],
         [`Gate expansion of ${laneTitle} until revenue quality clears criteria`, 'gate', 'Revenue quality gate with criteria outcome'],
+        [`Scale outreach to broader prospect cohort for ${laneTitle} in P2 income stream lane`, 'action', 'Scaled outreach campaign with cohort size, conversion rate, and follow-up cadence', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+        [`Negotiate recurring or expansion contract for ${laneTitle} in P2 income stream lane`, 'action', 'Recurring or expansion contract negotiated with scope, term, and pricing', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
       ],
       P3: [
         [`Review scale economics for ${laneTitle} in P3 income stream lane`, 'review', 'Scale economics review mapped to horizon target', 'p3_income_scale_economics'],
@@ -656,6 +664,27 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
             isExpansionAction: false,
             isScaleAction: false,
           },
+        ],
+        [
+          `Draft capital budget memo for ${laneTitle} in P1 capital/real-estate lane`,
+          'action',
+          'Capital budget memo with $ amount or range per candidate path, or explicit unknown-budget flag requiring resolution',
+          null,
+          { isExternalBdMechanic: true },
+        ],
+        [
+          `Build investor or lender prospect list for ${laneTitle} in P1 capital/real-estate lane`,
+          'action',
+          'Investor/lender/partner prospect list with at least 10 named targets and channel of contact',
+          null,
+          { isExternalBdMechanic: true },
+        ],
+        [
+          `Contact funding or stakeholder targets for ${laneTitle} in P1 capital/real-estate lane`,
+          'action',
+          'Outreach log to investor/lender/partner targets with reply status and next-step commitment',
+          null,
+          { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true },
         ],
       ],
       P2: [
@@ -719,6 +748,9 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Define institution model assumptions for ${laneTitle} in P1 institution/education lane`, 'action', 'Institution model assumptions with gating list'],
         [`Review legal and operating prerequisites for ${laneTitle} in institution/education lane`, 'review', 'Prerequisite review with blocked items'],
         [`Gate early execution in ${laneTitle} until proof and capital dependencies clear`, 'gate', 'Early execution gate with explicit dependencies'],
+        [`Map stakeholders and partner targets for ${laneTitle} in P1 institution/education lane`, 'action', 'Stakeholder map with named partner/agency targets, decision authority, and access path', null, { isExternalBdMechanic: true }],
+        [`Send meeting requests to partner targets for ${laneTitle} in P1 institution/education lane`, 'action', 'Meeting request log with target list, reply status, and scheduled discovery sessions', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+        [`Draft pilot scope or partnership proposal for ${laneTitle} in P1 institution/education lane`, 'action', 'Pilot scope or partnership proposal with deliverables, term, and signature path', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
       ],
       P2: [
         [`Audit curriculum or program viability for ${laneTitle} in P2 institution/education lane`, 'audit', 'Program viability audit with next experiments'],
@@ -739,6 +771,9 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Map credibility dependencies for ${laneTitle} in P1 civic/district lane`, 'action', 'Credibility dependency map for later activation'],
         [`Review coalition prerequisites for ${laneTitle} in civic/district lane`, 'review', 'Coalition prerequisite review with blocked paths'],
         [`Gate direct district execution in ${laneTitle} until proof and capital stack exist`, 'gate', 'Direct district execution gate with unmet prerequisites'],
+        [`Map agency and coalition targets for ${laneTitle} in P1 civic/district lane`, 'action', 'Agency and coalition target list with named contacts, decision authority, and access path', null, { isExternalBdMechanic: true }],
+        [`Send meeting requests to agency or coalition targets for ${laneTitle} in P1 civic/district lane`, 'action', 'Meeting request log with reply status and scheduled discovery sessions', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+        [`Draft partnership or pilot proposal for ${laneTitle} in P1 civic/district lane`, 'action', 'Partnership or pilot proposal with public-interest case, deliverables, and signature path', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
       ],
       P2: [
         [`Audit district opportunity criteria for ${laneTitle} in P2 civic/district lane`, 'audit', 'District opportunity criteria audit'],
@@ -792,6 +827,8 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
     isExpansionAction: sequencing.isExpansionAction === true,
     isProofSeeking: sequencing.isProofSeeking === true,
     isScaleAction: sequencing.isScaleAction === true,
+    isExternalBdMechanic: sequencing.isExternalBdMechanic === true,
+    isExternalStakeholderTouchpoint: sequencing.isExternalStakeholderTouchpoint === true,
     derivationReason: `${phaseLabel} ${blockType} derived for ${laneLabel} from phase objective and lane role.${supportException}`,
     riskOrConstraintAddressed: gated
       ? `Execution remains gated for ${laneLabel} until prior proof, dependency, or capital constraints clear.${supportException}`
@@ -983,8 +1020,12 @@ function buildBlock({
     isExpansionAction: occurrenceDescriptor.isExpansionAction === true,
     isProofSeeking: occurrenceDescriptor.isProofSeeking === true,
     isScaleAction: occurrenceDescriptor.isScaleAction === true,
+    isExternalBdMechanic: occurrenceDescriptor.isExternalBdMechanic === true,
+    isExternalStakeholderTouchpoint: occurrenceDescriptor.isExternalStakeholderTouchpoint === true,
     durationMinutes: resolveTimeEstimateMinutes(blockType),
-    producesArtifact: getArtifactLabel(family, phase?.label || null, blockType, laneTitle) || occurrenceDescriptor.expectedOutput || null,
+    producesArtifact: occurrenceDescriptor.isExternalBdMechanic
+      ? (occurrenceDescriptor.expectedOutput || getArtifactLabel(family, phase?.label || null, blockType, laneTitle) || null)
+      : (getArtifactLabel(family, phase?.label || null, blockType, laneTitle) || occurrenceDescriptor.expectedOutput || null),
     consumedBy: occurrenceDescriptor.unlocks || [],
     consumedByRef: deriveConsumedByRef(occurrenceDescriptor),
     dependsOnBlockIds: [],
