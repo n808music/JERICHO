@@ -52,6 +52,8 @@ type PlanArtifact = {
   // Phase 5 — BD professionalism flags
   isExternalBdMechanic?: boolean;
   isExternalStakeholderTouchpoint?: boolean;
+  // Phase 6 — title-family used for cadence-loop detection
+  titleFamily?: string | null;
 };
 
 // Block types that are exempt from execution-substrate requirements.
@@ -1507,6 +1509,71 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
       }
     }
   });
+
+  // Review/Audit Artifact Pairing (Phase 6): every review-class block must
+  // declare what upstream artifact it is reviewing. evidenceRequired carries
+  // that pointer; without it, a "review" is just a calendar event consuming
+  // time without authority.
+  const REVIEW_CLASS_REQUIRING_EVIDENCE = new Set(['review', 'audit', 'validation', 'readiness']);
+  executionArtifacts.forEach((block) => {
+    if (!REVIEW_CLASS_REQUIRING_EVIDENCE.has(String(block?.blockType))) return;
+    if (!normalizeText(block?.evidenceRequired)) {
+      failureCodes.add('REVIEW_WITHOUT_PRIOR_ARTIFACT');
+      reasonCodes.add('REVIEW_WITHOUT_PRIOR_ARTIFACT');
+    }
+  });
+
+  // Review/Action Ratio (Phase 6): per (lane, phase) the production-to-review
+  // ratio must be defensible. P1 demands action-heavy work (action ≥ review);
+  // P2 allows audit/gate structure to grow but still requires production; P3
+  // may add validation/terminal-readiness without limit. Gated/blocked/
+  // incubating/deferred lanes are exempt — they are allowed to carry only
+  // readiness/audit/gate work while upstream dependencies clear.
+  const REVIEW_CLASS_TYPES = new Set(['review', 'audit', 'validation', 'readiness']);
+  const ACTION_CLASS_TYPES = new Set(['action', 'milestone']);
+  const EXEMPT_LANE_STATUSES = new Set(['gated', 'blocked', 'incubating', 'deferred']);
+  const lanePhaseCounts = new Map<string, { reviewCount: number; actionCount: number; laneStatus: string; phaseLabel: string }>();
+  executionArtifacts.forEach((block) => {
+    const laneId = normalizeText(block?.laneId);
+    const phaseLabel = normalizeText(block?.phaseLabel);
+    if (!laneId || !phaseLabel) return;
+    const key = `${laneId}::${phaseLabel}`;
+    const laneStatus = String(block?.executionContext?.laneStatus || 'active').trim();
+    const entry = lanePhaseCounts.get(key) || { reviewCount: 0, actionCount: 0, laneStatus, phaseLabel };
+    if (REVIEW_CLASS_TYPES.has(String(block?.blockType))) entry.reviewCount += 1;
+    if (ACTION_CLASS_TYPES.has(String(block?.blockType))) entry.actionCount += 1;
+    lanePhaseCounts.set(key, entry);
+  });
+  lanePhaseCounts.forEach(({ reviewCount, actionCount, laneStatus, phaseLabel }) => {
+    if (EXEMPT_LANE_STATUSES.has(laneStatus)) return;
+    if (reviewCount + actionCount < 3) return;
+    const phaseThreshold = phaseLabel === 'P1' ? 1.0 : phaseLabel === 'P2' ? 1.5 : 2.5;
+    if (actionCount === 0 || reviewCount / Math.max(actionCount, 1) > phaseThreshold) {
+      failureCodes.add('EXCESSIVE_REVIEW_AUDIT_RATIO');
+      reasonCodes.add('EXCESSIVE_REVIEW_AUDIT_RATIO');
+    }
+  });
+
+  // Mechanical Cadence Loop (Phase 6): a single (lane, phase) carrying 4+
+  // review-class blocks that share the same titleFamily is recycling the
+  // same check at fixed intervals without artifact progression.
+  const lanePhaseFamilyCounts = new Map<string, number>();
+  executionArtifacts.forEach((block) => {
+    if (!REVIEW_CLASS_TYPES.has(String(block?.blockType))) return;
+    const laneId = normalizeText(block?.laneId);
+    const phaseLabel = normalizeText(block?.phaseLabel);
+    const titleFamily = normalizeText(block?.titleFamily);
+    if (!laneId || !phaseLabel || !titleFamily) return;
+    const key = `${laneId}::${phaseLabel}::${titleFamily}`;
+    lanePhaseFamilyCounts.set(key, (lanePhaseFamilyCounts.get(key) || 0) + 1);
+  });
+  for (const count of lanePhaseFamilyCounts.values()) {
+    if (count >= 4) {
+      failureCodes.add('MECHANICAL_CADENCE_LOOP');
+      reasonCodes.add('MECHANICAL_CADENCE_LOOP');
+      break;
+    }
+  }
 
   // Dependency Chain Authenticity: execution blocks must reference a real downstream plan object.
   // consumedByRef is the machine-verifiable link; consumedBy is the human-readable label.
