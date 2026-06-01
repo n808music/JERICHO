@@ -164,6 +164,40 @@ function forecastBlockId(planId, phaseLabel, dayKey, index) {
 
 // ─── Block factory ────────────────────────────────────────────────────────────
 
+// Mirrors fullHorizonScheduleExpansion.js — kept local to avoid a cross-module
+// dependency. Updated in Phase 3 of the Execution Professionalism Remediation.
+const FORECAST_LANE_FAMILY_OWNER_CLASS = {
+  product_software: 'product_owner',
+  creative_media: 'creative_owner',
+  media_channel: 'media_owner',
+  company_operations: 'operations_owner',
+  income_stream: 'revenue_owner',
+  capital_real_estate: 'capital_owner',
+  institution_education: 'institution_owner',
+  civic_development: 'civic_owner',
+};
+
+function resolveForecastBlockOwner(blockType, laneFamily = null) {
+  if (blockType === 'review' || blockType === 'audit') return 'reviewer';
+  if (blockType === 'terminal-review' || blockType === 'terminal-readiness') return 'terminal_authority';
+  if (blockType === 'gate') return 'gate_authority';
+  return FORECAST_LANE_FAMILY_OWNER_CLASS[laneFamily] || 'founder';
+}
+
+function resolveForecastPassEvidence(blockType) {
+  switch (blockType) {
+    case 'action': return 'Completed action artifact matching the forecast expected output';
+    case 'review': return 'Written review with pass/fail determination and evidence summary';
+    case 'audit': return 'Audit report with findings, gaps, and status determination';
+    case 'validation': return 'Validation result with evidence collected and criteria checked';
+    case 'readiness': return 'Readiness checklist with binary go/no-go decision';
+    case 'gate': return 'Gate decision with explicit pass/fail criteria and unblocking conditions';
+    case 'terminal-readiness': return 'Terminal-readiness evidence package with final horizon decision';
+    case 'terminal-review': return 'Terminal review conclusion with outcome verdict';
+    default: return 'Forecast work product matching expected output';
+  }
+}
+
 function buildForecastBlock({
   planId,
   phase,
@@ -181,6 +215,25 @@ function buildForecastBlock({
   const resolvedLaneLabel =
     laneLabelOverride || (lane ? laneLabel({ domain: lane.domain, title: lane.laneTitle }) : null);
   const phaseName = String(phase?.phaseTitle || phase?.title || phase?.label || '').trim() || null;
+  const laneFamily = lane ? inferLaneFamily(lane) : null;
+  const owner = resolveForecastBlockOwner(blockType, laneFamily);
+  const durationMinutes = blockType === 'terminal-readiness' ? 90 : 60;
+  const dependsOn = phase?.label === 'P2' ? ['phase:P1'] : phase?.label === 'P3' ? ['phase:P2'] : [];
+  const unlocks =
+    phase?.label === 'P1'
+      ? ['phase:P2']
+      : phase?.label === 'P2'
+        ? ['phase:P3']
+        : ['terminal-review'];
+  const primaryUnlock = unlocks[0] || null;
+  const consumedByRef = primaryUnlock
+    ? primaryUnlock.startsWith('phase:')
+      ? { type: 'phaseObjective', id: primaryUnlock.slice(6) }
+      : primaryUnlock.startsWith('terminal-review')
+        ? { type: 'terminalOutcome', id: primaryUnlock.includes(':') ? primaryUnlock.split(':')[1] : 'cross-lane' }
+        : { type: 'block', id: primaryUnlock }
+    : null;
+  const expectedOutput = buildForecastExpectedOutput({ blockType, lane, phase, title });
   return {
     id: forecastBlockId(planId, phase.label, dayKey, index),
     title,
@@ -199,20 +252,22 @@ function buildForecastBlock({
       'Forecast block visible for long-horizon inspection. Not executable until committed into an active cycle.',
     source: 'derived',
     derivationReason: `Derived from ${phase.label} phase substrate for ${resolvedLaneLabel || 'cross-lane terminal review'}: ${phase.phaseObjective || 'phase objective'}`,
-    expectedOutput: buildForecastExpectedOutput({ blockType, lane, phase, title }),
-    timeEstimateMinutes: blockType === 'terminal-readiness' ? 90 : 60,
+    expectedOutput,
+    durationMinutes,
+    // timeEstimateMinutes retained as legacy alias — existing readers reference it.
+    timeEstimateMinutes: durationMinutes,
+    owner,
+    producesArtifact: expectedOutput,
+    consumedBy: unlocks,
+    consumedByRef,
+    passEvidence: resolveForecastPassEvidence(blockType),
     sourceInputs: [
       `plan:${planId}`,
       phase?.id ? `phase:${phase.id}` : null,
       laneId ? `lane:${laneId}` : null,
     ].filter(Boolean),
-    dependsOn: phase?.label === 'P2' ? ['phase:P1'] : phase?.label === 'P3' ? ['phase:P2'] : [],
-    unlocks:
-      phase?.label === 'P1'
-        ? ['phase:P2']
-        : phase?.label === 'P2'
-          ? ['phase:P3']
-          : ['terminal-review'],
+    dependsOn,
+    unlocks,
     riskOrConstraintAddressed: `Keeps ${phase.label} future work visible without allowing execution mutation before commitment.`,
     successCriterionServed:
       phase?.label === 'P1'

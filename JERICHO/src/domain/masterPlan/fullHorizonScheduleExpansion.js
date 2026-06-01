@@ -473,6 +473,8 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Package product proof for capital and institution review for ${laneTitle}`, 'action', 'Product proof package prepared for downstream capital and institution review', 'p3_product_proof_packaging'],
         [`Reconcile unresolved product blockers for ${laneTitle} before horizon close`, 'review', 'Resolved product blocker register with owners and deadlines', 'p3_product_blocker_reconciliation'],
         [`Confirm operating handoff readiness for ${laneTitle} in P3 product/software lane`, 'readiness', 'Operating handoff readiness decision with support coverage', 'p3_product_handoff_readiness'],
+        [`Define automation and delegation coverage for ${laneTitle} to sustain scale without key-person dependency`, 'action', 'Automation and delegation brief with coverage map, escalation paths, and handoff schedule', 'p3_product_automation_delegation'],
+        [`Build repeatable operating dashboard for ${laneTitle} tracking scale signals and owner accountability`, 'action', 'Operating dashboard spec with KPIs, owner assignments, and decision triggers', 'p3_product_operating_dashboard'],
       ],
     },
     creative_media: {
@@ -605,6 +607,7 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Package recurring revenue proof for ${laneTitle} before terminal review`, 'action', 'Recurring revenue proof package assembled for terminal review', 'p3_income_recurring_revenue_packaging'],
         [`Reconcile cashflow risk for ${laneTitle} across the scale window`, 'review', 'Cashflow risk reconciled with downside scenarios and safeguards', 'p3_income_cashflow_reconciliation'],
         [`Confirm repeatable conversion system for ${laneTitle} in P3 income stream lane`, 'validation', 'Repeatable conversion system validated against final-horizon targets', 'p3_income_conversion_system'],
+        [`Define margin protection and revenue diversification plan for ${laneTitle} in P3 income stream lane`, 'action', 'Margin protection brief with diversification priorities, risk floor targets, and owner cadence', 'p3_income_margin_protection'],
       ],
     },
     capital_real_estate: {
@@ -752,13 +755,13 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
       ],
     },
     general: {
-      P1: [[`Define P1 proof sequence for ${laneTitle} in ${laneLabel}`, 'action', 'P1 proof sequence defined', 'p1_general_proof_sequence']],
-      P2: [[`Review P2 operating cadence for ${laneTitle} in ${laneLabel}`, 'review', 'P2 operating cadence review', 'p2_general_operating_cadence']],
+      P1: [[`Define P1 proof sequence for ${laneTitle} in ${laneLabel}`, 'action', 'P1 proof sequence with ordered milestones, dependencies, and completion criteria for each phase goal', 'p1_general_proof_sequence']],
+      P2: [[`Review P2 operating cadence for ${laneTitle} in ${laneLabel}`, 'review', 'P2 operating cadence review with stop/continue decisions and owner coverage', 'p2_general_operating_cadence']],
       P3: [
-        [`Review terminal readiness for ${laneTitle} in ${laneLabel}`, 'review', 'Terminal readiness review', 'p3_general_terminal_readiness'],
-        [`Validate terminal evidence for ${laneTitle} in ${laneLabel}`, 'terminal-readiness', 'Terminal evidence package', 'p3_general_terminal_evidence'],
-        [`Package final proof for ${laneTitle} in ${laneLabel}`, 'action', 'Final proof package assembled', 'p3_general_final_proof_packaging'],
-        [`Confirm handoff readiness for ${laneTitle} in ${laneLabel}`, 'readiness', 'Handoff readiness decision', 'p3_general_handoff_readiness'],
+        [`Review terminal readiness for ${laneTitle} in ${laneLabel}`, 'review', 'Terminal readiness review with final evidence checklist and gap summary', 'p3_general_terminal_readiness'],
+        [`Validate terminal evidence for ${laneTitle} in ${laneLabel}`, 'terminal-readiness', 'Terminal evidence package with success-standard comparison and horizon close decision', 'p3_general_terminal_evidence'],
+        [`Package final proof for ${laneTitle} in ${laneLabel}`, 'action', 'Final proof package with outcome evidence, success-standard comparison, and horizon close decision', 'p3_general_final_proof_packaging'],
+        [`Confirm handoff readiness for ${laneTitle} in ${laneLabel}`, 'readiness', 'Handoff readiness decision with delegated owner coverage and support gaps noted', 'p3_general_handoff_readiness'],
       ],
     },
   };
@@ -808,6 +811,62 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
   }));
 }
 
+// Lane family → execution-owner class. Each actionable block (action /
+// validation / readiness) carries the owner class of the lane that produces
+// it. Review and audit blocks are reviewer-class; terminal-readiness and
+// terminal-review blocks elevate to terminal_authority; gates use
+// gate_authority. Cross-lane / general blocks fall back to founder.
+const LANE_FAMILY_OWNER_CLASS = {
+  product_software: 'product_owner',
+  creative_media: 'creative_owner',
+  media_channel: 'media_owner',
+  company_operations: 'operations_owner',
+  income_stream: 'revenue_owner',
+  capital_real_estate: 'capital_owner',
+  institution_education: 'institution_owner',
+  civic_development: 'civic_owner',
+};
+
+function resolveBlockOwner(blockType, laneFamily = null) {
+  if (blockType === 'review' || blockType === 'audit') {
+    return 'reviewer';
+  }
+  if (blockType === 'terminal-review' || blockType === 'terminal-readiness') {
+    return 'terminal_authority';
+  }
+  if (blockType === 'gate') {
+    return 'gate_authority';
+  }
+  return LANE_FAMILY_OWNER_CLASS[laneFamily] || 'founder';
+}
+
+function resolvePassEvidence(blockType, descriptor) {
+  switch (blockType) {
+    case 'action': return descriptor?.expectedOutput || 'Completed artifact matching expected output';
+    case 'review': return 'Written review with pass/fail determination and evidence summary';
+    case 'audit': return 'Audit report with findings, gaps, and status determination';
+    case 'validation': return 'Validation result with evidence collected and criteria checked';
+    case 'readiness': return 'Readiness checklist with binary go/no-go decision';
+    case 'gate': return 'Gate passed: all upstream evidence collected and pass/fail criteria met';
+    case 'terminal-review': return 'Terminal review conclusion with outcome verdict and final decision';
+    case 'terminal-readiness': return 'Terminal-readiness evidence package with final horizon decision';
+    case 'milestone': return descriptor?.expectedOutput || 'Release asset list with items dated, owned, and confirmed ready for distribution';
+    default: return 'Work product matching expected output';
+  }
+}
+
+// Derives a machine-verifiable downstream reference from the block's primary unlock entry.
+// consumedBy carries the human-readable label; consumedByRef carries the typed reference.
+function deriveConsumedByRef(occurrenceDescriptor) {
+  const unlocks = occurrenceDescriptor.unlocks || [];
+  const primary = unlocks[0];
+  if (!primary) return null;
+  if (primary.startsWith('phase:')) return { type: 'phaseObjective', id: primary.slice(6) };
+  if (primary.startsWith('terminal-review:')) return { type: 'terminalOutcome', id: primary.slice(16) };
+  if (primary.startsWith('lane:')) return { type: 'laneOutcome', id: primary.slice(5) };
+  return { type: 'block', id: primary };
+}
+
 function buildBlock({
   planId,
   phase,
@@ -839,6 +898,8 @@ function buildBlock({
             ? 'forecast'
             : 'strategic';
   const idKey = idDayKey || dayKey;
+  const family = inferLaneFamily(lane);
+  const laneTitle = getLaneTitle(lane);
 
   return {
     id: mkId(planId, phase?.label, laneId || 'lane', idKey, idx),
@@ -850,6 +911,7 @@ function buildBlock({
     phaseId: phase?.id || null,
     phaseLabel: phase?.label || null,
     phaseName: phase?.phaseTitle || phase?.title || phase?.label || null,
+    laneId,
     laneId,
     laneLabel: getLaneTitle(lane),
     deliverableId: laneId ? `masterplan-deliverable:${laneId}` : null,
@@ -888,6 +950,13 @@ function buildBlock({
     isExpansionAction: occurrenceDescriptor.isExpansionAction === true,
     isProofSeeking: occurrenceDescriptor.isProofSeeking === true,
     isScaleAction: occurrenceDescriptor.isScaleAction === true,
+    durationMinutes: resolveTimeEstimateMinutes(blockType),
+    producesArtifact: getArtifactLabel(family, phase?.label || null, blockType, laneTitle) || occurrenceDescriptor.expectedOutput || null,
+    consumedBy: occurrenceDescriptor.unlocks || [],
+    consumedByRef: deriveConsumedByRef(occurrenceDescriptor),
+    dependsOnBlockIds: [],
+    owner: resolveBlockOwner(blockType, family),
+    passEvidence: resolvePassEvidence(blockType, occurrenceDescriptor),
     executionContext: {
       laneStatus,
       planOrientation: inferPlanOrientation(plan),
@@ -933,6 +1002,11 @@ function buildGlobalTerminalBlock({ planId, phase, horizonEndDayKey, plan }) {
     ].filter(Boolean),
     dependsOn: ['phase:P2'],
     unlocks: ['terminal-review:cross-lane'],
+    durationMinutes: 120,
+    producesArtifact: 'Terminal-readiness evidence package with cross-lane proof index and outcome decision',
+    consumedBy: ['terminal-review:cross-lane'],
+    owner: 'terminal_authority',
+    passEvidence: 'Terminal-readiness evidence package with final horizon decision and success-standard comparison',
     riskOrConstraintAddressed: 'Prevents a five-year schedule from ending without explicit terminal-readiness inspection.',
     successCriterionServed: 'Terminal-readiness evidence compared to success standard and outcome target',
     sequencingRole: 'terminal_validation',
