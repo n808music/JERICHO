@@ -4393,7 +4393,12 @@ function buildMasterPlanPolicySnapshot(state, plan) {
     .sort((left, right) => String(left?.targetDate || '').localeCompare(String(right?.targetDate || '')));
   const goalId = `masterplan:${plan.id}`;
   const cycleId = `masterplan-cycle:${plan.id}`;
-  const startDayKey = String(plan?.horizonStart || fallbackToday).trim() || fallbackToday;
+  // Phase 7 cycle-creation rebase: never let a fresh operational cycle start
+  // in the past. plan.horizonStart is the plan's published start (which may
+  // be backdated for narrative clarity); the active execution window must
+  // begin on today unless the plan explicitly starts in the future.
+  const horizonStart = String(plan?.horizonStart || '').trim();
+  const startDayKey = horizonStart && horizonStart > fallbackToday ? horizonStart : fallbackToday;
   const endDayKey = resolveMasterPlanEndDayKey(plan, milestones, plan?.anchors || [], startDayKey);
   const laneStageSummary = lanes
     .map((lane) => {
@@ -4658,7 +4663,7 @@ function mapMasterPlanLaneToPractice(domain) {
   return 'FOCUS';
 }
 
-function buildMasterPlanOperationalDescriptors(state, plan) {
+export function buildMasterPlanOperationalDescriptors(state, plan) {
   if (!plan?.id || !plan?.profileId) {
     return null;
   }
@@ -4681,7 +4686,12 @@ function buildMasterPlanOperationalDescriptors(state, plan) {
     .sort((left, right) => String(left?.targetDate || '').localeCompare(String(right?.targetDate || '')));
   const goalId = `masterplan:${plan.id}`;
   const cycleId = `masterplan-cycle:${plan.id}`;
-  const startDayKey = String(plan?.horizonStart || fallbackToday).trim() || fallbackToday;
+  // Phase 7 cycle-creation rebase: never let a fresh operational cycle start
+  // in the past. plan.horizonStart is the plan's published start (which may
+  // be backdated for narrative clarity); the active execution window must
+  // begin on today unless the plan explicitly starts in the future.
+  const horizonStart = String(plan?.horizonStart || '').trim();
+  const startDayKey = horizonStart && horizonStart > fallbackToday ? horizonStart : fallbackToday;
   const fullHorizonEndDayKey = resolveMasterPlanEndDayKey(plan, milestones, plan?.anchors || [], startDayKey);
   const activePhaseScheduleEndDayKey = getNextMasterPlanHardAnchorDayKey(plan, startDayKey) || fullHorizonEndDayKey;
   const weeklyCapacityHours =
