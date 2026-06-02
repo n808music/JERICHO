@@ -1573,24 +1573,38 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
     }
   });
 
-  // Mechanical Cadence Loop (Phase 6): a single (lane, phase) carrying 4+
-  // review-class blocks that share the same titleFamily is recycling the
-  // same check at fixed intervals without artifact progression.
-  const lanePhaseFamilyCounts = new Map<string, number>();
+  // Mechanical Cadence Loop (Phase 6): a (lane, phase) that schedules 4+
+  // consecutive review-class blocks with no action/milestone block between
+  // them is looping reviews without artifact progression. Round-robin
+  // generation that interleaves actions and reviews is exempt — the action
+  // blocks are the upstream artifact the next review consumes.
+  const blocksByLanePhase = new Map<string, PlanArtifact[]>();
   executionArtifacts.forEach((block) => {
-    if (!REVIEW_CLASS_TYPES.has(String(block?.blockType))) return;
     const laneId = normalizeText(block?.laneId);
     const phaseLabel = normalizeText(block?.phaseLabel);
-    const titleFamily = normalizeText(block?.titleFamily);
-    if (!laneId || !phaseLabel || !titleFamily) return;
-    const key = `${laneId}::${phaseLabel}::${titleFamily}`;
-    lanePhaseFamilyCounts.set(key, (lanePhaseFamilyCounts.get(key) || 0) + 1);
+    if (!laneId || !phaseLabel) return;
+    const key = `${laneId}::${phaseLabel}`;
+    const entry = blocksByLanePhase.get(key) || [];
+    entry.push(block);
+    blocksByLanePhase.set(key, entry);
   });
-  for (const count of lanePhaseFamilyCounts.values()) {
-    if (count >= 4) {
-      failureCodes.add('MECHANICAL_CADENCE_LOOP');
-      reasonCodes.add('MECHANICAL_CADENCE_LOOP');
-      break;
+  outer: for (const sameLanePhaseBlocks of blocksByLanePhase.values()) {
+    const sorted = sameLanePhaseBlocks
+      .slice()
+      .sort((a, b) => String(a?.dayKey || '').localeCompare(String(b?.dayKey || '')));
+    let run = 0;
+    for (const b of sorted) {
+      const bt = String(b?.blockType);
+      if (REVIEW_CLASS_TYPES.has(bt)) {
+        run += 1;
+        if (run >= 4) {
+          failureCodes.add('MECHANICAL_CADENCE_LOOP');
+          reasonCodes.add('MECHANICAL_CADENCE_LOOP');
+          break outer;
+        }
+      } else if (ACTION_CLASS_TYPES.has(bt)) {
+        run = 0;
+      }
     }
   }
 

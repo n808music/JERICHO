@@ -147,12 +147,15 @@ describe('plan quality gate — MECHANICAL_CADENCE_LOOP', () => {
     expect(result.failureCodes).toContain('MECHANICAL_CADENCE_LOOP');
   });
 
-  it('does NOT fire when review-class blocks have varied titleFamily', () => {
+  it('does NOT fire when action blocks interleave the review-class blocks', () => {
     const blocks = [
       actionBlock({ id: 'a-1', dayKey: '2026-06-01' }),
       reviewBlock({ id: 'r-1', dayKey: '2026-06-08', evidenceRequired: 'e', titleFamily: 'fam-a' }),
+      actionBlock({ id: 'a-2', dayKey: '2026-06-12' }),
       reviewBlock({ id: 'r-2', dayKey: '2026-06-15', evidenceRequired: 'e', titleFamily: 'fam-b' }),
+      actionBlock({ id: 'a-3', dayKey: '2026-06-19' }),
       reviewBlock({ id: 'r-3', dayKey: '2026-06-22', evidenceRequired: 'e', titleFamily: 'fam-c' }),
+      actionBlock({ id: 'a-4', dayKey: '2026-06-26' }),
       reviewBlock({ id: 'r-4', dayKey: '2026-06-29', evidenceRequired: 'e', titleFamily: 'fam-d' }),
     ];
     const result = evaluatePlanQualityGate(baseInput(blocks));

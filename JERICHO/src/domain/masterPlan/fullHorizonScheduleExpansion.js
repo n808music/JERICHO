@@ -460,11 +460,15 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         ['Validate onboarding path for Operation Endgame app launch in product/software lane', 'validation', 'Onboarding checklist with proof gaps logged'],
         [`Ship beta evidence review for ${laneTitle} in P1 product/software lane`, 'review', 'Beta evidence review with launch blockers ranked'],
         [`Prepare post-anchor conversion instrumentation for ${laneTitle} in product/software lane`, 'action', 'Conversion instrumentation plan for the next proof window'],
+        [`Ship next launch-critical feature increment for ${laneTitle} in P1 product/software lane`, 'action', 'Feature increment shipped with release notes and rollout plan'],
+        [`Land activation experiment for ${laneTitle} in P1 product/software lane`, 'action', 'Activation experiment shipped with measurement plan and decision date'],
       ],
       P2: [
         [`Assess product/software onboarding evidence against P2 conversion-readiness criteria for ${laneTitle}`, 'readiness', 'Conversion-readiness decision with next-cycle scope'],
         [`Audit activation-to-retention funnel for ${laneTitle} in P2 product/software lane`, 'audit', 'Funnel audit with retention risks and fixes'],
         [`Define repeatable release cadence for ${laneTitle} in P2 product/software lane`, 'action', 'Release cadence standard with owner and review rhythm'],
+        [`Ship next conversion-lift feature for ${laneTitle} in P2 product/software lane`, 'action', 'Conversion-lift feature shipped with measurement plan'],
+        [`Implement retention loop improvement for ${laneTitle} in P2 product/software lane`, 'action', 'Retention loop change shipped with cohort baseline'],
       ],
       P3: [
         [`Review scale-readiness controls for ${laneTitle} in P3 product/software lane`, 'review', 'Scale-readiness review with delegation constraints', 'p3_product_scale_readiness_controls'],
@@ -482,6 +486,8 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Sequence release asset completion for ${laneTitle} in P1 creative project lane`, 'milestone', 'Release asset list with dated ownership'],
         [`Review audience-capture proof after ${laneTitle} anchor in creative project lane`, 'review', 'Audience-capture proof memo and next-cycle ask'],
         [`Validate post-release conversion loop for ${laneTitle} in P1 creative project lane`, 'validation', 'Validated post-release conversion loop'],
+        [`Produce next release asset increment for ${laneTitle} in P1 creative project lane`, 'action', 'Release asset increment produced and ready for distribution'],
+        [`Ship distribution push for ${laneTitle} in P1 creative project lane`, 'action', 'Distribution push executed with reach metrics captured'],
       ],
       P2: [
         [`Assess catalog conversion cadence for ${laneTitle} in P2 creative project lane`, 'audit', 'Catalog conversion audit with repeatability score'],
@@ -495,6 +501,8 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Package creative and IP proof for institutional leverage for ${laneTitle}`, 'action', 'Creative and IP proof package organized for institutional leverage', 'p3_creative_ip_packaging'],
         [`Reconcile release-to-demand evidence for ${laneTitle} before terminal review`, 'review', 'Release-to-demand evidence reconciled with remaining demand gaps', 'p3_creative_release_demand_reconciliation'],
         [`Confirm post-release operating cadence for ${laneTitle} in P3 creative project lane`, 'validation', 'Post-release operating cadence validated for long-tail execution', 'p3_creative_operating_cadence'],
+        [`Produce scale-cycle release asset for ${laneTitle} in P3 creative project lane`, 'action', 'Scale-cycle release asset produced with distribution path defined', 'p3_creative_scale_release_asset'],
+        [`Ship long-tail monetization activation for ${laneTitle} in P3 creative project lane`, 'action', 'Long-tail monetization activation shipped with revenue tracking enabled', 'p3_creative_longtail_monetization'],
       ],
     },
     media_channel: {
@@ -541,11 +549,16 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
             isScaleAction: false,
           },
         ],
+        [`Publish next content episode or post for ${laneTitle} in P1 media/content lane`, 'action', 'Content episode or post published with distribution channel and reach baseline'],
+        [`Run distribution push to grow audience for ${laneTitle} in P1 media/content lane`, 'action', 'Distribution push executed with reach metrics and conversion signal captured'],
+        [`Capture audience feedback signals for ${laneTitle} in P1 media/content lane`, 'action', 'Audience feedback signals captured with response themes and follow-up backlog'],
       ],
       P2: [
         [`Review repeatable audience growth loop for ${laneTitle} in P2 media/content lane`, 'review', 'Audience growth loop review with stop/continue decisions'],
         [`Define editorial operating cadence for ${laneTitle} in P2 media/content lane`, 'action', 'Editorial operating cadence with roles and recurrence'],
         [`Assess sponsor or partner readiness for ${laneTitle} in P2 media/content lane`, 'readiness', 'Sponsor readiness decision tied to proof data'],
+        [`Publish next content series increment for ${laneTitle} in P2 media/content lane`, 'action', 'Content series increment published with distribution and reach plan'],
+        [`Ship audience growth experiment for ${laneTitle} in P2 media/content lane`, 'action', 'Audience growth experiment shipped with measurement window and decision criteria'],
       ],
       P3: [
         [
@@ -567,6 +580,8 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Package narrative channel proof for ${laneTitle} before terminal review`, 'action', 'Narrative channel proof package assembled for terminal review', 'p3_media_channel_packaging'],
         [`Reconcile sponsor and partner readiness for ${laneTitle} in P3 media/content lane`, 'review', 'Sponsor and partner readiness reconciled with outstanding blockers', 'p3_media_partner_readiness'],
         [`Confirm editorial operating continuity for ${laneTitle} through horizon close`, 'readiness', 'Editorial operating continuity decision with delegated owner coverage', 'p3_media_editorial_continuity'],
+        [`Publish scale-cycle content increment for ${laneTitle} in P3 media/content lane`, 'action', 'Scale-cycle content increment published with distribution and reach metrics', 'p3_media_scale_content_increment'],
+        [`Activate sponsor or partner monetization for ${laneTitle} in P3 media/content lane`, 'action', 'Sponsor or partner monetization activated with contract terms recorded', 'p3_media_sponsor_activation'],
       ],
     },
     company_operations: {
@@ -574,11 +589,15 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Define operator checklist for ${laneTitle} in P1 company/operations lane`, 'action', 'Operator checklist with owner coverage'],
         [`Review execution risk controls for ${laneTitle} in P1 company/operations lane`, 'review', 'Execution risk controls review with fixes'],
         [`Validate meeting and handoff rhythm for ${laneTitle} in P1 company/operations lane`, 'validation', 'Meeting and handoff rhythm validated against active work'],
+        [`Implement next operating-system control for ${laneTitle} in P1 company/operations lane`, 'action', 'Operating-system control implemented with owner, trigger, and escalation path'],
+        [`Land tooling upgrade for ${laneTitle} in P1 company/operations lane`, 'action', 'Tooling upgrade landed with rollback plan and adoption checklist'],
       ],
       P2: [
         [`Audit operating-system bottlenecks for ${laneTitle} in P2 company/operations lane`, 'audit', 'Operating-system bottleneck audit'],
         [`Gate staffing or contractor expansion for ${laneTitle} until proof is stable`, 'gate', 'Expansion gate with staffing criteria'],
         [`Define dashboard review cadence for ${laneTitle} in P2 company/operations lane`, 'action', 'Dashboard cadence and decision protocol'],
+        [`Implement bottleneck-clearing change for ${laneTitle} in P2 company/operations lane`, 'action', 'Bottleneck-clearing operating change shipped with metric baseline'],
+        [`Stand up delegation runbook for ${laneTitle} in P2 company/operations lane`, 'action', 'Delegation runbook shipped with owner mapping and decision rights'],
       ],
       P3: [
         [`Assess delegation readiness for ${laneTitle} in P3 company/operations lane`, 'readiness', 'Delegation readiness decision with missing controls', 'p3_ops_delegation_readiness'],
@@ -587,6 +606,8 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Package SOP and control proof for ${laneTitle} before terminal review`, 'action', 'SOP and control proof package prepared for terminal review', 'p3_ops_sop_packaging'],
         [`Reconcile handoff risks for ${laneTitle} across the operating system`, 'review', 'Handoff risk register reconciled with mitigations and owners', 'p3_ops_handoff_reconciliation'],
         [`Confirm review cadence durability for ${laneTitle} in P3 company/operations lane`, 'validation', 'Review cadence durability validated against delegated operating load', 'p3_ops_cadence_durability'],
+        [`Execute scale-cycle operating change for ${laneTitle} in P3 company/operations lane`, 'action', 'Scale-cycle operating change executed with adoption metrics and rollback path', 'p3_ops_scale_operating_change'],
+        [`Implement delegation handoff for ${laneTitle} in P3 company/operations lane`, 'action', 'Delegation handoff implemented with owner training and shadow period', 'p3_ops_delegation_handoff'],
       ],
     },
     income_stream: {
@@ -733,6 +754,9 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
             isScaleAction: false,
           },
         ],
+        [`Draft preliminary capital memo for ${laneTitle} in P2 capital/real-estate lane`, 'action', 'Preliminary capital memo with $ amount or range, financing path options, and risk model'],
+        [`Conduct lender or partner discovery for ${laneTitle} in P2 capital/real-estate lane`, 'action', 'Lender or partner discovery notes with capital appetite and term ranges', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+        [`Update asset shortlist for ${laneTitle} in P2 capital/real-estate lane`, 'action', 'Updated asset shortlist with deal scoring, capital fit, and next-step owner'],
       ],
       P3: [
         [`Audit scale-entry gates for ${laneTitle} in P3 capital/real-estate lane`, 'audit', 'Scale-entry gate audit with unresolved constraints', 'p3_capital_scale_entry_gates'],
@@ -741,6 +765,9 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Package acquisition and capital proof for ${laneTitle} before terminal review`, 'review', 'Acquisition and capital proof package prepared for terminal review', 'p3_capital_proof_packaging'],
         [`Reconcile risk controls for ${laneTitle} across the capital path`, 'review', 'Capital-path risk controls reconciled with owner coverage', 'p3_capital_risk_reconciliation'],
         [`Confirm capital deployment readiness for ${laneTitle} in P3 capital/real-estate lane`, 'readiness', 'Capital deployment readiness decision with remaining gating criteria', 'p3_capital_deployment_readiness'],
+        [`Execute capital deployment for ${laneTitle} in P3 capital/real-estate lane`, 'action', 'Capital deployment executed with $ amount, asset path, and counterparty recorded', 'p3_capital_deployment_execution'],
+        [`Close first acquisition or asset commitment for ${laneTitle} in P3 capital/real-estate lane`, 'action', 'Acquisition or asset commitment closed with signed terms and capital committed', 'p3_capital_first_acquisition'],
+        [`Manage acquired asset operating cadence for ${laneTitle} in P3 capital/real-estate lane`, 'action', 'Acquired asset operating cadence run with revenue, cost, and risk reporting on schedule', 'p3_capital_asset_operations'],
       ],
     },
     institution_education: {
@@ -756,6 +783,9 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Audit curriculum or program viability for ${laneTitle} in P2 institution/education lane`, 'audit', 'Program viability audit with next experiments'],
         [`Assess partner-readiness for ${laneTitle} in P2 institution/education lane`, 'readiness', 'Partner-readiness decision with dependency status'],
         [`Validate operating charter for ${laneTitle} in P2 institution/education lane`, 'validation', 'Operating charter aligned to proof data'],
+        [`Run pilot program iteration for ${laneTitle} in P2 institution/education lane`, 'action', 'Pilot program iteration run with enrollment data and outcome metrics captured', null, { isExternalStakeholderTouchpoint: true }],
+        [`Negotiate partnership terms with institutional counterparty for ${laneTitle} in P2 institution/education lane`, 'action', 'Signed partnership terms with institutional counterparty including scope and term', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+        [`Refine pilot curriculum or program design for ${laneTitle} in P2 institution/education lane`, 'action', 'Pilot curriculum or program design iterated with feedback and next-version delivery plan'],
       ],
       P3: [
         [`Review institutional scale-readiness for ${laneTitle} in P3 institution/education lane`, 'review', 'Institutional scale-readiness review', 'p3_institution_scale_readiness'],
@@ -764,6 +794,9 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Package operating charter proof for ${laneTitle} before terminal review`, 'review', 'Operating charter proof package assembled for terminal review', 'p3_institution_charter_packaging'],
         [`Reconcile compliance and legitimacy risks for ${laneTitle} across P3`, 'review', 'Compliance and legitimacy risks reconciled with evidence owners', 'p3_institution_compliance_reconciliation'],
         [`Confirm institution launch readiness for ${laneTitle} in P3 institution/education lane`, 'readiness', 'Institution launch readiness decision with open prerequisites noted', 'p3_institution_launch_readiness'],
+        [`Launch institution program cohort for ${laneTitle} in P3 institution/education lane`, 'action', 'Institution program cohort launched with enrollment, curriculum delivery, and outcomes plan', 'p3_institution_cohort_launch'],
+        [`Execute scale partnership agreement for ${laneTitle} in P3 institution/education lane`, 'action', 'Scale partnership agreement executed with deliverables and milestone schedule', 'p3_institution_scale_partnership'],
+        [`Run institution outcome measurement cycle for ${laneTitle} in P3 institution/education lane`, 'action', 'Institution outcome measurement cycle run with student or beneficiary outcomes reported', 'p3_institution_outcome_measurement'],
       ],
     },
     civic_development: {
@@ -779,6 +812,9 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Audit district opportunity criteria for ${laneTitle} in P2 civic/district lane`, 'audit', 'District opportunity criteria audit'],
         [`Assess coalition-readiness for ${laneTitle} in P2 civic/district lane`, 'readiness', 'Coalition-readiness decision with partner gaps'],
         [`Validate public-interest case for ${laneTitle} in P2 civic/district lane`, 'validation', 'Public-interest case validated against strategy'],
+        [`Run pilot civic engagement for ${laneTitle} in P2 civic/district lane`, 'action', 'Pilot civic engagement run with stakeholder turnout and outcome notes captured', null, { isExternalStakeholderTouchpoint: true }],
+        [`Negotiate coalition memorandum for ${laneTitle} in P2 civic/district lane`, 'action', 'Coalition memorandum negotiated with partners and signed terms recorded', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+        [`Refine public-interest case for ${laneTitle} in P2 civic/district lane`, 'action', 'Public-interest case iterated with stakeholder feedback and decision-maker review notes'],
       ],
       P3: [
         [`Review civic scale-readiness for ${laneTitle} in P3 civic/district lane`, 'review', 'Civic scale-readiness review with dependency status', 'p3_civic_scale_readiness'],
@@ -787,6 +823,9 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Package public-interest proof for ${laneTitle} before terminal review`, 'review', 'Public-interest proof package assembled for terminal review', 'p3_civic_public_interest_packaging'],
         [`Reconcile partner and risk gates for ${laneTitle} across the civic path`, 'review', 'Partner and risk gates reconciled with remaining blockers', 'p3_civic_partner_gate_reconciliation'],
         [`Confirm civic execution readiness for ${laneTitle} in P3 civic/district lane`, 'readiness', 'Civic execution readiness decision with prerequisite coverage', 'p3_civic_execution_readiness'],
+        [`Execute civic scale initiative for ${laneTitle} in P3 civic/district lane`, 'action', 'Civic scale initiative executed with public outcome metrics and partner reporting', 'p3_civic_scale_initiative'],
+        [`Land coalition memorandum or pilot agreement for ${laneTitle} in P3 civic/district lane`, 'action', 'Coalition memorandum or pilot agreement signed with deliverables and accountability', 'p3_civic_coalition_signed'],
+        [`Deploy civic operating cadence for ${laneTitle} in P3 civic/district lane`, 'action', 'Civic operating cadence deployed with stakeholder reporting and review schedule', 'p3_civic_operating_cadence'],
       ],
     },
     general: {
@@ -813,6 +852,28 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
 
   const supportException = laneStatus !== 'active' ? ` This occurrence is generated for a support lane with ${laneStatus} status and preserves documented density exception.` : '';
 
+  // Phase 6 — interleave action-class descriptors with review-class descriptors
+  // so round-robin scheduling never produces 4+ consecutive review-class blocks
+  // without action interleaving. Original descriptor order is preserved within
+  // each class; only the cross-class interleaving order changes.
+  const ACTION_CLASS = new Set(['action', 'milestone']);
+  const actions = descriptors.filter((d) => ACTION_CLASS.has(d[1]));
+  const others = descriptors.filter((d) => !ACTION_CLASS.has(d[1]));
+  if (actions.length > 0 && others.length > 0) {
+    const ratio = others.length / actions.length;
+    const reviewsPerActionSegment = Math.max(1, Math.ceil(ratio));
+    const interleaved = [];
+    let oi = 0;
+    for (const act of actions) {
+      interleaved.push(act);
+      for (let k = 0; k < reviewsPerActionSegment && oi < others.length; k++) {
+        interleaved.push(others[oi++]);
+      }
+    }
+    while (oi < others.length) interleaved.push(others[oi++]);
+    descriptors = interleaved;
+  }
+
   return descriptors.map(([title, blockType, expectedOutput, titleFamily = null, sequencing = {}]) => ({
     title,
     blockType,
@@ -822,7 +883,10 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
     prerequisiteType: sequencing.prerequisiteType || null,
     dependencyGate: sequencing.dependencyGate || null,
     unlockRequirement: sequencing.unlockRequirement || null,
-    evidenceRequired: sequencing.evidenceRequired || null,
+    evidenceRequired: sequencing.evidenceRequired
+      || (['review', 'audit', 'validation', 'readiness'].includes(blockType)
+        ? `Upstream ${family.replace(/_/g, ' ')} artifacts produced earlier in ${phaseLabel} (e.g., ${expectedOutput})`
+        : null),
     isReadinessOnly: sequencing.isReadinessOnly === true,
     isExpansionAction: sequencing.isExpansionAction === true,
     isProofSeeking: sequencing.isProofSeeking === true,
