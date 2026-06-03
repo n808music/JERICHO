@@ -1,4 +1,5 @@
 import { validateBlockTitle } from './forecastBlockDerivation.js';
+import { ACTION_VERB_SET } from '../planQuality/actionVerbs.ts';
 
 function normalizeDayKey(value) {
   const text = String(value || '').trim();
@@ -112,49 +113,20 @@ function summarizeBlocks(blocks = []) {
   };
 }
 
-const ACTIONABLE_VERBS = [
-  'validate',
-  'establish',
-  'prove',
-  'widen',
-  'stabilize',
-  'formalize',
-  'document',
-  'convert',
-  'institutionalize',
-  'prepare',
-  'review',
-  'compare',
-  'audit',
-  'assess',
-  'reassess',
-  'define',
-  'plan',
-  'design',
-  'develop',
-  'integrate',
-  'secure',
-  'sequence',
-  'measure',
-  'map',
-  'package',
-  'delegate',
-  'deploy',
-  'expand',
-  'gate',
-  'ship',
-  'launch',
-  'stress-test',
-  'reconcile',
-  'confirm',
-];
-
+// Block-title actionability check shares the canonical ACTION_VERB_SET
+// with evaluatePlanQualityGate (../planQuality/actionVerbs.ts). Two
+// independent verb lists previously diverged, causing trust-state
+// cascades: titles approved by the plan-quality gate failed this check,
+// which degraded fullHorizonBlockQuality, which blocked the compensating-
+// substrate escape hatch in evaluatePhaseBalance, which dropped overall
+// plan-quality trust to 'provisional'.
 function isActionableTitle(title) {
   const normalized = String(title || '').trim().toLowerCase();
   if (!normalized) {
     return false;
   }
-  return ACTIONABLE_VERBS.some((verb) => normalized.startsWith(`${verb} `));
+  const firstWord = normalized.split(/\s+/)[0] || '';
+  return ACTION_VERB_SET.has(firstWord);
 }
 
 function hasObjectContext(title) {

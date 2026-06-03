@@ -1,4 +1,5 @@
 import type { PlanQualityFailureCode, PlanQualityGateResult } from './planQualityTypes.ts';
+import { ACTION_VERB_SET } from './actionVerbs.ts';
 import { deriveTerminalOutcomeAuthority } from '../goal/terminalOutcomeAuthority.ts';
 import { hasContactStageDeliverable } from './contactStageDetector.ts';
 import { detectCorridorLane } from './corridorLaneDetector.ts';
@@ -1290,22 +1291,8 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
 
   // Action Title Executability: execution block titles must be complete, action-oriented instructions.
   // Only applies to full-horizon execution blocks (blockType present, not review-class).
-  const ACTION_VERB_SET = new Set([
-    'activate', 'analyze', 'archive', 'assemble', 'assess', 'audit',
-    'backup', 'brief', 'build',
-    'close', 'collect', 'communicate', 'compile', 'complete', 'configure', 'confirm', 'connect',
-    'consolidate', 'coordinate', 'create',
-    'debug', 'define', 'deliver', 'demo', 'deploy', 'design', 'develop', 'document', 'draft',
-    'establish', 'evaluate', 'execute',
-    'finalize', 'fix', 'gather', 'generate', 'harden', 'hire',
-    'identify', 'implement', 'improve', 'integrate',
-    'launch', 'map', 'measure', 'migrate', 'model', 'monitor',
-    'onboard', 'optimize', 'outline', 'package', 'plan', 'prepare', 'present', 'produce',
-    'prototype', 'publish',
-    'reconcile', 'record', 'release', 'resolve', 'review', 'revise', 'run',
-    'secure', 'select', 'sequence', 'set', 'share', 'ship', 'stress-test', 'submit', 'sync',
-    'test', 'track', 'train', 'update', 'validate', 'verify', 'write',
-  ]);
+  // ACTION_VERB_SET is imported from ./actionVerbs.ts — the single source of truth shared
+  // with fullHorizonBlockQuality so both validators agree on what counts as actionable.
   const INTERROGATIVE_WORDS = new Set([
     'what', 'how', 'why', 'when', 'where', 'who', 'which',
     'is', 'are', 'does', 'do', 'can', 'should', 'will', 'would', 'could',
