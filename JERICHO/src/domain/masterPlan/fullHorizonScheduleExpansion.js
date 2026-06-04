@@ -97,9 +97,16 @@ function getLaneLabel(lane) {
 function getPhaseLaneStatus(phase, lane) {
   const laneId = lane?.id || lane?.laneId || null;
   const participation = (phase?.laneParticipation || []).find((item) => item?.laneId === laneId);
-  return String(participation?.status || lane?.activationState || 'active')
-    .trim()
-    .toLowerCase();
+  const phaseStatus = String(participation?.status || '').trim().toLowerCase();
+  const laneStatus = String(lane?.activationState || 'active').trim().toLowerCase();
+  // Phase-level participation can demote a lane's status (active → gated when
+  // upstream proof isn't ready in this phase), but it cannot promote a lane
+  // whose own activationState says incubating/blocked — that promotion would
+  // bypass the lane's own preconditions (e.g., capital availability).
+  if ((laneStatus === 'incubating' || laneStatus === 'blocked') && phaseStatus === 'active') {
+    return laneStatus;
+  }
+  return phaseStatus || laneStatus || 'active';
 }
 
 function inferPlanOrientation(plan) {
@@ -451,7 +458,17 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
   const laneTitle = getLaneTitle(lane);
   const laneLabel = getLaneLabel(lane);
   const family = inferLaneFamily(lane);
-  const gated = laneStatus === 'gated' || laneStatus === 'dependent';
+  // Gating filter: any lane that lacks the conditions for direct execution
+  // (gated/dependent on upstream proof, or still incubating its preconditions,
+  // or explicitly blocked) drops action-type descriptors. Pre-Phase-5 the
+  // descriptor pools for these families were already readiness/audit/gate-only,
+  // so the filter rarely fired; Phase 5 added BD-mechanic actions to several
+  // pools, so the filter must now recognize 'incubating' and 'blocked' too.
+  const gated =
+    laneStatus === 'gated'
+    || laneStatus === 'dependent'
+    || laneStatus === 'incubating'
+    || laneStatus === 'blocked';
   const narrowPlan = planOrientation === 'single_product';
 
   const byFamily = {

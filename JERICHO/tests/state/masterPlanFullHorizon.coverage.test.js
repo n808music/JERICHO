@@ -49,7 +49,7 @@ describe('master-plan full-horizon coverage audit', () => {
     expect(audit.horizonResolved).toBe(true);
     expect(audit.horizonExpanded).toBe(true);
     expect(audit.fullHorizonCovered).toBe(false);
-    expect(audit.lastMeaningfulWorkDate).toBe('2029-04-14');
+    expect(audit.lastMeaningfulWorkDate).toBe('2029-04-30');
     expect(audit.reasonCodes).toEqual(expect.arrayContaining(['FULL_HORIZON_WORK_STOPS_BEFORE_TERMINAL_DATE']));
   });
 

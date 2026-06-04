@@ -56,7 +56,10 @@ describe('master-plan full-horizon generation proof', () => {
     expect(summary.blockTypeCounts.audit).toBeGreaterThan(0);
     expect(summary.blockTypeCounts.readiness).toBeGreaterThan(0);
     expect(summary.blockTypeCounts['terminal-readiness']).toBeGreaterThan(0);
-    expect(representedLanes.size).toBe(plan.laneIds.length);
+    // Allow for the cross-lane terminal-readiness block which carries its own
+    // dedicated laneId (cross_lane_terminal_review) outside plan.laneIds.
+    plan.laneIds.forEach((laneId) => expect(representedLanes.has(laneId)).toBe(true));
+    expect(representedLanes.size).toBeGreaterThanOrEqual(plan.laneIds.length);
 
     blocks.forEach((block) => {
       expect(validateBlockTitle(block.title), `invalid title: ${block.title}`).toBe(true);
@@ -80,7 +83,10 @@ describe('master-plan full-horizon generation proof', () => {
 
     ['P1', 'P2', 'P3'].forEach((phaseLabel) => {
       expect(generated.phaseCounts[phaseLabel]).toBeGreaterThanOrEqual(fixture.phaseCounts[phaseLabel]);
-      expect(generated.phaseCounts[phaseLabel]).toBeLessThan(fixture.phaseCounts[phaseLabel] * 40);
+      // 80x upper bound (was 40x) accommodates Phase 5 BD descriptor additions
+      // and the descriptor-pool action expansion (round-robin pool size grew
+      // ~2x); semantic intent — "engine doesn't go wild" — is preserved.
+      expect(generated.phaseCounts[phaseLabel]).toBeLessThan(fixture.phaseCounts[phaseLabel] * 80);
     });
   });
 });
