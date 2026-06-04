@@ -446,10 +446,21 @@ function decorateDescriptorForOccurrence({ descriptor, phaseLabel, lane, dayKey,
   const titleWindowLabel =
     phaseLabel === 'P3' ? `${reviewWindow} scale review window` : `${reviewWindow} review window`;
 
+  // RTG Finding 2: descriptor.expectedOutput may be a noun phrase ("revenue
+  // protection brief") or a sentence/clause ("Direct expansion gate with unmet
+  // dependencies"). Concatenating " Deliver X with Y…" onto a clause produces
+  // garbled text downstream (especially in gate criteria). Detect the shape and
+  // either replace (clause case) or extend (noun case) so the resulting
+  // expectedOutput reads as a single sentence.
+  const baseOutput = String(descriptor.expectedOutput || '').trim();
+  const looksLikeSentenceShell = /\s(gate|review|audit)\b/i.test(baseOutput) && /^[A-Z]/.test(baseOutput);
+  const deliverableSentence = `Deliver ${artifact} with ${focus}, explicit owner, and next gate timing for ${reviewWindow}.`;
+  const decoratedOutput = looksLikeSentenceShell ? deliverableSentence : `${baseOutput}. ${deliverableSentence}`;
+
   return {
     ...descriptor,
     title: `${descriptor.title} using ${focus} for the ${titleWindowLabel}`,
-    expectedOutput: `${descriptor.expectedOutput} Deliver ${artifact} with ${focus}, explicit owner, and next gate timing for ${reviewWindow}.`,
+    expectedOutput: decoratedOutput,
     derivationReason: `${descriptor.derivationReason} Occurrence tuned to ${focus} for ${reviewWindow}.`,
   };
 }
@@ -705,21 +716,21 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         ],
         [
           `Draft capital budget memo for ${laneTitle} in P1 capital/real-estate lane`,
-          'action',
+          'readiness',
           'Capital budget memo with $ amount or range per candidate path, or explicit unknown-budget flag requiring resolution',
           null,
           { isExternalBdMechanic: true },
         ],
         [
           `Build investor or lender prospect list for ${laneTitle} in P1 capital/real-estate lane`,
-          'action',
+          'readiness',
           'Investor/lender/partner prospect list with at least 10 named targets and channel of contact',
           null,
           { isExternalBdMechanic: true },
         ],
         [
           `Submit outreach to funding or stakeholder targets for ${laneTitle} in P1 capital/real-estate lane`,
-          'action',
+          'readiness',
           'Outreach log to investor/lender/partner targets with reply status and next-step commitment',
           null,
           { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true },
@@ -771,9 +782,9 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
             isScaleAction: false,
           },
         ],
-        [`Draft preliminary capital memo for ${laneTitle} in P2 capital/real-estate lane`, 'action', 'Preliminary capital memo with $ amount or range, financing path options, and risk model'],
-        [`Run lender or partner discovery for ${laneTitle} in P2 capital/real-estate lane`, 'action', 'Lender or partner discovery notes with capital appetite and term ranges', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
-        [`Update asset shortlist for ${laneTitle} in P2 capital/real-estate lane`, 'action', 'Updated asset shortlist with deal scoring, capital fit, and next-step owner'],
+        [`Draft preliminary capital memo for ${laneTitle} in P2 capital/real-estate lane`, 'readiness', 'Preliminary capital memo with $ amount or range, financing path options, and risk model'],
+        [`Run lender or partner discovery for ${laneTitle} in P2 capital/real-estate lane`, 'readiness', 'Lender or partner discovery notes with capital appetite and term ranges', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+        [`Update asset shortlist for ${laneTitle} in P2 capital/real-estate lane`, 'readiness', 'Updated asset shortlist with deal scoring, capital fit, and next-step owner'],
       ],
       P3: [
         [`Audit scale-entry gates for ${laneTitle} in P3 capital/real-estate lane`, 'audit', 'Scale-entry gate audit with unresolved constraints', 'p3_capital_scale_entry_gates'],
@@ -792,9 +803,9 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Define institution model assumptions for ${laneTitle} in P1 institution/education lane`, 'action', 'Institution model assumptions with gating list'],
         [`Review legal and operating prerequisites for ${laneTitle} in institution/education lane`, 'review', 'Prerequisite review with blocked items'],
         [`Evaluate gate for early execution in ${laneTitle} until proof and capital dependencies clear`, 'gate', 'Early execution gate with explicit dependencies'],
-        [`Map stakeholders and partner targets for ${laneTitle} in P1 institution/education lane`, 'action', 'Stakeholder map with named partner/agency targets, decision authority, and access path', null, { isExternalBdMechanic: true }],
-        [`Submit meeting requests to partner targets for ${laneTitle} in P1 institution/education lane`, 'action', 'Meeting request log with target list, reply status, and scheduled discovery sessions', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
-        [`Draft pilot scope or partnership proposal for ${laneTitle} in P1 institution/education lane`, 'action', 'Pilot scope or partnership proposal with deliverables, term, and signature path', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+        [`Map stakeholders and partner targets for ${laneTitle} in P1 institution/education lane`, 'readiness', 'Stakeholder map with named partner/agency targets, decision authority, and access path', null, { isExternalBdMechanic: true }],
+        [`Submit meeting requests to partner targets for ${laneTitle} in P1 institution/education lane`, 'readiness', 'Meeting request log with target list, reply status, and scheduled discovery sessions', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+        [`Draft pilot scope or partnership proposal for ${laneTitle} in P1 institution/education lane`, 'readiness', 'Pilot scope or partnership proposal with deliverables, term, and signature path', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
       ],
       P2: [
         [`Audit curriculum or program viability for ${laneTitle} in P2 institution/education lane`, 'audit', 'Program viability audit with next experiments'],
@@ -821,9 +832,9 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Map credibility dependencies for ${laneTitle} in P1 civic/district lane`, 'action', 'Credibility dependency map for later activation'],
         [`Review coalition prerequisites for ${laneTitle} in civic/district lane`, 'review', 'Coalition prerequisite review with blocked paths'],
         [`Evaluate gate for direct district execution in ${laneTitle} until proof and capital stack exist`, 'gate', 'Direct district execution gate with unmet prerequisites'],
-        [`Map agency and coalition targets for ${laneTitle} in P1 civic/district lane`, 'action', 'Agency and coalition target list with named contacts, decision authority, and access path', null, { isExternalBdMechanic: true }],
-        [`Submit meeting requests to agency or coalition targets for ${laneTitle} in P1 civic/district lane`, 'action', 'Meeting request log with reply status and scheduled discovery sessions', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
-        [`Draft partnership or pilot proposal for ${laneTitle} in P1 civic/district lane`, 'action', 'Partnership or pilot proposal with public-interest case, deliverables, and signature path', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+        [`Map agency and coalition targets for ${laneTitle} in P1 civic/district lane`, 'readiness', 'Agency and coalition target list with named contacts, decision authority, and access path', null, { isExternalBdMechanic: true }],
+        [`Submit meeting requests to agency or coalition targets for ${laneTitle} in P1 civic/district lane`, 'readiness', 'Meeting request log with reply status and scheduled discovery sessions', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+        [`Draft partnership or pilot proposal for ${laneTitle} in P1 civic/district lane`, 'readiness', 'Partnership or pilot proposal with public-interest case, deliverables, and signature path', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
       ],
       P2: [
         [`Audit district opportunity criteria for ${laneTitle} in P2 civic/district lane`, 'audit', 'District opportunity criteria audit'],
@@ -978,18 +989,27 @@ function resolvePassEvidence(blockType, descriptor) {
 // decide, who decides, and the downstream branch on either outcome. Derived
 // deterministically from the descriptor title, phase, and lane so the
 // expansion engine and forecast emitter both produce the same substrate.
+// RTG Finding 2: pass/fail criteria must read as plain English regardless of
+// whether the descriptor's expectedOutput is a noun phrase ("gate evidence
+// packet") or a clause ("Direct expansion gate with unmet dependencies").
+// Previous implementation stitched expectedOutput directly into the sentence,
+// producing ungrammatical text like "Direct expansion gate with unmet
+// dependencies demonstrates upstream proof threshold cleared for X". The
+// current implementation places the descriptor evidence in a parenthetical
+// reference so the surrounding sentence reads cleanly regardless of phrasing.
 function resolveGateCriteria({ descriptor, phase, lane }) {
   const phaseLabel = phase?.label || null;
   const laneId = lane?.id || lane?.laneId || 'unknown';
   const laneTitle = getLaneTitle(lane) || 'lane';
   const expectedOutput = descriptor?.expectedOutput || 'gate evidence packet';
-  const title = descriptor?.title || `${phaseLabel || ''} gate`.trim();
   const nextPhase = phaseLabel === 'P1' ? 'P2' : phaseLabel === 'P2' ? 'P3' : 'terminal-review';
+  const nextLabel = nextPhase === 'terminal-review' ? 'terminal review' : nextPhase;
   const gateName = `${phaseLabel || 'phase'}→${nextPhase} gate: ${laneTitle}`;
+  const evidence = String(descriptor?.evidenceRequired || expectedOutput).toLowerCase().replace(/\.\s*$/, '');
   return {
     gateName,
-    passCriteria: `${expectedOutput} demonstrates upstream proof threshold cleared for ${laneTitle} — advance to ${nextPhase}.`,
-    failCriteria: `${expectedOutput} shows upstream proof threshold NOT met for ${laneTitle} — hold and remediate before retry.`,
+    passCriteria: `Upstream proof threshold for ${laneTitle} is met — advance to ${nextLabel}. Required evidence: ${evidence}.`,
+    failCriteria: `Upstream proof threshold for ${laneTitle} is not met — hold and remediate the gap before reattempting. Missing or weak evidence: ${evidence}.`,
     evidenceRequired: descriptor?.evidenceRequired || expectedOutput || `Documented ${laneTitle} proof package supporting gate decision`,
     decisionAuthority: 'gate_authority',
     passBranch: nextPhase === 'terminal-review'

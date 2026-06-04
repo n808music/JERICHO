@@ -201,17 +201,22 @@ function resolveForecastPassEvidence(blockType) {
 // Phase 4 — mirrors resolveGateCriteria in fullHorizonScheduleExpansion.js so
 // forecast-emitted gates carry the same six substrate fields as
 // expansion-engine gates.
+// RTG Finding 2: see resolveGateCriteria in fullHorizonScheduleExpansion.js —
+// descriptor evidence goes in a parenthetical reference so the criteria read
+// as plain English regardless of expectedOutput phrasing.
 function resolveForecastGateCriteria({ phase, lane, expectedOutput, title }) {
   const phaseLabel = phase?.label || null;
   const laneId = lane?.laneId || lane?.id || 'cross-lane';
   const laneTitleResolved = lane ? laneLabel({ domain: lane.domain, title: lane.laneTitle }) : 'cross-lane';
   const nextPhase = phaseLabel === 'P1' ? 'P2' : phaseLabel === 'P2' ? 'P3' : 'terminal-review';
+  const nextLabel = nextPhase === 'terminal-review' ? 'terminal review' : nextPhase;
   const gateName = `${phaseLabel || 'phase'}→${nextPhase} gate: ${laneTitleResolved}`;
   const evidence = expectedOutput || title || `${laneTitleResolved} proof packet`;
+  const evidenceRef = String(evidence).toLowerCase().replace(/\.\s*$/, '');
   return {
     gateName,
-    passCriteria: `${evidence} demonstrates upstream proof threshold cleared for ${laneTitleResolved} — advance to ${nextPhase}.`,
-    failCriteria: `${evidence} shows upstream proof threshold NOT met for ${laneTitleResolved} — hold and remediate before retry.`,
+    passCriteria: `Upstream proof threshold for ${laneTitleResolved} is met — advance to ${nextLabel}. Required evidence: ${evidenceRef}.`,
+    failCriteria: `Upstream proof threshold for ${laneTitleResolved} is not met — hold and remediate the gap before reattempting. Missing or weak evidence: ${evidenceRef}.`,
     evidenceRequired: evidence,
     decisionAuthority: 'gate_authority',
     passBranch: nextPhase === 'terminal-review'
