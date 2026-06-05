@@ -1,4 +1,5 @@
-import { expandFullHorizonSchedule } from './fullHorizonScheduleExpansion.js';
+import { expandFullHorizonSchedule, applyCrossLaneArtifactDependencies } from './fullHorizonScheduleExpansion.js';
+import { applyArtifactDependencyIntegrity } from './artifactDependencyIntegrity.js';
 import { deriveMasterPlanPhaseModel } from './masterPlanPhaseModel.js';
 import { deriveForecastBlocks, resolveHorizonEndForMode } from './forecastBlockDerivation.js';
 import { buildFullHorizonAgendaVersion } from './fullHorizonScheduledAgenda.js';
@@ -126,7 +127,15 @@ export function buildFullHorizonScheduleExport(identityState, options = {}) {
     existingForecastBlocks,
     committedBlocks: [],
     workDays,
+    workWindows,
+    timeZone: identityState?.appTime?.timeZone || 'UTC',
   });
+  const integrity = applyArtifactDependencyIntegrity(blocks);
+  // Re-apply cross-lane wiring after the integrity pass: applyArtifactDependencyIntegrity
+  // overwrites consumedArtifactIds, which erases the cross-lane refs that
+  // expandFullHorizonSchedule already attached. Re-running the cross-lane pass
+  // here restores those refs while keeping the integrity report fields intact.
+  const crossLaneBlocks = applyCrossLaneArtifactDependencies(integrity.blocks, lanes);
 
   const range = { startDayKey: fullHorizonStartDayKey, endDayKey: fullHorizonEndDayKey };
 
@@ -135,7 +144,7 @@ export function buildFullHorizonScheduleExport(identityState, options = {}) {
     masterPlanId: plan.id,
     createdAtISO: identityState?.appTime?.nowISO || new Date().toISOString(),
     range,
-    blocks,
+    blocks: crossLaneBlocks,
     sourceConstraintVersionId: plan.currentScheduleConstraintVersionId || null,
     strategicCoverageState: null,
     planQualityState: null,
@@ -148,10 +157,13 @@ export function buildFullHorizonScheduleExport(identityState, options = {}) {
     plan,
     lanes,
     milestones,
-    blocks,
+    blocks: crossLaneBlocks,
     range,
     summary: agendaVersion.summary,
     agendaVersionId: agendaVersion.id,
+    artifactRegistry: integrity.artifactRegistry,
+    integrityReport: integrity.integrityReport,
+    phaseExitCriteriaByPhase: integrity.phaseExitCriteriaByPhase,
   };
 }
 

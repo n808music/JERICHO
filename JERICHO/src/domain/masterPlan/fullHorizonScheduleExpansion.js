@@ -2,7 +2,7 @@ import { applyScheduleValidityProjection } from './scheduleValidityProjection.js
 import { applyArtifactDependencyIntegrity } from './artifactDependencyIntegrity.js';
 import { CROSS_LANE_DEPENDENCIES } from './crossLaneArtifactDependencies.js';
 
-function applyCrossLaneArtifactDependencies(blocks, lanes = []) {
+export function applyCrossLaneArtifactDependencies(blocks, lanes = []) {
   // Build laneId → canonical family map from lane.domain. Domain values are
   // single tokens ('income', 'capital'); CROSS_LANE_DEPENDENCIES uses suffixed
   // names ('income_stream', 'capital_real_estate'). Map between them.
