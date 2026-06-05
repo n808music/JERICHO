@@ -1,3 +1,6 @@
+import { applyScheduleValidityProjection } from './scheduleValidityProjection.js';
+import { applyArtifactDependencyIntegrity } from './artifactDependencyIntegrity.js';
+
 function mkId(planId, phaseLabel, laneId, dayKey, idx) {
   return `fh-${planId || 'plan'}-${phaseLabel || 'phase'}-${laneId || 'lane'}-${dayKey}-${idx}`;
 }
@@ -485,18 +488,32 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
   const byFamily = {
     product_software: {
       P1: [
-        ['Validate onboarding path for Operation Endgame app launch in product/software lane', 'validation', 'Onboarding checklist with proof gaps logged'],
-        [`Ship beta evidence review for ${laneTitle} in P1 product/software lane`, 'review', 'Beta evidence review with launch blockers ranked'],
-        [`Prepare post-anchor conversion instrumentation for ${laneTitle} in product/software lane`, 'action', 'Conversion instrumentation plan for the next proof window'],
-        [`Ship next launch-critical feature increment for ${laneTitle} in P1 product/software lane`, 'action', 'Feature increment shipped with release notes and rollout plan'],
-        [`Ship activation experiment for ${laneTitle} in P1 product/software lane`, 'action', 'Activation experiment shipped with measurement plan and decision date'],
+        [`Clarify launch-blocker requirements for ${laneTitle} in P1 product/software lane`, 'action', 'Requirements brief naming the launch blocker, owner, and acceptance criteria', null, { lifecycleStage: 'requirements_clarification' }],
+        [`Write product specification with user stories for ${laneTitle} P1 onboarding scope`, 'action', 'Product spec with user stories and acceptance criteria', null, { lifecycleStage: 'product_spec' }],
+        [`Draft technical design note for ${laneTitle} onboarding implementation`, 'action', 'Technical design note with architecture decision record', null, { lifecycleStage: 'technical_design' }],
+        [`Implement onboarding activation tracking for ${laneTitle} in P1 product/software lane`, 'action', 'Implementation branch with onboarding activation tracking', null, { lifecycleStage: 'implementation' }],
+        [`Author test plan covering onboarding unit and integration scope for ${laneTitle}`, 'action', 'Test plan covering onboarding unit / integration / acceptance scope', null, { lifecycleStage: 'test_planning' }],
+        [`Run unit and integration tests for ${laneTitle} onboarding implementation`, 'validation', 'Passing test report for onboarding implementation', null, { lifecycleStage: 'unit_integration_testing' }],
+        [`Execute QA validation checklist for ${laneTitle} P1 onboarding release`, 'validation', 'QA checklist completed with zero release blockers', null, { lifecycleStage: 'qa_validation' }],
+        [`Prepare release notes and deployment checklist for ${laneTitle} P1 onboarding`, 'action', 'Release notes and deployment checklist approved', null, { lifecycleStage: 'release_prep' }],
+        [`Deploy ${laneTitle} onboarding implementation with rollback plan`, 'action', 'Deployment record with verified rollback plan', null, { lifecycleStage: 'deployment' }],
+        [`Review telemetry signals for ${laneTitle} post-deployment in P1`, 'review', 'Telemetry review showing no regressions vs baseline', null, { lifecycleStage: 'telemetry_monitoring' }],
+        [`Summarize user feedback themes for ${laneTitle} P1 onboarding cohort`, 'review', 'User feedback summary with prioritized themes and owners', null, { lifecycleStage: 'user_feedback_review' }],
+        [`Groom backlog with prioritized iteration scope for ${laneTitle} next P1 cycle`, 'action', 'Backlog refinement notes with sized stories and sequencing', null, { lifecycleStage: 'iteration_backlog_grooming' }],
       ],
       P2: [
-        [`Assess product/software onboarding evidence against P2 conversion-readiness criteria for ${laneTitle}`, 'readiness', 'Conversion-readiness decision with next-cycle scope'],
-        [`Audit activation-to-retention funnel for ${laneTitle} in P2 product/software lane`, 'audit', 'Funnel audit with retention risks and fixes'],
-        [`Define repeatable release cadence for ${laneTitle} in P2 product/software lane`, 'action', 'Release cadence standard with owner and review rhythm'],
-        [`Ship next conversion-lift feature for ${laneTitle} in P2 product/software lane`, 'action', 'Conversion-lift feature shipped with measurement plan'],
-        [`Implement retention loop improvement for ${laneTitle} in P2 product/software lane`, 'action', 'Retention loop change shipped with cohort baseline'],
+        [`Re-clarify conversion-lift requirements for ${laneTitle} from P1 telemetry and feedback`, 'action', 'Requirements brief tying P2 conversion scope to P1 telemetry findings', null, { lifecycleStage: 'requirements_clarification' }],
+        [`Write conversion-lift product specification for ${laneTitle} P2 cycle`, 'action', 'Product spec covering conversion-lift user stories and acceptance criteria', null, { lifecycleStage: 'product_spec' }],
+        [`Draft retention-loop technical design for ${laneTitle} in P2 product/software lane`, 'action', 'Technical design note for retention loop with architecture decision record', null, { lifecycleStage: 'technical_design' }],
+        [`Implement conversion-lift feature for ${laneTitle} in P2 product/software lane`, 'action', 'Conversion-lift implementation branch shipped with measurement plan', null, { lifecycleStage: 'implementation' }],
+        [`Author P2 test plan covering conversion-lift acceptance scope for ${laneTitle}`, 'action', 'P2 test plan tied to conversion-lift acceptance criteria', null, { lifecycleStage: 'test_planning' }],
+        [`Run unit and integration tests for ${laneTitle} conversion-lift implementation`, 'validation', 'Passing test report for conversion-lift implementation', null, { lifecycleStage: 'unit_integration_testing' }],
+        [`Execute P2 QA validation for ${laneTitle} conversion-lift release`, 'validation', 'QA checklist for conversion-lift release with zero blockers', null, { lifecycleStage: 'qa_validation' }],
+        [`Prepare P2 release notes and deployment checklist for ${laneTitle}`, 'action', 'P2 release notes and deployment checklist approved', null, { lifecycleStage: 'release_prep' }],
+        [`Deploy ${laneTitle} P2 conversion-lift release with rollback path`, 'action', 'P2 deployment record with verified rollback plan', null, { lifecycleStage: 'deployment' }],
+        [`Review post-deploy telemetry for ${laneTitle} P2 conversion-lift cohort`, 'review', 'P2 telemetry review with conversion-lift health signals', null, { lifecycleStage: 'telemetry_monitoring' }],
+        [`Triage user feedback themes from ${laneTitle} P2 conversion-lift cohort`, 'review', 'User feedback summary for P2 conversion-lift cohort with prioritized themes', null, { lifecycleStage: 'user_feedback_review' }],
+        [`Groom P2 backlog with next conversion-lift iteration scope for ${laneTitle}`, 'action', 'P2 backlog with sized stories and sequencing for next iteration', null, { lifecycleStage: 'iteration_backlog_grooming' }],
       ],
       P3: [
         [`Review scale-readiness controls for ${laneTitle} in P3 product/software lane`, 'review', 'Scale-readiness review with delegation constraints', 'p3_product_scale_readiness_controls'],
@@ -507,6 +524,17 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Confirm operating handoff readiness for ${laneTitle} in P3 product/software lane`, 'readiness', 'Operating handoff readiness decision with support coverage', 'p3_product_handoff_readiness'],
         [`Define automation and delegation coverage for ${laneTitle} to sustain scale without key-person dependency`, 'action', 'Automation and delegation brief with coverage map, escalation paths, and handoff schedule', 'p3_product_automation_delegation'],
         [`Build repeatable operating dashboard for ${laneTitle} tracking scale signals and owner accountability`, 'action', 'Operating dashboard spec with KPIs, owner assignments, and decision triggers', 'p3_product_operating_dashboard'],
+        [`Re-clarify scale-readiness requirements for ${laneTitle} in P3 product/software lane`, 'action', 'P3 scale-readiness requirements brief with handoff acceptance criteria', null, { lifecycleStage: 'requirements_clarification' }],
+        [`Write delegation-handoff product specification for ${laneTitle} P3 cycle`, 'action', 'P3 product spec covering delegation-handoff user stories and acceptance criteria', null, { lifecycleStage: 'product_spec' }],
+        [`Draft delegation-handoff technical design for ${laneTitle} in P3`, 'action', 'P3 technical design note for delegation handoff with architecture decision record', null, { lifecycleStage: 'technical_design' }],
+        [`Author P3 test plan covering delegation-handoff acceptance scope for ${laneTitle}`, 'action', 'P3 test plan tied to delegation-handoff acceptance criteria', null, { lifecycleStage: 'test_planning' }],
+        [`Run P3 unit and integration tests for ${laneTitle} delegation-handoff implementation`, 'validation', 'Passing test report for delegation-handoff implementation', null, { lifecycleStage: 'unit_integration_testing' }],
+        [`Execute P3 QA validation for ${laneTitle} delegation-handoff release`, 'validation', 'P3 QA checklist for delegation-handoff release with zero blockers', null, { lifecycleStage: 'qa_validation' }],
+        [`Prepare P3 release notes and deployment checklist for ${laneTitle} delegation-handoff`, 'action', 'P3 release notes and deployment checklist approved', null, { lifecycleStage: 'release_prep' }],
+        [`Deploy ${laneTitle} P3 delegation-handoff release with rollback path`, 'action', 'P3 deployment record with verified rollback plan', null, { lifecycleStage: 'deployment' }],
+        [`Review post-deploy telemetry for ${laneTitle} P3 delegation-handoff cohort`, 'review', 'P3 telemetry review with delegation-handoff health signals', null, { lifecycleStage: 'telemetry_monitoring' }],
+        [`Triage user feedback themes from ${laneTitle} P3 delegation-handoff cohort`, 'review', 'P3 user feedback summary with prioritized themes', null, { lifecycleStage: 'user_feedback_review' }],
+        [`Groom P3 backlog with next delegation-handoff iteration scope for ${laneTitle}`, 'action', 'P3 backlog with sized stories and sequencing for next iteration', null, { lifecycleStage: 'iteration_backlog_grooming' }],
       ],
     },
     creative_media: {
@@ -643,12 +671,12 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Validate immediate revenue path for ${laneTitle} in P1 income stream lane`, 'validation', 'Immediate revenue path with proof assumptions logged'],
         [`Review cashflow protection steps for ${laneTitle} in P1 income stream lane`, 'review', 'Cashflow protection review with deadlines'],
         [`Define service-to-recurring offer bridge for ${laneTitle} in P1 income stream lane`, 'action', 'Offer bridge linking near-term cash to long-term engine'],
-        [`Define paid offer and pricing for ${laneTitle} in P1 income stream lane`, 'action', 'Offer definition with pricing, scope, and target buyer profile', null, { isExternalBdMechanic: true }],
-        [`Build prospect list for ${laneTitle} outreach in P1 income stream lane`, 'action', 'Prospect list with at least 25 named targets, channel, and contact path', null, { isExternalBdMechanic: true }],
-        [`Deliver outreach batch to prospect list for ${laneTitle}`, 'action', 'Outreach log with batch size, channel, message, and reply tracking', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
-        [`Run discovery call with qualified prospect for ${laneTitle}`, 'action', 'Discovery call notes with prospect needs, objections, and next-step commitment', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
-        [`Draft proposal and pricing memo for ${laneTitle} qualified prospect`, 'action', 'Proposal memo with scope, deliverables, price, and signature path', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
-        [`Finalize first paying engagement and invoice for ${laneTitle}`, 'action', 'Signed agreement and first invoice issued with payment terms recorded', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+        [`Define paid offer and pricing for ${laneTitle} in P1 income stream lane`, 'action', 'Offer definition with pricing, scope, and target buyer profile', null, { isExternalBdMechanic: true, commercialStage: 'target_criteria' }],
+        [`Build prospect list for ${laneTitle} outreach in P1 income stream lane`, 'action', 'Prospect list with at least 25 named targets, channel, and contact path', null, { isExternalBdMechanic: true, commercialStage: 'target_list' }],
+        [`Deliver outreach batch to prospect list for ${laneTitle}`, 'action', 'Outreach log with batch size, channel, message, and reply tracking', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true, commercialStage: 'outreach_batch' }],
+        [`Run discovery call with qualified prospect for ${laneTitle}`, 'action', 'Discovery call notes with prospect needs, objections, and next-step commitment', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true, commercialStage: 'discovery' }],
+        [`Draft proposal and pricing memo for ${laneTitle} qualified prospect`, 'action', 'Proposal memo with scope, deliverables, price, and signature path', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true, commercialStage: 'proposal_terms' }],
+        [`Finalize first paying engagement and invoice for ${laneTitle}`, 'action', 'Signed agreement and first invoice issued with payment terms recorded', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true, commercialStage: 'decision_gate' }],
       ],
       P2: [
         [`Audit repeatable conversion signals for ${laneTitle} in P2 income stream lane`, 'audit', 'Repeatable conversion audit with proof thresholds'],
@@ -719,21 +747,21 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
           'readiness',
           'Capital budget memo with $ amount or range per candidate path, or explicit unknown-budget flag requiring resolution',
           null,
-          { isExternalBdMechanic: true },
+          { isExternalBdMechanic: true, commercialStage: 'capital_memo' },
         ],
         [
           `Build investor or lender prospect list for ${laneTitle} in P1 capital/real-estate lane`,
           'readiness',
           'Investor/lender/partner prospect list with at least 10 named targets and channel of contact',
           null,
-          { isExternalBdMechanic: true },
+          { isExternalBdMechanic: true, commercialStage: 'target_list' },
         ],
         [
           `Submit outreach to funding or stakeholder targets for ${laneTitle} in P1 capital/real-estate lane`,
           'readiness',
           'Outreach log to investor/lender/partner targets with reply status and next-step commitment',
           null,
-          { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true },
+          { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true, commercialStage: 'outreach_batch' },
         ],
       ],
       P2: [
@@ -783,7 +811,7 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
           },
         ],
         [`Draft preliminary capital memo for ${laneTitle} in P2 capital/real-estate lane`, 'readiness', 'Preliminary capital memo with $ amount or range, financing path options, and risk model'],
-        [`Run lender or partner discovery for ${laneTitle} in P2 capital/real-estate lane`, 'readiness', 'Lender or partner discovery notes with capital appetite and term ranges', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+        [`Run lender or partner discovery for ${laneTitle} in P2 capital/real-estate lane`, 'readiness', 'Lender or partner discovery notes with capital appetite and term ranges', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true, commercialStage: 'discovery' }],
         [`Update asset shortlist for ${laneTitle} in P2 capital/real-estate lane`, 'readiness', 'Updated asset shortlist with deal scoring, capital fit, and next-step owner'],
       ],
       P3: [
@@ -907,6 +935,8 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
     blockType,
     titleFamily,
     expectedOutput,
+    lifecycleStage: sequencing.lifecycleStage || null,
+    commercialStage: sequencing.commercialStage || null,
     sequencingRole: sequencing.sequencingRole || null,
     prerequisiteType: sequencing.prerequisiteType || null,
     dependencyGate: sequencing.dependencyGate || null,
@@ -1107,6 +1137,8 @@ function buildBlock({
     riskOrConstraintAddressed: occurrenceDescriptor.riskOrConstraintAddressed,
     successCriterionServed: occurrenceDescriptor.successCriterionServed,
     sequencingRole: occurrenceDescriptor.sequencingRole || null,
+    lifecycleStage: occurrenceDescriptor.lifecycleStage || null,
+    commercialStage: occurrenceDescriptor.commercialStage || null,
     prerequisiteType: occurrenceDescriptor.prerequisiteType || null,
     dependencyGate: occurrenceDescriptor.dependencyGate || null,
     unlockRequirement: occurrenceDescriptor.unlockRequirement || null,
@@ -1205,6 +1237,8 @@ export function expandFullHorizonSchedule({
   existingForecastBlocks = [],
   committedBlocks = [],
   workDays = [],
+  workWindows = null,
+  timeZone = 'UTC',
 } = {}) {
   const result = [];
   if (!phaseModel?.phases?.length || !horizonStartDayKey || !horizonEndDayKey) {
@@ -1278,10 +1312,20 @@ export function expandFullHorizonSchedule({
     seen.add(block.id);
     dedup.push(block);
   }
-  return dedup.sort((left, right) => {
+  const scheduled = applyScheduleValidityProjection(dedup, {
+    workWindows,
+    timeZone,
+    horizonEndDayKey,
+  });
+  const integrityApplied = applyArtifactDependencyIntegrity(scheduled);
+
+  return integrityApplied.blocks.sort((left, right) => {
     const leftKey = String(left?.dayKey || left?.date || '');
     const rightKey = String(right?.dayKey || right?.date || '');
     if (leftKey !== rightKey) return leftKey.localeCompare(rightKey);
+    const leftStart = String(left?.startISO || left?.start || '');
+    const rightStart = String(right?.startISO || right?.start || '');
+    if (leftStart !== rightStart) return leftStart.localeCompare(rightStart);
     return String(left?.title || '').localeCompare(String(right?.title || ''));
   });
 }
