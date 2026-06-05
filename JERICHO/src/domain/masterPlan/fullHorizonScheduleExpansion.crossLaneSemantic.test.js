@@ -20,9 +20,11 @@ const PHASE_MODEL = {
 };
 
 const LANES = [
-  { id: 'lane-product', laneId: 'lane-product', domain: 'product', title: 'Core Product', laneTitle: 'Core Product', activationState: 'active' },
-  { id: 'lane-income', laneId: 'lane-income', domain: 'income', title: 'Services Revenue', laneTitle: 'Services Revenue', activationState: 'active' },
-  { id: 'lane-capital', laneId: 'lane-capital', domain: 'capital', title: 'Capital Real Estate', laneTitle: 'Capital Real Estate', activationState: 'active' },
+  // Descriptive titles that do NOT match the legacy regex — forces the helper
+  // to use lane.domain. If domain-based extraction regresses, this test fails.
+  { id: 'lane-product', laneId: 'lane-product', domain: 'product', title: 'Operation Endgame product engine', laneTitle: 'Operation Endgame product engine', activationState: 'active' },
+  { id: 'lane-income', laneId: 'lane-income', domain: 'income', title: 'Operation Endgame runway bridge', laneTitle: 'Operation Endgame runway bridge', activationState: 'active' },
+  { id: 'lane-capital', laneId: 'lane-capital', domain: 'capital', title: 'Operation Endgame asset stack', laneTitle: 'Operation Endgame asset stack', activationState: 'active' },
 ];
 
 function runExpansion() {

@@ -2,22 +2,37 @@ import { applyScheduleValidityProjection } from './scheduleValidityProjection.js
 import { applyArtifactDependencyIntegrity } from './artifactDependencyIntegrity.js';
 import { CROSS_LANE_DEPENDENCIES } from './crossLaneArtifactDependencies.js';
 
-function applyCrossLaneArtifactDependencies(blocks) {
-  function familyKeyForLane(laneLabel) {
-    const t = String(laneLabel || '').toLowerCase();
-    if (/product|software|app/.test(t)) return 'product_software';
-    if (/creative|album|music/.test(t)) return 'creative_media';
-    if (/media|podcast|channel|content/.test(t)) return 'media_channel';
-    if (/ops|operations|brand|company/.test(t)) return 'company_operations';
-    if (/income|service|revenue/.test(t)) return 'income_stream';
-    if (/capital|real.?estate/.test(t)) return 'capital_real_estate';
-    if (/institution|education/.test(t)) return 'institution_education';
-    if (/civic|community|government/.test(t)) return 'civic_development';
-    return null;
+function applyCrossLaneArtifactDependencies(blocks, lanes = []) {
+  // Build laneId → canonical family map from lane.domain. Domain values are
+  // single tokens ('income', 'capital'); CROSS_LANE_DEPENDENCIES uses suffixed
+  // names ('income_stream', 'capital_real_estate'). Map between them.
+  const DOMAIN_TO_FAMILY = {
+    product: 'product_software',
+    software: 'product_software',
+    creative: 'creative_media',
+    media: 'media_channel',
+    brand: 'company_operations',
+    operations: 'company_operations',
+    company: 'company_operations',
+    income: 'income_stream',
+    revenue: 'income_stream',
+    capital: 'capital_real_estate',
+    institution: 'institution_education',
+    civic: 'civic_development',
+  };
+  const laneIdToFamily = new Map();
+  for (const lane of lanes) {
+    const d = String(lane?.domain || '').toLowerCase();
+    const family = DOMAIN_TO_FAMILY[d] || null;
+    if (lane?.id && family) laneIdToFamily.set(lane.id, family);
+    if (lane?.laneId && family) laneIdToFamily.set(lane.laneId, family);
+  }
+  function familyForBlock(b) {
+    return laneIdToFamily.get(b.laneId) || null;
   }
   const byKey = new Map();
   for (const b of blocks) {
-    const family = familyKeyForLane(b.laneLabel || b.laneTitle || '');
+    const family = familyForBlock(b);
     if (!family) continue;
     const stageKey = b.lifecycleStage || b.commercialStage;
     if (!stageKey) continue;
@@ -26,7 +41,7 @@ function applyCrossLaneArtifactDependencies(blocks) {
     byKey.get(key).push(b);
   }
   for (const consumer of blocks) {
-    const consumerFamily = familyKeyForLane(consumer.laneLabel || consumer.laneTitle || '');
+    const consumerFamily = familyForBlock(consumer);
     if (!consumerFamily) continue;
     const consumerStage = consumer.lifecycleStage || consumer.commercialStage;
     if (!consumerStage) continue;
@@ -37,7 +52,8 @@ function applyCrossLaneArtifactDependencies(blocks) {
         d.consumingStage === consumerStage,
     );
     if (matchingDeps.length === 0) continue;
-    const next = Array.isArray(consumer.consumedArtifactIds) ? [...consumer.consumedArtifactIds] : [];
+    const nextConsumed = Array.isArray(consumer.consumedArtifactIds) ? [...consumer.consumedArtifactIds] : [];
+    const nextDeps = Array.isArray(consumer.dependsOnBlockIds) ? [...consumer.dependsOnBlockIds] : [];
     for (const dep of matchingDeps) {
       const upstreamKeys = dep.upstreamStage
         ? [`${dep.upstreamFamily}|P1|${dep.upstreamStage}`, `${dep.upstreamFamily}|P2|${dep.upstreamStage}`, `${dep.upstreamFamily}|P3|${dep.upstreamStage}`]
@@ -51,15 +67,13 @@ function applyCrossLaneArtifactDependencies(blocks) {
           break;
         }
       }
-      if (upstream && !next.includes(upstream.id)) {
-        next.push(upstream.id);
-        const nextDeps = Array.isArray(consumer.dependsOnBlockIds) ? consumer.dependsOnBlockIds : [];
-        if (!nextDeps.includes(upstream.id)) {
-          consumer.dependsOnBlockIds = [...nextDeps, upstream.id];
-        }
+      if (upstream && !nextConsumed.includes(upstream.id)) {
+        nextConsumed.push(upstream.id);
+        if (!nextDeps.includes(upstream.id)) nextDeps.push(upstream.id);
       }
     }
-    consumer.consumedArtifactIds = next;
+    consumer.consumedArtifactIds = nextConsumed;
+    consumer.dependsOnBlockIds = nextDeps;
   }
   return blocks;
 }
@@ -1420,7 +1434,7 @@ export function expandFullHorizonSchedule({
     horizonEndDayKey,
   });
   const integrityApplied = applyArtifactDependencyIntegrity(scheduled);
-  const crossLaneApplied = applyCrossLaneArtifactDependencies(integrityApplied.blocks);
+  const crossLaneApplied = applyCrossLaneArtifactDependencies(integrityApplied.blocks, lanes);
 
   return crossLaneApplied.sort((left, right) => {
     const leftKey = String(left?.dayKey || left?.date || '');
