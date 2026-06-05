@@ -37,6 +37,12 @@ import CycleTransitionModal from './CycleTransitionModal.jsx';
 import ExportFullScheduleButton from './ExportFullScheduleButton.jsx';
 import HorizonResolutionPanel from './HorizonResolutionPanel.jsx';
 import WorkWindowsEditor from './WorkWindowsEditor.tsx';
+import {
+  formatBlockRef,
+  formatArtifactLabel,
+  formatConsumedArtifacts,
+  formatGateSummary,
+} from './formalChartFormatters.js';
 
 const EMPTY_WORK_WINDOWS = {
   mon: [],
@@ -64,7 +70,67 @@ const normalizeActionType = (action = null) => {
   return 'Unknown';
 };
 
-const formatDate = (iso) => {
+const formatOwnerLabel = (owner) => {
+  const normalized = String(owner || '').trim();
+  if (!normalized) {
+    return '—';
+  }
+  return normalized
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+};
+
+const normalizeCanonicalBlockType = (block = null, fallbackActionType = 'Unknown') => {
+  const rawType = String(block?.blockType || block?.type || '')
+    .trim()
+    .toLowerCase();
+  if (rawType === 'action' || rawType === 'execution') return 'Execution';
+  if (rawType === 'readiness' || rawType === 'terminal-readiness' || rawType === 'milestone') return 'Readiness';
+  if (rawType === 'review') return 'Review';
+  if (rawType === 'gate') return 'Gate';
+  if (rawType === 'audit' || rawType === 'monitoring') return 'Monitoring';
+  if (rawType === 'validation') return 'Validation';
+  return fallbackActionType || 'Unknown';
+};
+
+const humanizeDependencyRef = (dependencyRef) => {
+  const normalized = String(dependencyRef || '').trim();
+  if (!normalized) {
+    return '';
+  }
+  if (normalized.startsWith('phase:')) {
+    return `phase ${normalized.slice(6).toUpperCase()} prerequisite`;
+  }
+  if (normalized.startsWith('lane:')) {
+    return `lane prerequisite ${normalized.slice(5)}`;
+  }
+  if (normalized.startsWith('terminal-review:')) {
+    return 'terminal review prerequisite';
+  }
+  return normalized;
+};
+
+const deriveFormalActionLineage = (block = null, actionMeta = null, resolvedDeliverable = null) => {
+  if (actionMeta?.title) {
+    return actionMeta.title;
+  }
+  const derivationReason = String(block?.derivationReason || '').trim();
+  if (derivationReason) {
+    return derivationReason;
+  }
+  const unlockTarget = Array.isArray(block?.unlocks) ? String(block.unlocks[0] || '').trim() : '';
+  const dependencyTarget = Array.isArray(block?.dependsOn) ? String(block.dependsOn[0] || '').trim() : '';
+  const lineageParts = [
+    resolvedDeliverable?.title ? `Advances ${resolvedDeliverable.title}` : '',
+    unlockTarget ? `unlocks ${humanizeDependencyRef(unlockTarget)}` : '',
+    block?.successCriterionServed ? `serves ${block.successCriterionServed}` : '',
+    block?.producesArtifact ? `produces ${block.producesArtifact}` : '',
+    dependencyTarget ? `after ${humanizeDependencyRef(dependencyTarget)}` : '',
+  ].filter(Boolean);
+  return lineageParts.join(' · ');
+};
+
+const formatDate = (iso, timeZone) => {
   if (!iso) {
     return '';
   }
@@ -81,13 +147,14 @@ const formatDate = (iso) => {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
+      timeZone: timeZone || undefined,
     });
   } catch {
     return iso;
   }
 };
 
-const formatDateTime = (iso) => {
+const formatDateTime = (iso, timeZone) => {
   if (!iso) {
     return '';
   }
@@ -106,6 +173,7 @@ const formatDateTime = (iso) => {
       day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
+      timeZone: timeZone || undefined,
     });
   } catch {
     return iso;
@@ -766,6 +834,14 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
         ])
         .filter(([id]) => id)
     );
+    const chartBlocksById = new Map(
+      (chartScheduleBlocks || [])
+        .filter((b) => b && b.id)
+        .map((b) => [b.id, b]),
+    );
+    const artifactRegistry =
+      (workspace && workspace.fullHorizonScheduleExport && workspace.fullHorizonScheduleExport.artifactRegistry) ||
+      {};
     return deliverables.map((deliverable, index) => {
       const deliverableId = String(deliverable?.id || '').trim() || `deliverable-${index + 1}`;
       const blocks = chartScheduleBlocks
@@ -788,6 +864,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
           }
           return {
             id: block?.id || `${deliverableId}-block-${blockIndex + 1}`,
+            blockId: String(block?.id || `${deliverableId}-block-${blockIndex + 1}`),
             title:
               block?.displayTitle ||
               block?.title ||
@@ -795,17 +872,31 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
               block?.rawLabel ||
               block?.label ||
               'Scheduled block',
-            actionTitle: actionMeta?.title || '',
-            actionType: actionMeta?.actionType || 'Unknown',
+            actionTitle: deriveFormalActionLineage(block, actionMeta, resolvedDeliverable),
+            actionType: normalizeCanonicalBlockType(block, actionMeta?.actionType || 'Unknown'),
             readinessText: readinessLines.join(' · ') || 'No readiness metadata',
             assumptions: uniqueStrings([...(actionMeta?.assumptions || []), block?.assumption]),
             deliverableId: String(block?.deliverableId || '').trim(),
             actionId,
             resolvedDeliverableId: resolvedDeliverable?.id || '',
-            start: block?.start || block?.startISO || block?.dateISO || '',
+            start: block?.startISO || block?.start || block?.dateISO || '',
             durationMinutes: block?.durationMinutes || null,
             status: block?.status || 'planned',
             commerceReadinessLevel: block?.commerceReadinessLevel || null,
+            ownerLabel: formatOwnerLabel(block?.owner),
+            outputArtifactLabel: formatArtifactLabel(
+              block?.outputArtifact?.artifactName || block?.outputArtifact?.id || block?.outputArtifactId || block?.producesArtifact || '',
+              artifactRegistry,
+            ),
+            consumedArtifactsLabel: formatConsumedArtifacts(
+              block?.consumedArtifactIds,
+              artifactRegistry,
+              chartBlocksById,
+            ),
+            consumedArtifactIds: Array.isArray(block?.consumedArtifactIds) ? block.consumedArtifactIds : [],
+            gateCriteriaLabel: formatGateSummary(block),
+            blockRef: formatBlockRef(block, blockIndex),
+            rawBlockId: String(block?.id || `${deliverableId}-block-${blockIndex + 1}`),
           };
         });
       return {
@@ -1553,8 +1644,13 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
                       <th className="px-2 py-2 font-semibold">Required sessions</th>
                       <th className="px-2 py-2 font-semibold">Scheduled blocks</th>
                       <th className="px-2 py-2 font-semibold">Block title</th>
+                      <th className="px-2 py-2 font-semibold">Ref</th>
                       <th className="px-2 py-2 font-semibold">Action lineage</th>
                       <th className="px-2 py-2 font-semibold">Type</th>
+                      <th className="px-2 py-2 font-semibold">Owner</th>
+                      <th className="px-2 py-2 font-semibold">Output artifact</th>
+                      <th className="px-2 py-2 font-semibold">Consumed artifacts</th>
+                      <th className="px-2 py-2 font-semibold">Gate criteria</th>
                       <th className="px-2 py-2 font-semibold">Readiness</th>
                       <th className="px-2 py-2 font-semibold">Assumptions</th>
                       <th className="px-2 py-2 font-semibold">Scheduled for</th>
@@ -1573,6 +1669,11 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
                             <td className="px-2 py-2 text-muted/60 italic whitespace-normal break-words">
                               No scheduled block yet
                             </td>
+                            <td className="px-2 py-2 text-muted/60">—</td>
+                            <td className="px-2 py-2 text-muted/60">—</td>
+                            <td className="px-2 py-2 text-muted/60">—</td>
+                            <td className="px-2 py-2 text-muted/60">—</td>
+                            <td className="px-2 py-2 text-muted/60">—</td>
                             <td className="px-2 py-2 text-muted/60">—</td>
                             <td className="px-2 py-2 text-muted/60">—</td>
                             <td className="px-2 py-2 text-muted/60">—</td>
@@ -1601,10 +1702,30 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
                               {block.displayTitle || block.title}
                             </span>
                           </td>
+                          <td
+                              className="px-2 py-2 text-muted/80 whitespace-nowrap leading-4"
+                              data-block-id={block.rawBlockId}
+                              title={block.rawBlockId}
+                            >
+                              {block.blockRef}
+                            </td>
                           <td className="px-2 py-2 text-muted/80 whitespace-normal break-words leading-4">
                             {block.actionTitle || '—'}
                           </td>
                           <td className="px-2 py-2 text-muted/80">{block.actionType}</td>
+                          <td className="px-2 py-2 text-muted/80">{block.ownerLabel || '—'}</td>
+                          <td className="px-2 py-2 text-muted/80 whitespace-normal break-words leading-4">
+                            {block.outputArtifactLabel}
+                          </td>
+                          <td
+                              className="px-2 py-2 text-muted/80 whitespace-normal break-words leading-4"
+                              title={Array.isArray(block.consumedArtifactIds) ? block.consumedArtifactIds.join('\n') : ''}
+                            >
+                              {block.consumedArtifactsLabel}
+                            </td>
+                          <td className="px-2 py-2 text-muted/80 whitespace-normal break-words leading-4">
+                            {block.gateCriteriaLabel}
+                          </td>
                           <td className="px-2 py-2 text-muted/80 whitespace-normal break-words leading-4">
                             {block.readinessText || '—'}
                           </td>
@@ -1613,7 +1734,9 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
                               ? block.assumptions.map((assumption) => `Assumption: ${assumption}`).join(' · ')
                               : '—'}
                           </td>
-                          <td className="px-2 py-2 text-muted/80">{block.start ? formatDateTime(block.start) : '—'}</td>
+                          <td className="px-2 py-2 text-muted/80">
+                            {block.start ? formatDateTime(block.start, appTime?.timeZone || 'UTC') : '—'}
+                          </td>
                         </tr>
                       ));
                     })}
