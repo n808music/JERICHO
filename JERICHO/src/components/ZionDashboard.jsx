@@ -18,7 +18,13 @@ import ZionMonthView from './zion/views/ZionMonthView.jsx';
 import ZionQuarterView from './zion/views/ZionQuarterView.jsx';
 import ZionYearView from './zion/views/ZionYearView.jsx';
 import { useIdentityStore } from '../state/identityStore.js';
-import { computeStability, getAllBlocks, isCanonicalBlankState, projectMonthDays } from '../state/identityCompute.js';
+import {
+  computeStability,
+  getAllBlocks,
+  isCanonicalBlankState,
+  projectMonthDays,
+  resolveFirstCycleScheduleStart,
+} from '../state/identityCompute.js';
 import { computeDayMetricsMap, normalizeBlocks } from '../state/metrics.js';
 import { materializeBlocksFromEvents } from '../state/engine/todayAuthority.ts';
 import { localStartFromDayAndTime } from './zion/timeUtils.js';
@@ -432,6 +438,29 @@ function normalizeScheduleSurfaceBlocks(items = []) {
       end: computeScheduleItemEndISO(item),
     }))
   );
+}
+
+function getCalendarSurfaceIdentity(block) {
+  const stableId = String(block?.id || '').trim();
+  if (stableId) {
+    return `id:${stableId}`;
+  }
+  const dayKey = String(block?.dayKey || block?.date || dayKeyFromISO(block?.start || block?.startISO || '', 'UTC') || '').trim();
+  const start = String(block?.start || block?.startISO || '').trim();
+  const title = String(block?.displayTitle || block?.title || block?.label || '').trim();
+  return `shape:${dayKey}:${start}:${title}`;
+}
+
+function mergeCalendarSurfaceBlocks(committed = [], forecast = []) {
+  const ordered = [...(Array.isArray(committed) ? committed : []), ...(Array.isArray(forecast) ? forecast : [])];
+  const deduped = new Map();
+  ordered.forEach((block) => {
+    const identity = getCalendarSurfaceIdentity(block);
+    if (!deduped.has(identity)) {
+      deduped.set(identity, block);
+    }
+  });
+  return Array.from(deduped.values());
 }
 
 function summarizeTraceBlock(item, timeZone = 'UTC') {
@@ -1161,18 +1190,58 @@ export default function ZionDashboard({
     return dayKeyFromISO(value, timeZone);
   };
   const viewDayKey = zionView === 'day' ? anchorDayKey : null;
+  const shouldResolveMasterPlanCycleStart = Boolean(
+    activeMasterPlan && (activeCycle?.source === 'master_plan' || activeCycle?.masterPlanId === activeMasterPlan.id)
+  );
+  const cycleStartResolution = useMemo(
+    () =>
+      shouldResolveMasterPlanCycleStart
+        ? resolveFirstCycleScheduleStart(
+            {
+              today,
+              appTime,
+              availabilityPolicy,
+              profilesById,
+              masterCalendarsById,
+            },
+            {
+              plan: activeMasterPlan,
+              cycle: activeCycle,
+              contract: activeCycle?.goalContract || canonicalContract || goalExecutionContract || null,
+            }
+          )
+        : null,
+    [
+      shouldResolveMasterPlanCycleStart,
+      today,
+      appTime,
+      availabilityPolicy,
+      profilesById,
+      masterCalendarsById,
+      activeMasterPlan,
+      activeCycle,
+      canonicalContract,
+      goalExecutionContract,
+    ]
+  );
   const contractStartDateValue =
+    cycleStartResolution?.resolvedStartDayKey ||
     activeCycle?.startedAtDayKey ||
     activeCycle?.goalGovernanceContract?.activeFromISO ||
     activeCycle?.goalContract?.startDayKey ||
     activeCycle?.goalContract?.startDateISO ||
     activeCycle?.goalContract?.startDate ||
     activeCycle?.goalContract?.temporalBinding?.startDayKey ||
+    goalExecutionContract?.startDayKey ||
     goalExecutionContract?.startDateISO ||
     goalExecutionContract?.startDate ||
     goalExecutionContract?.temporalBinding?.startDayKey ||
     null;
   const contractStartDayKey = normalizeDayKeyValue(contractStartDateValue);
+  const contractStartReasonLabel = String(
+    shouldResolveMasterPlanCycleStart ? cycleStartResolution?.reasonLabel || activeCycle?.startDateReason || '' : ''
+  ).trim();
+  const contractStartIsDelayed = Boolean(shouldResolveMasterPlanCycleStart && cycleStartResolution?.delayed);
   const suppressSuggestionsForPreStartDay = Boolean(
     contractStartDayKey && viewDayKey && viewDayKey < contractStartDayKey
   );
@@ -1278,7 +1347,7 @@ export default function ZionDashboard({
     : '—';
   const executionCycleHorizonLabel = activeCycle
     ? formatRangeLabel(
-        activeCycle?.goalContract?.startDayKey || activeCycle?.startedAtDayKey || null,
+        contractStartDayKey || activeCycle?.goalContract?.startDayKey || activeCycle?.startedAtDayKey || null,
         activeCycle?.goalContract?.endDayKey || null
       )
     : 'No active execution cycle';
@@ -1505,7 +1574,7 @@ export default function ZionDashboard({
     }
     if (!selectedHorizonMode || selectedHorizonMode === 'current_cycle') return committed;
     const forecast = Array.isArray(forecastCalendarBlocks) ? forecastCalendarBlocks : [];
-    return [...committed, ...forecast];
+    return mergeCalendarSurfaceBlocks(committed, forecast);
   }, [scheduleDisplayItemsAllResolved, selectedHorizonMode, forecastCalendarBlocks, isInterCycle]);
   const shouldShowMasterPlanForecastInspectionNotice =
     view === 'today' &&
@@ -1701,7 +1770,7 @@ export default function ZionDashboard({
   const generateDisabledReason = isCycleReadOnly
     ? 'Cycle is read-only.'
     : suppressDrafts
-      ? `Drafts begin on ${formatDayKeyLabel(contractStartDayKey)}.`
+      ? `Drafts begin on ${formatDayKeyLabel(contractStartDayKey)}.${contractStartIsDelayed && contractStartReasonLabel ? ` ${contractStartReasonLabel}` : ''}`
       : !activeCycleId
         ? 'Start an execution cycle first.'
         : !((hasAdmittedGoal && isGoalAdmitted) || hasExecutableMasterPlan)
@@ -1722,7 +1791,7 @@ export default function ZionDashboard({
   const applyDisabledReason = isCycleReadOnly
     ? 'Cycle is read-only.'
     : suppressDrafts
-      ? `Drafts begin on ${formatDayKeyLabel(contractStartDayKey)}.`
+      ? `Drafts begin on ${formatDayKeyLabel(contractStartDayKey)}.${contractStartIsDelayed && contractStartReasonLabel ? ` ${contractStartReasonLabel}` : ''}`
       : requiresHorizonResolution && !selectedPlanResolutionKind
         ? 'Resolve the horizon conflict first.'
         : proposedScheduleItemsAll.length === 0
@@ -1733,7 +1802,7 @@ export default function ZionDashboard({
   const activateDisabledReason = isCycleReadOnly
     ? 'Cycle is read-only.'
     : suppressDrafts
-      ? `Drafts begin on ${formatDayKeyLabel(contractStartDayKey)}.`
+      ? `Drafts begin on ${formatDayKeyLabel(contractStartDayKey)}.${contractStartIsDelayed && contractStartReasonLabel ? ` ${contractStartReasonLabel}` : ''}`
       : hasActiveSchedule
         ? 'Schedule is already active.'
         : !hasAppliedReviewSchedule || reviewScheduleBlocks.length === 0
@@ -3218,6 +3287,7 @@ export default function ZionDashboard({
                       {suppressDrafts && contractStartDayKey ? (
                         <p className="text-[11px] text-amber-600">
                           Drafts begin on {formatDayKeyLabel(contractStartDayKey)}. Nothing before that date.
+                          {contractStartIsDelayed && contractStartReasonLabel ? ` ${contractStartReasonLabel}` : ''}
                         </p>
                       ) : hasAppliedReviewSchedule || hasActiveSchedule || hasVisibleScheduleBlocks ? (
                         <div className="space-y-3">
