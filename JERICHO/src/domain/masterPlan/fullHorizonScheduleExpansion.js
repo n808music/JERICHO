@@ -1,5 +1,68 @@
 import { applyScheduleValidityProjection } from './scheduleValidityProjection.js';
 import { applyArtifactDependencyIntegrity } from './artifactDependencyIntegrity.js';
+import { CROSS_LANE_DEPENDENCIES } from './crossLaneArtifactDependencies.js';
+
+function applyCrossLaneArtifactDependencies(blocks) {
+  function familyKeyForLane(laneLabel) {
+    const t = String(laneLabel || '').toLowerCase();
+    if (/product|software|app/.test(t)) return 'product_software';
+    if (/creative|album|music/.test(t)) return 'creative_media';
+    if (/media|podcast|channel|content/.test(t)) return 'media_channel';
+    if (/ops|operations|brand|company/.test(t)) return 'company_operations';
+    if (/income|service|revenue/.test(t)) return 'income_stream';
+    if (/capital|real.?estate/.test(t)) return 'capital_real_estate';
+    if (/institution|education/.test(t)) return 'institution_education';
+    if (/civic|community|government/.test(t)) return 'civic_development';
+    return null;
+  }
+  const byKey = new Map();
+  for (const b of blocks) {
+    const family = familyKeyForLane(b.laneLabel || b.laneTitle || '');
+    if (!family) continue;
+    const stageKey = b.lifecycleStage || b.commercialStage;
+    if (!stageKey) continue;
+    const key = `${family}|${b.phaseLabel}|${stageKey}`;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(b);
+  }
+  for (const consumer of blocks) {
+    const consumerFamily = familyKeyForLane(consumer.laneLabel || consumer.laneTitle || '');
+    if (!consumerFamily) continue;
+    const consumerStage = consumer.lifecycleStage || consumer.commercialStage;
+    if (!consumerStage) continue;
+    const matchingDeps = CROSS_LANE_DEPENDENCIES.filter(
+      (d) =>
+        d.consumingFamily === consumerFamily &&
+        d.consumingPhase === consumer.phaseLabel &&
+        d.consumingStage === consumerStage,
+    );
+    if (matchingDeps.length === 0) continue;
+    const next = Array.isArray(consumer.consumedArtifactIds) ? [...consumer.consumedArtifactIds] : [];
+    for (const dep of matchingDeps) {
+      const upstreamKeys = dep.upstreamStage
+        ? [`${dep.upstreamFamily}|P1|${dep.upstreamStage}`, `${dep.upstreamFamily}|P2|${dep.upstreamStage}`, `${dep.upstreamFamily}|P3|${dep.upstreamStage}`]
+        : [];
+      let upstream = null;
+      for (const k of upstreamKeys) {
+        const candidates = byKey.get(k);
+        if (candidates && candidates.length > 0) {
+          const earlier = candidates.filter((c) => c.dayKey <= consumer.dayKey);
+          upstream = earlier[0] || candidates[0];
+          break;
+        }
+      }
+      if (upstream && !next.includes(upstream.id)) {
+        next.push(upstream.id);
+        const nextDeps = Array.isArray(consumer.dependsOnBlockIds) ? consumer.dependsOnBlockIds : [];
+        if (!nextDeps.includes(upstream.id)) {
+          consumer.dependsOnBlockIds = [...nextDeps, upstream.id];
+        }
+      }
+    }
+    consumer.consumedArtifactIds = next;
+  }
+  return blocks;
+}
 
 function mkId(planId, phaseLabel, laneId, dayKey, idx) {
   return `fh-${planId || 'plan'}-${phaseLabel || 'phase'}-${laneId || 'lane'}-${dayKey}-${idx}`;
@@ -1357,8 +1420,9 @@ export function expandFullHorizonSchedule({
     horizonEndDayKey,
   });
   const integrityApplied = applyArtifactDependencyIntegrity(scheduled);
+  const crossLaneApplied = applyCrossLaneArtifactDependencies(integrityApplied.blocks);
 
-  return integrityApplied.blocks.sort((left, right) => {
+  return crossLaneApplied.sort((left, right) => {
     const leftKey = String(left?.dayKey || left?.date || '');
     const rightKey = String(right?.dayKey || right?.date || '');
     if (leftKey !== rightKey) return leftKey.localeCompare(rightKey);
