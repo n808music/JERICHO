@@ -99,11 +99,15 @@ function readStorageValue(key) {
 }
 
 function getAppShellAuthState() {
-  const account = localAuth.getAccount();
-  const session = localAuth.getSession();
-  const hasLocalAccount = Boolean(account?.username);
-  const hasLocalSession = Boolean(session?.username);
-  const authenticatedUser = hasLocalAccount && hasLocalSession ? session.username : null;
+  // Auth Containment Stabilization: if account exists and the session was lost to a
+  // crash/reload (no explicit_sign_out marker), restore the session transparently
+  // BEFORE evaluating render state. Explicit logout is honored — see resumeSessionIfSafe.
+  localAuth.resumeSessionIfSafe();
+
+  const evaluation = localAuth.evaluateAuthState();
+  const hasLocalAccount = Boolean(evaluation.account?.username);
+  const hasLocalSession = Boolean(evaluation.session?.username);
+  const authenticatedUser = evaluation.authenticatedUser;
   const localProfileAvailable = Boolean(readStorageValue(IDENTITY_KEY));
   const devRestoreAvailable =
     typeof window !== 'undefined' && typeof window.__jerichoRestoreOperationEndgame === 'function';
@@ -113,6 +117,9 @@ function getAppShellAuthState() {
     authenticatedUser,
     hasLocalAccount,
     hasLocalSession,
+    authStateMachine: evaluation.state,
+    lastSessionClearReason: evaluation.lastClearReason,
+    lastSessionClearAt: evaluation.lastClearAt,
     localProfileAvailable,
     devRestoreAvailable,
     syncUnavailable,
