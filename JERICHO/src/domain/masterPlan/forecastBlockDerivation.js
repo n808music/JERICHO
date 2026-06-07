@@ -17,6 +17,8 @@
  * (e.g. "Validate post-launch conversion path for product lane", not "Review").
  */
 
+import { defaultOwnerForLaneFamily } from './ownerLabels.js';
+
 // ─── Title templates ──────────────────────────────────────────────────────────
 
 const LANE_FAMILY_LABELS = {
@@ -156,6 +158,27 @@ function nextFirstOfMonth(dayKey) {
   return d.toISOString().slice(0, 10);
 }
 
+function formatMonthYear(dayKey) {
+  const date = new Date(`${dayKey}T12:00:00.000Z`);
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+function formatQuarterYear(dayKey) {
+  const date = new Date(`${dayKey}T12:00:00.000Z`);
+  return `Q${Math.floor(date.getUTCMonth() / 3) + 1} ${date.getUTCFullYear()}`;
+}
+
+function buildForecastOccurrenceLabel(phaseLabel, dayKey) {
+  if (phaseLabel === 'P3') {
+    return `${formatQuarterYear(dayKey)} scale review window`;
+  }
+  return `${formatMonthYear(dayKey)} review window`;
+}
+
 // ─── ID generator ─────────────────────────────────────────────────────────────
 
 function forecastBlockId(planId, phaseLabel, dayKey, index) {
@@ -164,24 +187,9 @@ function forecastBlockId(planId, phaseLabel, dayKey, index) {
 
 // ─── Block factory ────────────────────────────────────────────────────────────
 
-// Mirrors fullHorizonScheduleExpansion.js — kept local to avoid a cross-module
-// dependency. Updated in Phase 3 of the Execution Professionalism Remediation.
-const FORECAST_LANE_FAMILY_OWNER_CLASS = {
-  product_software: 'product_owner',
-  creative_media: 'creative_owner',
-  media_channel: 'media_owner',
-  company_operations: 'operations_owner',
-  income_stream: 'revenue_owner',
-  capital_real_estate: 'capital_owner',
-  institution_education: 'institution_owner',
-  civic_development: 'civic_owner',
-};
-
 function resolveForecastBlockOwner(blockType, laneFamily = null) {
-  if (blockType === 'review' || blockType === 'audit') return 'reviewer';
-  if (blockType === 'terminal-review' || blockType === 'terminal-readiness') return 'terminal_authority';
-  if (blockType === 'gate') return 'gate_authority';
-  return FORECAST_LANE_FAMILY_OWNER_CLASS[laneFamily] || 'founder';
+  if (blockType === 'waiting_period') return 'TBD — must be resolved before activation';
+  return defaultOwnerForLaneFamily(laneFamily);
 }
 
 function resolveForecastPassEvidence(blockType) {
@@ -218,7 +226,7 @@ function resolveForecastGateCriteria({ phase, lane, expectedOutput, title }) {
     passCriteria: `Upstream proof threshold for ${laneTitleResolved} is met — advance to ${nextLabel}. Required evidence: ${evidenceRef}.`,
     failCriteria: `Upstream proof threshold for ${laneTitleResolved} is not met — hold and remediate the gap before reattempting. Missing or weak evidence: ${evidenceRef}.`,
     evidenceRequired: evidence,
-    decisionAuthority: 'gate_authority',
+    decisionAuthority: 'Operator',
     passBranch: nextPhase === 'terminal-review'
       ? `advance:terminal-review:${laneId}`
       : `advance:phase:${nextPhase}:${laneId}`,
@@ -262,10 +270,11 @@ function buildForecastBlock({
         : { type: 'block', id: primaryUnlock }
     : null;
   const expectedOutput = buildForecastExpectedOutput({ blockType, lane, phase, title });
+  const occurrenceLabel = buildForecastOccurrenceLabel(phase?.label, dayKey);
   const gateCriteria = blockType === 'gate' ? resolveForecastGateCriteria({ phase, lane, expectedOutput, title }) : null;
   return {
     id: forecastBlockId(planId, phase.label, dayKey, index),
-    title,
+    title: `${title} for the ${occurrenceLabel}`,
     dayKey,
     date: dayKey,
     phaseId: phase.id,
@@ -280,8 +289,8 @@ function buildForecastBlock({
     executionLockReason:
       'Forecast block visible for long-horizon inspection. Not executable until committed into an active cycle.',
     source: 'derived',
-    derivationReason: `Derived from ${phase.label} phase substrate for ${resolvedLaneLabel || 'cross-lane terminal review'}: ${phase.phaseObjective || 'phase objective'}`,
-    expectedOutput,
+    derivationReason: `Derived from ${phase.label} phase substrate for ${resolvedLaneLabel || 'cross-lane terminal review'} during the ${occurrenceLabel}: ${phase.phaseObjective || 'phase objective'}`,
+    expectedOutput: `${expectedOutput} Occurrence focus: ${occurrenceLabel}.`,
     durationMinutes,
     // timeEstimateMinutes retained as legacy alias — existing readers reference it.
     timeEstimateMinutes: durationMinutes,

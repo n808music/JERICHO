@@ -44,11 +44,16 @@ function runExpansion() {
 describe('Cross-lane semantic artifact dependency', () => {
   const blocks = runExpansion();
   const idToBlock = new Map(blocks.map((b) => [b.id, b]));
+  const artifactIdToBlock = new Map(
+    blocks
+      .filter((block) => block.outputArtifactId)
+      .map((block) => [block.outputArtifactId, block])
+  );
 
   function hasUpstreamFromLane(block, upstreamLaneId) {
     const consumedIds = block.consumedArtifactIds || [];
     return consumedIds.some((cid) => {
-      const upstream = idToBlock.get(cid);
+      const upstream = artifactIdToBlock.get(cid);
       return upstream && upstream.laneId === upstreamLaneId;
     });
   }
@@ -78,5 +83,24 @@ describe('Cross-lane semantic artifact dependency', () => {
     expect(productBacklogBlocks.length).toBeGreaterThan(0);
     const withCrossLane = productBacklogBlocks.filter((b) => hasUpstreamFromLane(b, 'lane-income'));
     expect(withCrossLane.length).toBeGreaterThan(0);
+  });
+
+  it('only attaches earlier upstream artifacts and block dependencies', () => {
+    const crossLaneConsumers = blocks.filter(
+      (block) => Array.isArray(block.consumedArtifactIds) && block.consumedArtifactIds.some((artifactId) => artifactIdToBlock.has(artifactId))
+    );
+    expect(crossLaneConsumers.length).toBeGreaterThan(0);
+    for (const block of crossLaneConsumers) {
+      for (const artifactId of block.consumedArtifactIds) {
+        const upstream = artifactIdToBlock.get(artifactId);
+        if (!upstream) continue;
+        expect(String(upstream.dayKey || '') <= String(block.dayKey || '')).toBe(true);
+      }
+      for (const depId of block.dependsOnBlockIds || []) {
+        const upstream = idToBlock.get(depId);
+        if (!upstream) continue;
+        expect(String(upstream.dayKey || '') <= String(block.dayKey || '')).toBe(true);
+      }
+    }
   });
 });

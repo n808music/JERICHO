@@ -232,6 +232,229 @@ function buildPhaseExitCriteriaByPhase(artifacts, blocksById) {
   return grouped;
 }
 
+function blockSortKey(block) {
+  return [
+    String(block?.dayKey || block?.date || ''),
+    String(block?.startISO || block?.start || ''),
+    String(block?.id || ''),
+  ].join('|');
+}
+
+function compareSortKeys(left, right) {
+  return String(left || '').localeCompare(String(right || ''));
+}
+
+function buildDependencyAudit(blocks = [], artifactRegistry = {}) {
+  const blocksById = new Map(blocks.map((block) => [String(block?.id || '').trim(), block]));
+  const producedArtifactById = new Map(Object.entries(artifactRegistry || {}).map(([id, artifact]) => [String(id), artifact]));
+  const adjacency = new Map();
+  const failures = [];
+
+  const pushFailure = (code, block, ref = null, detail = null) => {
+    failures.push({
+      code,
+      blockId: String(block?.id || '').trim() || null,
+      ref,
+      detail,
+    });
+  };
+
+  for (const block of blocks) {
+    const blockId = String(block?.id || '').trim();
+    if (!blockId) continue;
+    const blockKey = blockSortKey(block);
+    const dependsOnBlockIds = Array.isArray(block?.dependsOnBlockIds) ? block.dependsOnBlockIds : [];
+    const consumedArtifactIds = Array.isArray(block?.consumedArtifactIds) ? block.consumedArtifactIds : [];
+    adjacency.set(blockId, []);
+
+    for (const dependencyIdRaw of dependsOnBlockIds) {
+      const dependencyId = String(dependencyIdRaw || '').trim();
+      if (!dependencyId) {
+        pushFailure('UNREADABLE_DEPENDENCY_REF', block, dependencyIdRaw);
+        continue;
+      }
+      if (dependencyId === blockId) {
+        pushFailure('SELF_DEPENDENCY', block, dependencyId);
+        continue;
+      }
+      const dependencyBlock = blocksById.get(dependencyId);
+      if (!dependencyBlock) {
+        pushFailure('MISSING_DEPENDENCY_BLOCK', block, dependencyId);
+        continue;
+      }
+      adjacency.get(blockId).push(dependencyId);
+      if (compareSortKeys(blockSortKey(dependencyBlock), blockKey) >= 0) {
+        pushFailure('FUTURE_BLOCK_DEPENDENCY', block, dependencyId);
+      }
+    }
+
+    for (const artifactIdRaw of consumedArtifactIds) {
+      const artifactId = String(artifactIdRaw || '').trim();
+      if (!artifactId) {
+        pushFailure('UNREADABLE_DEPENDENCY_REF', block, artifactIdRaw);
+        continue;
+      }
+      const artifact = producedArtifactById.get(artifactId);
+      if (!artifact) {
+        pushFailure('MISSING_CONSUMED_ARTIFACT', block, artifactId);
+        continue;
+      }
+      const producerBlockId = String(artifact?.producerBlockId || '').trim();
+      const producerBlock = blocksById.get(producerBlockId);
+      if (!producerBlock) {
+        pushFailure('MISSING_DEPENDENCY_BLOCK', block, producerBlockId || artifactId);
+        continue;
+      }
+      if (producerBlockId === blockId) {
+        pushFailure('SELF_DEPENDENCY', block, artifactId);
+        continue;
+      }
+      if (compareSortKeys(blockSortKey(producerBlock), blockKey) >= 0) {
+        pushFailure('FUTURE_ARTIFACT_CONSUMPTION', block, artifactId);
+      }
+    }
+  }
+
+  const visiting = new Set();
+  const visited = new Set();
+  const inCycle = new Set();
+
+  const visit = (nodeId) => {
+    if (visiting.has(nodeId)) {
+      inCycle.add(nodeId);
+      return;
+    }
+    if (visited.has(nodeId)) return;
+    visiting.add(nodeId);
+    for (const nextId of adjacency.get(nodeId) || []) {
+      visit(nextId);
+      if (inCycle.has(nextId)) {
+        inCycle.add(nodeId);
+      }
+    }
+    visiting.delete(nodeId);
+    visited.add(nodeId);
+  };
+
+  for (const nodeId of adjacency.keys()) {
+    visit(nodeId);
+  }
+
+  for (const nodeId of inCycle) {
+    failures.push({
+      code: 'CIRCULAR_DEPENDENCY',
+      blockId: nodeId,
+      ref: nodeId,
+      detail: 'Cycle detected in block dependency graph.',
+    });
+  }
+
+  const failureCounts = failures.reduce((acc, failure) => {
+    acc[failure.code] = (acc[failure.code] || 0) + 1;
+    return acc;
+  }, {});
+
+  return {
+    status: failures.length === 0 ? 'PASS' : 'FAIL',
+    blocksChecked: blocks.length,
+    artifactsChecked: producedArtifactById.size,
+    failureCounts,
+    failures,
+  };
+}
+
+function buildArtifactRegistryFromBlocks(blocks = []) {
+  const ordered = [...blocks].sort(compareBlocks);
+  const registryEntries = [];
+  const artifactById = new Map();
+
+  for (const block of ordered) {
+    const outputArtifactId = String(
+      block?.outputArtifactId || block?.outputArtifact?.artifactId || (isArtifactRequired(block) ? buildArtifactId(block) : '')
+    ).trim();
+    if (!outputArtifactId) continue;
+    const artifact = {
+      artifactId: outputArtifactId,
+      artifactName: String(
+        block?.outputArtifact?.artifactName || block?.producesArtifact || block?.expectedOutput || block?.title || 'Unnamed artifact'
+      ).trim(),
+      producerBlockId: block?.id || null,
+      owner: block?.owner || null,
+      phase: block?.phaseLabel || null,
+      laneId: block?.laneId || null,
+      consumedByBlockIds: [],
+      acceptanceCriteria:
+        block?.outputArtifact?.acceptanceCriteria || block?.gateCriteria?.acceptanceCriteria || buildAcceptanceCriteria(block),
+      passEvidence: block?.outputArtifact?.passEvidence || block?.passEvidence || null,
+      status: block?.outputArtifact?.status || 'forecast',
+    };
+    registryEntries.push(artifact);
+    artifactById.set(outputArtifactId, artifact);
+  }
+
+  for (const block of ordered) {
+    for (const artifactId of Array.isArray(block?.consumedArtifactIds) ? block.consumedArtifactIds : []) {
+      const resolvedId = String(artifactId || '').trim();
+      if (!resolvedId || !artifactById.has(resolvedId)) continue;
+      artifactById.get(resolvedId).consumedByBlockIds.push(block.id);
+    }
+  }
+
+  return Object.fromEntries(
+    registryEntries.map((artifact) => [
+      artifact.artifactId,
+      {
+        artifactId: artifact.artifactId,
+        artifactName: artifact.artifactName,
+        producerBlockId: artifact.producerBlockId,
+        owner: artifact.owner,
+        phase: artifact.phase,
+        laneId: artifact.laneId,
+        consumedByBlockIds: [...artifact.consumedByBlockIds],
+        acceptanceCriteria: artifact.acceptanceCriteria,
+        passEvidence: artifact.passEvidence,
+        status: artifact.status,
+      },
+    ])
+  );
+}
+
+export function summarizeArtifactDependencyIntegrity(blocks = []) {
+  const ordered = [...blocks].sort(compareBlocks);
+  const artifactRegistry = buildArtifactRegistryFromBlocks(ordered);
+  const blocksById = new Map(ordered.map((block) => [block.id, block]));
+  const phaseExitCriteriaByPhase = buildPhaseExitCriteriaByPhase(Object.values(artifactRegistry), blocksById);
+  const integrityReport = {
+    totalBlocks: ordered.length,
+    totalArtifacts: Object.keys(artifactRegistry).length,
+    unresolvedConsumedArtifacts: ordered.filter((block) => {
+      const consumed = Array.isArray(block?.consumedArtifactIds) ? block.consumedArtifactIds : [];
+      return consumed.some((artifactId) => !artifactRegistry[String(artifactId || '').trim()]);
+    }).length,
+    gateCriteriaCoverage: ordered.filter((block) => block.blockType === 'gate' || block.blockType === 'terminal-readiness')
+      .every((block) => block.gateCriteria?.metricName && block.gateCriteria?.threshold && block.gateCriteria?.evidenceArtifactId)
+      ? 'complete'
+      : 'incomplete',
+    phaseExitCriteriaCoverage: Object.values(phaseExitCriteriaByPhase).every((items) => Array.isArray(items) && items.length > 0)
+      ? 'complete'
+      : 'incomplete',
+    decorativeUsingRewrites: 0,
+    requiredArtifactCoverage: ordered
+      .filter((block) => isArtifactRequired(block))
+      .every((block) => String(block?.outputArtifactId || block?.outputArtifact?.artifactId || '').trim().length > 0)
+      ? 'complete'
+      : 'incomplete',
+  };
+  integrityReport.dependencyAudit = buildDependencyAudit(ordered, artifactRegistry);
+
+  return {
+    blocks: ordered,
+    artifactRegistry,
+    integrityReport,
+    phaseExitCriteriaByPhase,
+  };
+}
+
 export function applyArtifactDependencyIntegrity(blocks = []) {
   const ordered = [...blocks].sort(compareBlocks);
   const artifactTimeline = [];
@@ -339,6 +562,7 @@ export function applyArtifactDependencyIntegrity(blocks = []) {
       ? 'complete'
       : 'incomplete',
   };
+  integrityReport.dependencyAudit = buildDependencyAudit(enriched, artifactRegistry);
 
   return {
     blocks: enriched.sort(compareBlocks),

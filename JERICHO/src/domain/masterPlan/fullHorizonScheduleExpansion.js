@@ -1,6 +1,7 @@
 import { applyScheduleValidityProjection } from './scheduleValidityProjection.js';
 import { applyArtifactDependencyIntegrity } from './artifactDependencyIntegrity.js';
 import { CROSS_LANE_DEPENDENCIES } from './crossLaneArtifactDependencies.js';
+import { defaultOwnerForLaneFamily } from './ownerLabels.js';
 
 export function applyCrossLaneArtifactDependencies(blocks, lanes = []) {
   // Build laneId → canonical family map from lane.domain. Domain values are
@@ -40,6 +41,17 @@ export function applyCrossLaneArtifactDependencies(blocks, lanes = []) {
     if (!byKey.has(key)) byKey.set(key, []);
     byKey.get(key).push(b);
   }
+
+  const compareBlockOrder = (left, right) => {
+    const leftDay = String(left?.dayKey || left?.date || '');
+    const rightDay = String(right?.dayKey || right?.date || '');
+    if (leftDay !== rightDay) return leftDay.localeCompare(rightDay);
+    const leftStart = String(left?.startISO || left?.start || '');
+    const rightStart = String(right?.startISO || right?.start || '');
+    if (leftStart !== rightStart) return leftStart.localeCompare(rightStart);
+    return String(left?.id || '').localeCompare(String(right?.id || ''));
+  };
+
   for (const consumer of blocks) {
     const consumerFamily = familyForBlock(consumer);
     if (!consumerFamily) continue;
@@ -57,18 +69,15 @@ export function applyCrossLaneArtifactDependencies(blocks, lanes = []) {
     for (const dep of matchingDeps) {
       const upstreamKeys = dep.upstreamStage
         ? [`${dep.upstreamFamily}|P1|${dep.upstreamStage}`, `${dep.upstreamFamily}|P2|${dep.upstreamStage}`, `${dep.upstreamFamily}|P3|${dep.upstreamStage}`]
-        : [];
-      let upstream = null;
-      for (const k of upstreamKeys) {
-        const candidates = byKey.get(k);
-        if (candidates && candidates.length > 0) {
-          const earlier = candidates.filter((c) => c.dayKey <= consumer.dayKey);
-          upstream = earlier[0] || candidates[0];
-          break;
-        }
-      }
-      if (upstream && !nextConsumed.includes(upstream.id)) {
-        nextConsumed.push(upstream.id);
+        : Array.from(byKey.keys()).filter((key) => key.startsWith(`${dep.upstreamFamily}|`));
+      const upstreamCandidates = upstreamKeys.flatMap((key) => byKey.get(key) || []);
+      const earlierCandidates = upstreamCandidates
+        .filter((candidate) => compareBlockOrder(candidate, consumer) < 0)
+        .sort(compareBlockOrder);
+      const upstream = earlierCandidates[earlierCandidates.length - 1] || null;
+      const upstreamArtifactId = String(upstream?.outputArtifactId || '').trim();
+      if (upstream && upstreamArtifactId && !nextConsumed.includes(upstreamArtifactId)) {
+        nextConsumed.push(upstreamArtifactId);
         if (!nextDeps.includes(upstream.id)) nextDeps.push(upstream.id);
       }
     }
@@ -84,6 +93,18 @@ function mkId(planId, phaseLabel, laneId, dayKey, idx) {
 
 function clampKey(key) {
   return String(key || '').slice(0, 10);
+}
+
+function maxDayKey(left, right) {
+  if (!left) return right || null;
+  if (!right) return left || null;
+  return left > right ? left : right;
+}
+
+function minDayKey(left, right) {
+  if (!left) return right || null;
+  if (!right) return left || null;
+  return left < right ? left : right;
 }
 
 function nextDayKey(dayKey, days) {
@@ -1086,33 +1107,11 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
   }));
 }
 
-// Lane family → execution-owner class. Each actionable block (action /
-// validation / readiness) carries the owner class of the lane that produces
-// it. Review and audit blocks are reviewer-class; terminal-readiness and
-// terminal-review blocks elevate to terminal_authority; gates use
-// gate_authority. Cross-lane / general blocks fall back to founder.
-const LANE_FAMILY_OWNER_CLASS = {
-  product_software: 'product_owner',
-  creative_media: 'creative_owner',
-  media_channel: 'media_owner',
-  company_operations: 'operations_owner',
-  income_stream: 'revenue_owner',
-  capital_real_estate: 'capital_owner',
-  institution_education: 'institution_owner',
-  civic_development: 'civic_owner',
-};
-
 function resolveBlockOwner(blockType, laneFamily = null) {
-  if (blockType === 'review' || blockType === 'audit') {
-    return 'reviewer';
+  if (blockType === 'waiting_period') {
+    return 'TBD — must be resolved before activation';
   }
-  if (blockType === 'terminal-review' || blockType === 'terminal-readiness') {
-    return 'terminal_authority';
-  }
-  if (blockType === 'gate') {
-    return 'gate_authority';
-  }
-  return LANE_FAMILY_OWNER_CLASS[laneFamily] || 'founder';
+  return defaultOwnerForLaneFamily(laneFamily);
 }
 
 function resolvePassEvidence(blockType, descriptor) {
@@ -1157,7 +1156,7 @@ function resolveGateCriteria({ descriptor, phase, lane }) {
     passCriteria: `Upstream proof threshold for ${laneTitle} is met — advance to ${nextLabel}. Required evidence: ${evidence}.`,
     failCriteria: `Upstream proof threshold for ${laneTitle} is not met — hold and remediate the gap before reattempting. Missing or weak evidence: ${evidence}.`,
     evidenceRequired: descriptor?.evidenceRequired || expectedOutput || `Documented ${laneTitle} proof package supporting gate decision`,
-    decisionAuthority: 'gate_authority',
+    decisionAuthority: 'Operator',
     passBranch: nextPhase === 'terminal-review'
       ? `advance:terminal-review:${laneId}`
       : `advance:phase:${nextPhase}:${laneId}`,
@@ -1328,7 +1327,7 @@ function buildGlobalTerminalBlock({ planId, phase, horizonEndDayKey, plan }) {
     durationMinutes: 120,
     producesArtifact: 'Terminal-readiness evidence package with cross-lane proof index and outcome decision',
     consumedBy: ['terminal-review:cross-lane'],
-    owner: 'terminal_authority',
+    owner: 'Operator',
     passEvidence: 'Terminal-readiness evidence package with final horizon decision and success-standard comparison',
     riskOrConstraintAddressed: 'Prevents a five-year schedule from ending without explicit terminal-readiness inspection.',
     successCriterionServed: 'Terminal-readiness evidence compared to success standard and outcome target',
@@ -1367,8 +1366,8 @@ export function expandFullHorizonSchedule({
 
   for (const phase of phaseModel.phases) {
     const phaseLabel = phase.label || 'phase';
-    const phaseStart = clampKey(phase.startBoundary || horizonStartDayKey);
-    const phaseEnd = clampKey(phase.endBoundary || horizonEndDayKey);
+    const phaseStart = maxDayKey(clampKey(phase.startBoundary || null), horizonStartDayKey);
+    const phaseEnd = minDayKey(clampKey(phase.endBoundary || null), horizonEndDayKey);
     if (!phaseStart || !phaseEnd || phaseStart > horizonEndDayKey) continue;
 
     const visiblePhaseEnd = phaseEnd < horizonEndDayKey ? phaseEnd : horizonEndDayKey;
@@ -1420,7 +1419,13 @@ export function expandFullHorizonSchedule({
     }
   }
 
-  const merged = [...committedBlocks, ...existingForecastBlocks, ...result];
+  const inVisibleRange = (block) => {
+    const dayKey = String(block?.dayKey || block?.date || '').slice(0, 10);
+    if (!dayKey) return false;
+    return dayKey >= horizonStartDayKey && dayKey <= horizonEndDayKey;
+  };
+
+  const merged = [...committedBlocks, ...existingForecastBlocks, ...result].filter(inVisibleRange);
   const seen = new Set();
   const dedup = [];
   for (const block of merged) {

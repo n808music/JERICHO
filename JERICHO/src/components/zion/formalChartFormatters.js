@@ -91,15 +91,29 @@ function shortenPhrase(text, maxLen = 80) {
   return s.slice(0, maxLen - 1) + '…';
 }
 
+function toSentence(text) {
+  const s = String(text || '').trim();
+  if (!s) return '';
+  return /[.!?]$/.test(s) ? s : `${s}.`;
+}
+
 export function formatGateSummary(block) {
   const type = String(block?.blockType || '').toLowerCase();
   if (type !== 'gate') return '—';
   const gc = block?.gateCriteria;
-  if (!gc || typeof gc !== 'object') return '—';
+  if (!gc) return '—';
+  if (typeof gc === 'string') return shortenPhrase(gc, 200);
+  if (typeof gc !== 'object') return '—';
+  const gateName = String(gc.gateName || block?.gateName || '').trim();
   const metric = String(gc.metricName || '').trim();
+  const criteria = String(gc.acceptanceCriteria || gc.passCriteria || block?.passCriteria || '').trim();
   const threshold = String(gc.threshold || '').trim();
-  if (!metric && !threshold) return '—';
-  const head = metric ? `Metric: ${metric}` : 'Gate';
-  const tail = threshold ? ` · Pass: ${shortenPhrase(threshold, 60)}` : '';
-  return shortenPhrase(head + tail, 140);
+  const evidence = String(gc.evidenceArtifactId || gc.evidenceRequired || block?.evidenceRequired || '').trim();
+  const segments = [
+    gateName || metric,
+    criteria ? `Criteria: ${toSentence(criteria)}` : '',
+    threshold ? `Threshold: ${threshold}` : '',
+    evidence ? `Evidence: ${evidence}` : '',
+  ].filter(Boolean);
+  return segments.length > 0 ? shortenPhrase(segments.join(' · '), 200) : '—';
 }

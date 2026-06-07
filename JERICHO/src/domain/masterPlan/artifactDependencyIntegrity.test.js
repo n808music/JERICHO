@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildFullHorizonScheduleExport } from './exportFullHorizonSchedule.js';
+import { summarizeArtifactDependencyIntegrity } from './artifactDependencyIntegrity.js';
 import { expandFullHorizonSchedule } from './fullHorizonScheduleExpansion.js';
 
 const PLAN = {
@@ -168,5 +169,42 @@ describe('full-horizon export contract includes artifact integrity bundle', () =
     expect(sample?.id).toBeTruthy();
     expect(sample?.outputArtifact?.artifactId).toBeTruthy();
     expect(Array.isArray(sample?.consumedArtifactIds)).toBe(true);
+  });
+
+  it('flags future block and artifact references after cross-lane style dependencies are attached', () => {
+    const summary = summarizeArtifactDependencyIntegrity([
+      {
+        id: 'consumer',
+        dayKey: '2026-06-25',
+        startISO: '2026-06-25T09:00:00.000Z',
+        title: 'Consume future proof',
+        blockType: 'action',
+        phaseLabel: 'P1',
+        laneId: 'lane-income',
+        owner: 'Revenue Lead',
+        outputArtifactId: 'artifact:consumer',
+        outputArtifact: { artifactId: 'artifact:consumer', artifactName: 'Consumer output' },
+        consumedArtifactIds: ['artifact:future-platform'],
+        dependsOnBlockIds: ['future-platform'],
+      },
+      {
+        id: 'future-platform',
+        dayKey: '2026-07-21',
+        startISO: '2026-07-21T09:00:00.000Z',
+        title: 'Future platform proof',
+        blockType: 'action',
+        phaseLabel: 'P1',
+        laneId: 'lane-product',
+        owner: 'Product Lead',
+        outputArtifactId: 'artifact:future-platform',
+        outputArtifact: { artifactId: 'artifact:future-platform', artifactName: 'Future platform proof' },
+        consumedArtifactIds: [],
+        dependsOnBlockIds: [],
+      },
+    ]);
+
+    expect(summary.integrityReport.dependencyAudit.status).toBe('FAIL');
+    expect(summary.integrityReport.dependencyAudit.failureCounts.FUTURE_BLOCK_DEPENDENCY).toBe(1);
+    expect(summary.integrityReport.dependencyAudit.failureCounts.FUTURE_ARTIFACT_CONSUMPTION).toBe(1);
   });
 });

@@ -62,6 +62,9 @@ describe('expansion-engine gate blocks carry full criteria substrate', () => {
       expect(gate.decisionAuthority).toBeTruthy();
       expect(gate.passBranch).toBeTruthy();
       expect(gate.failBranch).toBeTruthy();
+      expect(gate.gateCriteria?.metricName).toBeTruthy();
+      expect(gate.gateCriteria?.threshold).toBeTruthy();
+      expect(gate.gateCriteria?.evidenceArtifactId).toBeTruthy();
     }
   });
 });
