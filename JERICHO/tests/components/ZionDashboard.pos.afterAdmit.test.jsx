@@ -510,7 +510,7 @@ describe('ZionDashboard POS after admit', () => {
       .getByText(/^Stability Score$/i)
       .closest('.rounded-xl');
     expect(stabilityCard).toBeTruthy();
-    expect(stabilityCard).toHaveTextContent(/No active execution cycle\./i);
+    expect(stabilityCard).toHaveTextContent(/No active Operating Cycle\./i);
     expect(stabilityCard).toHaveTextContent(/Momentum[\s\S]*—/i);
     expect(stabilityCard).not.toHaveTextContent(/\b50%\b/);
 
@@ -520,7 +520,7 @@ describe('ZionDashboard POS after admit', () => {
     expect(containmentCard).toBeTruthy();
     expect(containmentCard).toHaveTextContent(/Active goals\s*0/i);
     expect(containmentCard).toHaveTextContent(/Active cycles\s*0/i);
-    expect(within(containmentCard).getByText(/Start an execution cycle before recording cycle friction\./i)).toBeInTheDocument();
+    expect(within(containmentCard).getByText(/Start an Operating Cycle before recording cycle friction\./i)).toBeInTheDocument();
     expect(screen.getByText(/^Record friction event$/i)).toBeInTheDocument();
   });
 
@@ -557,9 +557,11 @@ describe('ZionDashboard POS after admit', () => {
     mockStore.profilesById['profile-local-default'].activeMasterPlanId = 'masterplan-1';
     render(<ZionDashboard initialView="today" initialZionView="day" />);
 
-    expect(screen.getAllByText(/First execution cycle schedule/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/First Sprint/i).length).toBeGreaterThan(0);
     expect(
-      screen.getByText(/Today shows committed execution work\. Future roadmap and forecast work remain visible in Plan\./i)
+      screen.getByText(
+        /Today shows committed execution work\. Future roadmap and forecast work remain visible in Master Plan\./i
+      )
     ).toBeInTheDocument();
     expect(screen.getByText(/^Active Phase$/i)).toBeInTheDocument();
     expect(screen.getByText(/P1 · Foundation \/ Launch Proof/i)).toBeInTheDocument();
@@ -748,13 +750,13 @@ describe('ZionDashboard POS after admit', () => {
 
     render(<ZionDashboard initialView="structure" />);
 
-    const executionCycleSection = screen.getByText(/^Execution Cycle$/i).closest('details');
+    const executionCycleSection = screen.getByText(/^Operating Cycle$/i).closest('details');
     expect(executionCycleSection).toBeTruthy();
 
-    fireEvent.click(within(executionCycleSection).getByRole('button', { name: /Start Execution Cycle/i }));
+    fireEvent.click(within(executionCycleSection).getByRole('button', { name: /Start Operating Cycle/i }));
 
     expect(startNewCycleWithDecision).toHaveBeenCalledWith({ mode: 'archive' });
-    expect(screen.queryByRole('dialog', { name: /Replace active execution cycle/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /Replace active operating cycle/i })).not.toBeInTheDocument();
   });
 
   it('prefers canonical initial-feasibility percent over the legacy cycle metric fallback', () => {

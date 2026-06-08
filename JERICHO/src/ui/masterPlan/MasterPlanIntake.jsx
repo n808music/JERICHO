@@ -554,13 +554,13 @@ function ScheduleConfirmInput({ intake, onSubmit }) {
       : horizon?.horizonEnd || 'Long-horizon plan preserved';
   return (
     <div className="intake-schedule-confirm">
-      <p>This creates the master plan and then schedules only the first execution cycle.</p>
+      <p>This creates the Master Plan and then schedules only the first Sprint inside the first Operating Cycle.</p>
       <div className="rounded-md border border-line/50 bg-jericho-bg px-3 py-3 text-xs text-muted space-y-1">
         <p>
-          <span className="font-medium text-jericho-text">Master-plan horizon:</span> {masterPlanHorizon}
+          <span className="font-medium text-jericho-text">Master Plan horizon:</span> {masterPlanHorizon}
         </p>
         <p>
-          <span className="font-medium text-jericho-text">First execution cycle:</span> default 2-week schedule window
+          <span className="font-medium text-jericho-text">First Sprint:</span> default 2-week schedule window
         </p>
         <p>
           <span className="font-medium text-jericho-text">Why this slice comes first:</span> Jericho schedules the

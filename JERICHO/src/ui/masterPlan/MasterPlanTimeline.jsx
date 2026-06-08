@@ -459,9 +459,9 @@ function buildCommitmentLayers({ plan, lanes, milestones, anchors, planCycle, co
     ? String(planCycle?.reassessmentStatus || '').trim().toLowerCase() === 'required'
       ? 'Required before committing additional work'
       : liveCycleEnd
-        ? `End of current execution cycle · ${formatDateLabel(liveCycleEnd)}`
-        : 'After the current execution cycle evidence review'
-    : 'Start an execution cycle to create the first reassessment gate';
+        ? `End of current Operating Cycle · ${formatDateLabel(liveCycleEnd)}`
+        : 'After the current Operating Cycle evidence review'
+    : 'Start an Operating Cycle to create the first reassessment gate';
   const forecastShortOfAnchor = Boolean(
     firstAnchorDayKey &&
       committedWindowEnd &&
@@ -1121,9 +1121,9 @@ function StrategicCoveragePanel({
           <p className="text-xs uppercase tracking-[0.14em] text-muted">Strategic coverage</p>
           <p className="text-sm text-muted">
             {strategicCoverageAudit?.fullHorizonCovered
-              ? 'Jericho expresses meaningful work through the declared horizon. Only the current execution cycle is committed to Today.'
+              ? 'Jericho expresses meaningful work through the declared horizon. Only the current Operating Cycle is committed to Today.'
               : strategicCoverageAudit?.horizonExpanded
-                ? 'Future work is expanding beyond the current cycle, but terminal coverage is not yet fully trusted.'
+                ? 'Future work is expanding beyond the current Operating Cycle, but terminal coverage is not yet fully trusted.'
                 : 'Jericho has resolved the horizon endpoint, but full terminal coverage is not yet proven.'}
           </p>
         </div>
@@ -1289,7 +1289,7 @@ function StrategicCoveragePanel({
                 Constraints: {scheduledAgendaConstraintVersion ? 'Active' : 'Not versioned'}
               </p>
               <p className="text-[11px] text-muted">
-                These blocks are future work: the active execution cycle is still the only live schedule.
+                These blocks are future work: the active Operating Cycle is still the only live schedule.
               </p>
               <p className="text-[11px] text-muted">Filtered view only. Execution remains cycle-gated.</p>
             </>
@@ -1328,14 +1328,14 @@ function StrategicCoveragePanel({
           }
         />
         <CoverageItem
-          label="Current execution cycle"
+          label="Current Operating Cycle"
           value={
             strategicCoverage.executionCycleWindow
               ? `${formatRangeLabel(
                   strategicCoverage.executionCycleWindow.start,
                   strategicCoverage.executionCycleWindow.end
                 )} · ${strategicCoverage.executionCycleWindow.days} days`
-              : 'No execution cycle started'
+              : 'No Operating Cycle started'
           }
         />
         <CoverageItem
@@ -1385,8 +1385,8 @@ function StrategicCoveragePanel({
             strategicCoverage.scheduledWindow
               ? formatRangeLabel(strategicCoverage.scheduledWindow.start, strategicCoverage.scheduledWindow.end)
               : isForecastOnlyLifecycle
-                ? 'No execution cycle schedule yet'
-                : 'No committed schedule yet'
+                ? 'No Sprint scheduled yet'
+                : 'No Activated Plan yet'
           }
         />
         <CoverageItem label="Next reassessment gate" value={commitmentLayers.nextReassessmentGate} />
@@ -1407,7 +1407,7 @@ function StrategicCoveragePanel({
           <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Horizon View</p>
           <div className="flex flex-wrap gap-2">
             {[
-              ['current_cycle', 'Current cycle', 'Executable strategic surface for the active phase.'],
+              ['current_cycle', 'Current Sprint', 'Executable strategic surface for the active Phase.'],
               ['one_year', '1 year', 'Tactical launch readiness and near-term anchors.'],
               ['two_year', '2 years', 'Operating-system buildout and early scale path.'],
               ['three_year', '3 years', 'Mid-horizon expansion and measurable strategic inflection.'],
@@ -1432,7 +1432,7 @@ function StrategicCoveragePanel({
           </div>
         </div>
         <p>{
-          horizonView === 'current_cycle' ? 'Current cycle view: executable strategic surface for the active phase.' :
+          horizonView === 'current_cycle' ? 'Current Sprint view: executable strategic surface for the active Phase.' :
           horizonView === 'one_year' ? '1-year view: tactical launch readiness and near-term anchors.' :
           horizonView === 'two_year' ? '2-year view: operating-system buildout and early scale path.' :
           horizonView === 'three_year' ? '3-year view: mid-horizon expansion and measurable strategic inflection.' :
@@ -1440,7 +1440,7 @@ function StrategicCoveragePanel({
           horizonView === 'five_year' ? '5-year view: full mission arc through terminal readiness.' :
           'Full horizon view: complete strategic architecture through 2031.'
         }</p>
-        <p>Only the first execution cycle is scheduled.</p>
+        <p>Only the first Sprint is scheduled.</p>
         <p>Future work remains forecast or gated until reassessment confirms it.</p>
         <p>Future phases are strategic, not calendar-committed.</p>
         <p>Calendar commitment expands through reassessment and execution evidence.</p>
@@ -1511,7 +1511,7 @@ function StrategicCoveragePanel({
                 </p>
                 {isForecastOnlyLifecycle ? (
                   <p>
-                    <span className="font-semibold text-jericho-text">Current cycle:</span> Not scheduled for execution
+                    <span className="font-semibold text-jericho-text">Current Sprint:</span> Not scheduled for execution
                   </p>
                 ) : null}
                 <p>

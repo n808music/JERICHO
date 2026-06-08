@@ -293,7 +293,7 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByTestId('masterplan-quality-status')).toHaveTextContent(/Plan quality unavailable/i);
     expect(screen.getByTestId('masterplan-block-quality-status')).toHaveTextContent(/Forecast block quality unavailable/i);
     expect(screen.getByText(/Coverage must pass before the plan-quality gate can trust the long-horizon workload\./i)).toBeInTheDocument();
-    expect(screen.getByText(/Only the first execution cycle is scheduled\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Only the first Sprint is scheduled\./i)).toBeInTheDocument();
     expect(screen.getByText(/Not yet scheduled does not mean not recognized\./i)).toBeInTheDocument();
     expect(screen.getByText(/Future work remains forecast or gated until reassessment confirms it\./i)).toBeInTheDocument();
     expect(screen.getByText(/Full Phase Plan/i)).toBeInTheDocument();
@@ -406,7 +406,7 @@ describe('MasterPlanTimeline rendering', () => {
       render(<MasterPlanTimeline />);
     });
 
-    expect(screen.getByText(/^Master-plan horizon$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Master Plan horizon$/i)).toBeInTheDocument();
     expect(screen.getAllByText(/May 4, 2026 → May 4, 2029/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/^First hard anchor$/i)).toBeInTheDocument();
     expect(screen.getByText(/Oct 17 launch target · Oct 17, 2026/i)).toBeInTheDocument();
@@ -523,7 +523,7 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByTestId('phase-card-p2')).not.toHaveTextContent(/Scheduled work:/i);
     expect(screen.getByText(/^Strategic forecast work$/i)).toBeInTheDocument();
     expect(screen.getByText(/^Current scheduled work$/i)).toBeInTheDocument();
-    expect(screen.getByText(/No execution cycle schedule yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/No Sprint scheduled yet/i)).toBeInTheDocument();
   });
 
   it('renders the persisted plan view after rehydration instead of falling back to the empty state', async () => {

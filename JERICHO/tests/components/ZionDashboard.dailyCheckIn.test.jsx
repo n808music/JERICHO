@@ -173,8 +173,8 @@ describe('ZionDashboard no-active-cycle Today authority', () => {
     expect(screen.queryByText(/Where You Are/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/behind plan/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/ALERT/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/No execution cycle active\./i)).toBeInTheDocument();
-    expect(screen.getByText(/Start your first cycle when ready\./i)).toBeInTheDocument();
+    expect(screen.getByText(/No Operating Cycle active\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Start your first Operating Cycle when ready\./i)).toBeInTheDocument();
   });
 
   it('still renders check-in when a cycle with an active schedule exists', () => {
@@ -183,7 +183,6 @@ describe('ZionDashboard no-active-cycle Today authority', () => {
     render(<ZionDashboard initialView="today" initialZionView="day" />);
 
     expect(screen.getByText(/Where You Are/i)).toBeInTheDocument();
-    expect(screen.queryByText(/No execution cycle active\./i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No Operating Cycle active\./i)).not.toBeInTheDocument();
   });
 });
-

@@ -111,18 +111,18 @@ describe('StructurePageConsolidated unified intake ownership', () => {
 
     render(<StructurePageConsolidated />);
 
-    expect(screen.getByText(/Goal established\. Review lanes, anchors, and milestones in Plan\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Goal established\. Review lanes, anchors, and milestones in Master Plan\./i)).toBeInTheDocument();
     expect(screen.getByText(/^Core Mission$/i)).toBeInTheDocument();
     expect(screen.getByText(/^Outcome Target$/i)).toBeInTheDocument();
     expect(screen.getByText(/^Success Standard$/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Clear Goal/i })).toBeInTheDocument();
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
-    expect(screen.getByText(/^Execution Cycle$/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Start Execution Cycle/i })).toBeInTheDocument();
+    expect(screen.getByText(/^Operating Cycle$/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Start Operating Cycle/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Reassess Current State/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /Archive Cycle/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /Reset Cycle/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /Delete Cycle/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Archive Operating Cycle/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Reset Operating Cycle/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Delete Operating Cycle/i })).toBeDisabled();
     expect(screen.queryByRole('button', { name: /Generate schedule/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Apply schedule/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Activate schedule/i })).not.toBeInTheDocument();
@@ -171,10 +171,10 @@ describe('StructurePageConsolidated unified intake ownership', () => {
 
     render(<StructurePageConsolidated />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Start Execution Cycle/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Start Operating Cycle/i }));
 
     expect(startNewCycleWithDecision).toHaveBeenCalledWith({ mode: 'archive' });
-    expect(screen.queryByRole('dialog', { name: /Replace active execution cycle/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /Replace active operating cycle/i })).not.toBeInTheDocument();
   });
 
   it('starts a new cycle directly when the activeCycleId pointer is stale or invalid', () => {
@@ -202,10 +202,10 @@ describe('StructurePageConsolidated unified intake ownership', () => {
 
     render(<StructurePageConsolidated />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Start Execution Cycle/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Start Operating Cycle/i }));
 
     expect(startNewCycleWithDecision).toHaveBeenCalledWith({ mode: 'archive' });
-    expect(screen.queryByRole('dialog', { name: /Replace active execution cycle/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /Replace active operating cycle/i })).not.toBeInTheDocument();
   });
 
   it('shows distinct pending text for Success Standard when successStandard field is absent', () => {
@@ -238,7 +238,7 @@ describe('StructurePageConsolidated unified intake ownership', () => {
     expect(screen.queryAllByText('Grow revenue to $10k/month')).toHaveLength(1);
   });
 
-  it('Archive Cycle button has no amber styling when no active cycle', () => {
+  it('Archive Operating Cycle button has no amber styling when no active cycle', () => {
     mockStore = {
       ...buildPreAdmissionStore(),
       profilesById: {
@@ -259,7 +259,7 @@ describe('StructurePageConsolidated unified intake ownership', () => {
 
     render(<StructurePageConsolidated />);
 
-    const archiveBtn = screen.getByRole('button', { name: /Archive Cycle/i });
+    const archiveBtn = screen.getByRole('button', { name: /Archive Operating Cycle/i });
     expect(archiveBtn).toBeDisabled();
     expect(archiveBtn.className).not.toMatch(/amber/);
   });
@@ -294,9 +294,9 @@ describe('StructurePageConsolidated unified intake ownership', () => {
 
     render(<StructurePageConsolidated />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Replace Active Cycle/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Replace Active Operating Cycle/i }));
 
-    expect(screen.getByRole('dialog', { name: /Replace active execution cycle/i })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /Replace active operating cycle/i })).toBeInTheDocument();
     expect(screen.getByText(/The goal will remain\./i)).toBeInTheDocument();
   });
 });

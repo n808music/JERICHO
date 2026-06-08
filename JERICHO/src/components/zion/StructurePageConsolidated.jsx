@@ -267,16 +267,16 @@ function MasterPlanStructureSection({
     <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4 space-y-3">
       <div>
         <div className="text-xs uppercase tracking-[0.14em] text-muted mb-2">Goal</div>
-        <div className="text-sm font-semibold text-jericho-text">Structure establishes the goal and master plan</div>
+        <div className="text-sm font-semibold text-jericho-text">Structure establishes the goal and Master Plan</div>
         <div className="text-xs text-muted mt-1">
-          Define lanes, anchors, milestones, and convergence logic here. The Plan tab visualizes the result read-only.
+          Define lanes, anchors, milestones, and convergence logic here. The Master Plan tab visualizes the result read-only.
         </div>
       </div>
 
       {hasActiveMasterPlan && masterPlanIntakeStatus !== 'in-progress' ? (
         <>
           <div className="rounded-lg border border-line/40 bg-jericho-surface/80 p-3 text-xs text-muted">
-            Goal established. Review lanes, anchors, and milestones in Plan.
+            Goal established. Review lanes, anchors, and milestones in Master Plan.
           </div>
           <div className="rounded-lg border border-line/40 bg-jericho-surface/80 p-3 space-y-3">
             <div className="space-y-2">
@@ -304,8 +304,8 @@ function MasterPlanStructureSection({
               </div>
               <div className="text-xs text-muted">
                 {activeCycle?.id
-                  ? `Active execution cycle: ${activeCycle.id}`
-                  : 'No active execution cycle yet. Start Execution Cycle to create one.'}
+                  ? `Active Operating Cycle: ${activeCycle.id}`
+                  : 'No active Operating Cycle yet. Start Operating Cycle to create one.'}
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -343,12 +343,12 @@ function CycleManagementSection({
   return (
     <details className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4" open={hasActiveMasterPlan && !hasActiveCycle}>
       <summary className="cursor-pointer flex items-center gap-2">
-        <p className="text-xs uppercase tracking-[0.14em] text-muted">Execution Cycle</p>
+        <p className="text-xs uppercase tracking-[0.14em] text-muted">Operating Cycle</p>
       </summary>
       <div className="mt-3 space-y-3">
         {!hasActiveCycle ? (
           <p className="text-xs text-muted">
-            No active execution cycle yet. Start one here, then generate the schedule from Today.
+            No active Operating Cycle yet. Start one here, then generate the first Sprint from Today.
           </p>
         ) : (
           <div className="space-y-1 text-xs text-muted">
@@ -370,7 +370,7 @@ function CycleManagementSection({
             onClick={onStartNewCycleRequest}
             className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent"
           >
-            {hasActiveCycle ? 'Replace Active Cycle' : 'Start Execution Cycle'}
+            {hasActiveCycle ? 'Replace Active Operating Cycle' : 'Start Operating Cycle'}
           </button>
           <button
             onClick={onCompleteReassessment}
@@ -384,21 +384,21 @@ function CycleManagementSection({
             disabled={!hasActiveCycle}
             className={`rounded-full border px-3 py-1 text-xs disabled:opacity-50 ${hasActiveCycle ? 'border-amber-600 text-amber-600 hover:bg-amber-600/10' : 'border-line/60 text-muted'}`}
           >
-            Archive Cycle
+            Archive Operating Cycle
           </button>
           <button
             onClick={onResetCycle}
             disabled={!hasActiveCycle}
             className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent disabled:opacity-50"
           >
-            Reset Cycle
+            Reset Operating Cycle
           </button>
           <button
             onClick={onDeleteCycle}
             disabled={!hasActiveCycle}
             className="rounded-full border border-red-600 px-3 py-1 text-xs text-red-600 hover:bg-red-600/10 disabled:opacity-50"
           >
-            Delete Cycle
+            Delete Operating Cycle
           </button>
         </div>
       </div>
@@ -1040,7 +1040,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   const handleClearGoal = () => {
     if (
       window.confirm(
-        'Clear the current goal? This deletes the goal, master plan, execution cycle, schedule, and evidence and returns Jericho to blank state.'
+        'Clear the current goal? This deletes the goal, Master Plan, Operating Cycle, schedule, and evidence and returns Jericho to blank state.'
       )
     ) {
       resetIdentity?.();
@@ -1058,7 +1058,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
     }
     if (
       window.confirm(
-        'Reset the active cycle? This clears generated schedule, applied schedule, and execution evidence for this cycle but keeps the master plan.'
+        'Reset the active Operating Cycle? This clears generated schedule, applied schedule, and execution evidence for this Operating Cycle but keeps the Master Plan.'
       )
     ) {
       resetActiveCycle?.(activeCycleId);
@@ -1076,7 +1076,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
     if (!hasValidActiveExecutionCycle || !activeCycleId) {
       return;
     }
-    if (window.confirm('Delete the active cycle and clear the calendar? This cannot be undone.')) {
+    if (window.confirm('Delete the active Operating Cycle and clear the calendar? This cannot be undone.')) {
       store.deleteCycle?.(activeCycleId);
       try {
         window.location.hash = '#/structure';
@@ -1135,7 +1135,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
                 if (!hasValidActiveExecutionCycle || !activeCycleId) {
                   return;
                 }
-                if (window.confirm('Archive the active cycle and move it to review mode?')) {
+                if (window.confirm('Archive the active Operating Cycle and move it to review mode?')) {
                   store.endCycle?.(activeCycleId);
                 }
               }}
@@ -1782,7 +1782,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
             <div className="text-[11px] text-muted">Saving constraints...</div>
           ) : null}
           {constraintsSaveState === 'saved' ? (
-            <div className="text-[11px] text-emerald-700">Constraints saved to active cycle.</div>
+            <div className="text-[11px] text-emerald-700">Constraints saved to the active Operating Cycle.</div>
           ) : null}
           {constraintsSaveState === 'dirty' ? (
             <div className="text-[11px] text-muted">Unsaved constraint changes.</div>
@@ -1893,7 +1893,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
           if (!hasValidActiveExecutionCycle || !activeCycleId) {
             return;
           }
-          if (window.confirm('Archive the active cycle and move it to review mode?')) {
+          if (window.confirm('Archive the active Operating Cycle and move it to review mode?')) {
             store.endCycle?.(activeCycleId);
           }
         }}
@@ -1902,7 +1902,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
           if (!hasValidActiveExecutionCycle || !activeCycleId) {
             return;
           }
-          if (window.confirm('Delete the active cycle and clear the calendar? This cannot be undone.')) {
+          if (window.confirm('Delete the active Operating Cycle and clear the calendar? This cannot be undone.')) {
             store.deleteCycle?.(activeCycleId);
             try {
               window.location.hash = '#/structure';

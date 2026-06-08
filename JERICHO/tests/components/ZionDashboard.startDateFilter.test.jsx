@@ -176,7 +176,7 @@ describe('ZionDashboard start date guard', () => {
 
     render(<ZionDashboard initialView="today" initialZionView="day" initialAnchorDayKey="2026-06-08" />);
 
-    expect(document.body.textContent).toMatch(/Execution cycle horizon:\s*Jun 8/i);
-    expect(document.body.textContent).not.toMatch(/Execution cycle horizon:\s*May 19/i);
+    expect(document.body.textContent).toMatch(/Operating Cycle horizon:\s*Jun 8/i);
+    expect(document.body.textContent).not.toMatch(/Operating Cycle horizon:\s*May 19/i);
   });
 });

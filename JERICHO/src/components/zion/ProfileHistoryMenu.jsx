@@ -354,7 +354,7 @@ export default function ProfileHistoryMenu({
               {needsProfileSetup ? 'Create profile' : profileDisplayName}
             </p>
             <p className="truncate text-[11px] text-muted">
-              {roleLabel || activePlanRecord?.plan?.title || 'Profile owns goals, plans, and cycles'}
+              {roleLabel || activePlanRecord?.plan?.title || 'Profile owns goals, Master Plans, and Operating Cycles'}
             </p>
           </div>
           <div className="text-right text-[11px] text-muted">
@@ -450,7 +450,7 @@ export default function ProfileHistoryMenu({
               <SummaryPill label="Profile" value={profileDisplayName} />
               <SummaryPill label="Active Goal" value={activeGoalRecord?.label || 'None'} />
               <SummaryPill label="Active Plan" value={activePlanRecord?.plan?.title || activePlanRecord?.plan?.coreMission || 'None'} />
-              <SummaryPill label="Active Cycle" value={activeCycleRecord?.label || 'None'} />
+              <SummaryPill label="Active Operating Cycle" value={activeCycleRecord?.label || 'None'} />
             </div>
 
             <p className="text-[10px] text-muted">
@@ -519,7 +519,7 @@ export default function ProfileHistoryMenu({
             </div>
 
             <div>
-              <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Cycle History</p>
+              <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Operating Cycle History</p>
               <div className="mt-2 space-y-2">
                 {cycleRecords.length > 0 ? (
                   cycleRecords.map(({ id, cycle, label, isActive }) => (
@@ -544,14 +544,14 @@ export default function ProfileHistoryMenu({
                             onClick={() => onSelectCycle(id)}
                             className="rounded-full border border-line/60 px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-muted hover:border-jericho-accent hover:text-jericho-accent"
                           >
-                            View Cycle
+                            View Operating Cycle
                           </button>
                         ) : null
                       }
                     />
                   ))
                 ) : (
-                  <p className="text-xs text-muted">No cycle history stored under this profile yet.</p>
+                  <p className="text-xs text-muted">No Operating Cycle history stored under this profile yet.</p>
                 )}
               </div>
             </div>
