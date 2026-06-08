@@ -1249,6 +1249,8 @@ export default function ZionDashboard({
       null,
   });
   const contractStartDayKey = normalizeDayKeyValue(contractStartDateValue);
+  const effectiveExecutionDayKey =
+    contractStartDayKey && activeDayKey && activeDayKey < contractStartDayKey ? contractStartDayKey : activeDayKey;
   const contractStartReasonLabel = String(
     shouldResolveMasterPlanCycleStart ? cycleStartResolution?.reasonLabel || activeCycle?.startDateReason || '' : ''
   ).trim();
@@ -1363,7 +1365,11 @@ export default function ZionDashboard({
       )
     : 'No active Operating Cycle';
   const hasStaleActiveSchedule = hasActiveSchedule && !hasVisibleCanonicalBlocks;
-  const anchorISO = anchorDayKey ? `${anchorDayKey}T12:00:00.000Z` : appTime?.nowISO || '';
+  const resolvedAnchorDayKey =
+    zionView === 'day'
+      ? effectiveExecutionDayKey || anchorDayKey || activeDayKey
+      : anchorDayKey || effectiveExecutionDayKey || activeDayKey;
+  const anchorISO = resolvedAnchorDayKey ? `${resolvedAnchorDayKey}T12:00:00.000Z` : appTime?.nowISO || '';
   const windowSpec = buildWindowSpec(zionView, anchorISO, timeZone);
   const windowLabel = formatWindowLabel(windowSpec, timeZone);
   const scheduleSource = getCanonicalProposedBlocks(proposedBlocks, suggestedBlocks);
@@ -1604,7 +1610,7 @@ export default function ZionDashboard({
     });
     return map;
   }, [calendarSurfaceBlocks, timeZone]);
-  const selectedDayBlocks = calendarDayBlocksMap.get(activeDayKey) || [];
+  const selectedDayBlocks = calendarDayBlocksMap.get(effectiveExecutionDayKey) || [];
   const dailyCheckInView = useMemo(() => {
     if (!hasVisibleScheduleBlocks || !hasActiveSchedule) {
       return null;
@@ -1616,7 +1622,7 @@ export default function ZionDashboard({
       activeCycle?.goalContract?.feasibilityAssessment ||
       canonicalContract?.feasibilityAssessment ||
       null;
-    const asOfISO = appTime?.nowISO || `${activeDayKey}T12:00:00.000Z`;
+    const asOfISO = appTime?.nowISO || `${effectiveExecutionDayKey}T12:00:00.000Z`;
     return deriveDailyCheckIn({
       plan: {
         scheduledBlocks: scheduleDisplayItemsAllResolved,
@@ -1645,6 +1651,7 @@ export default function ZionDashboard({
     activePlanSummary,
     appTime?.nowISO,
     activeDayKey,
+    effectiveExecutionDayKey,
     scheduleDisplayItemsAllResolved,
     executionEvents,
   ]);
@@ -1778,6 +1785,14 @@ export default function ZionDashboard({
   const activePhase = phaseModel?.activePhase || null;
   const nextPhase = phaseModel?.nextPhase || null;
   const activePhaseStatusReport = activePhase?.statusReport || null;
+  const blockHierarchyContext = useMemo(
+    () => ({
+      phase: activePhase ? `${activePhase.label}${activePhase.name ? ` / ${activePhase.name}` : ''}` : undefined,
+      operatingCycle: executionCycleHorizonLabel,
+      sprint: schedulePreviewWindowLabel,
+    }),
+    [activePhase, executionCycleHorizonLabel, schedulePreviewWindowLabel]
+  );
   const generateDisabledReason = isCycleReadOnly
     ? 'Cycle is read-only.'
     : suppressDrafts
@@ -3123,7 +3138,7 @@ export default function ZionDashboard({
                 </button>
                 <div className="text-center">
                   <p className="text-lg font-semibold" data-window-label>
-                    {zionView === 'day' ? formatDayKeyLabel(activeDayKey) : windowLabel}
+                    {zionView === 'day' ? formatDayKeyLabel(effectiveExecutionDayKey) : windowLabel}
                   </p>
                   <p className="text-[11px] uppercase tracking-[0.14em] text-muted">
                     {zionView === 'day' ? 'Today' : zionView}
@@ -3160,7 +3175,7 @@ export default function ZionDashboard({
                   <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
                     <div className="space-y-3">
                     <BlockColumn
-                      dateLabel={activeDayKey}
+                      dateLabel={effectiveExecutionDayKey}
                       blocks={selectedDayBlocks}
                       drafts={[]}
                       selectedBlockId={selectedBlockId}
@@ -3622,7 +3637,7 @@ export default function ZionDashboard({
                     <div className="space-y-3">
                       <PlanningPanel
                         surface="today"
-                        selectedDayKey={activeDayKey}
+                        selectedDayKey={effectiveExecutionDayKey}
                         onSelectedDayKeyChange={actions.setActiveDayKey}
                         blocks={selectedDayBlocks}
                         selectedBlockId={selectedBlockId}
@@ -3644,6 +3659,7 @@ export default function ZionDashboard({
                         readOnly={isCycleReadOnly}
                         executionLocked={hasPendingActivation}
                         executionLockReason={executionLockReason}
+                        hierarchyContext={blockHierarchyContext}
                       />
                     </div>
                   </div>
@@ -3763,14 +3779,10 @@ export default function ZionDashboard({
                   {selectedBlockId ? (
                     <BlockDetailsPanel
                       blockId={selectedBlockId}
-                      blocks={normalizedBlocks}
+                      blocks={calendarSurfaceBlocks}
                       lineageBlocks={calendarSurfaceBlocks}
                       surface="today"
-                      hierarchyContext={{
-                        phase: activePhase ? `${activePhase.label} ${activePhase.name ? ` / ${activePhase.name}` : ''}` : undefined,
-                        operatingCycle: executionCycleHorizonLabel,
-                        sprint: schedulePreviewWindowLabel,
-                      }}
+                      hierarchyContext={blockHierarchyContext}
                       onComplete={hasPendingActivation ? undefined : handleCompleteBlock}
                       onMiss={hasPendingActivation ? undefined : handleMissBlock}
                       onDelete={handleDeleteBlock}

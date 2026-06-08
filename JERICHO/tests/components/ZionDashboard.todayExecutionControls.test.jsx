@@ -328,4 +328,24 @@ describe('ZionDashboard today execution controls', () => {
     expect(screen.queryByText(/Stale pre-floor block/i)).not.toBeInTheDocument();
     expect(screen.getByTestId('block-blk-today')).toBeInTheDocument();
   });
+
+  it('clamps stale active-day rendering to the effective executable floor after reassessment', async () => {
+    const initialState = buildExecutionState();
+    initialState.appTime = {
+      ...initialState.appTime,
+      activeDayKey: '2026-05-26',
+      nowISO: '2026-06-08T12:00:00.000Z',
+    };
+    initialState.today = {
+      ...initialState.today,
+      date: '2026-05-26',
+    };
+
+    renderExecutionDashboard(initialState);
+
+    expect(screen.getByText(/Day details — 2026-06-08/i)).toBeInTheDocument();
+    expect(screen.getByTestId('block-blk-today')).toBeInTheDocument();
+    expect(screen.queryByText(/Stale pre-floor block/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Day details — 2026-05-26/i)).not.toBeInTheDocument();
+  });
 });

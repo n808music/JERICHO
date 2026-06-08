@@ -29,6 +29,7 @@ export default function PlanningPanel({
   lineageBlocks = null,
   executionLocked = false,
   executionLockReason = '',
+  hierarchyContext = null,
 }) {
   const deliverableLabelById = React.useMemo(
     () =>
@@ -68,6 +69,7 @@ export default function PlanningPanel({
         criterionLabelById={criterionLabelById}
         deliverableLabelById={deliverableLabelById}
         lineageBlocks={lineageBlocks}
+        hierarchyContext={hierarchyContext}
         timeZone={timeZone}
         readOnly={readOnly}
         executionLocked={executionLocked}

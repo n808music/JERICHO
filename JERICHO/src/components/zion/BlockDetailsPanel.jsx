@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { localStartFromDayAndTime, pad2 } from './timeUtils.js';
 import { describeBlockMeaning } from './blockMeaning.js';
 import { resolveOperatingHierarchyDisplay } from '../../domain/product/resolveOperatingHierarchyDisplay.js';
+import { resolveBlockPlainLanguage } from '../../domain/product/resolveBlockPlainLanguage.js';
 
 /**
  * Shared block details panel.
@@ -53,6 +54,12 @@ export default function BlockDetailsPanel({
         : null,
     [block, hierarchyContext]
   );
+  const plainLanguage = useMemo(() => {
+    if (!block || !hierarchy) {
+      return null;
+    }
+    return resolveBlockPlainLanguage(block, { hierarchy });
+  }, [block, hierarchy]);
   const [editing, setEditing] = useState(false);
 
   const initialDate = block?.start ? block.start.slice(0, 10) : '';
@@ -102,9 +109,6 @@ export default function BlockDetailsPanel({
   return (
     <div className="rounded-md border border-line/60 bg-jericho-surface px-3 py-2 text-xs space-y-1">
       <p className="text-muted font-semibold">Block details</p>
-      <p className="text-jericho-text font-semibold">
-        {block.displayTitle || block.label || `${block.practice || block.domain} block`}
-      </p>
       {hierarchy ? (
         <div className="rounded-md border border-line/40 bg-jericho-bg/70 px-2 py-2 text-[11px] space-y-1">
           <p className="text-muted font-semibold">Hierarchy</p>
@@ -119,6 +123,43 @@ export default function BlockDetailsPanel({
           ) : null}
         </div>
       ) : null}
+      {plainLanguage ? (
+        <div className="rounded-md border border-line/40 bg-jericho-bg/70 px-2 py-2 text-[11px] space-y-2">
+          <div className="space-y-1">
+            <p className="text-muted font-semibold">What this means</p>
+            <p className="text-muted">{plainLanguage.intent}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-muted font-semibold">Do this</p>
+            {plainLanguage.steps.map((step) => (
+              <p key={step} className="text-muted">
+                - {step}
+              </p>
+            ))}
+          </div>
+          <div className="space-y-1">
+            <p className="text-muted font-semibold">Done when</p>
+            <p className="text-muted">{plainLanguage.doneWhen}</p>
+          </div>
+          <div className="grid gap-1 sm:grid-cols-2">
+            <p className="text-muted">
+              <span className="font-semibold text-jericho-text">Produces:</span> {plainLanguage.artifact}
+            </p>
+            {plainLanguage.originalWindow || plainLanguage.currentWindow ? (
+              <p className="text-muted">
+                <span className="font-semibold text-jericho-text">Window:</span>{' '}
+                {plainLanguage.originalWindow && plainLanguage.currentWindow && plainLanguage.originalWindow !== plainLanguage.currentWindow
+                  ? `Original ${plainLanguage.originalWindow} · Current ${plainLanguage.currentWindow}`
+                  : plainLanguage.currentWindow || plainLanguage.originalWindow}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+      <p className="text-muted">
+        <span className="font-semibold text-jericho-text">Formal title:</span>{' '}
+        {block.displayTitle || block.label || `${block.practice || block.domain} block`}
+      </p>
       <p className="text-muted">
         {block.practice || block.domain} · {block.status}
       </p>

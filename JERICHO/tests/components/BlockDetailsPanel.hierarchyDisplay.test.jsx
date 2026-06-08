@@ -38,7 +38,7 @@ describe('BlockDetailsPanel hierarchy display', () => {
       />
     );
 
-    expect(screen.getByText(/Hierarchy/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Hierarchy$/i)).toBeInTheDocument();
     expect(
       screen.getByText(
         /Operation Endgame → P1 Launch \/ Proof → June 2026 Operating Cycle → Jun 8–Jun 19 Sprint → Product \/ Software → Jericho System/i
@@ -47,6 +47,9 @@ describe('BlockDetailsPanel hierarchy display', () => {
     expect(
       screen.getByText((_, node) => node?.textContent === 'Block: Clarify launch-blocker requirements')
     ).toBeInTheDocument();
+    expect(screen.getByText(/What this means/i)).toBeInTheDocument();
+    expect(screen.getByText(/Clarify launch-blocker requirements\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Formal title:/i)).toBeInTheDocument();
   });
 
   it('falls back to the lane when initiative is missing', () => {
@@ -92,5 +95,54 @@ describe('BlockDetailsPanel hierarchy display', () => {
     expect(screen.getByRole('button', { name: /^Complete$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Missed$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Reschedule$/i })).toBeInTheDocument();
+  });
+
+  it('shows initiative-aware names when a block uses Operation Endgame substrate labels', () => {
+    render(
+      <BlockDetailsPanel
+        blockId="blk-1"
+        blocks={[
+          sampleBlock({
+            title: 'Validate onboarding path for Operation Endgame app platform in P1 product/software lane',
+            label: 'Validate onboarding path for Operation Endgame app platform in P1 product/software lane',
+            laneLabel: 'Operation Endgame app platform',
+          }),
+        ]}
+        hierarchyContext={{ operatingCycle: 'June 2026 Operating Cycle' }}
+        onEdit={noop}
+      />
+    );
+
+    expect(
+      screen.getByText(
+        /Operation Endgame → P1 Launch \/ Proof → June 2026 Operating Cycle → Jun 8–Jun 19 Sprint → Product \/ Software → Jericho System/i
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('renders a plain-language onboarding breakdown for formal launch-blocker test work', () => {
+    render(
+      <BlockDetailsPanel
+        blockId="blk-1"
+        blocks={[
+          sampleBlock({
+            title:
+              'Run unit and integration tests for Operation Endgame product platform onboarding implementation using launch blocker clearance for the May 2026 review window',
+            label:
+              'Run unit and integration tests for Operation Endgame product platform onboarding implementation using launch blocker clearance for the May 2026 review window',
+            laneLabel: 'Operation Endgame app platform',
+          }),
+        ]}
+        hierarchyContext={{ operatingCycle: 'June 2026 Operating Cycle' }}
+        onEdit={noop}
+      />
+    );
+
+    expect(screen.getByText(/What this means/i)).toBeInTheDocument();
+    expect(screen.getByText(/Test Jericho onboarding and login behavior enough to clear the current launch blocker/i)).toBeInTheDocument();
+    expect(screen.getByText(/Open the app as a user/i)).toBeInTheDocument();
+    expect(screen.getByText(/Produces:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Jericho System progress note/i)).toBeInTheDocument();
+    expect(screen.getByText(/Original May 2026 review window · Current June 2026 Operating Cycle/i)).toBeInTheDocument();
   });
 });
