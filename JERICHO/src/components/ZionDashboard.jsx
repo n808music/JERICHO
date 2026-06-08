@@ -3766,6 +3766,11 @@ export default function ZionDashboard({
                       blocks={normalizedBlocks}
                       lineageBlocks={calendarSurfaceBlocks}
                       surface="today"
+                      hierarchyContext={{
+                        phase: activePhase ? `${activePhase.label} ${activePhase.name ? ` / ${activePhase.name}` : ''}` : undefined,
+                        operatingCycle: executionCycleHorizonLabel,
+                        sprint: schedulePreviewWindowLabel,
+                      }}
                       onComplete={hasPendingActivation ? undefined : handleCompleteBlock}
                       onMiss={hasPendingActivation ? undefined : handleMissBlock}
                       onDelete={handleDeleteBlock}
