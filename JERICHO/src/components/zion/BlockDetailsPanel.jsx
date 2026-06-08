@@ -11,7 +11,6 @@ export default function BlockDetailsPanel({
   blocks = [],
   onComplete,
   onMiss,
-  onSkip,
   onDelete,
   onEdit,
   onLinkCriterion,
@@ -61,7 +60,7 @@ export default function BlockDetailsPanel({
     setEditDomain(block?.practice || block?.domain || 'FOCUS');
     setEditTitle(block?.label || '');
     setEditing(false);
-  }, [blockId, initialDate, startHours, startMinutes, initialTime, block]);
+  }, [blockId, initialDate, startHours, startMinutes, block?.start, block?.end, block?.practice, block?.domain, block?.label]);
 
   if (!block) return null;
   const lockedUntil = block?.lockedUntilDayKey || '';
@@ -192,10 +191,10 @@ export default function BlockDetailsPanel({
         </button>
         <button
           className="rounded-full border border-line/60 px-3 py-1 text-muted hover:text-jericho-accent"
-          onClick={() => onSkip?.(block.id)}
-          disabled={readOnly || executionLocked}
+          onClick={() => setEditing(true)}
+          disabled={readOnly || executionLocked || isLocked || !onEdit}
         >
-          Skipped
+          Reschedule
         </button>
         {block?.criterionId && onLinkCriterion ? (
           <button

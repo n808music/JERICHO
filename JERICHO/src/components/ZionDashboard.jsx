@@ -12,6 +12,7 @@ import DailyCheckInPanel from './zion/DailyCheckInPanel.jsx';
 import { StructurePageConsolidated } from './zion/StructurePageConsolidated.jsx';
 import CycleTransitionModal from './zion/CycleTransitionModal.jsx';
 import ProfileHistoryMenu from './zion/ProfileHistoryMenu.jsx';
+import ProductStateBanner from './product/ProductStateBanner.jsx';
 import { REDUCE_UI } from '../ui/reduceUIConfig.js';
 import ZionWeekView from './zion/views/ZionWeekView.jsx';
 import ZionMonthView from './zion/views/ZionMonthView.jsx';
@@ -52,6 +53,8 @@ import { getDayStats, getMonthStats, getQuarterStats } from '../state/time/viewA
 import { buildStabilityEndToEndSummary } from '../state/contracts/stabilityEndToEndVerification';
 import { deriveDailyCheckIn } from '../domain/live/dailyCheckIn.ts';
 import { deriveMasterPlanPhaseModel } from '../domain/masterPlan/masterPlanPhaseModel.js';
+import { resolveEffectiveExecutableStartDayKey } from '../domain/product/resolveEffectiveExecutableStartDayKey.js';
+import { resolveOperatingLifecycleState } from '../domain/product/resolveOperatingLifecycleState.ts';
 
 const DOMAIN_ENUM = ['BODY', 'RESOURCES', 'CREATION', 'FOCUS'];
 
@@ -628,6 +631,7 @@ function useZionState() {
   const {
     activeProfileId,
     activeGoalId,
+    profileAccess,
     profilesById,
     goalsById,
     today,
@@ -720,6 +724,7 @@ function useZionState() {
   return {
     activeProfileId,
     activeGoalId,
+    profileAccess,
     profilesById,
     goalsById,
     today,
@@ -826,6 +831,7 @@ export default function ZionDashboard({
   const {
     activeProfileId,
     activeGoalId,
+    profileAccess,
     profilesById,
     goalsById,
     today,
@@ -1224,19 +1230,24 @@ export default function ZionDashboard({
       goalExecutionContract,
     ]
   );
-  const contractStartDateValue =
-    cycleStartResolution?.resolvedStartDayKey ||
-    activeCycle?.startedAtDayKey ||
-    activeCycle?.goalGovernanceContract?.activeFromISO ||
-    activeCycle?.goalContract?.startDayKey ||
-    activeCycle?.goalContract?.startDateISO ||
-    activeCycle?.goalContract?.startDate ||
-    activeCycle?.goalContract?.temporalBinding?.startDayKey ||
-    goalExecutionContract?.startDayKey ||
-    goalExecutionContract?.startDateISO ||
-    goalExecutionContract?.startDate ||
-    goalExecutionContract?.temporalBinding?.startDayKey ||
-    null;
+  const contractStartDateValue = resolveEffectiveExecutableStartDayKey({
+    executionStartDayKey: activeCycle?.executionStartDayKey || null,
+    reassessmentCompletedAtISO: activeCycle?.reassessmentCompletedAtISO || null,
+    scheduleGeneratedAtISO: activeCycle?.scheduleGeneratedAtISO || activeCycle?.autoAsanaPlan?.audit?.generatedAtISO || null,
+    fallbackStartDayKey:
+      cycleStartResolution?.resolvedStartDayKey ||
+      activeCycle?.startedAtDayKey ||
+      activeCycle?.goalGovernanceContract?.activeFromISO ||
+      activeCycle?.goalContract?.startDayKey ||
+      activeCycle?.goalContract?.startDateISO ||
+      activeCycle?.goalContract?.startDate ||
+      activeCycle?.goalContract?.temporalBinding?.startDayKey ||
+      goalExecutionContract?.startDayKey ||
+      goalExecutionContract?.startDateISO ||
+      goalExecutionContract?.startDate ||
+      goalExecutionContract?.temporalBinding?.startDayKey ||
+      null,
+  });
   const contractStartDayKey = normalizeDayKeyValue(contractStartDateValue);
   const contractStartReasonLabel = String(
     shouldResolveMasterPlanCycleStart ? cycleStartResolution?.reasonLabel || activeCycle?.startDateReason || '' : ''
@@ -1340,7 +1351,7 @@ export default function ZionDashboard({
     [timeZone]
   );
   const executionLockReason = hasPendingActivation
-    ? 'Schedule applied — not active yet. Activate the cycle before logging completion, misses, or skips.'
+    ? 'Schedule applied — not active yet. Activate the cycle before logging completion, misses, or rescheduling blocks.'
     : '';
   const masterPlanHorizonLabel = activeMasterPlan
     ? formatRangeLabel(activeMasterPlan.horizonStart || null, activeMasterPlan.fullHorizonEndDayKey || activeMasterPlan.horizonEnd || null)
@@ -2173,7 +2184,7 @@ export default function ZionDashboard({
     }
     const dateKey = patch?.date || (target?.start ? dayKeyFromISO(target.start, timeZone) : activeDayKey);
     const timeValue = patch?.time || (target?.start ? target.start.slice(11, 16) : '09:00');
-    const startISO = buildStartISO(dateKey, timeValue);
+    const startISO = patch?.start || buildStartISO(dateKey, timeValue);
     if (!startISO) {
       setAddBlockError('Invalid time format. Use HH:MM or HH:MM AM/PM.');
       return;
@@ -2187,6 +2198,8 @@ export default function ZionDashboard({
     traceAction('blocks.update', { blockId: id });
     actions.updateBlock?.({
       id,
+      start: startISO,
+      durationMinutes,
       domain: applyDomainEnum(patch.domain || target?.domain || target?.practice),
       title: patch?.title,
       surface: 'today',
@@ -2223,12 +2236,6 @@ export default function ZionDashboard({
     if (isCycleReadOnly) return;
     traceAction('blocks.miss', { blockId: id });
     actions.missBlock?.(id);
-  };
-
-  const handleSkipBlock = (id) => {
-    if (isCycleReadOnly) return;
-    traceAction('blocks.skip', { blockId: id });
-    actions.skipBlock?.(id);
   };
 
   const handleDrillToDay = (dayKey) => {
@@ -2575,6 +2582,110 @@ export default function ZionDashboard({
   const planQualityGate =
     activeCycle?.planQualityGate || (goalId ? planQualityGateByGoal?.[goalId] || null : null) || null;
   const executionCorrection = goalId ? executionCorrectionByGoal?.[goalId] || null : null;
+  const lifecycleResolution = useMemo(() => {
+    const resolvedGoalId = String(activeGoalId || goalId || activeCycle?.goalContract?.goalId || '').trim();
+    const fallbackProfileId =
+      activeProfileId || (resolvedGoalId || activeCycleId || activeMasterPlan ? '__dashboard-session__' : '');
+    const fallbackGoalId = resolvedGoalId || (activeCycleId ? '__dashboard-goal__' : '');
+    const normalizedProfilesById =
+      fallbackProfileId && !profilesById?.[fallbackProfileId]
+        ? {
+            ...(profilesById || {}),
+            [fallbackProfileId]: {
+              id: fallbackProfileId,
+              activeGoalId: fallbackGoalId || null,
+              activeMasterPlanId: activeProfile?.activeMasterPlanId || activeMasterPlan?.id || null,
+              masterCalendarId: activeProfile?.masterCalendarId || activeMasterCalendar?.id || null,
+            },
+          }
+        : profilesById || {};
+    const normalizedGoalsById =
+      fallbackGoalId && !goalsById?.[fallbackGoalId]
+        ? {
+            ...(goalsById || {}),
+            [fallbackGoalId]: {
+              id: fallbackGoalId,
+              activeCycleId: activeCycleId || null,
+            },
+          }
+        : goalsById || {};
+    const normalizedActiveCycle =
+      activeCycle &&
+      String(activeCycle?.reassessmentStatus || '')
+        .trim()
+        .toLowerCase() === 'complete' &&
+      (hasGeneratedCycleSchedule || hasPendingActivation || hasActiveSchedule)
+        ? {
+            ...activeCycle,
+            reassessmentStatus: null,
+          }
+        : activeCycle;
+    const normalizedCyclesById =
+      normalizedActiveCycle && activeCycleId
+        ? {
+            ...(cyclesById || {}),
+            [activeCycleId]: normalizedActiveCycle,
+          }
+        : cyclesById || {};
+
+    return resolveOperatingLifecycleState({
+      isAuthenticated: true,
+      activeProfileId: fallbackProfileId || null,
+      activeGoalId: fallbackGoalId || null,
+      activeCycleId: activeCycleId || null,
+      profileAccess,
+      profilesById: normalizedProfilesById,
+      goalsById: normalizedGoalsById,
+      cyclesById: normalizedCyclesById,
+      scheduleLifecycleState,
+      planQualityGate,
+      executionCorrection,
+      pendingPlanConfirmation,
+      regenerationRequired: showRebaseRecoveryAction,
+      activeTodayBlockCount: Array.isArray(selectedDayBlocks) ? selectedDayBlocks.length : 0,
+      todayBlocks: selectedDayBlocks,
+      readinessSummary: {
+        profile: fallbackProfileId ? 'READY' : undefined,
+        goal: fallbackGoalId ? 'READY' : undefined,
+        schedule:
+          hasActiveSchedule
+            ? 'ACTIVE'
+            : hasPendingActivation
+              ? 'REVIEW_APPLIED'
+              : hasGeneratedCycleSchedule
+                ? 'GENERATED'
+                : activeCycle
+                  ? 'MISSING'
+                  : undefined,
+        phase: activePhase?.label || activePhase?.name || activeCycle?.goalContract?.phaseLabel || undefined,
+        today: Array.isArray(selectedDayBlocks) && selectedDayBlocks.length > 0 ? 'WORK_PRESENT' : 'NO_WORK_TODAY',
+      },
+    });
+  }, [
+      activeCycle,
+      activeCycleId,
+    activeGoalId,
+    activeMasterCalendar?.id,
+    activeMasterPlan,
+    activePhase,
+    activeProfile?.activeMasterPlanId,
+    activeProfile?.masterCalendarId,
+    activeProfileId,
+      cyclesById,
+    executionCorrection,
+    goalId,
+    goalsById,
+    hasActiveSchedule,
+    hasGeneratedCycleSchedule,
+    hasPendingActivation,
+    pendingPlanConfirmation,
+    planQualityGate,
+    profileAccess,
+    profilesById,
+    scheduleLifecycleState,
+    selectedDayBlocks,
+    showRebaseRecoveryAction,
+  ]);
   const shotClock = goalId ? systemShotClockByGoal?.[goalId] || null : null;
   const planQualityCodes = uniqueStringList([
     ...(Array.isArray(planQualityGate?.failureCodes) ? planQualityGate.failureCodes : []),
@@ -2946,6 +3057,8 @@ export default function ZionDashboard({
 
       <div className={`mt-2 grid gap-8 ${assistantVisible ? 'grid-cols-[minmax(0,1fr)_340px]' : 'grid-cols-1'}`}>
         <div className="space-y-5">
+          <ProductStateBanner resolution={lifecycleResolution} />
+
           {view !== 'structure' ? (
             <div>
               <span className="text-xs uppercase tracking-[0.14em] text-muted">System Loop</span>
@@ -3345,7 +3458,7 @@ export default function ZionDashboard({
                               <p className="font-semibold text-amber-700">Schedule applied — not active yet</p>
                               <p className="text-amber-700/90">
                                 Review the placed schedule, then use <span className="font-semibold">Activate schedule</span>{' '}
-                                to start live execution. Today completion, miss, and skip logging stay disabled until
+                                to start live execution. Today completion, miss, and reschedule controls stay disabled until
                                 activation.
                               </p>
                               {activationDelayReassessmentRequired ? (
@@ -3520,7 +3633,6 @@ export default function ZionDashboard({
                         onDeleteBlock={handleDeleteBlock}
                         onComplete={hasPendingActivation ? undefined : handleCompleteBlock}
                         onMiss={hasPendingActivation ? undefined : handleMissBlock}
-                        onSkip={hasPendingActivation ? undefined : handleSkipBlock}
                         onEdit={handleEditBlock}
                         onLinkCriterion={(block) => handleCloseLinkedCriterion(block)}
                         deliverables={deliverables}
@@ -3656,7 +3768,6 @@ export default function ZionDashboard({
                       surface="today"
                       onComplete={hasPendingActivation ? undefined : handleCompleteBlock}
                       onMiss={hasPendingActivation ? undefined : handleMissBlock}
-                      onSkip={hasPendingActivation ? undefined : handleSkipBlock}
                       onDelete={handleDeleteBlock}
                       onEdit={handleEditBlock}
                       timeZone={timeZone}

@@ -15,7 +15,6 @@ export default function PlanningPanel({
   onDeleteBlock,
   onComplete,
   onMiss,
-  onSkip,
   onEdit,
   onLinkCriterion,
   metricsSlot = null,
@@ -63,7 +62,6 @@ export default function PlanningPanel({
         surface={surface}
         onComplete={onComplete}
         onMiss={onMiss}
-        onSkip={onSkip}
         onDelete={onDeleteBlock}
         onEdit={onEdit}
         onLinkCriterion={onLinkCriterion}

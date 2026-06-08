@@ -78,6 +78,7 @@ describe('execution surface action-first rendering', () => {
     render(<BlockDetailsPanel blockId="blk-1" blocks={[sampleBlock()]} surface="month" onEdit={noop} />);
 
     expect(screen.getByRole('button', { name: /Complete/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Reschedule/i })).toBeInTheDocument();
   });
 
   it('surfaces an earlier open predecessor when a later block is selected first', () => {
