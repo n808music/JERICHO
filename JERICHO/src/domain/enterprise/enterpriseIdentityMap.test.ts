@@ -3,6 +3,7 @@ import {
   ENTERPRISE_IDENTITY_MAP,
   INCORRECT_ENTITY_NAME_ALIASES,
   findEnterpriseEntityByDisplayName,
+  findEnterpriseEntityByCategory,
 } from './enterpriseIdentityMap';
 
 describe('enterpriseIdentityMap', () => {
@@ -50,5 +51,16 @@ describe('enterpriseIdentityMap', () => {
     const tech = findEnterpriseEntityByDisplayName('Global State Systems');
     expect(tech?.companyCategory).toBe('Technology');
     expect(tech?.products).toContain('Jericho System');
+  });
+
+  it('finds an entity by company category', () => {
+    const tech = findEnterpriseEntityByCategory('Technology');
+    expect(tech?.displayName).toBe('Global State Systems');
+    expect(tech?.products).toContain('Jericho System');
+  });
+
+  it('has unique company categories across the canonical map', () => {
+    const categories = ENTERPRISE_IDENTITY_MAP.map((entity) => entity.companyCategory);
+    expect(new Set(categories).size).toBe(categories.length);
   });
 });
