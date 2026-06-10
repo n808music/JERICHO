@@ -2,20 +2,11 @@
 // Pure functions — no React, no state, no DOM.
 // Engine substrate (block.id, consumedArtifactIds, gateCriteria) is never mutated.
 
+import { projectEnterpriseDisplay } from '../../domain/enterprise/enterpriseDisplayProjection';
+
 const FH_PREFIX = /^(fh-|artifact:fh-)/;
 const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LONG_HEX_HEAVY = /^[a-z0-9-]{30,}$/i;
-
-const FAMILY_KEYWORDS = [
-  [/product|software|app/i, 'Product'],
-  [/creative|album|music/i, 'Creative'],
-  [/media|podcast|channel|content/i, 'Media'],
-  [/ops|operations|brand|company/i, 'Ops'],
-  [/income|service|revenue|runway/i, 'Income'],
-  [/capital|real.?estate|asset/i, 'Capital'],
-  [/institution|education/i, 'Institution'],
-  [/civic|community|government/i, 'Civic'],
-];
 
 export function isInternalId(value) {
   if (typeof value !== 'string' || !value) return false;
@@ -37,10 +28,12 @@ export function shortenInternalId(value) {
 function familyTokenFromLane(laneLabel) {
   const t = String(laneLabel || '').trim();
   if (!t) return null;
-  for (const [pat, token] of FAMILY_KEYWORDS) {
-    if (pat.test(t)) return token;
-  }
-  return null;
+  const projection = projectEnterpriseDisplay({
+    laneId: t,
+    laneLabel: t,
+    intakeSignals: { goalText: '', declaredLaneIds: [] },
+  });
+  return projection.companyCategory || null;
 }
 
 export function formatBlockRef(block, index) {
