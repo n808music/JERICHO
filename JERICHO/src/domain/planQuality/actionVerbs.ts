@@ -36,6 +36,12 @@ export const ACTION_VERB_SET: ReadonlySet<string> = new Set([
   // Strategic plan-block verbs (previously only in fullHorizonBlockQuality)
   'compare', 'convert', 'delegate', 'expand', 'formalize',
   'gate', 'institutionalize', 'prove', 'reassess', 'stabilize', 'widen',
+  // Schedule-generator verbs surfaced by Operation Endgame fixture drift
+  // (2026-06-11). Each is a genuinely imperative business action that the
+  // OE generator emits. 're-clarify' is a generator-specific compound;
+  // see follow-up to redesign that phrasing as a separate cleanup.
+  'author', 'capture', 'clarify', 'enrich', 'groom',
+  'log', 'qualify', 're-clarify', 'source', 'summarize', 'triage',
 ]);
 
 export function isActionableTitleVerb(firstWord: string | null | undefined): boolean {
