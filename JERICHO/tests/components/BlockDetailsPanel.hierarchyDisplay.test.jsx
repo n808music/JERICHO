@@ -30,7 +30,7 @@ describe('BlockDetailsPanel hierarchy display', () => {
     render(
       <BlockDetailsPanel
         blockId="blk-1"
-        blocks={[sampleBlock({ initiative: 'Jericho System' })]}
+        blocks={[sampleBlock({ initiative: 'Jericho System', expectedOutput: '' })]}
         hierarchyContext={{
           operatingCycle: 'June 2026 Operating Cycle',
         }}
@@ -48,7 +48,7 @@ describe('BlockDetailsPanel hierarchy display', () => {
       screen.getByText((_, node) => node?.textContent === 'Block: Clarify launch-blocker requirements')
     ).toBeInTheDocument();
     expect(screen.getByText(/What this means/i)).toBeInTheDocument();
-    expect(screen.getByText(/Clarify launch-blocker requirements\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Plan quality failed for this block detail/i)).toBeInTheDocument();
     expect(screen.getByText(/Formal title:/i)).toBeInTheDocument();
   });
 
@@ -139,10 +139,39 @@ describe('BlockDetailsPanel hierarchy display', () => {
     );
 
     expect(screen.getByText(/What this means/i)).toBeInTheDocument();
-    expect(screen.getByText(/Test Jericho onboarding and login behavior enough to clear the current launch blocker/i)).toBeInTheDocument();
-    expect(screen.getByText(/Open the app as a user/i)).toBeInTheDocument();
+    expect(screen.getByText(/Verify that Jericho onboarding and profile restoration are solid enough to remove a launch blocker/i)).toBeInTheDocument();
+    expect(screen.getByText(/Run the live onboarding path like a real user/i)).toBeInTheDocument();
+    expect(screen.getByText(/Open the app and complete the sign-in flow/i)).toBeInTheDocument();
     expect(screen.getByText(/Produces:/i)).toBeInTheDocument();
-    expect(screen.getByText(/Jericho System progress note/i)).toBeInTheDocument();
+    expect(screen.getByText(/Onboarding test report with pass\/fail status and blocker list/i)).toBeInTheDocument();
+    expect(screen.getByText(/Acceptance evidence:/i)).toBeInTheDocument();
     expect(screen.getByText(/Original May 2026 review window · Current June 2026 Operating Cycle/i)).toBeInTheDocument();
+  });
+
+  it('renders dependency and quality context for an under-specified real-estate block', () => {
+    render(
+      <BlockDetailsPanel
+        blockId="blk-1"
+        blocks={[
+          sampleBlock({
+            title: 'Decide whether the district execution path is ready for execution',
+            label: 'Decide whether the district execution path is ready for execution',
+            laneLabel: 'Operation Endgame district coalition development',
+            phaseLabel: 'P1',
+          }),
+        ]}
+        onEdit={noop}
+      />
+    );
+
+    expect(screen.getByText((_, node) => node?.textContent === 'Lane: Real Estate')).toBeInTheDocument();
+    expect(screen.getByText(/Plan quality failed for this block detail/i)).toBeInTheDocument();
+    expect(screen.getByText(/LANE_CONTEXT_NOT_APPLIED/i)).toBeInTheDocument();
+  });
+
+  it('does not crash when the selected block is no longer present on the current surface', () => {
+    const { container } = render(<BlockDetailsPanel blockId="missing-block" blocks={[sampleBlock()]} onEdit={noop} />);
+
+    expect(container).toBeEmptyDOMElement();
   });
 });
