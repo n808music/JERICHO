@@ -1,4 +1,8 @@
 import { validateBlockTitle } from './forecastBlockDerivation.js';
+import { resolveBlockPlainLanguage } from '../product/resolveBlockPlainLanguage.js';
+
+const DEBUG_BLOCK_DETAIL_QUALITY =
+  typeof process !== 'undefined' && process?.env?.JERICHO_DEBUG_BLOCK_DETAIL_QUALITY === '1';
 
 function normalizeDayKey(value) {
   const text = String(value || '').trim();
@@ -67,6 +71,97 @@ function average(values = []) {
     return 0;
   }
   return values.reduce((sum, value) => sum + Number(value || 0), 0) / values.length;
+}
+
+function buildBlockDetailHierarchy(block = {}) {
+  const initiative =
+    block?.initiativeName ||
+    block?.projectName ||
+    block?.ventureName ||
+    block?.initiativeTitle ||
+    block?.initiativeLabel ||
+    block?.initiative ||
+    '';
+  return {
+    phase: String(block?.phaseLabel || '').trim(),
+    lane: String(block?.laneLabel || block?.laneName || block?.lane || '').trim(),
+    initiative: String(initiative || '').trim(),
+    operatingCycle: String(block?.operatingCycleLabel || block?.cycleLabel || '').trim(),
+    sprint: String(block?.sprintLabel || block?.windowLabel || '').trim(),
+  };
+}
+
+// Molecular block-detail advisories are UI/display clarity signals.
+// They should remain visible in block detail rendering, but they should NOT
+// count as full-horizon trust failures unless the underlying schedule
+// substrate is missing.
+const MOLECULAR_ADVISORY_CODES = new Set([
+  'BLOCK_DETAIL_TOO_ABSTRACT',
+  'BLOCK_DETAIL_DO_THIS_EMPTY',
+  'BLOCK_DETAIL_DONE_WHEN_EMPTY',
+]);
+
+export function summarizeBlockDetailQuality(blocks = []) {
+  const startedAt = DEBUG_BLOCK_DETAIL_QUALITY ? Date.now() : 0;
+  if (DEBUG_BLOCK_DETAIL_QUALITY) {
+    console.log('[fullHorizonPlanQuality] block-detail loop start', { blockCount: blocks.length });
+  }
+  const byCode = {};
+  const byBlockId = {};
+  const findings = [];
+  const uniqueBlockIds = new Set();
+
+  blocks.forEach((block, index) => {
+    const resolution = resolveBlockPlainLanguage(block, {
+      hierarchy: buildBlockDetailHierarchy(block),
+    });
+    const rawFailureCodes = Array.isArray(resolution?.quality?.failureCodes)
+      ? resolution.quality.failureCodes
+      : [];
+    const failureCodes = rawFailureCodes.filter((code) => !MOLECULAR_ADVISORY_CODES.has(code));
+    if (!failureCodes.length) {
+      return;
+    }
+
+    const blockId = String(block?.id || `forecast-block-${index}`).trim();
+    uniqueBlockIds.add(blockId);
+    findings.push({
+      blockId,
+      title: String(block?.title || block?.label || block?.displayTitle || '').trim(),
+      failureCodes: [...new Set(failureCodes.map((code) => String(code || '').trim()).filter(Boolean))],
+    });
+
+    failureCodes.forEach((code) => {
+      const normalizedCode = String(code || '').trim();
+      if (!normalizedCode) {
+        return;
+      }
+      byCode[normalizedCode] = (byCode[normalizedCode] || 0) + 1;
+      if (!Array.isArray(byBlockId[normalizedCode])) {
+        byBlockId[normalizedCode] = [];
+      }
+      if (!byBlockId[normalizedCode].includes(blockId)) {
+        byBlockId[normalizedCode].push(blockId);
+      }
+    });
+  });
+
+  if (DEBUG_BLOCK_DETAIL_QUALITY) {
+    console.log('[fullHorizonPlanQuality] block-detail loop end', {
+      blockCount: blocks.length,
+      failureBlockCount: uniqueBlockIds.size,
+      failureCodeCount: Object.keys(byCode).length,
+      durationMs: Date.now() - startedAt,
+    });
+  }
+
+  return {
+    failureCount: uniqueBlockIds.size,
+    findings,
+    codeCounts: byCode,
+    failureCodes: Object.keys(byCode),
+    byBlockId,
+  };
 }
 
 function getReasonCodeFamily(code) {
@@ -626,6 +721,7 @@ function evaluateMvpPlanQualityStandard({
   laneModel,
   masterPlanContract,
   anchors,
+  blockDetailQualitySummary,
 }) {
   const reasonCodes = [];
   const findings = [];
@@ -721,6 +817,13 @@ function evaluateMvpPlanQualityStandard({
     )
   ) {
     addGateFailure('ACTION_SPECIFICITY_WEAK', 'Executable block titles or expected outputs are too vague.');
+  }
+
+  if (Number(blockDetailQualitySummary?.failureCount || 0) > 0) {
+    addGateFailure(
+      'ACTION_SPECIFICITY_WEAK',
+      `${blockDetailQualitySummary.failureCount} forecast block${blockDetailQualitySummary.failureCount === 1 ? '' : 's'} fail the canonical block-detail authority.`
+    );
   }
 
   if (
@@ -838,6 +941,10 @@ function evaluateMvpPlanQualityStandard({
       expectedLaneCount,
       firstAnchorDayKey,
       postAnchorBlockCount: postAnchorBlocks.length,
+      blockDetailFailureCount: Number(blockDetailQualitySummary?.failureCount || 0),
+      blockDetailFailureCodes: Array.isArray(blockDetailQualitySummary?.failureCodes)
+        ? blockDetailQualitySummary.failureCodes
+        : [],
     },
   };
 }
@@ -854,8 +961,15 @@ export function evaluateFullHorizonPlanQuality({
   outcomeTarget = null,
   constraints = null,
 } = {}) {
+  const startedAt = DEBUG_BLOCK_DETAIL_QUALITY ? Date.now() : 0;
+  if (DEBUG_BLOCK_DETAIL_QUALITY) {
+    console.log('[fullHorizonPlanQuality] evaluate start', {
+      incomingBlockCount: Array.isArray(fullHorizonScheduleBlocks) ? fullHorizonScheduleBlocks.length : 0,
+    });
+  }
   const blocks = collectBlocks(fullHorizonScheduleBlocks);
   const coveragePassed = Boolean(fullHorizonCoverageAudit?.fullHorizonCovered);
+  const blockDetailQualitySummary = summarizeBlockDetailQuality(blocks);
   const dimensions = {
     pacing: evaluatePacing({ blocks, coverageAudit: fullHorizonCoverageAudit, phaseModel }),
     precision: evaluatePrecision({ blocks }),
@@ -872,9 +986,7 @@ export function evaluateFullHorizonPlanQuality({
     ...dimensions.professionalism.reasonCodes,
     ...dimensions.completeness.reasonCodes,
     ...dimensions.balance.reasonCodes,
-  ];
-  const aggregateReasonFamilies = [
-    ...new Set(aggregateReasonCodes.map((code) => getReasonCodeFamily(code)).filter(Boolean)),
+    ...blockDetailQualitySummary.failureCodes,
   ];
 
   if (!coveragePassed) {
@@ -892,6 +1004,19 @@ export function evaluateFullHorizonPlanQuality({
     ])
   );
 
+  const aggregateReasonFamilies = [...new Set(aggregateReasonCodes.map((code) => getReasonCodeFamily(code)).filter(Boolean))];
+  const detailFailureCount = Number(blockDetailQualitySummary.failureCount || 0);
+  const hasSevereDetailFailure = blockDetailQualitySummary.failureCodes.some((code) =>
+    [
+      'PREMATURE_INITIATIVE_ACTIVATION',
+      'DEFERRED_LANE_SCHEDULED_AS_ACTIVE',
+      'LONG_HORIZON_LANE_OVERWEIGHTED_IN_P1',
+      'PHASE_PRIORITY_MISCLASSIFIED',
+      'MISSING_EXPECTED_OUTPUT',
+      'MISSING_ACCEPTANCE_EVIDENCE',
+    ].includes(String(code || '').trim())
+  );
+
   let state = 'trusted';
   if (!coveragePassed || score < 55) {
     state = 'failed';
@@ -899,6 +1024,14 @@ export function evaluateFullHorizonPlanQuality({
     state = 'degraded';
   } else if (score < 88 || aggregateReasonFamilies.length > 0) {
     state = 'provisional';
+  }
+
+  if (detailFailureCount > 0) {
+    if (state === 'trusted') {
+      state = hasSevereDetailFailure || detailFailureCount > 1 ? 'degraded' : 'provisional';
+    } else if (state === 'provisional' && (hasSevereDetailFailure || detailFailureCount > 2)) {
+      state = 'degraded';
+    }
   }
 
   if (dimensions.progression.reasonCodes.some((code) => code.startsWith('PROGRESSION_P2'))) {
@@ -924,13 +1057,33 @@ export function evaluateFullHorizonPlanQuality({
     laneModel,
     masterPlanContract,
     anchors,
+    blockDetailQualitySummary,
   });
   aggregateReasonCodes.push(...mvpStandard.reasonCodes);
 
+  let standardStatus = mvpStandard.status;
+  if (detailFailureCount > 0 && standardStatus === 'trusted_plan') {
+    standardStatus = hasSevereDetailFailure || detailFailureCount > 1 ? 'degraded_plan' : 'provisional_plan';
+  }
+
+  if (DEBUG_BLOCK_DETAIL_QUALITY) {
+    console.log('[fullHorizonPlanQuality] evaluate end', {
+      sortedBlockCount: blocks.length,
+      detailFailureCount,
+      reasonCodeCount: [...new Set(aggregateReasonCodes)].length,
+      state,
+      standardStatus,
+      durationMs: Date.now() - startedAt,
+    });
+  }
+
   return {
     state,
-    standardStatus: mvpStandard.status,
-    mvpStandard,
+    standardStatus,
+    mvpStandard: {
+      ...mvpStandard,
+      status: standardStatus,
+    },
     score,
     dimensions,
     phaseFindings: buildPhaseFindings(blocks, dimensions),
@@ -942,6 +1095,10 @@ export function evaluateFullHorizonPlanQuality({
       hasOutcomeTarget: Boolean(String(outcomeTarget || '').trim()),
       hasConstraints: Boolean(constraints),
       contractPresent: Boolean(masterPlanContract),
+      blockDetailFailureCount: detailFailureCount,
+      blockDetailFailureCodes: blockDetailQualitySummary.failureCodes,
+      blockDetailQualityFailures: blockDetailQualitySummary.byBlockId,
+      blockDetailFindings: blockDetailQualitySummary.findings,
     },
     reasonCodes: [...new Set(aggregateReasonCodes)],
   };
