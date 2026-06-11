@@ -46,7 +46,7 @@ export default function MissionSetupFlow({
   const [intakeDraftError, setIntakeDraftError] = useState(null);
 
   if (!activeCycleId || !activeCycle) {
-    return <div className="text-xs text-muted">No active cycle.</div>;
+    return <div className="text-xs text-muted">No active Operating Cycle.</div>;
   }
 
   // Extract goal and plan state

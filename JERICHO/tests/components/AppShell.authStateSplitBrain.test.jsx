@@ -75,12 +75,19 @@ describe('AppShell auth/profile split-brain gating', () => {
     expect(screen.getByTestId('login-gate')).toBeInTheDocument();
   });
 
-  it('requires sign-in when account exists but session is missing without deleting the account', () => {
+  it('requires sign-in when session was explicitly signed out, without deleting the account', () => {
     localStorageStore['jericho-account'] = JSON.stringify({
       username: 'james',
       passwordHash: 'hash',
       createdAt: 1,
     });
+    // Auth Containment Stabilization: only explicit sign-out blocks auto-resume.
+    // Crash/reload paths recover silently; this test pins the explicit-signout branch.
+    localStorageStore['jericho-session-clear-reason'] = JSON.stringify({
+      reason: 'explicit_sign_out',
+      at: Date.now(),
+    });
+    localStorageStore['jericho-last-explicit-signout-at'] = String(Date.now());
 
     render(<AppShell />);
 

@@ -102,7 +102,7 @@ describe('ZionDashboard start date guard', () => {
     const { unmount } = render(
       <ZionDashboard initialView="today" initialZionView="day" initialAnchorDayKey="2026-01-19" />
     );
-    expect(screen.getAllByText(/Drafts begin on Jan 20/i).length).toBeGreaterThan(0);
+    expect(document.body.textContent).toMatch(/Drafts begin on Jan 20/i);
     expect(screen.queryByText(/On start suggestion/i)).not.toBeInTheDocument();
 
     unmount();
@@ -129,7 +129,7 @@ describe('ZionDashboard start date guard', () => {
     );
     render(<ZionDashboard initialView="today" initialZionView="day" initialAnchorDayKey="2026-01-20" />);
     expect(screen.getAllByText(/On start suggestion/i).length > 0).toBe(true);
-    expect(screen.queryByText(/Drafts begin on Jan 20/i)).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/Drafts begin on Jan 20/i);
   });
 
   it('renders draft schedule items when the draft is within the start window', () => {
@@ -148,6 +148,35 @@ describe('ZionDashboard start date guard', () => {
     );
     render(<ZionDashboard initialView="today" initialZionView="day" initialAnchorDayKey="2026-01-20" />);
     expect(screen.getAllByText(/On start suggestion/i).length).toBeGreaterThan(0);
-    expect(screen.queryByText(/Drafts begin on Jan 20/i)).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/Drafts begin on Jan 20/i);
+  });
+
+  it('uses the executable floor instead of the stale contract start for live cycle messaging', () => {
+    mockStore = buildStore([], '2026-06-08');
+    mockStore.appTime = { nowISO: '2026-06-08T12:00:00.000Z', activeDayKey: '2026-06-08', timeZone: 'UTC' };
+    mockStore.today = { date: '2026-06-08', blocks: [] };
+    mockStore.cyclesById['cycle-1'] = {
+      ...mockStore.cyclesById['cycle-1'],
+      startedAtDayKey: '2026-05-19',
+      executionStartDayKey: '2026-06-08',
+      scheduleGeneratedAtISO: '2026-06-07T03:11:21.442Z',
+      goalContract: {
+        goalId: 'goal-1',
+        startDayKey: '2026-05-19',
+        startDateISO: '2026-05-19T00:00:00.000Z',
+        endDayKey: '2026-10-17',
+      },
+    };
+    mockStore.goalExecutionContract = {
+      goalId: 'goal-1',
+      startDayKey: '2026-05-19',
+      startDateISO: '2026-05-19T00:00:00.000Z',
+      endDayKey: '2026-10-17',
+    };
+
+    render(<ZionDashboard initialView="today" initialZionView="day" initialAnchorDayKey="2026-06-08" />);
+
+    expect(document.body.textContent).toMatch(/Operating Cycle horizon:\s*Jun 8/i);
+    expect(document.body.textContent).not.toMatch(/Operating Cycle horizon:\s*May 19/i);
   });
 });

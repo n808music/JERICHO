@@ -1,9 +1,110 @@
+import { applyScheduleValidityProjection } from './scheduleValidityProjection.js';
+import { applyArtifactDependencyIntegrity } from './artifactDependencyIntegrity.js';
+import { CROSS_LANE_DEPENDENCIES } from './crossLaneArtifactDependencies.js';
+import { defaultOwnerForLaneFamily } from './ownerLabels.js';
+
+export function applyCrossLaneArtifactDependencies(blocks, lanes = []) {
+  // Build laneId → canonical family map from lane.domain. Domain values are
+  // single tokens ('income', 'capital'); CROSS_LANE_DEPENDENCIES uses suffixed
+  // names ('income_stream', 'capital_real_estate'). Map between them.
+  const DOMAIN_TO_FAMILY = {
+    product: 'product_software',
+    software: 'product_software',
+    creative: 'creative_media',
+    media: 'media_channel',
+    brand: 'company_operations',
+    operations: 'company_operations',
+    company: 'company_operations',
+    income: 'income_stream',
+    revenue: 'income_stream',
+    capital: 'capital_real_estate',
+    institution: 'institution_education',
+    civic: 'civic_development',
+  };
+  const laneIdToFamily = new Map();
+  for (const lane of lanes) {
+    const d = String(lane?.domain || '').toLowerCase();
+    const family = DOMAIN_TO_FAMILY[d] || null;
+    if (lane?.id && family) laneIdToFamily.set(lane.id, family);
+    if (lane?.laneId && family) laneIdToFamily.set(lane.laneId, family);
+  }
+  function familyForBlock(b) {
+    return laneIdToFamily.get(b.laneId) || null;
+  }
+  const byKey = new Map();
+  for (const b of blocks) {
+    const family = familyForBlock(b);
+    if (!family) continue;
+    const stageKey = b.lifecycleStage || b.commercialStage;
+    if (!stageKey) continue;
+    const key = `${family}|${b.phaseLabel}|${stageKey}`;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(b);
+  }
+
+  const compareBlockOrder = (left, right) => {
+    const leftDay = String(left?.dayKey || left?.date || '');
+    const rightDay = String(right?.dayKey || right?.date || '');
+    if (leftDay !== rightDay) return leftDay.localeCompare(rightDay);
+    const leftStart = String(left?.startISO || left?.start || '');
+    const rightStart = String(right?.startISO || right?.start || '');
+    if (leftStart !== rightStart) return leftStart.localeCompare(rightStart);
+    return String(left?.id || '').localeCompare(String(right?.id || ''));
+  };
+
+  for (const consumer of blocks) {
+    const consumerFamily = familyForBlock(consumer);
+    if (!consumerFamily) continue;
+    const consumerStage = consumer.lifecycleStage || consumer.commercialStage;
+    if (!consumerStage) continue;
+    const matchingDeps = CROSS_LANE_DEPENDENCIES.filter(
+      (d) =>
+        d.consumingFamily === consumerFamily &&
+        d.consumingPhase === consumer.phaseLabel &&
+        d.consumingStage === consumerStage,
+    );
+    if (matchingDeps.length === 0) continue;
+    const nextConsumed = Array.isArray(consumer.consumedArtifactIds) ? [...consumer.consumedArtifactIds] : [];
+    const nextDeps = Array.isArray(consumer.dependsOnBlockIds) ? [...consumer.dependsOnBlockIds] : [];
+    for (const dep of matchingDeps) {
+      const upstreamKeys = dep.upstreamStage
+        ? [`${dep.upstreamFamily}|P1|${dep.upstreamStage}`, `${dep.upstreamFamily}|P2|${dep.upstreamStage}`, `${dep.upstreamFamily}|P3|${dep.upstreamStage}`]
+        : Array.from(byKey.keys()).filter((key) => key.startsWith(`${dep.upstreamFamily}|`));
+      const upstreamCandidates = upstreamKeys.flatMap((key) => byKey.get(key) || []);
+      const earlierCandidates = upstreamCandidates
+        .filter((candidate) => compareBlockOrder(candidate, consumer) < 0)
+        .sort(compareBlockOrder);
+      const upstream = earlierCandidates[earlierCandidates.length - 1] || null;
+      const upstreamArtifactId = String(upstream?.outputArtifactId || '').trim();
+      if (upstream && upstreamArtifactId && !nextConsumed.includes(upstreamArtifactId)) {
+        nextConsumed.push(upstreamArtifactId);
+        if (!nextDeps.includes(upstream.id)) nextDeps.push(upstream.id);
+      }
+    }
+    consumer.consumedArtifactIds = nextConsumed;
+    consumer.dependsOnBlockIds = nextDeps;
+  }
+  return blocks;
+}
+
 function mkId(planId, phaseLabel, laneId, dayKey, idx) {
   return `fh-${planId || 'plan'}-${phaseLabel || 'phase'}-${laneId || 'lane'}-${dayKey}-${idx}`;
 }
 
 function clampKey(key) {
   return String(key || '').slice(0, 10);
+}
+
+function maxDayKey(left, right) {
+  if (!left) return right || null;
+  if (!right) return left || null;
+  return left > right ? left : right;
+}
+
+function minDayKey(left, right) {
+  if (!left) return right || null;
+  if (!right) return left || null;
+  return left < right ? left : right;
 }
 
 function nextDayKey(dayKey, days) {
@@ -446,10 +547,21 @@ function decorateDescriptorForOccurrence({ descriptor, phaseLabel, lane, dayKey,
   const titleWindowLabel =
     phaseLabel === 'P3' ? `${reviewWindow} scale review window` : `${reviewWindow} review window`;
 
+  // RTG Finding 2: descriptor.expectedOutput may be a noun phrase ("revenue
+  // protection brief") or a sentence/clause ("Direct expansion gate with unmet
+  // dependencies"). Concatenating " Deliver X with Y…" onto a clause produces
+  // garbled text downstream (especially in gate criteria). Detect the shape and
+  // either replace (clause case) or extend (noun case) so the resulting
+  // expectedOutput reads as a single sentence.
+  const baseOutput = String(descriptor.expectedOutput || '').trim();
+  const looksLikeSentenceShell = /\s(gate|review|audit)\b/i.test(baseOutput) && /^[A-Z]/.test(baseOutput);
+  const deliverableSentence = `Deliver ${artifact} with ${focus}, explicit owner, and next gate timing for ${reviewWindow}.`;
+  const decoratedOutput = looksLikeSentenceShell ? deliverableSentence : `${baseOutput}. ${deliverableSentence}`;
+
   return {
     ...descriptor,
     title: `${descriptor.title} using ${focus} for the ${titleWindowLabel}`,
-    expectedOutput: `${descriptor.expectedOutput} Deliver ${artifact} with ${focus}, explicit owner, and next gate timing for ${reviewWindow}.`,
+    expectedOutput: decoratedOutput,
     derivationReason: `${descriptor.derivationReason} Occurrence tuned to ${focus} for ${reviewWindow}.`,
   };
 }
@@ -474,18 +586,32 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
   const byFamily = {
     product_software: {
       P1: [
-        ['Validate onboarding path for Operation Endgame app launch in product/software lane', 'validation', 'Onboarding checklist with proof gaps logged'],
-        [`Ship beta evidence review for ${laneTitle} in P1 product/software lane`, 'review', 'Beta evidence review with launch blockers ranked'],
-        [`Prepare post-anchor conversion instrumentation for ${laneTitle} in product/software lane`, 'action', 'Conversion instrumentation plan for the next proof window'],
-        [`Ship next launch-critical feature increment for ${laneTitle} in P1 product/software lane`, 'action', 'Feature increment shipped with release notes and rollout plan'],
-        [`Ship activation experiment for ${laneTitle} in P1 product/software lane`, 'action', 'Activation experiment shipped with measurement plan and decision date'],
+        [`Clarify launch-blocker requirements for ${laneTitle} in P1 product/software lane`, 'action', 'Requirements brief naming the launch blocker, owner, and acceptance criteria', null, { lifecycleStage: 'requirements_clarification' }],
+        [`Write product specification with user stories for ${laneTitle} P1 onboarding scope`, 'action', 'Product spec with user stories and acceptance criteria', null, { lifecycleStage: 'product_spec' }],
+        [`Draft technical design note for ${laneTitle} onboarding implementation`, 'action', 'Technical design note with architecture decision record', null, { lifecycleStage: 'technical_design' }],
+        [`Implement onboarding activation tracking for ${laneTitle} in P1 product/software lane`, 'action', 'Implementation branch with onboarding activation tracking', null, { lifecycleStage: 'implementation' }],
+        [`Author test plan covering onboarding unit and integration scope for ${laneTitle}`, 'action', 'Test plan covering onboarding unit / integration / acceptance scope', null, { lifecycleStage: 'test_planning' }],
+        [`Run unit and integration tests for ${laneTitle} onboarding implementation`, 'validation', 'Passing test report for onboarding implementation', null, { lifecycleStage: 'unit_integration_testing' }],
+        [`Execute QA validation checklist for ${laneTitle} P1 onboarding release`, 'validation', 'QA checklist completed with zero release blockers', null, { lifecycleStage: 'qa_validation' }],
+        [`Prepare release notes and deployment checklist for ${laneTitle} P1 onboarding`, 'action', 'Release notes and deployment checklist approved', null, { lifecycleStage: 'release_prep' }],
+        [`Deploy ${laneTitle} onboarding implementation with rollback plan`, 'action', 'Deployment record with verified rollback plan', null, { lifecycleStage: 'deployment' }],
+        [`Review telemetry signals for ${laneTitle} post-deployment in P1`, 'review', 'Telemetry review showing no regressions vs baseline', null, { lifecycleStage: 'telemetry_monitoring' }],
+        [`Summarize user feedback themes for ${laneTitle} P1 onboarding cohort`, 'review', 'User feedback summary with prioritized themes and owners', null, { lifecycleStage: 'user_feedback_review' }],
+        [`Groom backlog with prioritized iteration scope for ${laneTitle} next P1 cycle`, 'action', 'Backlog refinement notes with sized stories and sequencing', null, { lifecycleStage: 'iteration_backlog_grooming' }],
       ],
       P2: [
-        [`Assess product/software onboarding evidence against P2 conversion-readiness criteria for ${laneTitle}`, 'readiness', 'Conversion-readiness decision with next-cycle scope'],
-        [`Audit activation-to-retention funnel for ${laneTitle} in P2 product/software lane`, 'audit', 'Funnel audit with retention risks and fixes'],
-        [`Define repeatable release cadence for ${laneTitle} in P2 product/software lane`, 'action', 'Release cadence standard with owner and review rhythm'],
-        [`Ship next conversion-lift feature for ${laneTitle} in P2 product/software lane`, 'action', 'Conversion-lift feature shipped with measurement plan'],
-        [`Implement retention loop improvement for ${laneTitle} in P2 product/software lane`, 'action', 'Retention loop change shipped with cohort baseline'],
+        [`Re-clarify conversion-lift requirements for ${laneTitle} from P1 telemetry and feedback`, 'action', 'Requirements brief tying P2 conversion scope to P1 telemetry findings', null, { lifecycleStage: 'requirements_clarification' }],
+        [`Write conversion-lift product specification for ${laneTitle} P2 cycle`, 'action', 'Product spec covering conversion-lift user stories and acceptance criteria', null, { lifecycleStage: 'product_spec' }],
+        [`Draft retention-loop technical design for ${laneTitle} in P2 product/software lane`, 'action', 'Technical design note for retention loop with architecture decision record', null, { lifecycleStage: 'technical_design' }],
+        [`Implement conversion-lift feature for ${laneTitle} in P2 product/software lane`, 'action', 'Conversion-lift implementation branch shipped with measurement plan', null, { lifecycleStage: 'implementation' }],
+        [`Author P2 test plan covering conversion-lift acceptance scope for ${laneTitle}`, 'action', 'P2 test plan tied to conversion-lift acceptance criteria', null, { lifecycleStage: 'test_planning' }],
+        [`Run unit and integration tests for ${laneTitle} conversion-lift implementation`, 'validation', 'Passing test report for conversion-lift implementation', null, { lifecycleStage: 'unit_integration_testing' }],
+        [`Execute P2 QA validation for ${laneTitle} conversion-lift release`, 'validation', 'QA checklist for conversion-lift release with zero blockers', null, { lifecycleStage: 'qa_validation' }],
+        [`Prepare P2 release notes and deployment checklist for ${laneTitle}`, 'action', 'P2 release notes and deployment checklist approved', null, { lifecycleStage: 'release_prep' }],
+        [`Deploy ${laneTitle} P2 conversion-lift release with rollback path`, 'action', 'P2 deployment record with verified rollback plan', null, { lifecycleStage: 'deployment' }],
+        [`Review post-deploy telemetry for ${laneTitle} P2 conversion-lift cohort`, 'review', 'P2 telemetry review with conversion-lift health signals', null, { lifecycleStage: 'telemetry_monitoring' }],
+        [`Triage user feedback themes from ${laneTitle} P2 conversion-lift cohort`, 'review', 'User feedback summary for P2 conversion-lift cohort with prioritized themes', null, { lifecycleStage: 'user_feedback_review' }],
+        [`Groom P2 backlog with next conversion-lift iteration scope for ${laneTitle}`, 'action', 'P2 backlog with sized stories and sequencing for next iteration', null, { lifecycleStage: 'iteration_backlog_grooming' }],
       ],
       P3: [
         [`Review scale-readiness controls for ${laneTitle} in P3 product/software lane`, 'review', 'Scale-readiness review with delegation constraints', 'p3_product_scale_readiness_controls'],
@@ -496,6 +622,17 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Confirm operating handoff readiness for ${laneTitle} in P3 product/software lane`, 'readiness', 'Operating handoff readiness decision with support coverage', 'p3_product_handoff_readiness'],
         [`Define automation and delegation coverage for ${laneTitle} to sustain scale without key-person dependency`, 'action', 'Automation and delegation brief with coverage map, escalation paths, and handoff schedule', 'p3_product_automation_delegation'],
         [`Build repeatable operating dashboard for ${laneTitle} tracking scale signals and owner accountability`, 'action', 'Operating dashboard spec with KPIs, owner assignments, and decision triggers', 'p3_product_operating_dashboard'],
+        [`Re-clarify scale-readiness requirements for ${laneTitle} in P3 product/software lane`, 'action', 'P3 scale-readiness requirements brief with handoff acceptance criteria', null, { lifecycleStage: 'requirements_clarification' }],
+        [`Write delegation-handoff product specification for ${laneTitle} P3 cycle`, 'action', 'P3 product spec covering delegation-handoff user stories and acceptance criteria', null, { lifecycleStage: 'product_spec' }],
+        [`Draft delegation-handoff technical design for ${laneTitle} in P3`, 'action', 'P3 technical design note for delegation handoff with architecture decision record', null, { lifecycleStage: 'technical_design' }],
+        [`Author P3 test plan covering delegation-handoff acceptance scope for ${laneTitle}`, 'action', 'P3 test plan tied to delegation-handoff acceptance criteria', null, { lifecycleStage: 'test_planning' }],
+        [`Run P3 unit and integration tests for ${laneTitle} delegation-handoff implementation`, 'validation', 'Passing test report for delegation-handoff implementation', null, { lifecycleStage: 'unit_integration_testing' }],
+        [`Execute P3 QA validation for ${laneTitle} delegation-handoff release`, 'validation', 'P3 QA checklist for delegation-handoff release with zero blockers', null, { lifecycleStage: 'qa_validation' }],
+        [`Prepare P3 release notes and deployment checklist for ${laneTitle} delegation-handoff`, 'action', 'P3 release notes and deployment checklist approved', null, { lifecycleStage: 'release_prep' }],
+        [`Deploy ${laneTitle} P3 delegation-handoff release with rollback path`, 'action', 'P3 deployment record with verified rollback plan', null, { lifecycleStage: 'deployment' }],
+        [`Review post-deploy telemetry for ${laneTitle} P3 delegation-handoff cohort`, 'review', 'P3 telemetry review with delegation-handoff health signals', null, { lifecycleStage: 'telemetry_monitoring' }],
+        [`Triage user feedback themes from ${laneTitle} P3 delegation-handoff cohort`, 'review', 'P3 user feedback summary with prioritized themes', null, { lifecycleStage: 'user_feedback_review' }],
+        [`Groom P3 backlog with next delegation-handoff iteration scope for ${laneTitle}`, 'action', 'P3 backlog with sized stories and sequencing for next iteration', null, { lifecycleStage: 'iteration_backlog_grooming' }],
       ],
     },
     creative_media: {
@@ -629,15 +766,23 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
     },
     income_stream: {
       P1: [
-        [`Validate immediate revenue path for ${laneTitle} in P1 income stream lane`, 'validation', 'Immediate revenue path with proof assumptions logged'],
-        [`Review cashflow protection steps for ${laneTitle} in P1 income stream lane`, 'review', 'Cashflow protection review with deadlines'],
-        [`Define service-to-recurring offer bridge for ${laneTitle} in P1 income stream lane`, 'action', 'Offer bridge linking near-term cash to long-term engine'],
-        [`Define paid offer and pricing for ${laneTitle} in P1 income stream lane`, 'action', 'Offer definition with pricing, scope, and target buyer profile', null, { isExternalBdMechanic: true }],
-        [`Build prospect list for ${laneTitle} outreach in P1 income stream lane`, 'action', 'Prospect list with at least 25 named targets, channel, and contact path', null, { isExternalBdMechanic: true }],
-        [`Deliver outreach batch to prospect list for ${laneTitle}`, 'action', 'Outreach log with batch size, channel, message, and reply tracking', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
-        [`Run discovery call with qualified prospect for ${laneTitle}`, 'action', 'Discovery call notes with prospect needs, objections, and next-step commitment', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
-        [`Draft proposal and pricing memo for ${laneTitle} qualified prospect`, 'action', 'Proposal memo with scope, deliverables, price, and signature path', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
-        [`Finalize first paying engagement and invoice for ${laneTitle}`, 'action', 'Signed agreement and first invoice issued with payment terms recorded', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+          [`Define commercial segment and ICP for ${laneTitle} in P1 income stream lane`, 'action', 'ICP and target segment brief reviewed against revenue target', null, { isExternalBdMechanic: true, commercialStage: 'segment_definition' }],
+          [`Define paid offer and pricing for ${laneTitle} in P1 income stream lane`, 'action', 'Target criteria document with disqualification rules', null, { isExternalBdMechanic: true, commercialStage: 'target_criteria' }],
+          [`Source qualified leads for ${laneTitle} P1 outreach in income stream lane`, 'action', 'Prospect source list with channel notes', null, { isExternalBdMechanic: true, commercialStage: 'lead_sourcing' }],
+          [`Enrich and dedupe prospect list for ${laneTitle} P1 outreach`, 'action', 'Enriched prospect list with contact paths and signal columns', null, { isExternalBdMechanic: true, commercialStage: 'list_enrichment' }],
+          [`Build outreach asset set for ${laneTitle} P1 (script, email, deck)`, 'action', 'Outreach asset set reviewed for tone and target alignment', null, { isExternalBdMechanic: true, commercialStage: 'outreach_asset' }],
+          [`Deliver outreach batch to prospect list for ${laneTitle} P1 income stream lane`, 'action', 'Outreach log with batch size, channel, message, and delivery confirmation', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true, commercialStage: 'outreach_send' }],
+          [`Track outreach responses for ${laneTitle} P1 cohort`, 'action', 'Response tracker with reply timestamps and dispositions', null, { isExternalBdMechanic: true, commercialStage: 'response_tracking' }],
+          [`Qualify responders for ${laneTitle} P1 commercial pipeline`, 'action', 'Qualification scorecard with disqualification rationale where applicable', null, { isExternalBdMechanic: true, commercialStage: 'qualification' }],
+          [`Run discovery call with qualified prospect for ${laneTitle} in P1 income stream lane`, 'action', 'Discovery call notes with prospect needs, objections, and next-step commitment', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true, commercialStage: 'discovery_call' }],
+          [`Run needs analysis for qualified ${laneTitle} P1 prospect`, 'action', 'Needs analysis with prioritized buyer requirements', null, { isExternalBdMechanic: true, commercialStage: 'needs_analysis' }],
+          [`Draft proposal with scope, pricing, and terms for ${laneTitle} P1 qualified prospect`, 'action', 'Proposal draft with scope, pricing, and terms', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true, commercialStage: 'proposal_prep' }],
+          [`Assemble diligence packet for ${laneTitle} P1 qualified prospect`, 'action', 'Diligence packet with answers to standard buyer questions', null, { isExternalBdMechanic: true, commercialStage: 'diligence_packet' }],
+          [`Execute follow-up cadence with ${laneTitle} P1 qualified pipeline`, 'action', 'Follow-up tracker with cadence and next-touch dates', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true, commercialStage: 'follow_up' }],
+          [`Log and respond to objections from ${laneTitle} P1 qualified prospect`, 'action', 'Objection log with response and outcome', null, { isExternalBdMechanic: true, commercialStage: 'objection_handling' }],
+          [`Finalize first paying engagement and invoice for ${laneTitle}`, 'action', 'Signed agreement, LOI, or decline note with terms and start date', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true, commercialStage: 'close_decision' }],
+          [`Update commercial pipeline status for ${laneTitle} P1 cycle`, 'action', 'Pipeline status report with stage transitions', null, { commercialStage: 'crm_pipeline_update' }],
+          [`Capture P1 commercial lessons-learned for ${laneTitle}`, 'review', 'Lessons-learned brief with what worked and what to change', null, { commercialStage: 'lessons_learned' }],
       ],
       P2: [
         [`Audit repeatable conversion signals for ${laneTitle} in P2 income stream lane`, 'audit', 'Repeatable conversion audit with proof thresholds'],
@@ -705,25 +850,30 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         ],
         [
           `Draft capital budget memo for ${laneTitle} in P1 capital/real-estate lane`,
-          'action',
+          'readiness',
           'Capital budget memo with $ amount or range per candidate path, or explicit unknown-budget flag requiring resolution',
           null,
-          { isExternalBdMechanic: true },
+          { isExternalBdMechanic: true, commercialStage: 'capital_memo' },
         ],
         [
           `Build investor or lender prospect list for ${laneTitle} in P1 capital/real-estate lane`,
-          'action',
+          'readiness',
           'Investor/lender/partner prospect list with at least 10 named targets and channel of contact',
           null,
-          { isExternalBdMechanic: true },
+          { isExternalBdMechanic: true, commercialStage: 'target_list' },
         ],
         [
           `Submit outreach to funding or stakeholder targets for ${laneTitle} in P1 capital/real-estate lane`,
-          'action',
+          'readiness',
           'Outreach log to investor/lender/partner targets with reply status and next-step commitment',
           null,
-          { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true },
+          { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true, commercialStage: 'outreach_batch' },
         ],
+          [`Define capital target segment and ICP for ${laneTitle} in P1 capital/real-estate lane`, 'readiness', 'ICP and target segment brief for capital partners', null, { commercialStage: 'segment_definition' }],
+          [`Define capital target criteria with disqualification rules for ${laneTitle}`, 'readiness', 'Target criteria document with disqualification rules for capital sourcing', null, { commercialStage: 'target_criteria' }],
+          [`Source candidate capital partners and lenders for ${laneTitle} P1 pipeline`, 'readiness', 'Capital partner source list with channel notes', null, { commercialStage: 'lead_sourcing' }],
+          [`Build capital outreach asset set (memo, deck, brief) for ${laneTitle}`, 'readiness', 'Capital outreach asset set reviewed for tone and target alignment', null, { commercialStage: 'outreach_asset' }],
+          [`Draft capital readiness memo with traction evidence for ${laneTitle}`, 'readiness', 'Capital readiness memo citing traction artifacts', null, { commercialStage: 'proposal_prep' }],
       ],
       P2: [
         [
@@ -771,9 +921,13 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
             isScaleAction: false,
           },
         ],
-        [`Draft preliminary capital memo for ${laneTitle} in P2 capital/real-estate lane`, 'action', 'Preliminary capital memo with $ amount or range, financing path options, and risk model'],
-        [`Run lender or partner discovery for ${laneTitle} in P2 capital/real-estate lane`, 'action', 'Lender or partner discovery notes with capital appetite and term ranges', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
-        [`Update asset shortlist for ${laneTitle} in P2 capital/real-estate lane`, 'action', 'Updated asset shortlist with deal scoring, capital fit, and next-step owner'],
+        [`Draft preliminary capital memo for ${laneTitle} in P2 capital/real-estate lane`, 'readiness', 'Preliminary capital memo with $ amount or range, financing path options, and risk model'],
+        [`Run lender or partner discovery for ${laneTitle} in P2 capital/real-estate lane`, 'readiness', 'Lender or partner discovery notes with capital appetite and term ranges', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true, commercialStage: 'discovery' }],
+        [`Update asset shortlist for ${laneTitle} in P2 capital/real-estate lane`, 'readiness', 'Updated asset shortlist with deal scoring, capital fit, and next-step owner'],
+          [`Qualify candidate capital partners for ${laneTitle} P2 pipeline`, 'readiness', 'Capital partner qualification scorecard', null, { commercialStage: 'qualification' }],
+          [`Run discovery conversation with qualified capital partner for ${laneTitle}`, 'readiness', 'Discovery notes from capital partner conversation', null, { commercialStage: 'discovery_call' }],
+          [`Run needs analysis on qualified ${laneTitle} capital partner`, 'readiness', 'Needs analysis with prioritized partner requirements', null, { commercialStage: 'needs_analysis' }],
+          [`Assemble capital diligence packet for ${laneTitle} qualified partner`, 'readiness', 'Capital diligence packet with answers to standard partner questions', null, { commercialStage: 'diligence_packet' }],
       ],
       P3: [
         [`Audit scale-entry gates for ${laneTitle} in P3 capital/real-estate lane`, 'audit', 'Scale-entry gate audit with unresolved constraints', 'p3_capital_scale_entry_gates'],
@@ -785,6 +939,10 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Execute capital deployment for ${laneTitle} in P3 capital/real-estate lane`, 'action', 'Capital deployment executed with $ amount, asset path, and counterparty recorded', 'p3_capital_deployment_execution'],
         [`Finalize first acquisition or asset commitment for ${laneTitle} in P3 capital/real-estate lane`, 'action', 'Acquisition or asset commitment closed with signed terms and capital committed', 'p3_capital_first_acquisition'],
         [`Run acquired asset operating cadence for ${laneTitle} in P3 capital/real-estate lane`, 'action', 'Acquired asset operating cadence run with revenue, cost, and risk reporting on schedule', 'p3_capital_asset_operations'],
+          [`Prepare capital proposal with terms for ${laneTitle} P3 partner pipeline`, 'action', 'Capital proposal draft with scope, terms, and pricing', null, { commercialStage: 'proposal_prep' }],
+          [`Execute follow-up cadence with ${laneTitle} P3 capital pipeline`, 'action', 'Capital follow-up tracker with next-touch dates', null, { commercialStage: 'follow_up' }],
+          [`Close capital decision with ${laneTitle} P3 qualified partner`, 'action', 'Capital close decision recorded with terms and start date', null, { commercialStage: 'close_decision' }],
+          [`Update capital pipeline status for ${laneTitle} P3 cycle`, 'review', 'Capital pipeline report with stage transitions', null, { commercialStage: 'crm_pipeline_update' }],
       ],
     },
     institution_education: {
@@ -792,9 +950,12 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Define institution model assumptions for ${laneTitle} in P1 institution/education lane`, 'action', 'Institution model assumptions with gating list'],
         [`Review legal and operating prerequisites for ${laneTitle} in institution/education lane`, 'review', 'Prerequisite review with blocked items'],
         [`Evaluate gate for early execution in ${laneTitle} until proof and capital dependencies clear`, 'gate', 'Early execution gate with explicit dependencies'],
-        [`Map stakeholders and partner targets for ${laneTitle} in P1 institution/education lane`, 'action', 'Stakeholder map with named partner/agency targets, decision authority, and access path', null, { isExternalBdMechanic: true }],
-        [`Submit meeting requests to partner targets for ${laneTitle} in P1 institution/education lane`, 'action', 'Meeting request log with target list, reply status, and scheduled discovery sessions', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
-        [`Draft pilot scope or partnership proposal for ${laneTitle} in P1 institution/education lane`, 'action', 'Pilot scope or partnership proposal with deliverables, term, and signature path', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+        [`Map stakeholders and partner targets for ${laneTitle} in P1 institution/education lane`, 'readiness', 'Stakeholder map with named partner/agency targets, decision authority, and access path', null, { isExternalBdMechanic: true }],
+        [`Submit meeting requests to partner targets for ${laneTitle} in P1 institution/education lane`, 'readiness', 'Meeting request log with target list, reply status, and scheduled discovery sessions', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+        [`Draft pilot scope or partnership proposal for ${laneTitle} in P1 institution/education lane`, 'readiness', 'Pilot scope or partnership proposal with deliverables, term, and signature path', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+          [`Define ${laneTitle} institutional target segment and ICP`, 'readiness', 'Institutional ICP and target segment brief', null, { commercialStage: 'segment_definition' }],
+          [`Qualify ${laneTitle} institutional partners against pilot criteria`, 'readiness', 'Institutional partner qualification scorecard', null, { commercialStage: 'qualification' }],
+          [`Prepare ${laneTitle} institutional pilot proposal with scope and terms`, 'readiness', 'Institutional pilot proposal with scope and terms', null, { commercialStage: 'proposal_prep' }],
       ],
       P2: [
         [`Audit curriculum or program viability for ${laneTitle} in P2 institution/education lane`, 'audit', 'Program viability audit with next experiments'],
@@ -803,6 +964,9 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Run pilot program iteration for ${laneTitle} in P2 institution/education lane`, 'action', 'Pilot program iteration run with enrollment data and outcome metrics captured', null, { isExternalStakeholderTouchpoint: true }],
         [`Finalize partnership terms with institutional counterparty for ${laneTitle} in P2 institution/education lane`, 'action', 'Signed partnership terms with institutional counterparty including scope and term', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
         [`Revise pilot curriculum or program design for ${laneTitle} in P2 institution/education lane`, 'action', 'Pilot curriculum or program design iterated with feedback and next-version delivery plan'],
+          [`Define ${laneTitle} institutional target segment and ICP`, 'readiness', 'Institutional ICP and target segment brief', null, { commercialStage: 'segment_definition' }],
+          [`Qualify ${laneTitle} institutional partners against pilot criteria`, 'readiness', 'Institutional partner qualification scorecard', null, { commercialStage: 'qualification' }],
+          [`Prepare ${laneTitle} institutional pilot proposal with scope and terms`, 'readiness', 'Institutional pilot proposal with scope and terms', null, { commercialStage: 'proposal_prep' }],
       ],
       P3: [
         [`Review institutional scale-readiness for ${laneTitle} in P3 institution/education lane`, 'review', 'Institutional scale-readiness review', 'p3_institution_scale_readiness'],
@@ -814,6 +978,9 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Launch institution program cohort for ${laneTitle} in P3 institution/education lane`, 'action', 'Institution program cohort launched with enrollment, curriculum delivery, and outcomes plan', 'p3_institution_cohort_launch'],
         [`Execute scale partnership agreement for ${laneTitle} in P3 institution/education lane`, 'action', 'Scale partnership agreement executed with deliverables and milestone schedule', 'p3_institution_scale_partnership'],
         [`Run institution outcome measurement cycle for ${laneTitle} in P3 institution/education lane`, 'action', 'Institution outcome measurement cycle run with student or beneficiary outcomes reported', 'p3_institution_outcome_measurement'],
+          [`Define ${laneTitle} institutional target segment and ICP`, 'readiness', 'Institutional ICP and target segment brief', null, { commercialStage: 'segment_definition' }],
+          [`Qualify ${laneTitle} institutional partners against pilot criteria`, 'readiness', 'Institutional partner qualification scorecard', null, { commercialStage: 'qualification' }],
+          [`Prepare ${laneTitle} institutional pilot proposal with scope and terms`, 'readiness', 'Institutional pilot proposal with scope and terms', null, { commercialStage: 'proposal_prep' }],
       ],
     },
     civic_development: {
@@ -821,9 +988,12 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Map credibility dependencies for ${laneTitle} in P1 civic/district lane`, 'action', 'Credibility dependency map for later activation'],
         [`Review coalition prerequisites for ${laneTitle} in civic/district lane`, 'review', 'Coalition prerequisite review with blocked paths'],
         [`Evaluate gate for direct district execution in ${laneTitle} until proof and capital stack exist`, 'gate', 'Direct district execution gate with unmet prerequisites'],
-        [`Map agency and coalition targets for ${laneTitle} in P1 civic/district lane`, 'action', 'Agency and coalition target list with named contacts, decision authority, and access path', null, { isExternalBdMechanic: true }],
-        [`Submit meeting requests to agency or coalition targets for ${laneTitle} in P1 civic/district lane`, 'action', 'Meeting request log with reply status and scheduled discovery sessions', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
-        [`Draft partnership or pilot proposal for ${laneTitle} in P1 civic/district lane`, 'action', 'Partnership or pilot proposal with public-interest case, deliverables, and signature path', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+        [`Map agency and coalition targets for ${laneTitle} in P1 civic/district lane`, 'readiness', 'Agency and coalition target list with named contacts, decision authority, and access path', null, { isExternalBdMechanic: true }],
+        [`Submit meeting requests to agency or coalition targets for ${laneTitle} in P1 civic/district lane`, 'readiness', 'Meeting request log with reply status and scheduled discovery sessions', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+        [`Draft partnership or pilot proposal for ${laneTitle} in P1 civic/district lane`, 'readiness', 'Partnership or pilot proposal with public-interest case, deliverables, and signature path', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
+          [`Define ${laneTitle} civic stakeholder target segment and criteria`, 'readiness', 'Civic stakeholder segment and target criteria brief', null, { commercialStage: 'segment_definition' }],
+          [`Qualify ${laneTitle} civic partners against engagement criteria`, 'readiness', 'Civic partner qualification scorecard', null, { commercialStage: 'qualification' }],
+          [`Draft ${laneTitle} civic partnership proposal with scope and outcomes`, 'readiness', 'Civic partnership proposal with scope and outcomes', null, { commercialStage: 'proposal_prep' }],
       ],
       P2: [
         [`Audit district opportunity criteria for ${laneTitle} in P2 civic/district lane`, 'audit', 'District opportunity criteria audit'],
@@ -832,6 +1002,9 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Run pilot civic engagement for ${laneTitle} in P2 civic/district lane`, 'action', 'Pilot civic engagement run with stakeholder turnout and outcome notes captured', null, { isExternalStakeholderTouchpoint: true }],
         [`Finalize coalition memorandum for ${laneTitle} in P2 civic/district lane`, 'action', 'Coalition memorandum negotiated with partners and signed terms recorded', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
         [`Revise public-interest case for ${laneTitle} in P2 civic/district lane`, 'action', 'Public-interest case iterated with stakeholder feedback and decision-maker review notes'],
+          [`Define ${laneTitle} civic stakeholder target segment and criteria`, 'readiness', 'Civic stakeholder segment and target criteria brief', null, { commercialStage: 'segment_definition' }],
+          [`Qualify ${laneTitle} civic partners against engagement criteria`, 'readiness', 'Civic partner qualification scorecard', null, { commercialStage: 'qualification' }],
+          [`Draft ${laneTitle} civic partnership proposal with scope and outcomes`, 'readiness', 'Civic partnership proposal with scope and outcomes', null, { commercialStage: 'proposal_prep' }],
       ],
       P3: [
         [`Review civic scale-readiness for ${laneTitle} in P3 civic/district lane`, 'review', 'Civic scale-readiness review with dependency status', 'p3_civic_scale_readiness'],
@@ -843,6 +1016,9 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Execute civic scale initiative for ${laneTitle} in P3 civic/district lane`, 'action', 'Civic scale initiative executed with public outcome metrics and partner reporting', 'p3_civic_scale_initiative'],
         [`Finalize coalition memorandum or pilot agreement for ${laneTitle} in P3 civic/district lane`, 'action', 'Coalition memorandum or pilot agreement signed with deliverables and accountability', 'p3_civic_coalition_signed'],
         [`Deploy civic operating cadence for ${laneTitle} in P3 civic/district lane`, 'action', 'Civic operating cadence deployed with stakeholder reporting and review schedule', 'p3_civic_operating_cadence'],
+          [`Define ${laneTitle} civic stakeholder target segment and criteria`, 'readiness', 'Civic stakeholder segment and target criteria brief', null, { commercialStage: 'segment_definition' }],
+          [`Qualify ${laneTitle} civic partners against engagement criteria`, 'readiness', 'Civic partner qualification scorecard', null, { commercialStage: 'qualification' }],
+          [`Draft ${laneTitle} civic partnership proposal with scope and outcomes`, 'readiness', 'Civic partnership proposal with scope and outcomes', null, { commercialStage: 'proposal_prep' }],
       ],
     },
     general: {
@@ -896,6 +1072,8 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
     blockType,
     titleFamily,
     expectedOutput,
+    lifecycleStage: sequencing.lifecycleStage || null,
+    commercialStage: sequencing.commercialStage || null,
     sequencingRole: sequencing.sequencingRole || null,
     prerequisiteType: sequencing.prerequisiteType || null,
     dependencyGate: sequencing.dependencyGate || null,
@@ -929,33 +1107,11 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
   }));
 }
 
-// Lane family → execution-owner class. Each actionable block (action /
-// validation / readiness) carries the owner class of the lane that produces
-// it. Review and audit blocks are reviewer-class; terminal-readiness and
-// terminal-review blocks elevate to terminal_authority; gates use
-// gate_authority. Cross-lane / general blocks fall back to founder.
-const LANE_FAMILY_OWNER_CLASS = {
-  product_software: 'product_owner',
-  creative_media: 'creative_owner',
-  media_channel: 'media_owner',
-  company_operations: 'operations_owner',
-  income_stream: 'revenue_owner',
-  capital_real_estate: 'capital_owner',
-  institution_education: 'institution_owner',
-  civic_development: 'civic_owner',
-};
-
 function resolveBlockOwner(blockType, laneFamily = null) {
-  if (blockType === 'review' || blockType === 'audit') {
-    return 'reviewer';
+  if (blockType === 'waiting_period') {
+    return 'TBD — must be resolved before activation';
   }
-  if (blockType === 'terminal-review' || blockType === 'terminal-readiness') {
-    return 'terminal_authority';
-  }
-  if (blockType === 'gate') {
-    return 'gate_authority';
-  }
-  return LANE_FAMILY_OWNER_CLASS[laneFamily] || 'founder';
+  return defaultOwnerForLaneFamily(laneFamily);
 }
 
 function resolvePassEvidence(blockType, descriptor) {
@@ -978,20 +1134,29 @@ function resolvePassEvidence(blockType, descriptor) {
 // decide, who decides, and the downstream branch on either outcome. Derived
 // deterministically from the descriptor title, phase, and lane so the
 // expansion engine and forecast emitter both produce the same substrate.
+// RTG Finding 2: pass/fail criteria must read as plain English regardless of
+// whether the descriptor's expectedOutput is a noun phrase ("gate evidence
+// packet") or a clause ("Direct expansion gate with unmet dependencies").
+// Previous implementation stitched expectedOutput directly into the sentence,
+// producing ungrammatical text like "Direct expansion gate with unmet
+// dependencies demonstrates upstream proof threshold cleared for X". The
+// current implementation places the descriptor evidence in a parenthetical
+// reference so the surrounding sentence reads cleanly regardless of phrasing.
 function resolveGateCriteria({ descriptor, phase, lane }) {
   const phaseLabel = phase?.label || null;
   const laneId = lane?.id || lane?.laneId || 'unknown';
   const laneTitle = getLaneTitle(lane) || 'lane';
   const expectedOutput = descriptor?.expectedOutput || 'gate evidence packet';
-  const title = descriptor?.title || `${phaseLabel || ''} gate`.trim();
   const nextPhase = phaseLabel === 'P1' ? 'P2' : phaseLabel === 'P2' ? 'P3' : 'terminal-review';
+  const nextLabel = nextPhase === 'terminal-review' ? 'terminal review' : nextPhase;
   const gateName = `${phaseLabel || 'phase'}→${nextPhase} gate: ${laneTitle}`;
+  const evidence = String(descriptor?.evidenceRequired || expectedOutput).toLowerCase().replace(/\.\s*$/, '');
   return {
     gateName,
-    passCriteria: `${expectedOutput} demonstrates upstream proof threshold cleared for ${laneTitle} — advance to ${nextPhase}.`,
-    failCriteria: `${expectedOutput} shows upstream proof threshold NOT met for ${laneTitle} — hold and remediate before retry.`,
+    passCriteria: `Upstream proof threshold for ${laneTitle} is met — advance to ${nextLabel}. Required evidence: ${evidence}.`,
+    failCriteria: `Upstream proof threshold for ${laneTitle} is not met — hold and remediate the gap before reattempting. Missing or weak evidence: ${evidence}.`,
     evidenceRequired: descriptor?.evidenceRequired || expectedOutput || `Documented ${laneTitle} proof package supporting gate decision`,
-    decisionAuthority: 'gate_authority',
+    decisionAuthority: 'Operator',
     passBranch: nextPhase === 'terminal-review'
       ? `advance:terminal-review:${laneId}`
       : `advance:phase:${nextPhase}:${laneId}`,
@@ -1087,6 +1252,8 @@ function buildBlock({
     riskOrConstraintAddressed: occurrenceDescriptor.riskOrConstraintAddressed,
     successCriterionServed: occurrenceDescriptor.successCriterionServed,
     sequencingRole: occurrenceDescriptor.sequencingRole || null,
+    lifecycleStage: occurrenceDescriptor.lifecycleStage || null,
+    commercialStage: occurrenceDescriptor.commercialStage || null,
     prerequisiteType: occurrenceDescriptor.prerequisiteType || null,
     dependencyGate: occurrenceDescriptor.dependencyGate || null,
     unlockRequirement: occurrenceDescriptor.unlockRequirement || null,
@@ -1160,7 +1327,7 @@ function buildGlobalTerminalBlock({ planId, phase, horizonEndDayKey, plan }) {
     durationMinutes: 120,
     producesArtifact: 'Terminal-readiness evidence package with cross-lane proof index and outcome decision',
     consumedBy: ['terminal-review:cross-lane'],
-    owner: 'terminal_authority',
+    owner: 'Operator',
     passEvidence: 'Terminal-readiness evidence package with final horizon decision and success-standard comparison',
     riskOrConstraintAddressed: 'Prevents a five-year schedule from ending without explicit terminal-readiness inspection.',
     successCriterionServed: 'Terminal-readiness evidence compared to success standard and outcome target',
@@ -1185,6 +1352,8 @@ export function expandFullHorizonSchedule({
   existingForecastBlocks = [],
   committedBlocks = [],
   workDays = [],
+  workWindows = null,
+  timeZone = 'UTC',
 } = {}) {
   const result = [];
   if (!phaseModel?.phases?.length || !horizonStartDayKey || !horizonEndDayKey) {
@@ -1197,8 +1366,8 @@ export function expandFullHorizonSchedule({
 
   for (const phase of phaseModel.phases) {
     const phaseLabel = phase.label || 'phase';
-    const phaseStart = clampKey(phase.startBoundary || horizonStartDayKey);
-    const phaseEnd = clampKey(phase.endBoundary || horizonEndDayKey);
+    const phaseStart = maxDayKey(clampKey(phase.startBoundary || null), horizonStartDayKey);
+    const phaseEnd = minDayKey(clampKey(phase.endBoundary || null), horizonEndDayKey);
     if (!phaseStart || !phaseEnd || phaseStart > horizonEndDayKey) continue;
 
     const visiblePhaseEnd = phaseEnd < horizonEndDayKey ? phaseEnd : horizonEndDayKey;
@@ -1250,7 +1419,13 @@ export function expandFullHorizonSchedule({
     }
   }
 
-  const merged = [...committedBlocks, ...existingForecastBlocks, ...result];
+  const inVisibleRange = (block) => {
+    const dayKey = String(block?.dayKey || block?.date || '').slice(0, 10);
+    if (!dayKey) return false;
+    return dayKey >= horizonStartDayKey && dayKey <= horizonEndDayKey;
+  };
+
+  const merged = [...committedBlocks, ...existingForecastBlocks, ...result].filter(inVisibleRange);
   const seen = new Set();
   const dedup = [];
   for (const block of merged) {
@@ -1258,10 +1433,21 @@ export function expandFullHorizonSchedule({
     seen.add(block.id);
     dedup.push(block);
   }
-  return dedup.sort((left, right) => {
+  const scheduled = applyScheduleValidityProjection(dedup, {
+    workWindows,
+    timeZone,
+    horizonEndDayKey,
+  });
+  const integrityApplied = applyArtifactDependencyIntegrity(scheduled);
+  const crossLaneApplied = applyCrossLaneArtifactDependencies(integrityApplied.blocks, lanes);
+
+  return crossLaneApplied.sort((left, right) => {
     const leftKey = String(left?.dayKey || left?.date || '');
     const rightKey = String(right?.dayKey || right?.date || '');
     if (leftKey !== rightKey) return leftKey.localeCompare(rightKey);
+    const leftStart = String(left?.startISO || left?.start || '');
+    const rightStart = String(right?.startISO || right?.start || '');
+    if (leftStart !== rightStart) return leftStart.localeCompare(rightStart);
     return String(left?.title || '').localeCompare(String(right?.title || ''));
   });
 }

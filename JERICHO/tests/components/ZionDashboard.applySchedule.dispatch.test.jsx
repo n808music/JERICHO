@@ -242,7 +242,7 @@ describe('ZionDashboard apply schedule dispatch wiring', () => {
 
     expect(screen.getByText(/Schedule applied — not active yet/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/Today completion, miss, and skip logging stay disabled until activation/i)
+      screen.getByText(/Today completion, miss, and reschedule controls stay disabled until activation/i)
     ).toBeInTheDocument();
 
     const user = userEvent.setup();
@@ -252,7 +252,7 @@ describe('ZionDashboard apply schedule dispatch wiring', () => {
 
     expect(screen.getByRole('button', { name: /^Complete$/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /^Missed$/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /^Skipped$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Reschedule$/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /^Edit$/i })).toBeDisabled();
   });
 

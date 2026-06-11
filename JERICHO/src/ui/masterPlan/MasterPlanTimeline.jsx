@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useIdentityStore } from '../../state/identityStore.js';
+import { projectEnterpriseDisplay } from '../../domain/enterprise/enterpriseDisplayProjection';
 import {
   selectActiveMasterPlan,
   selectMasterPlanLanes,
@@ -38,18 +39,18 @@ function humanizeReasonCode(value) {
     .trim();
 }
 
-function aggregateAgendaLaneCategoryCounts(summaryByLane = {}, lanes = []) {
-  const domainLabels = {
-    product: 'Product',
-    creative: 'Creative',
-    media: 'Media',
-    brand: 'Brand/Operations',
-    income: 'Income/Revenue',
-    capital: 'Capital',
-    institution: 'Institution',
-    civic: 'Civic',
-  };
+function projectLaneDisplayName(domainOrLaneId, intakeSignals) {
+  const key = String(domainOrLaneId || '').trim().toLowerCase();
+  if (!key) return 'Unassigned';
+  const projection = projectEnterpriseDisplay({
+    laneId: key,
+    laneLabel: key,
+    intakeSignals: intakeSignals || { goalText: '', declaredLaneIds: [] },
+  });
+  return projection.displayName;
+}
 
+function aggregateAgendaLaneCategoryCounts(summaryByLane = {}, lanes = [], intakeSignals = null) {
   const laneById = (Array.isArray(lanes) ? lanes : []).reduce((acc, lane) => {
     if (lane?.id) acc[lane.id] = lane;
     return acc;
@@ -58,7 +59,8 @@ function aggregateAgendaLaneCategoryCounts(summaryByLane = {}, lanes = []) {
   return Object.entries(summaryByLane || {}).reduce((acc, [laneId, count]) => {
     const lane = laneById[laneId];
     const domain = String(lane?.domain || '').trim().toLowerCase();
-    const label = domainLabels[domain];
+    if (!domain) return acc;
+    const label = projectLaneDisplayName(domain, intakeSignals);
     if (label) {
       acc[label] = (acc[label] || 0) + Number(count || 0);
     }
@@ -82,24 +84,22 @@ function getAgendaSummaryCounts(summary = {}) {
 }
 
 const AGENDA_RANGE_OPTIONS = ['1Y', '2Y', '3Y', '4Y', '5Y'];
-const AGENDA_LANE_OPTIONS = [
-  { value: 'all', label: 'All lanes' },
-  { value: 'product', label: 'Product' },
-  { value: 'creative', label: 'Creative' },
-  { value: 'media', label: 'Media' },
-  { value: 'brand/operations', label: 'Brand/Operations' },
-  { value: 'income/revenue', label: 'Income/Revenue' },
-  { value: 'capital', label: 'Capital' },
-  { value: 'institution', label: 'Institution' },
-  { value: 'civic', label: 'Civic' },
-];
+const AGENDA_LANE_DOMAINS = ['all', 'product', 'creative', 'media', 'brand', 'income', 'capital', 'institution', 'civic'];
+
+function buildAgendaLaneOptions(intakeSignals) {
+  return AGENDA_LANE_DOMAINS.map((value) => {
+    if (value === 'all') return { value: 'all', label: 'All lanes' };
+    return { value, label: projectLaneDisplayName(value, intakeSignals) };
+  });
+}
 
 function getAgendaLaneFilterValue(label) {
   return String(label || 'all').trim().toLowerCase();
 }
 
-function getAgendaLaneFilterLabel(value) {
-  const filter = AGENDA_LANE_OPTIONS.find((option) => option.value === String(value || 'all').trim().toLowerCase());
+function getAgendaLaneFilterLabel(value, intakeSignals) {
+  const options = buildAgendaLaneOptions(intakeSignals);
+  const filter = options.find((option) => option.value === String(value || 'all').trim().toLowerCase());
   return filter ? filter.label : 'All lanes';
 }
 
@@ -110,7 +110,7 @@ function getScheduledAgendaRangeEnd(startDayKey, selectedRange) {
   return addDaysToDayKey(normalizedStart, 365 * years - 1);
 }
 
-function summarizeFilteredScheduledAgenda(blocks = [], selectedRange = '5Y', selectedLane = 'all', lanes = [], agendaRangeStartDayKey = null) {
+function summarizeFilteredScheduledAgenda(blocks = [], selectedRange = '5Y', selectedLane = 'all', lanes = [], agendaRangeStartDayKey = null, intakeSignals = null) {
   const rangeStart = normalizeDayKey(agendaRangeStartDayKey) ||
     (Array.isArray(blocks) ? blocks.map((block) => normalizeDayKey(block?.dayKey || block?.date || block?.startISO)).filter(Boolean).sort()[0] : null);
   const rangeEnd = getScheduledAgendaRangeEnd(rangeStart, selectedRange);
@@ -136,7 +136,7 @@ function summarizeFilteredScheduledAgenda(blocks = [], selectedRange = '5Y', sel
   const byLane = filteredBlocks.reduce((acc, block) => {
     const lane = lanes.find((laneItem) => laneItem?.id === (block?.masterPlanLaneId || block?.laneId));
     const domain = String(lane?.domain || '').trim().toLowerCase();
-    const label = AGENDA_LANE_OPTIONS.find((option) => option.value === domain)?.label || lane?.title || 'Unassigned';
+    const label = domain ? projectLaneDisplayName(domain, intakeSignals) : (lane?.title || 'Unassigned');
     acc[label] = (acc[label] || 0) + 1;
     return acc;
   }, {});
@@ -459,9 +459,9 @@ function buildCommitmentLayers({ plan, lanes, milestones, anchors, planCycle, co
     ? String(planCycle?.reassessmentStatus || '').trim().toLowerCase() === 'required'
       ? 'Required before committing additional work'
       : liveCycleEnd
-        ? `End of current execution cycle · ${formatDateLabel(liveCycleEnd)}`
-        : 'After the current execution cycle evidence review'
-    : 'Start an execution cycle to create the first reassessment gate';
+        ? `End of current Operating Cycle · ${formatDateLabel(liveCycleEnd)}`
+        : 'After the current Operating Cycle evidence review'
+    : 'Start an Operating Cycle to create the first reassessment gate';
   const forecastShortOfAnchor = Boolean(
     firstAnchorDayKey &&
       committedWindowEnd &&
@@ -656,6 +656,17 @@ function MasterPlanTimelineView({ plan, store }) {
   const activeProfile = store?.activeProfileId ? store?.profilesById?.[store.activeProfileId] || null : null;
   const activeMissionContractId = plan?.coreMissionContractId || activeProfile?.activeCoreMissionContractId || null;
   const activeMissionContract = activeMissionContractId ? store?.coreMissionContractsById?.[activeMissionContractId] || null : null;
+  const intakeSignals = useMemo(() => {
+    const contract = store?.activeMissionContract || activeMissionContract || null;
+    return {
+      goalText: String(contract?.goalText || contract?.goal || contract?.label || '').trim(),
+      declaredLaneIds: Array.isArray(store?.activeMasterPlan?.laneIds)
+        ? store.activeMasterPlan.laneIds
+        : Array.isArray(store?.masterPlan?.laneIds)
+          ? store.masterPlan.laneIds
+          : [],
+    };
+  }, [store?.activeMissionContract, activeMissionContract, store?.activeMasterPlan, store?.masterPlan]);
   const strategicAgenda = useMemo(
     () => resolveStrategicAgendaHorizon(plan, activeMissionContract),
     [plan, activeMissionContract]
@@ -699,9 +710,10 @@ function MasterPlanTimelineView({ plan, store }) {
         selectedAgendaRange,
         selectedAgendaLane,
         lanes,
-        currentAgendaVersion?.range?.startDayKey
+        currentAgendaVersion?.range?.startDayKey,
+        intakeSignals
       ),
-    [canonicalFullHorizonBlocks, selectedAgendaRange, selectedAgendaLane, lanes, currentAgendaVersion?.range?.startDayKey]
+    [canonicalFullHorizonBlocks, selectedAgendaRange, selectedAgendaLane, lanes, currentAgendaVersion?.range?.startDayKey, intakeSignals]
   );
   const strategicCoverage = useMemo(
     () => {
@@ -1025,6 +1037,7 @@ function MasterPlanTimelineView({ plan, store }) {
         onAgendaRangeChange={setSelectedAgendaRange}
         selectedAgendaLane={selectedAgendaLane}
         onAgendaLaneChange={setSelectedAgendaLane}
+        intakeSignals={intakeSignals}
         strategicPhases={displayedPhaseModel.phases}
         phaseModel={displayedPhaseModel}
         fullHorizonBlockCountsByPhase={fullHorizonBlockCountsByPhase}
@@ -1079,6 +1092,7 @@ function StrategicCoveragePanel({
   onAgendaRangeChange,
   selectedAgendaLane,
   onAgendaLaneChange,
+  intakeSignals,
   strategicPhases,
   phaseModel,
   fullHorizonBlockCountsByPhase = {},
@@ -1101,9 +1115,14 @@ function StrategicCoveragePanel({
   const blockQualityStatusLabel = getFullHorizonBlockQualityLabel(strategicBlockQuality);
   const blockQualityTone = getFullHorizonBlockQualityTone(strategicBlockQuality);
   const hasInsufficientCoverage = coverageTone !== 'positive';
+  const blockDetailFailureCount = Number(strategicPlanQuality?.meta?.blockDetailFailureCount || 0);
+  const blockDetailFailureCodes = Array.isArray(strategicPlanQuality?.meta?.blockDetailFailureCodes)
+    ? strategicPlanQuality.meta.blockDetailFailureCodes
+    : [];
   const qualityFinding = strategicPlanQuality?.reasonCodes?.[0]
     ? titleCaseWords(String(strategicPlanQuality.reasonCodes[0]).replace(/^[A-Z0-9]+_/, ''))
     : null;
+  const blockDetailFinding = blockDetailFailureCodes[0] ? humanizeReasonCode(blockDetailFailureCodes[0]) : null;
   const blockQualityFinding = strategicBlockQuality?.reasonCodes?.[0]
     ? humanizeReasonCode(strategicBlockQuality.reasonCodes[0]).toUpperCase()
     : null;
@@ -1121,9 +1140,9 @@ function StrategicCoveragePanel({
           <p className="text-xs uppercase tracking-[0.14em] text-muted">Strategic coverage</p>
           <p className="text-sm text-muted">
             {strategicCoverageAudit?.fullHorizonCovered
-              ? 'Jericho expresses meaningful work through the declared horizon. Only the current execution cycle is committed to Today.'
+              ? 'Jericho expresses meaningful work through the declared horizon. Only the current Operating Cycle is committed to Today.'
               : strategicCoverageAudit?.horizonExpanded
-                ? 'Future work is expanding beyond the current cycle, but terminal coverage is not yet fully trusted.'
+                ? 'Future work is expanding beyond the current Operating Cycle, but terminal coverage is not yet fully trusted.'
                 : 'Jericho has resolved the horizon endpoint, but full terminal coverage is not yet proven.'}
           </p>
         </div>
@@ -1155,6 +1174,12 @@ function StrategicCoveragePanel({
                     : 'Coverage passed, but plan quality is not yet trusted.'
               : 'Coverage must pass before the plan-quality gate can trust the long-horizon workload.'}
           </p>
+          {blockDetailFailureCount > 0 ? (
+            <p data-testid="masterplan-quality-detail-summary" className="text-[11px] text-muted">
+              {blockDetailFailureCount} block-detail failure{blockDetailFailureCount === 1 ? '' : 's'} across the forecast
+              plan. {blockDetailFinding ? `${blockDetailFinding}.` : null}
+            </p>
+          ) : null}
           {qualityFinding ? <p className="text-[11px] text-muted">{qualityFinding}.</p> : null}
         </div>
         <span
@@ -1237,7 +1262,7 @@ function StrategicCoveragePanel({
                 ))}
               </div>
               <div className="flex flex-wrap gap-2 pb-2">
-                {AGENDA_LANE_OPTIONS.map((option) => (
+                {buildAgendaLaneOptions(intakeSignals).map((option) => (
                   <button
                     key={option.value}
                     type="button"
@@ -1254,7 +1279,7 @@ function StrategicCoveragePanel({
                 ))}
               </div>
               <p className="text-[11px] text-muted">
-                {selectedAgendaRange} horizon · {getAgendaLaneFilterLabel(selectedAgendaLane)}
+                {selectedAgendaRange} horizon · {getAgendaLaneFilterLabel(selectedAgendaLane, intakeSignals)}
               </p>
               <p className="text-[11px] text-muted">
                 {scheduledAgendaSummary?.totalBlocks ?? 0} visible planned blocks
@@ -1289,7 +1314,7 @@ function StrategicCoveragePanel({
                 Constraints: {scheduledAgendaConstraintVersion ? 'Active' : 'Not versioned'}
               </p>
               <p className="text-[11px] text-muted">
-                These blocks are future work: the active execution cycle is still the only live schedule.
+                These blocks are future work: the active Operating Cycle is still the only live schedule.
               </p>
               <p className="text-[11px] text-muted">Filtered view only. Execution remains cycle-gated.</p>
             </>
@@ -1328,14 +1353,14 @@ function StrategicCoveragePanel({
           }
         />
         <CoverageItem
-          label="Current execution cycle"
+          label="Current Operating Cycle"
           value={
             strategicCoverage.executionCycleWindow
               ? `${formatRangeLabel(
                   strategicCoverage.executionCycleWindow.start,
                   strategicCoverage.executionCycleWindow.end
                 )} · ${strategicCoverage.executionCycleWindow.days} days`
-              : 'No execution cycle started'
+              : 'No Operating Cycle started'
           }
         />
         <CoverageItem
@@ -1385,8 +1410,8 @@ function StrategicCoveragePanel({
             strategicCoverage.scheduledWindow
               ? formatRangeLabel(strategicCoverage.scheduledWindow.start, strategicCoverage.scheduledWindow.end)
               : isForecastOnlyLifecycle
-                ? 'No execution cycle schedule yet'
-                : 'No committed schedule yet'
+                ? 'No Sprint scheduled yet'
+                : 'No Activated Plan yet'
           }
         />
         <CoverageItem label="Next reassessment gate" value={commitmentLayers.nextReassessmentGate} />
@@ -1407,7 +1432,7 @@ function StrategicCoveragePanel({
           <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Horizon View</p>
           <div className="flex flex-wrap gap-2">
             {[
-              ['current_cycle', 'Current cycle', 'Executable strategic surface for the active phase.'],
+              ['current_cycle', 'Current Sprint', 'Executable strategic surface for the active Phase.'],
               ['one_year', '1 year', 'Tactical launch readiness and near-term anchors.'],
               ['two_year', '2 years', 'Operating-system buildout and early scale path.'],
               ['three_year', '3 years', 'Mid-horizon expansion and measurable strategic inflection.'],
@@ -1432,7 +1457,7 @@ function StrategicCoveragePanel({
           </div>
         </div>
         <p>{
-          horizonView === 'current_cycle' ? 'Current cycle view: executable strategic surface for the active phase.' :
+          horizonView === 'current_cycle' ? 'Current Sprint view: executable strategic surface for the active Phase.' :
           horizonView === 'one_year' ? '1-year view: tactical launch readiness and near-term anchors.' :
           horizonView === 'two_year' ? '2-year view: operating-system buildout and early scale path.' :
           horizonView === 'three_year' ? '3-year view: mid-horizon expansion and measurable strategic inflection.' :
@@ -1440,7 +1465,7 @@ function StrategicCoveragePanel({
           horizonView === 'five_year' ? '5-year view: full mission arc through terminal readiness.' :
           'Full horizon view: complete strategic architecture through 2031.'
         }</p>
-        <p>Only the first execution cycle is scheduled.</p>
+        <p>Only the first Sprint is scheduled.</p>
         <p>Future work remains forecast or gated until reassessment confirms it.</p>
         <p>Future phases are strategic, not calendar-committed.</p>
         <p>Calendar commitment expands through reassessment and execution evidence.</p>
@@ -1511,7 +1536,7 @@ function StrategicCoveragePanel({
                 </p>
                 {isForecastOnlyLifecycle ? (
                   <p>
-                    <span className="font-semibold text-jericho-text">Current cycle:</span> Not scheduled for execution
+                    <span className="font-semibold text-jericho-text">Current Sprint:</span> Not scheduled for execution
                   </p>
                 ) : null}
                 <p>

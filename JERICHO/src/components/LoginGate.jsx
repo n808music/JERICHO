@@ -86,9 +86,15 @@ export default function LoginGate({ onLogin }) {
       return;
     }
     setLoading(true);
-    await localAuth.createAccount(username, password);
-    localAuth.setSession(username);
+    // Auth Containment Stabilization (Rule 4): account+session committed through a
+    // single transaction. If session commit fails, account remains durable and the
+    // recoverable auto-resume path in AppShell picks it up on next mount.
+    const outcome = await localAuth.createAccountTransaction(username, password);
     setLoading(false);
+    if (!outcome.committed) {
+      setError('Account created, but sign-in could not complete. Reload to continue.');
+      return;
+    }
     onLogin(username);
   };
 

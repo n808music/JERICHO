@@ -400,6 +400,46 @@ describe('ZionDashboard apply draft schedule', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('deduplicates overlapping full-horizon and forecast calendar blocks in expanded month view', () => {
+    capturedStore = null;
+    const state = buildDraftState();
+    state.proposedBlocks = [];
+    state.proposedBlocksByCycleId = { [state.activeCycleId]: [] };
+    state.pendingPlanConfirmation = false;
+    state.scheduleApplied = true;
+    state.selectedHorizonMode = 'full_horizon';
+    state.cycle = [];
+    const overlappingBlock = {
+      id: 'fh-overlap-1',
+      cycleId: state.activeCycleId,
+      goalId: 'goal-1',
+      masterPlanId: 'masterplan-1',
+      title: 'Review canonical horizon',
+      displayTitle: 'Review canonical horizon',
+      label: 'Review canonical horizon',
+      start: '2026-01-22T09:00:00.000Z',
+      startISO: '2026-01-22T09:00:00.000Z',
+      end: '2026-01-22T10:00:00.000Z',
+      endISO: '2026-01-22T10:00:00.000Z',
+      dayKey: '2026-01-22',
+      status: 'planned',
+      domain: 'CREATION',
+      practice: 'CREATION',
+      executionEligibility: 'locked',
+    };
+    state.fullHorizonScheduleBlocks = [overlappingBlock];
+    state.calendarDisplayBlocks = [{ ...overlappingBlock }];
+
+    render(
+      <IdentityProvider initialState={state}>
+        <StoreProbe />
+        <ZionDashboard initialView="today" initialZionView="month" initialAnchorDayKey={DAY_KEY} />
+      </IdentityProvider>
+    );
+
+    expect(screen.getAllByText(/Review canonical horizon/i)).toHaveLength(1);
+  });
+
   it('renders active schedule blocks from the canonical block store when review and cycle slices are empty', () => {
     capturedStore = null;
     const state = buildDraftState();

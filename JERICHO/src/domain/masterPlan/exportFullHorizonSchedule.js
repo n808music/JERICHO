@@ -1,4 +1,5 @@
-import { expandFullHorizonSchedule } from './fullHorizonScheduleExpansion.js';
+import { expandFullHorizonSchedule, applyCrossLaneArtifactDependencies } from './fullHorizonScheduleExpansion.js';
+import { applyArtifactDependencyIntegrity, summarizeArtifactDependencyIntegrity } from './artifactDependencyIntegrity.js';
 import { deriveMasterPlanPhaseModel } from './masterPlanPhaseModel.js';
 import { deriveForecastBlocks, resolveHorizonEndForMode } from './forecastBlockDerivation.js';
 import { buildFullHorizonAgendaVersion } from './fullHorizonScheduledAgenda.js';
@@ -40,6 +41,21 @@ function resolveWorkWindows(state) {
     state?.goalExecutionContract?.suggestedWorkWindows ||
     null
   );
+}
+
+function resolveEffectiveExportStartDayKey(state, plan) {
+  const profile = state?.profilesById?.[plan?.profileId || ''] || null;
+  const activeCycleId = String(state?.activeCycleId || '').trim();
+  const cycle = activeCycleId ? state?.cyclesById?.[activeCycleId] || null : null;
+  const reassessmentDayKey = String(cycle?.reassessmentCompletedAtISO || '').slice(0, 10);
+  const generatedDayKey = String(cycle?.scheduleGeneratedAtISO || cycle?.autoAsanaPlan?.audit?.generatedAtISO || '').slice(0, 10);
+  const todayDayKey = String(state?.appTime?.activeDayKey || state?.today?.date || '').slice(0, 10);
+  const planStartDayKey = String(plan?.horizonStart || plan?.officialStartDate || '').slice(0, 10);
+  const floorDayKey = [reassessmentDayKey, generatedDayKey, todayDayKey].filter(Boolean).sort().pop() || null;
+  if (planStartDayKey && floorDayKey) {
+    return planStartDayKey > floorDayKey ? planStartDayKey : floorDayKey;
+  }
+  return planStartDayKey || floorDayKey || null;
 }
 
 function resolveCycleEndDayKey(state, horizonVisibility) {
@@ -96,6 +112,8 @@ export function buildFullHorizonScheduleExport(identityState, options = {}) {
     plan.horizonEnd;
 
   const fullHorizonStartDayKey =
+    options.horizonStartDayKey ||
+    resolveEffectiveExportStartDayKey(identityState, plan) ||
     phaseModel.horizonVisibility?.horizonStart ||
     plan.horizonStart ||
     plan.officialStartDate ||
@@ -126,7 +144,16 @@ export function buildFullHorizonScheduleExport(identityState, options = {}) {
     existingForecastBlocks,
     committedBlocks: [],
     workDays,
+    workWindows,
+    timeZone: identityState?.appTime?.timeZone || 'UTC',
   });
+  const integrity = applyArtifactDependencyIntegrity(blocks);
+  // Re-apply cross-lane wiring after the integrity pass: applyArtifactDependencyIntegrity
+  // overwrites consumedArtifactIds, which erases the cross-lane refs that
+  // expandFullHorizonSchedule already attached. Re-running the cross-lane pass
+  // here restores those refs while keeping the integrity report fields intact.
+  const crossLaneBlocks = applyCrossLaneArtifactDependencies(integrity.blocks, lanes);
+  const exportIntegrity = summarizeArtifactDependencyIntegrity(crossLaneBlocks);
 
   const range = { startDayKey: fullHorizonStartDayKey, endDayKey: fullHorizonEndDayKey };
 
@@ -135,7 +162,7 @@ export function buildFullHorizonScheduleExport(identityState, options = {}) {
     masterPlanId: plan.id,
     createdAtISO: identityState?.appTime?.nowISO || new Date().toISOString(),
     range,
-    blocks,
+    blocks: crossLaneBlocks,
     sourceConstraintVersionId: plan.currentScheduleConstraintVersionId || null,
     strategicCoverageState: null,
     planQualityState: null,
@@ -148,10 +175,13 @@ export function buildFullHorizonScheduleExport(identityState, options = {}) {
     plan,
     lanes,
     milestones,
-    blocks,
+    blocks: exportIntegrity.blocks,
     range,
     summary: agendaVersion.summary,
     agendaVersionId: agendaVersion.id,
+    artifactRegistry: exportIntegrity.artifactRegistry,
+    integrityReport: exportIntegrity.integrityReport,
+    phaseExitCriteriaByPhase: exportIntegrity.phaseExitCriteriaByPhase,
   };
 }
 

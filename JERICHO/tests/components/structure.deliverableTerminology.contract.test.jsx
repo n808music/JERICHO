@@ -406,6 +406,44 @@ describe('Structure deliverable terminology contract', () => {
     expect(screen.getByText('Unknown')).toBeInTheDocument();
   });
 
+  it('projects canonical full-horizon block type, owner, lineage, phase dependencies, and local scheduled time on the formal chart', () => {
+    mockStore = {
+      ...baseStore([{ id: 'masterplan-deliverable:lane-1', title: 'Operation Endgame app platform', requiredBlocks: 1 }]),
+      appTime: { activeDayKey: '2026-03-10', nowISO: '2026-03-10T12:00:00.000Z', timeZone: 'America/Chicago' },
+      selectedHorizonMode: 'full_horizon',
+      fullHorizonScheduleBlocks: [
+        {
+          id: 'fh-1',
+          deliverableId: 'masterplan-deliverable:lane-1',
+          laneId: 'lane-1',
+          laneLabel: 'Operation Endgame app platform',
+          blockType: 'action',
+          title: 'Implement retention loop improvement for Operation Endgame app platform using conversion threshold proof',
+          displayTitle: 'Implement retention loop improvement for Operation Endgame app platform using conversion threshold proof',
+          derivationReason: 'Derived from P2 conversion proof requirements for the product/software lane.',
+          dependsOn: ['phase:P1'],
+          owner: 'product_owner',
+          startISO: '2026-03-10T14:00:00.000Z',
+          start: '2026-03-10T14:00:00.000Z',
+          durationMinutes: 60,
+          status: 'planned',
+          source: 'derived',
+        },
+      ],
+    };
+
+    render(<StructurePageConsolidated />);
+
+    expect(screen.getByRole('columnheader', { name: /owner/i })).toBeInTheDocument();
+    expect(screen.getByText('Execution')).toBeInTheDocument();
+    expect(screen.getByText('Product Owner')).toBeInTheDocument();
+    expect(screen.getByText(/Derived from P2 conversion proof requirements/i)).toBeInTheDocument();
+    expect(screen.getByText(/Locked by phase prerequisite:\s*P1/i)).toBeInTheDocument();
+    expect(screen.getByText(/09:00/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^Unknown$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Dependency missing:\s*phase:P1/i)).not.toBeInTheDocument();
+  });
+
   it('renders long-horizon temporal structure when canonical phase and pacing metadata are supportable', () => {
     mockStore = baseStore(
       [

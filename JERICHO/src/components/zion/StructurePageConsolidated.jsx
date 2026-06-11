@@ -37,6 +37,12 @@ import CycleTransitionModal from './CycleTransitionModal.jsx';
 import ExportFullScheduleButton from './ExportFullScheduleButton.jsx';
 import HorizonResolutionPanel from './HorizonResolutionPanel.jsx';
 import WorkWindowsEditor from './WorkWindowsEditor.tsx';
+import {
+  formatBlockRef,
+  formatArtifactLabel,
+  formatConsumedArtifacts,
+  formatGateSummary,
+} from './formalChartFormatters.js';
 
 const EMPTY_WORK_WINDOWS = {
   mon: [],
@@ -64,7 +70,67 @@ const normalizeActionType = (action = null) => {
   return 'Unknown';
 };
 
-const formatDate = (iso) => {
+const formatOwnerLabel = (owner) => {
+  const normalized = String(owner || '').trim();
+  if (!normalized) {
+    return '—';
+  }
+  return normalized
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+};
+
+const normalizeCanonicalBlockType = (block = null, fallbackActionType = 'Unknown') => {
+  const rawType = String(block?.blockType || block?.type || '')
+    .trim()
+    .toLowerCase();
+  if (rawType === 'action' || rawType === 'execution') return 'Execution';
+  if (rawType === 'readiness' || rawType === 'terminal-readiness' || rawType === 'milestone') return 'Readiness';
+  if (rawType === 'review') return 'Review';
+  if (rawType === 'gate') return 'Gate';
+  if (rawType === 'audit' || rawType === 'monitoring') return 'Monitoring';
+  if (rawType === 'validation') return 'Validation';
+  return fallbackActionType || 'Unknown';
+};
+
+const humanizeDependencyRef = (dependencyRef) => {
+  const normalized = String(dependencyRef || '').trim();
+  if (!normalized) {
+    return '';
+  }
+  if (normalized.startsWith('phase:')) {
+    return `phase ${normalized.slice(6).toUpperCase()} prerequisite`;
+  }
+  if (normalized.startsWith('lane:')) {
+    return `lane prerequisite ${normalized.slice(5)}`;
+  }
+  if (normalized.startsWith('terminal-review:')) {
+    return 'terminal review prerequisite';
+  }
+  return normalized;
+};
+
+const deriveFormalActionLineage = (block = null, actionMeta = null, resolvedDeliverable = null) => {
+  if (actionMeta?.title) {
+    return actionMeta.title;
+  }
+  const derivationReason = String(block?.derivationReason || '').trim();
+  if (derivationReason) {
+    return derivationReason;
+  }
+  const unlockTarget = Array.isArray(block?.unlocks) ? String(block.unlocks[0] || '').trim() : '';
+  const dependencyTarget = Array.isArray(block?.dependsOn) ? String(block.dependsOn[0] || '').trim() : '';
+  const lineageParts = [
+    resolvedDeliverable?.title ? `Advances ${resolvedDeliverable.title}` : '',
+    unlockTarget ? `unlocks ${humanizeDependencyRef(unlockTarget)}` : '',
+    block?.successCriterionServed ? `serves ${block.successCriterionServed}` : '',
+    block?.producesArtifact ? `produces ${block.producesArtifact}` : '',
+    dependencyTarget ? `after ${humanizeDependencyRef(dependencyTarget)}` : '',
+  ].filter(Boolean);
+  return lineageParts.join(' · ');
+};
+
+const formatDate = (iso, timeZone) => {
   if (!iso) {
     return '';
   }
@@ -81,13 +147,14 @@ const formatDate = (iso) => {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
+      timeZone: timeZone || undefined,
     });
   } catch {
     return iso;
   }
 };
 
-const formatDateTime = (iso) => {
+const formatDateTime = (iso, timeZone) => {
   if (!iso) {
     return '';
   }
@@ -106,6 +173,7 @@ const formatDateTime = (iso) => {
       day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
+      timeZone: timeZone || undefined,
     });
   } catch {
     return iso;
@@ -199,16 +267,16 @@ function MasterPlanStructureSection({
     <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4 space-y-3">
       <div>
         <div className="text-xs uppercase tracking-[0.14em] text-muted mb-2">Goal</div>
-        <div className="text-sm font-semibold text-jericho-text">Structure establishes the goal and master plan</div>
+        <div className="text-sm font-semibold text-jericho-text">Structure establishes the goal and Master Plan</div>
         <div className="text-xs text-muted mt-1">
-          Define lanes, anchors, milestones, and convergence logic here. The Plan tab visualizes the result read-only.
+          Define lanes, anchors, milestones, and convergence logic here. The Master Plan tab visualizes the result read-only.
         </div>
       </div>
 
       {hasActiveMasterPlan && masterPlanIntakeStatus !== 'in-progress' ? (
         <>
           <div className="rounded-lg border border-line/40 bg-jericho-surface/80 p-3 text-xs text-muted">
-            Goal established. Review lanes, anchors, and milestones in Plan.
+            Goal established. Review lanes, anchors, and milestones in Master Plan.
           </div>
           <div className="rounded-lg border border-line/40 bg-jericho-surface/80 p-3 space-y-3">
             <div className="space-y-2">
@@ -236,8 +304,8 @@ function MasterPlanStructureSection({
               </div>
               <div className="text-xs text-muted">
                 {activeCycle?.id
-                  ? `Active execution cycle: ${activeCycle.id}`
-                  : 'No active execution cycle yet. Start Execution Cycle to create one.'}
+                  ? `Active Operating Cycle: ${activeCycle.id}`
+                  : 'No active Operating Cycle yet. Start Operating Cycle to create one.'}
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -275,12 +343,12 @@ function CycleManagementSection({
   return (
     <details className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4" open={hasActiveMasterPlan && !hasActiveCycle}>
       <summary className="cursor-pointer flex items-center gap-2">
-        <p className="text-xs uppercase tracking-[0.14em] text-muted">Execution Cycle</p>
+        <p className="text-xs uppercase tracking-[0.14em] text-muted">Operating Cycle</p>
       </summary>
       <div className="mt-3 space-y-3">
         {!hasActiveCycle ? (
           <p className="text-xs text-muted">
-            No active execution cycle yet. Start one here, then generate the schedule from Today.
+            No active Operating Cycle yet. Start one here, then generate the first Sprint from Today.
           </p>
         ) : (
           <div className="space-y-1 text-xs text-muted">
@@ -302,7 +370,7 @@ function CycleManagementSection({
             onClick={onStartNewCycleRequest}
             className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent"
           >
-            {hasActiveCycle ? 'Replace Active Cycle' : 'Start Execution Cycle'}
+            {hasActiveCycle ? 'Replace Active Operating Cycle' : 'Start Operating Cycle'}
           </button>
           <button
             onClick={onCompleteReassessment}
@@ -316,21 +384,21 @@ function CycleManagementSection({
             disabled={!hasActiveCycle}
             className={`rounded-full border px-3 py-1 text-xs disabled:opacity-50 ${hasActiveCycle ? 'border-amber-600 text-amber-600 hover:bg-amber-600/10' : 'border-line/60 text-muted'}`}
           >
-            Archive Cycle
+            Archive Operating Cycle
           </button>
           <button
             onClick={onResetCycle}
             disabled={!hasActiveCycle}
             className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent disabled:opacity-50"
           >
-            Reset Cycle
+            Reset Operating Cycle
           </button>
           <button
             onClick={onDeleteCycle}
             disabled={!hasActiveCycle}
             className="rounded-full border border-red-600 px-3 py-1 text-xs text-red-600 hover:bg-red-600/10 disabled:opacity-50"
           >
-            Delete Cycle
+            Delete Operating Cycle
           </button>
         </div>
       </div>
@@ -766,6 +834,14 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
         ])
         .filter(([id]) => id)
     );
+    const chartBlocksById = new Map(
+      (chartScheduleBlocks || [])
+        .filter((b) => b && b.id)
+        .map((b) => [b.id, b]),
+    );
+    const artifactRegistry =
+      (workspace && workspace.fullHorizonScheduleExport && workspace.fullHorizonScheduleExport.artifactRegistry) ||
+      {};
     return deliverables.map((deliverable, index) => {
       const deliverableId = String(deliverable?.id || '').trim() || `deliverable-${index + 1}`;
       const blocks = chartScheduleBlocks
@@ -788,6 +864,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
           }
           return {
             id: block?.id || `${deliverableId}-block-${blockIndex + 1}`,
+            blockId: String(block?.id || `${deliverableId}-block-${blockIndex + 1}`),
             title:
               block?.displayTitle ||
               block?.title ||
@@ -795,17 +872,31 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
               block?.rawLabel ||
               block?.label ||
               'Scheduled block',
-            actionTitle: actionMeta?.title || '',
-            actionType: actionMeta?.actionType || 'Unknown',
+            actionTitle: deriveFormalActionLineage(block, actionMeta, resolvedDeliverable),
+            actionType: normalizeCanonicalBlockType(block, actionMeta?.actionType || 'Unknown'),
             readinessText: readinessLines.join(' · ') || 'No readiness metadata',
             assumptions: uniqueStrings([...(actionMeta?.assumptions || []), block?.assumption]),
             deliverableId: String(block?.deliverableId || '').trim(),
             actionId,
             resolvedDeliverableId: resolvedDeliverable?.id || '',
-            start: block?.start || block?.startISO || block?.dateISO || '',
+            start: block?.startISO || block?.start || block?.dateISO || '',
             durationMinutes: block?.durationMinutes || null,
             status: block?.status || 'planned',
             commerceReadinessLevel: block?.commerceReadinessLevel || null,
+            ownerLabel: formatOwnerLabel(block?.owner),
+            outputArtifactLabel: formatArtifactLabel(
+              block?.outputArtifact?.artifactName || block?.outputArtifact?.id || block?.outputArtifactId || block?.producesArtifact || '',
+              artifactRegistry,
+            ),
+            consumedArtifactsLabel: formatConsumedArtifacts(
+              block?.consumedArtifactIds,
+              artifactRegistry,
+              chartBlocksById,
+            ),
+            consumedArtifactIds: Array.isArray(block?.consumedArtifactIds) ? block.consumedArtifactIds : [],
+            gateCriteriaLabel: formatGateSummary(block),
+            blockRef: formatBlockRef(block, blockIndex),
+            rawBlockId: String(block?.id || `${deliverableId}-block-${blockIndex + 1}`),
           };
         });
       return {
@@ -949,7 +1040,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   const handleClearGoal = () => {
     if (
       window.confirm(
-        'Clear the current goal? This deletes the goal, master plan, execution cycle, schedule, and evidence and returns Jericho to blank state.'
+        'Clear the current goal? This deletes the goal, Master Plan, Operating Cycle, schedule, and evidence and returns Jericho to blank state.'
       )
     ) {
       resetIdentity?.();
@@ -967,7 +1058,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
     }
     if (
       window.confirm(
-        'Reset the active cycle? This clears generated schedule, applied schedule, and execution evidence for this cycle but keeps the master plan.'
+        'Reset the active Operating Cycle? This clears generated schedule, applied schedule, and execution evidence for this Operating Cycle but keeps the Master Plan.'
       )
     ) {
       resetActiveCycle?.(activeCycleId);
@@ -985,7 +1076,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
     if (!hasValidActiveExecutionCycle || !activeCycleId) {
       return;
     }
-    if (window.confirm('Delete the active cycle and clear the calendar? This cannot be undone.')) {
+    if (window.confirm('Delete the active Operating Cycle and clear the calendar? This cannot be undone.')) {
       store.deleteCycle?.(activeCycleId);
       try {
         window.location.hash = '#/structure';
@@ -1044,7 +1135,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
                 if (!hasValidActiveExecutionCycle || !activeCycleId) {
                   return;
                 }
-                if (window.confirm('Archive the active cycle and move it to review mode?')) {
+                if (window.confirm('Archive the active Operating Cycle and move it to review mode?')) {
                   store.endCycle?.(activeCycleId);
                 }
               }}
@@ -1553,8 +1644,13 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
                       <th className="px-2 py-2 font-semibold">Required sessions</th>
                       <th className="px-2 py-2 font-semibold">Scheduled blocks</th>
                       <th className="px-2 py-2 font-semibold">Block title</th>
+                      <th className="px-2 py-2 font-semibold">Ref</th>
                       <th className="px-2 py-2 font-semibold">Action lineage</th>
                       <th className="px-2 py-2 font-semibold">Type</th>
+                      <th className="px-2 py-2 font-semibold">Owner</th>
+                      <th className="px-2 py-2 font-semibold">Output artifact</th>
+                      <th className="px-2 py-2 font-semibold">Consumed artifacts</th>
+                      <th className="px-2 py-2 font-semibold">Gate criteria</th>
                       <th className="px-2 py-2 font-semibold">Readiness</th>
                       <th className="px-2 py-2 font-semibold">Assumptions</th>
                       <th className="px-2 py-2 font-semibold">Scheduled for</th>
@@ -1573,6 +1669,11 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
                             <td className="px-2 py-2 text-muted/60 italic whitespace-normal break-words">
                               No scheduled block yet
                             </td>
+                            <td className="px-2 py-2 text-muted/60">—</td>
+                            <td className="px-2 py-2 text-muted/60">—</td>
+                            <td className="px-2 py-2 text-muted/60">—</td>
+                            <td className="px-2 py-2 text-muted/60">—</td>
+                            <td className="px-2 py-2 text-muted/60">—</td>
                             <td className="px-2 py-2 text-muted/60">—</td>
                             <td className="px-2 py-2 text-muted/60">—</td>
                             <td className="px-2 py-2 text-muted/60">—</td>
@@ -1601,10 +1702,30 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
                               {block.displayTitle || block.title}
                             </span>
                           </td>
+                          <td
+                              className="px-2 py-2 text-muted/80 whitespace-nowrap leading-4"
+                              data-block-id={block.rawBlockId}
+                              title={block.rawBlockId}
+                            >
+                              {block.blockRef}
+                            </td>
                           <td className="px-2 py-2 text-muted/80 whitespace-normal break-words leading-4">
                             {block.actionTitle || '—'}
                           </td>
                           <td className="px-2 py-2 text-muted/80">{block.actionType}</td>
+                          <td className="px-2 py-2 text-muted/80">{block.ownerLabel || '—'}</td>
+                          <td className="px-2 py-2 text-muted/80 whitespace-normal break-words leading-4">
+                            {block.outputArtifactLabel}
+                          </td>
+                          <td
+                              className="px-2 py-2 text-muted/80 whitespace-normal break-words leading-4"
+                              title={Array.isArray(block.consumedArtifactIds) ? block.consumedArtifactIds.join('\n') : ''}
+                            >
+                              {block.consumedArtifactsLabel}
+                            </td>
+                          <td className="px-2 py-2 text-muted/80 whitespace-normal break-words leading-4">
+                            {block.gateCriteriaLabel}
+                          </td>
                           <td className="px-2 py-2 text-muted/80 whitespace-normal break-words leading-4">
                             {block.readinessText || '—'}
                           </td>
@@ -1613,7 +1734,9 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
                               ? block.assumptions.map((assumption) => `Assumption: ${assumption}`).join(' · ')
                               : '—'}
                           </td>
-                          <td className="px-2 py-2 text-muted/80">{block.start ? formatDateTime(block.start) : '—'}</td>
+                          <td className="px-2 py-2 text-muted/80">
+                            {block.start ? formatDateTime(block.start, appTime?.timeZone || 'UTC') : '—'}
+                          </td>
                         </tr>
                       ));
                     })}
@@ -1659,7 +1782,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
             <div className="text-[11px] text-muted">Saving constraints...</div>
           ) : null}
           {constraintsSaveState === 'saved' ? (
-            <div className="text-[11px] text-emerald-700">Constraints saved to active cycle.</div>
+            <div className="text-[11px] text-emerald-700">Constraints saved to the active Operating Cycle.</div>
           ) : null}
           {constraintsSaveState === 'dirty' ? (
             <div className="text-[11px] text-muted">Unsaved constraint changes.</div>
@@ -1770,7 +1893,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
           if (!hasValidActiveExecutionCycle || !activeCycleId) {
             return;
           }
-          if (window.confirm('Archive the active cycle and move it to review mode?')) {
+          if (window.confirm('Archive the active Operating Cycle and move it to review mode?')) {
             store.endCycle?.(activeCycleId);
           }
         }}
@@ -1779,7 +1902,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
           if (!hasValidActiveExecutionCycle || !activeCycleId) {
             return;
           }
-          if (window.confirm('Delete the active cycle and clear the calendar? This cannot be undone.')) {
+          if (window.confirm('Delete the active Operating Cycle and clear the calendar? This cannot be undone.')) {
             store.deleteCycle?.(activeCycleId);
             try {
               window.location.hash = '#/structure';

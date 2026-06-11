@@ -15,7 +15,6 @@ export default function PlanningPanel({
   onDeleteBlock,
   onComplete,
   onMiss,
-  onSkip,
   onEdit,
   onLinkCriterion,
   metricsSlot = null,
@@ -30,6 +29,7 @@ export default function PlanningPanel({
   lineageBlocks = null,
   executionLocked = false,
   executionLockReason = '',
+  hierarchyContext = null,
 }) {
   const deliverableLabelById = React.useMemo(
     () =>
@@ -63,13 +63,13 @@ export default function PlanningPanel({
         surface={surface}
         onComplete={onComplete}
         onMiss={onMiss}
-        onSkip={onSkip}
         onDelete={onDeleteBlock}
         onEdit={onEdit}
         onLinkCriterion={onLinkCriterion}
         criterionLabelById={criterionLabelById}
         deliverableLabelById={deliverableLabelById}
         lineageBlocks={lineageBlocks}
+        hierarchyContext={hierarchyContext}
         timeZone={timeZone}
         readOnly={readOnly}
         executionLocked={executionLocked}
