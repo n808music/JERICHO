@@ -184,14 +184,14 @@ describe('ZionDashboard profile history shell', () => {
     expect(screen.getByText(/Profile id: profile-local-default/i)).toBeInTheDocument();
     expect(screen.getByText(/^Master Plans$/i)).toBeInTheDocument();
     expect(screen.getByText(/^Goal History$/i)).toBeInTheDocument();
-    expect(screen.getByText(/^Cycle History$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Operating Cycle History$/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Operation Endgame/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Grow revenue to \$10k\/month/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/May 19, 2026 → May 19, 2031/i)).toBeInTheDocument();
     expect(screen.getByText(/Archived · Apr 1, 2026 → Apr 30, 2026/i)).toBeInTheDocument();
     expect(screen.getByText(/^Active Goal$/i).nextElementSibling?.textContent).toBe('Operation Endgame');
     expect(screen.getByText(/^Active Plan$/i).nextElementSibling?.textContent).toBe('Operation Endgame');
-    expect(screen.getByText(/^Active Cycle$/i).nextElementSibling?.textContent).toBe('Operation Endgame');
+    expect(screen.getByText(/^Active Operating Cycle$/i).nextElementSibling?.textContent).toBe('Operation Endgame');
     expect(screen.getByTestId('profile-history-drawer').className).toMatch(/fixed/);
     expect(screen.getByTestId('profile-history-drawer').className).toMatch(/right-4/);
     expect(screen.getByTestId('profile-history-drawer').className).toMatch(/w-\[min\(24rem,calc\(100vw-2rem\)\)\]/);
@@ -201,7 +201,7 @@ describe('ZionDashboard profile history shell', () => {
     render(<ZionDashboard initialView="structure" />);
 
     fireEvent.click(screen.getByRole('button', { name: /James Dotson/i }));
-    fireEvent.click(screen.getAllByRole('button', { name: /View Cycle/i })[1]);
+    fireEvent.click(screen.getAllByRole('button', { name: /View Operating Cycle/i })[1]);
 
     expect(noop).toHaveBeenCalledWith('cycle-operation-endgame-archive');
   });
@@ -263,7 +263,7 @@ describe('ZionDashboard profile history shell', () => {
 
     expect(screen.getByText(/^Active Goal$/i).nextElementSibling?.textContent).toBe('None');
     expect(screen.getByText(/^Active Plan$/i).nextElementSibling?.textContent).toBe('None');
-    expect(screen.getByText(/^Active Cycle$/i).nextElementSibling?.textContent).toBe('None');
+    expect(screen.getByText(/^Active Operating Cycle$/i).nextElementSibling?.textContent).toBe('None');
     expect(screen.queryByText(/^Open$/i)).not.toBeInTheDocument();
     expect(screen.getAllByText(/Operation Endgame/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Grow revenue to \$10k\/month/i).length).toBeGreaterThan(0);
@@ -284,7 +284,7 @@ describe('ZionDashboard profile history shell', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /James Dotson/i }));
 
-    expect(screen.getByText(/^Active Cycle$/i).nextElementSibling?.textContent).toBe('None');
+    expect(screen.getByText(/^Active Operating Cycle$/i).nextElementSibling?.textContent).toBe('None');
     expect(screen.queryByText(/^Open$/i)).not.toBeInTheDocument();
   });
 
@@ -328,14 +328,14 @@ describe('ZionDashboard profile history shell', () => {
     expect(screen.getByText(/History: 0 goals/i)).toBeInTheDocument();
     expect(screen.getByText(/^Active Goal$/i).nextElementSibling?.textContent).toBe('None');
     expect(screen.getByText(/^0 cycles$/i)).toBeInTheDocument();
-    expect(screen.getByText(/^Active Cycle$/i).nextElementSibling?.textContent).toBe('None');
+    expect(screen.getByText(/^Active Operating Cycle$/i).nextElementSibling?.textContent).toBe('None');
     const goalHistoryHeader = screen.getByText(/^Goal History$/i);
     const goalHistorySection = goalHistoryHeader.parentElement;
     expect(within(goalHistorySection).getByText(/No goal records stored under this profile yet\./i)).toBeInTheDocument();
     expect(within(goalHistorySection).queryByText(/goal-1/i)).not.toBeInTheDocument();
-    const cycleHistoryHeader = screen.getByText(/^Cycle History$/i);
+    const cycleHistoryHeader = screen.getByText(/^Operating Cycle History$/i);
     const cycleHistorySection = cycleHistoryHeader.parentElement;
-    expect(within(cycleHistorySection).getByText(/No cycle history stored under this profile yet\./i)).toBeInTheDocument();
+    expect(within(cycleHistorySection).getByText(/No Operating Cycle history stored under this profile yet\./i)).toBeInTheDocument();
     expect(within(cycleHistorySection).queryByText(/Grow revenue to \$10k\/month/i)).not.toBeInTheDocument();
   });
 
