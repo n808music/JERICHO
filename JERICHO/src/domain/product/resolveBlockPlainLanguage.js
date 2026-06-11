@@ -6,6 +6,28 @@ function normalizeText(value) {
     .replace(/\s+/g, ' ');
 }
 
+const GENERIC_DETAIL_TOKENS = new Set(['', '—', 'tbd', 'todo', 'n/a', 'unspecified']);
+
+function isGenericDetail(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return GENERIC_DETAIL_TOKENS.has(normalized);
+}
+
+function computeMolecularQuality(block) {
+  const failureCodes = [];
+  if (isGenericDetail(block?.expectedOutput) || isGenericDetail(block?.acceptanceEvidence)) {
+    failureCodes.push('BLOCK_DETAIL_TOO_ABSTRACT');
+  }
+  const hasPlainAction = !isGenericDetail(block?.plainAction);
+  const hasSteps = Array.isArray(block?.steps) && block.steps.length > 0;
+  if (!hasPlainAction && !hasSteps) failureCodes.push('BLOCK_DETAIL_DO_THIS_EMPTY');
+  if (isGenericDetail(block?.doneWhen)) failureCodes.push('BLOCK_DETAIL_DONE_WHEN_EMPTY');
+  return {
+    status: failureCodes.length > 0 ? 'under_specified' : 'passes',
+    failureCodes,
+  };
+}
+
 function stripOperationEndgamePhrasing(title) {
   return normalizeText(title)
     .replace(/\bfor Operation Endgame [^,]+/gi, '')
@@ -98,14 +120,14 @@ export function resolveBlockPlainLanguage(block = {}, context = {}) {
   });
   const title = normalizeText(block?.title || block?.label || block?.displayTitle).toLowerCase();
 
-  if (
+  const baseResult = (
     /(onboarding|sign-in|sign in|login|log in|profile restoration|launch blocker)/i.test(title) ||
     (title.includes('app platform') && title.includes('onboarding'))
-  ) {
-    return onboardingBreakdown(block, hierarchy, initiativeDisplay);
-  }
+  )
+    ? onboardingBreakdown(block, hierarchy, initiativeDisplay)
+    : genericBreakdown(block, hierarchy, initiativeDisplay);
 
-  return genericBreakdown(block, hierarchy, initiativeDisplay);
+  return { ...baseResult, expectedOutput: baseResult.artifact, quality: computeMolecularQuality(block) };
 }
 
 export default resolveBlockPlainLanguage;
