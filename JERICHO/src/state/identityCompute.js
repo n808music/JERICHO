@@ -87,6 +87,9 @@ import { evaluateExecutionCorrection } from './engine/executionCorrectionEvaluat
 import { deriveSystemShotClock } from './engine/shotClock.ts';
 import { deriveForecastBlocks, resolveHorizonEndForMode } from '../domain/masterPlan/forecastBlockDerivation.js';
 import { deriveMasterPlanPhaseModel } from '../domain/masterPlan/masterPlanPhaseModel.js';
+import { resolveEffectiveExecutableStartDayKey } from '../domain/product/resolveEffectiveExecutableStartDayKey.js';
+import { projectEnterpriseDisplay } from '../domain/enterprise/enterpriseDisplayProjection';
+import { evaluateEnterpriseIdentityAudit } from '../domain/enterprise/evaluateEnterpriseIdentityAudit';
 
 /**
  * Computes core continuity state from active mission contract and linked master plans.
@@ -160,6 +163,45 @@ function computeCoreContinuity(state) {
     linkedMasterPlanIds,
     reasonCodes,
   };
+}
+
+export function applyEnterpriseIdentityAudit(next) {
+  if (!next || typeof next !== 'object') return;
+  const profile = next.profilesById?.[next.activeProfileId] || null;
+  const activeMissionId = profile?.activeCoreMissionContractId || null;
+  const contract = activeMissionId ? next.coreMissionContractsById?.[activeMissionId] || null : null;
+  const activeMasterPlan = Object.values(next.masterPlansById || {}).find(
+    (plan) => plan?.coreMissionContractId === activeMissionId,
+  ) || null;
+  const declaredLaneIds = Array.isArray(activeMasterPlan?.laneIds) ? activeMasterPlan.laneIds : [];
+  const intakeSignals = {
+    goalText: String(contract?.goalText || contract?.goal || contract?.label || '').trim(),
+    declaredLaneIds,
+  };
+  const projections = declaredLaneIds.map((laneId) => {
+    const lane = next.masterPlanLanesById?.[laneId] || null;
+    return projectEnterpriseDisplay({
+      laneId,
+      laneLabel: lane?.label || laneId,
+      intakeSignals,
+    });
+  });
+  const blocks = Array.isArray(next.days)
+    ? next.days.flatMap((day) => Array.isArray(day?.blocks) ? day.blocks : [])
+    : [];
+  next.enterpriseProjections = projections;
+  next.enterpriseIdentityAudit = evaluateEnterpriseIdentityAudit({
+    projections,
+    chartRows: projections.map((p) => ({ primaryLabel: p.displayName, laneId: p.internalLane })),
+    blocks: blocks.map((block) => ({
+      id: String(block?.id || ''),
+      laneId: block?.laneId || block?.domain || null,
+      phaseLabel: block?.phaseLabel,
+      blockType: block?.blockType,
+      expectedOutput: block?.expectedOutput,
+      acceptanceEvidence: block?.acceptanceEvidence,
+    })),
+  });
 }
 
 /**
@@ -917,7 +959,6 @@ export function computeDerivedState(state, action) {
     default:
       break;
   }
-
   const perfApplyEventsStart = debugPerfActions ? Date.now() : 0;
   applyExecutionEvents(next);
   const perfApplyEventsMs = debugPerfActions ? Date.now() - perfApplyEventsStart : 0;
@@ -965,6 +1006,7 @@ export function computeDerivedState(state, action) {
   }
   applyProbabilityEligibility(next);
   applyPlanQualityGates(next);
+  applyEnterpriseIdentityAudit(next);
   applyProbabilityScoring(next);
   applyFeasibility(next);
   applyProgressCredit(next);
@@ -4374,6 +4416,184 @@ function resolveSchedulableCoverageDayKey(startDayKey, deadlineDayKey, workWindo
   return deadlineDayKey;
 }
 
+function hasOccupiedCycleSchedule(cycle) {
+  if (!cycle) {
+    return false;
+  }
+  const lifecycle = String(cycle?.scheduleLifecycle || '')
+    .trim()
+    .toLowerCase();
+  if (lifecycle === 'active_schedule' || lifecycle === 'applied_review') {
+    return true;
+  }
+  return (
+    (Array.isArray(cycle?.executionEvents) && cycle.executionEvents.length > 0) ||
+    (Array.isArray(cycle?.scheduleReviewBlocks) && cycle.scheduleReviewBlocks.length > 0) ||
+    (Array.isArray(cycle?.proposedBlocks) && cycle.proposedBlocks.length > 0)
+  );
+}
+
+function findNextSchedulableDayKey(startDayKey, workWindows = {}, timeZone = APP_TIME_ZONE, upperBoundDayKey = null) {
+  const normalizedStart = String(startDayKey || '').trim();
+  if (!normalizedStart) {
+    return null;
+  }
+  let cursor = normalizedStart;
+  let guard = 0;
+  while (cursor && guard < 5000 && (!upperBoundDayKey || cursor <= upperBoundDayKey)) {
+    if (hasSchedulableWorkWindowOnDay(cursor, workWindows)) {
+      return cursor;
+    }
+    const next = addDays(cursor, 1, timeZone);
+    if (!next || next === cursor) {
+      break;
+    }
+    cursor = next;
+    guard += 1;
+  }
+  return null;
+}
+
+function deriveFirstCycleDelayPolicy(plan = null, cycle = null, contract = null, timeZone = APP_TIME_ZONE) {
+  const delayUntilDayKey = coerceDayKey(
+    contract?.firstCycleDelayUntilDayKey ||
+      contract?.startDateDelayUntilDayKey ||
+      cycle?.firstCycleDelayUntilDayKey ||
+      cycle?.startDateDelayUntilDayKey ||
+      plan?.firstCycleDelayUntilDayKey ||
+      plan?.startDateDelayUntilDayKey ||
+      null,
+    timeZone
+  );
+  const reasonCode =
+    String(
+      contract?.startDateDelayReasonCode ||
+        cycle?.startDateDelayReasonCode ||
+        plan?.startDateDelayReasonCode ||
+        ''
+    ).trim() || 'EXPLICIT_DELAY';
+  const reasonLabel =
+    String(contract?.startDateDelayReason || cycle?.startDateDelayReason || plan?.startDateDelayReason || '').trim() ||
+    null;
+  return {
+    delayUntilDayKey,
+    reasonCode,
+    reasonLabel,
+  };
+}
+
+export function resolveFirstCycleScheduleStart(
+  state,
+  { plan = null, cycle = null, contract = null, activationDayKey = null } = {}
+) {
+  const timeZone = state?.appTime?.timeZone || APP_TIME_ZONE;
+  const todayDayKey =
+    coerceDayKey(state?.today?.date, timeZone) ||
+    coerceDayKey(state?.appTime?.activeDayKey, timeZone) ||
+    nowDayKey(timeZone);
+  const planStartDayKey =
+    coerceDayKey(plan?.horizonStart, timeZone) ||
+    coerceDayKey(plan?.officialStartDate, timeZone) ||
+    null;
+  const activationStartDayKey =
+    coerceDayKey(
+      activationDayKey ||
+        contract?.activationDateISO ||
+        cycle?.activationDateISO ||
+        cycle?.goalGovernanceContract?.activeFromISO ||
+        null,
+      timeZone
+    ) || null;
+  const candidateStartDayKey =
+    [todayDayKey, activationStartDayKey, planStartDayKey].filter(Boolean).sort().pop() || todayDayKey || null;
+  const deadlineDayKey =
+    coerceDayKey(contract?.endDayKey, timeZone) ||
+    coerceDayKey(contract?.deadline?.dayKey, timeZone) ||
+    coerceDayKey(contract?.deadlineISO, timeZone) ||
+    coerceDayKey(plan?.fullHorizonEndDayKey, timeZone) ||
+    coerceDayKey(plan?.horizonEnd, timeZone) ||
+    null;
+  const explicitDelay = deriveFirstCycleDelayPolicy(plan, cycle, contract, timeZone);
+  if (explicitDelay.delayUntilDayKey && (!candidateStartDayKey || explicitDelay.delayUntilDayKey >= candidateStartDayKey)) {
+    return {
+      candidateStartDayKey,
+      resolvedStartDayKey: explicitDelay.delayUntilDayKey,
+      reasonCode: explicitDelay.reasonCode,
+      reasonLabel:
+        explicitDelay.reasonLabel || `Start delayed until ${explicitDelay.delayUntilDayKey} by an explicit planning rule.`,
+      delayed: true,
+    };
+  }
+  if (hasOccupiedCycleSchedule(cycle)) {
+    const occupiedStartDayKey =
+      resolveEffectiveExecutableStartDayKey({
+        executionStartDayKey: cycle?.executionStartDayKey || null,
+        reassessmentCompletedAtISO: cycle?.reassessmentCompletedAtISO || null,
+        scheduleGeneratedAtISO: cycle?.scheduleGeneratedAtISO || cycle?.autoAsanaPlan?.audit?.generatedAtISO || null,
+        fallbackStartDayKey:
+          cycle?.startedAtDayKey ||
+          cycle?.goalGovernanceContract?.activeFromISO ||
+          cycle?.goalContract?.startDayKey ||
+          cycle?.goalContract?.startDateISO ||
+          cycle?.goalContract?.startDate ||
+          candidateStartDayKey ||
+          null,
+      }) ||
+      candidateStartDayKey ||
+      null;
+    return {
+      candidateStartDayKey,
+      resolvedStartDayKey: occupiedStartDayKey,
+      reasonCode: 'ACTIVE_CYCLE_OCCUPANCY',
+      reasonLabel: 'The active cycle remains authoritative, but its visible execution floor is clamped to the latest valid start.',
+      delayed: Boolean(candidateStartDayKey && occupiedStartDayKey && occupiedStartDayKey > candidateStartDayKey),
+    };
+  }
+
+  const contractWorkWindows = normalizeCanonicalWorkWindows(contract?.workWindows || {});
+  const availabilityWorkWindows = normalizeCanonicalWorkWindows(state?.availabilityPolicy?.workWindows || {});
+  const planWorkWindows = normalizeCanonicalWorkWindows(
+    plan?.profileId
+      ? buildMasterPlanWorkWindows(state?.masterCalendarsById?.[state?.profilesById?.[plan.profileId]?.masterCalendarId] || null)
+      : {}
+  );
+  const workWindows =
+    countRawWorkWindows(contractWorkWindows) > 0
+      ? contractWorkWindows
+      : countRawWorkWindows(availabilityWorkWindows) > 0
+        ? availabilityWorkWindows
+        : planWorkWindows;
+  if (countRawWorkWindows(workWindows) === 0) {
+    return {
+      candidateStartDayKey,
+      resolvedStartDayKey: candidateStartDayKey,
+      reasonCode: 'EARLIEST_VALID_DATE',
+      reasonLabel: 'Starts at the earliest valid date.',
+      delayed: false,
+    };
+  }
+  const firstAvailableDayKey = findNextSchedulableDayKey(candidateStartDayKey, workWindows, timeZone, deadlineDayKey);
+  if (!firstAvailableDayKey) {
+    return {
+      candidateStartDayKey,
+      resolvedStartDayKey: candidateStartDayKey,
+      reasonCode: 'NO_AVAILABILITY_DEFINED',
+      reasonLabel: 'No schedulable availability exists before the current deadline.',
+      delayed: false,
+    };
+  }
+  return {
+    candidateStartDayKey,
+    resolvedStartDayKey: firstAvailableDayKey,
+    reasonCode: firstAvailableDayKey > candidateStartDayKey ? 'NO_AVAILABILITY_BEFORE_DATE' : 'EARLIEST_VALID_DATE',
+    reasonLabel:
+      firstAvailableDayKey > candidateStartDayKey
+        ? `No saved availability exists before ${firstAvailableDayKey}.`
+        : 'Starts at the earliest valid date.',
+    delayed: firstAvailableDayKey > candidateStartDayKey,
+  };
+}
+
 function buildMasterPlanPolicySnapshot(state, plan) {
   if (!plan?.id || !plan?.profileId) {
     return null;
@@ -4686,12 +4906,13 @@ export function buildMasterPlanOperationalDescriptors(state, plan) {
     .sort((left, right) => String(left?.targetDate || '').localeCompare(String(right?.targetDate || '')));
   const goalId = `masterplan:${plan.id}`;
   const cycleId = `masterplan-cycle:${plan.id}`;
-  // Phase 7 cycle-creation rebase: never let a fresh operational cycle start
-  // in the past. plan.horizonStart is the plan's published start (which may
-  // be backdated for narrative clarity); the active execution window must
-  // begin on today unless the plan explicitly starts in the future.
-  const horizonStart = String(plan?.horizonStart || '').trim();
-  const startDayKey = horizonStart && horizonStart > fallbackToday ? horizonStart : fallbackToday;
+  const existingCycle = state?.cyclesById?.[cycleId] || null;
+  const startResolution = resolveFirstCycleScheduleStart(state, {
+    plan,
+    cycle: existingCycle,
+    contract: existingCycle?.goalContract || null,
+  });
+  const startDayKey = startResolution.resolvedStartDayKey || fallbackToday;
   const fullHorizonEndDayKey = resolveMasterPlanEndDayKey(plan, milestones, plan?.anchors || [], startDayKey);
   const activePhaseScheduleEndDayKey = getNextMasterPlanHardAnchorDayKey(plan, startDayKey) || fullHorizonEndDayKey;
   const weeklyCapacityHours =
@@ -4709,6 +4930,10 @@ export function buildMasterPlanOperationalDescriptors(state, plan) {
     goalId,
     cycleId,
     startDayKey,
+    candidateStartDayKey: startResolution.candidateStartDayKey || startDayKey,
+    startDateReasonCode: startResolution.reasonCode || null,
+    startDateReasonLabel: startResolution.reasonLabel || null,
+    startDateDelayed: Boolean(startResolution.delayed),
     endDayKey: fullHorizonEndDayKey,
     fullHorizonEndDayKey,
     activePhaseScheduleEndDayKey,
@@ -4731,6 +4956,10 @@ function ensureMasterPlanOperationalCycle(state, plan) {
     goalId,
     cycleId,
     startDayKey,
+    candidateStartDayKey,
+    startDateReasonCode,
+    startDateReasonLabel,
+    startDateDelayed,
     endDayKey,
     fullHorizonEndDayKey,
     activePhaseScheduleEndDayKey,
@@ -4793,6 +5022,10 @@ function ensureMasterPlanOperationalCycle(state, plan) {
     goalLabel: getMasterPlanGoalLabel(plan),
     goalText: getMasterPlanGoalText(plan),
     startDayKey,
+    candidateStartDayKey,
+    startDateReasonCode,
+    startDateReason: startDateReasonLabel,
+    startDateDelayed,
     endDayKey: activePhaseScheduleEndDayKey,
     activePhaseScheduleEndDayKey,
     fullHorizonEndDayKey,
@@ -4896,6 +5129,9 @@ function ensureMasterPlanOperationalCycle(state, plan) {
       masterPlanId: plan.id,
       coreMissionContractId: plan?.coreMissionContractId || null,
       startedAtDayKey: startDayKey,
+      candidateStartDayKey,
+      startDateReasonCode,
+      startDateReason: startDateReasonLabel,
       reassessmentStatus: 'required',
       reassessmentRequiredAtISO: state.appTime?.nowISO || new Date().toISOString(),
       reassessmentCompletedAtISO: null,
@@ -4949,6 +5185,12 @@ function ensureMasterPlanOperationalCycle(state, plan) {
       masterPlanId: state.cyclesById[cycleId].masterPlanId || plan.id,
       coreMissionContractId:
         state.cyclesById[cycleId].coreMissionContractId || plan?.coreMissionContractId || null,
+      startedAtDayKey: hasOccupiedCycleSchedule(state.cyclesById[cycleId])
+        ? state.cyclesById[cycleId].startedAtDayKey || startDayKey
+        : startDayKey,
+      candidateStartDayKey,
+      startDateReasonCode,
+      startDateReason: startDateReasonLabel,
       reassessmentStatus: state.cyclesById[cycleId].reassessmentStatus || 'required',
       reassessmentRequiredAtISO:
         state.cyclesById[cycleId].reassessmentRequiredAtISO || state.appTime?.nowISO || new Date().toISOString(),
@@ -6415,6 +6657,9 @@ function applyLongHorizonCalendarBlocks(state) {
     cycleEndDayKey
   ) || plan.fullHorizonEndDayKey || plan.horizonEnd;
 
+  const fullHorizonStartDayKey =
+    phaseModel.horizonVisibility?.horizonStart || plan.horizonStart || plan.officialStartDate || null;
+  const fullHorizonEndDayKey = horizonEndForMode || plan.fullHorizonEndDayKey || plan.horizonEnd;
   // Derive forecast blocks for all phases within the selected horizon.
   // P1 yields post-cycle forecast work; P2/P3 yield phase-level planning blocks.
   const allForecastBlocks = [];
@@ -6433,9 +6678,6 @@ function applyLongHorizonCalendarBlocks(state) {
   const coverageFailureReasonCodes = [];
   const qualityFailureReasonCodes = [];
   let blockQuality = state.fullHorizonBlockQuality || null;
-  const fullHorizonStartDayKey =
-    phaseModel.horizonVisibility?.horizonStart || plan.horizonStart || plan.officialStartDate || null;
-  const fullHorizonEndDayKey = horizonEndForMode || plan.fullHorizonEndDayKey || plan.horizonEnd;
   let coverageAudit = null;
   let planQuality = null;
   let renderTruthAudit = null;
@@ -6448,7 +6690,13 @@ function applyLongHorizonCalendarBlocks(state) {
       lanes,
       existingForecastBlocks: allForecastBlocks,
       committedBlocks: [],
-      workDays: getWorkDaysFromWindows(state.goalExecutionContract?.workWindows || {}),
+      // Long-horizon forecast blocks are inspectable planning artifacts, not
+      // executable schedule commitments. Do not force them through cycle work-window
+      // placement, which is both semantically wrong for locked future work and
+      // explosively expensive at five-year substrate size.
+      workDays: [],
+      workWindows: null,
+      timeZone: state.appTime?.timeZone || 'UTC',
     });
     coverageAudit = auditFullHorizonCoverage({
       fullHorizonScheduleBlocks,
@@ -12394,7 +12642,7 @@ function rebaseSchedule(state, payload = {}) {
         cycleId: cycle.id,
         goalId: contract.goalId,
         reasonCodes: Array.from(
-          new Set(['INSUFFICIENT_CAPACITY_FOR_TEMPORAL_REBASE', ...(failedAudit.temporalReasonCodes || [])])
+          new Set(['REQUIRES_RECALIBRATION', 'INSUFFICIENT_CAPACITY_FOR_TEMPORAL_REBASE', ...(failedAudit.temporalReasonCodes || [])])
         ),
         meta: {
           executionStartDayKey,
