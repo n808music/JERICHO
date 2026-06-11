@@ -3,6 +3,7 @@ import { localStartFromDayAndTime, pad2 } from './timeUtils.js';
 import { describeBlockMeaning } from './blockMeaning.js';
 import { resolveOperatingHierarchyDisplay } from '../../domain/product/resolveOperatingHierarchyDisplay.js';
 import { resolveBlockPlainLanguage } from '../../domain/product/resolveBlockPlainLanguage.js';
+import { projectEnterpriseDisplay } from '../../domain/enterprise/enterpriseDisplayProjection';
 
 /**
  * Shared block details panel.
@@ -24,6 +25,7 @@ export default function BlockDetailsPanel({
   deliverableLabelById = {},
   lineageBlocks = null,
   hierarchyContext = null,
+  enterpriseContext = null,
 }) {
   const block = useMemo(() => blocks.find((b) => b.id === blockId), [blocks, blockId]);
   const lineageSource = Array.isArray(lineageBlocks) && lineageBlocks.length > 0 ? lineageBlocks : blocks;
@@ -54,6 +56,16 @@ export default function BlockDetailsPanel({
         : null,
     [block, hierarchyContext]
   );
+  const enterprise = useMemo(() => {
+    if (!block) return null;
+    const laneId = block.laneId || block.domain || (hierarchyContext?.lane || '');
+    if (!laneId) return null;
+    return projectEnterpriseDisplay({
+      laneId,
+      laneLabel: hierarchyContext?.lane || laneId,
+      intakeSignals: enterpriseContext?.intakeSignals || { goalText: '', declaredLaneIds: [] },
+    });
+  }, [block, hierarchyContext, enterpriseContext]);
   const plainLanguage = useMemo(() => {
     if (!block || !hierarchy) {
       return null;
@@ -109,6 +121,21 @@ export default function BlockDetailsPanel({
   return (
     <div className="rounded-md border border-line/60 bg-jericho-surface px-3 py-2 text-xs space-y-1">
       <p className="text-muted font-semibold">Block details</p>
+      {enterprise && enterprise.displayName ? (
+        <div className="rounded-md border border-line/40 bg-jericho-bg/70 px-2 py-2 text-[11px] space-y-1">
+          <p className="text-muted font-semibold">Enterprise</p>
+          <p className="text-muted">
+            <span className="font-semibold text-jericho-text">{enterprise.displayName}</span>
+            {enterprise.displaySubtitle ? ` — ${enterprise.displaySubtitle}` : ''}
+          </p>
+          <p className="text-muted">
+            Phase scope: {enterprise.phaseScope} · Status: {enterprise.priorityStatus} · Provenance: {enterprise.provenanceStatus}
+          </p>
+          {enterprise.warnings && enterprise.warnings.length > 0 && enterprise.companyCategory === 'Real Estate' ? (
+            <p className="text-amber-700">{enterprise.warnings[0]}</p>
+          ) : null}
+        </div>
+      ) : null}
       {hierarchy ? (
         <div className="rounded-md border border-line/40 bg-jericho-bg/70 px-2 py-2 text-[11px] space-y-1">
           <p className="text-muted font-semibold">Hierarchy</p>
@@ -125,12 +152,40 @@ export default function BlockDetailsPanel({
       ) : null}
       {plainLanguage ? (
         <div className="rounded-md border border-line/40 bg-jericho-bg/70 px-2 py-2 text-[11px] space-y-2">
+          <div className="grid gap-1 sm:grid-cols-2">
+            <p className="text-muted">
+              <span className="font-semibold text-jericho-text">Lane:</span> {plainLanguage.laneLabel || 'Missing'}
+            </p>
+            <p className="text-muted">
+              <span className="font-semibold text-jericho-text">Work type:</span> {plainLanguage.workType || 'Unspecified'}
+            </p>
+          </div>
+          {plainLanguage.quality?.status === 'under_specified' ? (
+            <div className="rounded border border-amber-500/40 bg-amber-500/5 px-2 py-2 space-y-1">
+              <p className="font-semibold text-amber-700">Plan quality failed for this block detail</p>
+              <p className="text-amber-700">
+                This block is still under-specified. Jericho should not treat this breakdown as execution-ready.
+              </p>
+              {plainLanguage.quality?.failureCodes?.length ? (
+                <p className="text-amber-700">
+                  {plainLanguage.quality.failureCodes.join(', ')}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           <div className="space-y-1">
             <p className="text-muted font-semibold">What this means</p>
             <p className="text-muted">{plainLanguage.intent}</p>
           </div>
+          {plainLanguage.whyThisExists ? (
+            <div className="space-y-1">
+              <p className="text-muted font-semibold">Why this block exists</p>
+              <p className="text-muted">{plainLanguage.whyThisExists}</p>
+            </div>
+          ) : null}
           <div className="space-y-1">
             <p className="text-muted font-semibold">Do this</p>
+            {plainLanguage.plainAction ? <p className="text-muted">{plainLanguage.plainAction}</p> : null}
             {plainLanguage.steps.map((step) => (
               <p key={step} className="text-muted">
                 - {step}
@@ -143,8 +198,32 @@ export default function BlockDetailsPanel({
           </div>
           <div className="grid gap-1 sm:grid-cols-2">
             <p className="text-muted">
-              <span className="font-semibold text-jericho-text">Produces:</span> {plainLanguage.artifact}
+              <span className="font-semibold text-jericho-text">Produces:</span> {plainLanguage.expectedOutput}
             </p>
+            {plainLanguage.acceptanceEvidence ? (
+              <p className="text-muted">
+                <span className="font-semibold text-jericho-text">Acceptance evidence:</span>{' '}
+                {plainLanguage.acceptanceEvidence}
+              </p>
+            ) : null}
+          </div>
+          {(plainLanguage.dependencies?.requires?.length || plainLanguage.dependencies?.unlocks?.length) ? (
+            <div className="grid gap-1 sm:grid-cols-2">
+              {plainLanguage.dependencies?.requires?.length ? (
+                <p className="text-muted">
+                  <span className="font-semibold text-jericho-text">Requires:</span>{' '}
+                  {plainLanguage.dependencies.requires.join(', ')}
+                </p>
+              ) : null}
+              {plainLanguage.dependencies?.unlocks?.length ? (
+                <p className="text-muted">
+                  <span className="font-semibold text-jericho-text">Unlocks:</span>{' '}
+                  {plainLanguage.dependencies.unlocks.join(', ')}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="grid gap-1 sm:grid-cols-2">
             {plainLanguage.originalWindow || plainLanguage.currentWindow ? (
               <p className="text-muted">
                 <span className="font-semibold text-jericho-text">Window:</span>{' '}
