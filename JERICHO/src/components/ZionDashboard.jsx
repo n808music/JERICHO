@@ -119,6 +119,36 @@ const LIVE_POS_REASON_LABELS = {
   LIVE_POS_SCORE_EVIDENCE_DENSITY_STRONG: 'Evidence density is strong.',
 };
 
+function resolveDashboardViewFromHash(hashValue) {
+  const currentHash = String(hashValue || '').trim();
+  if (currentHash.startsWith('#/structure')) {
+    return 'structure';
+  }
+  if (currentHash.startsWith('#/today')) {
+    return 'today';
+  }
+  if (currentHash.startsWith('#/stability')) {
+    return 'stability';
+  }
+  if (currentHash.startsWith('#/plan')) {
+    return 'plan';
+  }
+  return null;
+}
+
+function resolveHashForDashboardView(view) {
+  if (view === 'structure') {
+    return '#/structure';
+  }
+  if (view === 'stability') {
+    return '#/stability';
+  }
+  if (view === 'plan') {
+    return '#/plan';
+  }
+  return '#/today';
+}
+
 const PLAN_QUALITY_REASON_LABELS = {
   LONG_HORIZON_TEMPORAL_COMPRESSION:
     'Long-horizon issue: scheduled work compresses into the opening part of the contract.',
@@ -1127,6 +1157,9 @@ export default function ZionDashboard({
     typeof localStorage.getItem === 'function' &&
     (localStorage.getItem('JERICHO_TIME_DEBUG') === '1' || localStorage.getItem('JERICHO_TIME_DEBUG') === 'true');
   const [view, setView] = useState(() => {
+    const routeView =
+      typeof window !== 'undefined' ? resolveDashboardViewFromHash(window.location.hash || '') : null;
+    if (routeView) return routeView;
     if (initialView !== null && initialView !== undefined) return initialView;
     return 'today';
   });
@@ -1151,39 +1184,85 @@ export default function ZionDashboard({
     if (typeof window === 'undefined') return;
 
     const syncHashToView = () => {
-      const currentHash = window.location.hash || '';
-      if (currentHash.startsWith('#/structure')) {
-        setView('structure');
-      } else if (currentHash.startsWith('#/today')) {
-        setView('today');
-      } else if (currentHash.startsWith('#/stability')) {
-        setView('stability');
-      } else if (currentHash.startsWith('#/plan')) {
-        setView('plan');
+      const routeView = resolveDashboardViewFromHash(window.location.hash || '');
+      if (routeView) {
+        setView(routeView);
+        if (routeView === 'structure') {
+          setZionView('day');
+        }
       }
     };
 
     // Sync on mount
     syncHashToView();
 
-    // Listen for hash changes (clicking back/forward, manual URL edits, etc.)
+    // Listen for route and browser restore events. Session/tab restore can bring
+    // back stale React view state without remounting or firing a hashchange, so
+    // pageshow/visibility restore must reassert URL authority.
     window.addEventListener('hashchange', syncHashToView);
+    window.addEventListener('pageshow', syncHashToView);
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        syncHashToView();
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
 
     return () => {
       window.removeEventListener('hashchange', syncHashToView);
+      window.removeEventListener('pageshow', syncHashToView);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
     };
   }, []);
   const [assistantVisible, setAssistantVisible] = useState(assistantOpen);
   const [isCycleTransitionModalOpen, setCycleTransitionModalOpen] = useState(false);
   const [selectedBlockId, setSelectedBlockId] = useState(null);
-  const [zionView, setZionView] = useState(() => initialZionView || 'day');
+  const [zionView, setZionView] = useState(() => {
+    const routeView =
+      typeof window !== 'undefined' ? resolveDashboardViewFromHash(window.location.hash || '') : null;
+    if (routeView === 'structure') {
+      return 'day';
+    }
+    return initialZionView || 'day';
+  });
   const [anchorDayKey, setAnchorDayKey] = useState(() => initialAnchorDayKey || activeDayKey);
+  // Keep the URL route sovereign over any restored/passed view state.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const routeView = resolveDashboardViewFromHash(window.location.hash || '');
+    if (!routeView) return;
+    if (view !== routeView) {
+      setView(routeView);
+    }
+    if (routeView === 'structure' && zionView !== 'day') {
+      setZionView('day');
+    }
+  }, [view, zionView]);
   useEffect(() => {
     setAssistantVisible(assistantOpen);
   }, [assistantOpen]);
   const changeView = React.useCallback((mode) => {
     traceAction(`tabs.${mode}`, { mode });
+    if (typeof window !== 'undefined') {
+      const nextHash = resolveHashForDashboardView(mode);
+      const currentHash = window.location.hash || '';
+      if (currentHash !== nextHash) {
+        try {
+          window.location.hash = nextHash;
+        } catch {
+          // ignore hash routing failures and still update local state
+        }
+      }
+    }
     setView(mode);
+    if (mode === 'structure') {
+      setZionView('day');
+    }
   }, []);
 
   const primaryObjectiveId = today?.primaryObjectiveId || null;
@@ -2886,6 +2965,134 @@ export default function ZionDashboard({
     scheduleSource,
     timeZone,
   ]);
+  const uiDebugSnapshot = useMemo(() => {
+    const previewDayKeys = (items = []) =>
+      (Array.isArray(items) ? items : [])
+        .slice(0, 20)
+        .map((item) => getScheduleItemDayKey(item))
+        .filter(Boolean);
+    const previewBlocks = (items = []) =>
+      (Array.isArray(items) ? items : []).slice(0, 20).map((item) => summarizeTraceBlock(item, timeZone));
+    const currentHash = typeof window !== 'undefined' ? window.location.hash || '' : '';
+    let persistedIdentitySummary = null;
+    if (typeof window !== 'undefined' && typeof window.localStorage?.getItem === 'function') {
+      try {
+        const persisted = JSON.parse(window.localStorage.getItem('jericho-identity') || 'null');
+        const persistedActiveCycle =
+          persisted && persisted.activeCycleId && persisted.cyclesById ? persisted.cyclesById[persisted.activeCycleId] : null;
+        const persistedScheduledBlocks = Array.isArray(persisted?.schedule?.blocks) ? persisted.schedule.blocks : [];
+        persistedIdentitySummary = {
+          activeCycleId: persisted?.activeCycleId || null,
+          activePlanId: persisted?.activePlanId || null,
+          activeDayKey: persisted?.activeDayKey || null,
+          activeCycle: persistedActiveCycle
+            ? {
+                id: persistedActiveCycle.id || null,
+                source: persistedActiveCycle.source || null,
+                startedAtDayKey: persistedActiveCycle.startedAtDayKey || null,
+                executionStartDayKey: persistedActiveCycle.executionStartDayKey || null,
+                reassessmentCompletedAtISO: persistedActiveCycle.reassessmentCompletedAtISO || null,
+                scheduleGeneratedAtISO:
+                  persistedActiveCycle.scheduleGeneratedAtISO ||
+                  persistedActiveCycle?.autoAsanaPlan?.audit?.generatedAtISO ||
+                  null,
+                scheduleLifecycle: persistedActiveCycle.scheduleLifecycle || null,
+              }
+            : null,
+          scheduledBlockDayKeys: previewDayKeys(persistedScheduledBlocks),
+          scheduledBlocksPreview: previewBlocks(persistedScheduledBlocks),
+        };
+      } catch {
+        persistedIdentitySummary = { parseError: true };
+      }
+    }
+    return {
+      hash: currentHash,
+      view,
+      zionView,
+      renderedSurface:
+        view === 'structure'
+          ? 'structure'
+          : view === 'today'
+            ? zionView === 'month'
+              ? 'today-month'
+              : zionView === 'week'
+                ? 'today-week'
+                : zionView === 'quarter'
+                  ? 'today-quarter'
+                  : zionView === 'year'
+                    ? 'today-year'
+                    : 'today-day'
+            : view || 'unknown',
+      anchorDayKey,
+      activeDayKey,
+      effectiveExecutionDayKey,
+      contractStartDayKey,
+      firstCommittedDayKey,
+      resolvedFirstCycleScheduleStart: cycleStartResolution?.resolvedStartDayKey || null,
+      effectiveExecutableFloorDayKey: contractStartDayKey || null,
+      activeCycle: activeCycle
+        ? {
+            id: activeCycle.id || null,
+            source: activeCycle.source || null,
+            startedAtDayKey: activeCycle.startedAtDayKey || null,
+            executionStartDayKey: activeCycle.executionStartDayKey || null,
+            reassessmentCompletedAtISO: activeCycle.reassessmentCompletedAtISO || null,
+            scheduleGeneratedAtISO: activeCycle.scheduleGeneratedAtISO || activeCycle?.autoAsanaPlan?.audit?.generatedAtISO || null,
+            scheduleLifecycle: activeCycle.scheduleLifecycle || null,
+          }
+        : null,
+      activePlan: activeMasterPlan
+        ? {
+            id: activeMasterPlan.id || null,
+            horizonStart: activeMasterPlan.horizonStart || null,
+            horizonEnd: activeMasterPlan.fullHorizonEndDayKey || activeMasterPlan.horizonEnd || null,
+          }
+        : null,
+      calendarSurfaceBlockDayKeys: previewDayKeys(calendarSurfaceBlocks),
+      activeExecutionBlockDayKeys: previewDayKeys(normalizedBlocks),
+      persistedScheduledBlockDayKeys: previewDayKeys(
+        hasAppliedReviewSchedule ? reviewScheduleBlocks : fallbackExecutionBlocks
+      ),
+      calendarSurfaceBlocksPreview: previewBlocks(calendarSurfaceBlocks),
+      activeExecutionBlocksPreview: previewBlocks(normalizedBlocks),
+      persistedScheduledBlocksPreview: previewBlocks(
+        hasAppliedReviewSchedule ? reviewScheduleBlocks : fallbackExecutionBlocks
+      ),
+      persistedIdentitySummary,
+    };
+  }, [
+    view,
+    zionView,
+    anchorDayKey,
+    activeDayKey,
+    effectiveExecutionDayKey,
+    contractStartDayKey,
+    firstCommittedDayKey,
+    cycleStartResolution,
+    activeCycle,
+    activeMasterPlan,
+    calendarSurfaceBlocks,
+    normalizedBlocks,
+    hasAppliedReviewSchedule,
+    reviewScheduleBlocks,
+    fallbackExecutionBlocks,
+    timeZone,
+  ]);
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+    window.__jerichoUiDebug__ = {
+      snapshot: uiDebugSnapshot,
+      getSnapshot: () => uiDebugSnapshot,
+    };
+    return () => {
+      if (window.__jerichoUiDebug__?.snapshot === uiDebugSnapshot) {
+        delete window.__jerichoUiDebug__;
+      }
+    };
+  }, [uiDebugSnapshot]);
   const requiredPerWeek = Number.isFinite(cycleMetrics?.requiredWeeklyThroughput)
     ? cycleMetrics.requiredWeeklyThroughput
     : feasibility?.requiredBlocksPerDay
@@ -3810,7 +4017,7 @@ export default function ZionDashboard({
                 actions.startNewCycleWithDecision?.({ mode: 'archive' });
               }}
               onOpenToday={() => {
-                setView('today');
+                changeView('today');
                 setZionView('day');
               }}
             />
