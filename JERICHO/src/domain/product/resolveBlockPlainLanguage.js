@@ -1,9 +1,11 @@
-import { resolveInitiativeDisplay } from './resolveInitiativeDisplay.js';
-
 function normalizeText(value) {
   return String(value || '')
     .trim()
     .replace(/\s+/g, ' ');
+}
+
+function normalizeLower(value) {
+  return normalizeText(value).toLowerCase();
 }
 
 const GENERIC_DETAIL_TOKENS = new Set(['', '—', 'tbd', 'todo', 'n/a', 'unspecified']);
@@ -61,6 +63,92 @@ function currentWindowLabel(block, hierarchy = {}) {
     return explicit;
   }
   return monthYearFromDayKey(block?.startDayKey || String(block?.start || '').slice(0, 10));
+}
+
+function normalizeLaneLabel(rawLane) {
+  const lane = normalizeText(rawLane);
+  const haystack = lane.toLowerCase();
+  if (!haystack) {
+    return '';
+  }
+  if (/district|civic|corridor|physical footprint|real estate|site control|property|acquisition thesis/.test(haystack)) {
+    return 'Real Estate';
+  }
+  if (/app platform|product\/software|software|product platform|jericho/.test(haystack)) {
+    return 'Product / Software';
+  }
+  if (/album|creative|entertainment|record label|release engine|music/.test(haystack)) {
+    return 'Creative / Music';
+  }
+  if (/media|content|podcast|narrative/.test(haystack)) {
+    return 'Media / Content';
+  }
+  if (/revenue|income|sales|commercial/.test(haystack)) {
+    return 'Revenue';
+  }
+  if (/operations|systems|operator|company/.test(haystack)) {
+    return 'Operations';
+  }
+  if (/institution|education|school|apprenticeship/.test(haystack)) {
+    return 'Institution';
+  }
+  if (/capital|ip|legal|patent/.test(haystack)) {
+    return 'Capital / IP';
+  }
+  return lane;
+}
+
+function resolveInitiativeDisplay(block = {}, hierarchy = {}) {
+  const explicitInitiative = normalizeText(
+    hierarchy?.initiative ||
+      block?.initiativeName ||
+      block?.projectName ||
+      block?.ventureName ||
+      block?.initiativeTitle ||
+      block?.initiativeLabel ||
+      block?.initiative
+  );
+  const normalizedLane = normalizeLaneLabel(hierarchy?.lane || block?.laneLabel || block?.laneName || block?.lane);
+  const titleHaystack = normalizeLower(
+    [block?.displayTitle, block?.title, block?.label, block?.laneLabel, block?.laneName, explicitInitiative, normalizedLane].join(
+      ' '
+    )
+  );
+
+  if (explicitInitiative) {
+    return {
+      initiative: explicitInitiative,
+      lane: normalizedLane || explicitInitiative,
+    };
+  }
+  if (/jericho system|app platform|onboarding|product platform/.test(titleHaystack)) {
+    return { initiative: 'Jericho System', lane: 'Product / Software' };
+  }
+  if (/album|release engine|blackman|d8 n8|our fearless leader|romance riot/.test(titleHaystack)) {
+    return { initiative: 'Release Engine', lane: 'Creative / Music' };
+  }
+  if (/podcast|media narrative|help yourself|state of control|content pipeline/.test(titleHaystack)) {
+    return { initiative: 'Content Engine', lane: 'Media / Content' };
+  }
+  if (/services revenue|revenue bridge|offer|sales/.test(titleHaystack)) {
+    return { initiative: 'Revenue Bridge', lane: 'Revenue' };
+  }
+  if (/studio operations|operator checklist|operating system/.test(titleHaystack)) {
+    return { initiative: 'Operating System', lane: 'Operations' };
+  }
+  if (/institution|apprenticeship|school/.test(titleHaystack)) {
+    return { initiative: 'Institution', lane: 'Institution' };
+  }
+  if (/real estate|district|civic|corridor|property|site/.test(titleHaystack)) {
+    return { initiative: 'Real Estate', lane: 'Real Estate' };
+  }
+  if (/patent|ip|trademark|legal/.test(titleHaystack)) {
+    return { initiative: 'Capital / IP', lane: 'Capital / IP' };
+  }
+  return {
+    initiative: normalizedLane || 'Unspecified Initiative',
+    lane: normalizedLane,
+  };
 }
 
 function defaultArtifact(block, initiativeDisplay) {
