@@ -6,6 +6,11 @@ function normalizeText(value) {
     .replace(/\s+/g, ' ');
 }
 
+function isGeneratedScheduleBlock(block) {
+  const origin = normalizeText(block?.origin).toLowerCase();
+  return Boolean(block?.requiredSystemBlock) || origin === 'schedule_active' || origin === 'schedule_review';
+}
+
 function blockTitle(block) {
   return normalizeText(block?.displayTitle || block?.title || block?.label || block?.id || 'Block');
 }
@@ -59,6 +64,16 @@ function getDependencyRefs(block, allBlocks = []) {
   return ids
     .map((id) => {
       const resolvedId = normalizeText(id);
+      if (resolvedId.startsWith('phase:')) {
+        return {
+          id: resolvedId,
+          title: resolvedId,
+          label: `Locked phase prerequisite ${resolvedId.slice(6).toUpperCase()}`,
+          displayTitle: `Locked phase prerequisite ${resolvedId.slice(6).toUpperCase()}`,
+          semanticDependency: 'phase',
+          unresolved: false,
+        };
+      }
       const ref = blockById.get(resolvedId) || null;
       return ref
         ? ref
@@ -106,17 +121,24 @@ export function describeBlockMeaning(
     lines.push(`Why: ${criterionLabel}`);
   }
   if (!deliverableLabel && !criterionLabel) {
-    lines.push(
-      block?.requiredSystemBlock || normalizeText(block?.origin) === 'schedule_active'
-        ? 'Canonical scheduled block'
-        : 'Manual block'
-    );
+    lines.push(isGeneratedScheduleBlock(block) ? 'Canonical scheduled block' : 'Manual block');
   }
 
   const dependencyRefs = getDependencyRefs(block, allBlocks);
+  const phaseDependencyRefs = dependencyRefs.filter((ref) => ref?.semanticDependency === 'phase');
   const unresolvedDependencyRefs = dependencyRefs.filter((ref) => ref?.unresolved);
-  const openDependencyRefs = dependencyRefs.filter((ref) => ref && !ref.unresolved && !isComplete(ref));
+  const openDependencyRefs = dependencyRefs.filter(
+    (ref) => ref && !ref.unresolved && !ref.semanticDependency && !isComplete(ref)
+  );
 
+  if (phaseDependencyRefs.length > 0) {
+    lines.push(
+      `Locked by phase prerequisite: ${phaseDependencyRefs
+        .slice(0, 2)
+        .map((ref) => String(ref.id || '').slice(6).toUpperCase())
+        .join(', ')}`
+    );
+  }
   if (openDependencyRefs.length > 0) {
     lines.push(
       `Waiting on: ${openDependencyRefs
@@ -124,7 +146,7 @@ export function describeBlockMeaning(
         .map((ref) => blockTitle(ref))
         .join(', ')}`
     );
-  } else if (dependencyRefs.length > 0) {
+  } else if (dependencyRefs.length > 0 && phaseDependencyRefs.length === 0) {
     if (unresolvedDependencyRefs.length > 0) {
       lines.push(
         `Dependency missing: ${unresolvedDependencyRefs

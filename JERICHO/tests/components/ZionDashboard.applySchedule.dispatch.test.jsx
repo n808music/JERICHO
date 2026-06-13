@@ -194,6 +194,44 @@ describe('ZionDashboard apply schedule dispatch wiring', () => {
     expect(applyPlan).not.toHaveBeenCalled();
   });
 
+  it('renders applied review times in the app timezone instead of browser-local time', async () => {
+    mockStore = buildStore();
+    mockStore.proposedBlocks = [];
+    mockStore.pendingPlanConfirmation = false;
+    mockStore.appTime = {
+      nowISO: '2026-02-03T12:00:00.000Z',
+      activeDayKey: '2026-02-03',
+      timeZone: 'America/Chicago',
+    };
+    mockStore.cyclesById['cycle-active'] = {
+      ...mockStore.cyclesById['cycle-active'],
+      scheduleLifecycle: 'applied_review',
+      scheduleReviewBlocks: [
+        {
+          id: 'review-1',
+          cycleId: 'cycle-active',
+          goalId: 'goal-1',
+          status: 'planned',
+          title: 'Review block',
+          label: 'Review block',
+          practice: 'FOCUS',
+          domain: 'FOCUS',
+          durationMinutes: 45,
+          dayKey: '2026-06-15',
+          startISO: '2026-06-15T14:00:00.000Z',
+          endISO: '2026-06-15T14:45:00.000Z',
+          start: '2026-06-15T14:00:00.000Z',
+          end: '2026-06-15T14:45:00.000Z',
+          requiredSystemBlock: true,
+        },
+      ],
+    };
+
+    await renderDashboard();
+
+    expect(screen.getByText('09:00')).toBeInTheDocument();
+  });
+
   it('surfaces applied-but-not-active state and disables execution controls before activation', async () => {
     mockStore = buildStore();
     mockStore.proposedBlocks = [];

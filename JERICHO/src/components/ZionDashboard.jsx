@@ -3766,7 +3766,7 @@ export default function ZionDashboard({
                                             </span>
                                             <span className="text-muted">{item.durationMinutes || 30}m</span>
                                           </div>
-                                          <p className="text-[11px] text-muted">{formatTime(item.startISO)}</p>
+                                          <p className="text-[11px] text-muted">{formatTime(item.startISO, timeZone)}</p>
                                           {item.commerceReadinessLevel ? (
                                             <p className="text-[11px] text-muted">
                                               Commerce readiness: {item.commerceReadinessLevel}
@@ -3789,7 +3789,7 @@ export default function ZionDashboard({
                                       </span>
                                       <span className="text-muted">{item.durationMinutes || 30}m</span>
                                     </div>
-                                    <p className="text-[11px] text-muted">{formatTime(item.startISO)}</p>
+                                    <p className="text-[11px] text-muted">{formatTime(item.startISO, timeZone)}</p>
                                     {item.commerceReadinessLevel ? (
                                       <p className="text-[11px] text-muted">
                                         Commerce readiness: {item.commerceReadinessLevel}
@@ -3816,7 +3816,7 @@ export default function ZionDashboard({
                               <span className="font-medium text-jericho-text">{item.displayTitle || item.title}</span>
                               <span className="text-muted">{item.durationMinutes || 30}m</span>
                             </div>
-                            <p className="text-[11px] text-muted">{formatTime(item.startISO)}</p>
+                            <p className="text-[11px] text-muted">{formatTime(item.startISO, timeZone)}</p>
                             {item.expectedOutput ? (
                               <p className="text-[11px] text-muted">
                                 Expected output: {item.expectedOutput}
@@ -5100,10 +5100,14 @@ function dayKeyDistance(startKey, endKey, timeZone) {
   return cursor === endKey ? count : null;
 }
 
-function formatTime(iso = '') {
+function formatTime(iso = '', timeZone = 'UTC') {
   if (!iso) return '--:--';
   const d = new Date(iso);
-  const h = d.getHours().toString().padStart(2, '0');
-  const m = d.getMinutes().toString().padStart(2, '0');
-  return `${h}:${m}`;
+  if (!Number.isFinite(d.getTime())) return '--:--';
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: timeZone || 'UTC',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(d);
 }

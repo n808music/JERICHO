@@ -1918,6 +1918,7 @@ function buildScheduleReviewBlock(
     title: item.title || 'Scheduled action',
     label: item.title || 'Scheduled action',
     displayTitle: item.displayTitle || item.title || 'Scheduled action',
+    requiredSystemBlock: Boolean(item.requiredSystemBlock),
     start: startDate.toISOString(),
     end: endDate.toISOString(),
     startISO: startDate.toISOString(),
