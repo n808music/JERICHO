@@ -5,6 +5,7 @@ import {
 } from '../state/identityStore.js';
 import { computeDerivedState } from '../state/identityCompute.js';
 import { applyMasterPlanAction } from '../state/masterPlanStore.js';
+import { dayKeyFromISO } from '../state/time/time.ts';
 import { IS_PRODUCTION } from '../utils/runtimeEnv.js';
 
 export const OPERATION_ENDGAME_GOAL_TEXT =
@@ -73,6 +74,15 @@ const STORAGE_KEY = 'jericho-identity';
 const BACKUP_LATEST_KEY = 'jericho-identity-backup-latest';
 const BACKUP_LATEST_POINTER_KEY = 'jericho-identity-backup-latest-key';
 const BACKUP_PREFIX = 'jericho-identity-backup:';
+
+function resolveLiveAppClock({ appNowISO = null, appTodayDate = null, timeZone = 'UTC' } = {}) {
+  const liveNowISO = String(appNowISO || '').trim() || new Date().toISOString();
+  const liveTodayDate = String(appTodayDate || '').trim() || dayKeyFromISO(liveNowISO, timeZone) || DEFAULT_TODAY_DATE;
+  return {
+    liveNowISO,
+    liveTodayDate,
+  };
+}
 
 function buildLaneAnswers(index, config) {
   return {
@@ -479,12 +489,21 @@ export function buildPersistableOperationEndgameFixtureState(state) {
   return buildPersistableIdentityState(state);
 }
 
-export function buildOperationEndgameFixtureState({
-  nowISO = DEFAULT_NOW_ISO,
-  todayDate = DEFAULT_TODAY_DATE,
-  horizonEnd = DEFAULT_HORIZON_END,
-  declaredHorizonMonths = DEFAULT_HORIZON_MONTHS,
-} = {}) {
+export function buildOperationEndgameFixtureState(options = {}) {
+  const {
+    nowISO = DEFAULT_NOW_ISO,
+    todayDate = DEFAULT_TODAY_DATE,
+    horizonEnd = DEFAULT_HORIZON_END,
+    declaredHorizonMonths = DEFAULT_HORIZON_MONTHS,
+    appNowISO = null,
+    appTodayDate = null,
+  } = options;
+  const hasExplicitSeedNowISO = Object.prototype.hasOwnProperty.call(options || {}, 'nowISO');
+  const { liveNowISO, liveTodayDate } = resolveLiveAppClock({
+    appNowISO: appNowISO || (hasExplicitSeedNowISO ? nowISO : null),
+    appTodayDate,
+    timeZone: 'UTC',
+  });
   const state = buildBlankIdentityState({ timeZone: 'UTC', nowISO, todayDate });
   const laneConfigs = buildLaneConfigs();
   const answers = {
@@ -619,6 +638,49 @@ export function buildOperationEndgameFixtureState({
   next.scheduleLifecycleState = 'goal_admitted';
   next.proposedBlocks = [];
   next.scheduleReviewBlocks = [];
+
+  // Seed approved capacity so the Generate Schedule gate opens after restore.
+  // Without this, hasConfirmedWorkWindows is false → hasApprovedCapacity is false
+  // → the dashboard disables the button with no visible reason.
+  next.availabilityPolicy = {
+    ...(next.availabilityPolicy || {}),
+    workWindows: {
+      mon: [{ start: '09:00', end: '17:00' }],
+      tue: [{ start: '09:00', end: '17:00' }],
+      wed: [{ start: '09:00', end: '17:00' }],
+      thu: [{ start: '09:00', end: '17:00' }],
+      fri: [{ start: '09:00', end: '17:00' }],
+      sat: [],
+      sun: [],
+    },
+    workWindowsSource: 'user_defined',
+    constraintsStatus: 'approved',
+  };
+
+  next.appTime = {
+    ...(next.appTime || {}),
+    timeZone: next.appTime?.timeZone || 'UTC',
+    nowISO: liveNowISO,
+    activeDayKey: liveTodayDate,
+    isFollowingNow: true,
+  };
+  next.today = {
+    ...(next.today || {}),
+    date: liveTodayDate,
+  };
+  next.currentWeek = {
+    ...(next.currentWeek || {}),
+    weekStart: liveTodayDate,
+  };
+  next.viewDate = liveTodayDate;
+  const liveDerived = computeDerivedState(next, { type: 'NO_OP' });
+  next.systemShotClockByGoal = liveDerived.systemShotClockByGoal || {};
+  next.systemShotClock = liveDerived.systemShotClock || null;
+  next.goalPolicyByGoalId = liveDerived.goalPolicyByGoalId || next.goalPolicyByGoalId || {};
+  next.executionCorrectionByGoal = liveDerived.executionCorrectionByGoal || next.executionCorrectionByGoal || {};
+  next.probabilityByGoal = liveDerived.probabilityByGoal || next.probabilityByGoal || {};
+  next.feasibilityByGoal = liveDerived.feasibilityByGoal || next.feasibilityByGoal || {};
+  next.scheduleLifecycleState = liveDerived.scheduleLifecycleState || next.scheduleLifecycleState;
 
   return next;
 }
