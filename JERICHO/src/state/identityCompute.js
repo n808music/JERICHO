@@ -1945,6 +1945,11 @@ function buildScheduleReviewBlock(
     optional: Boolean(item.optional),
     objectiveId: state.today?.primaryObjectiveId || null,
     scheduleLifecycle: 'applied_review',
+    blockType: item.blockType || null,
+    producesArtifact: item.producesArtifact || null,
+    consumedBy: Array.isArray(item.consumedBy) ? [...item.consumedBy] : item.consumedBy || null,
+    consumedByRef: item.consumedByRef ? { ...item.consumedByRef } : item.consumedByRef || null,
+    passEvidence: item.passEvidence || null,
   };
 }
 
@@ -5973,6 +5978,20 @@ function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
       lane?.label ||
       candidate?.laneId ||
       null;
+    const actionTitle = candidate.title || 'First-cycle milestone work';
+    const laneDisplayLabel = laneLabel || 'Master plan lane';
+    const producesArtifactText = candidate?.milestoneId
+      ? `Milestone checkpoint: ${actionTitle} completed for ${laneDisplayLabel}`
+      : `First-cycle readiness work: ${actionTitle}`;
+    const laneRefId = candidate?.laneId || null;
+    const consumedByArray = laneRefId
+      ? [`masterPlanLane:${laneRefId}`]
+      : ['masterPlan'];
+    const consumedByRef = laneRefId
+      ? { type: 'masterPlanLane', id: laneRefId }
+      : { type: 'masterPlan', id: plan.id };
+    const passEvidenceText = candidate?.missConsequence ||
+      `${actionTitle} confirmed complete with observable progress for ${laneDisplayLabel}.`;
     return {
       id: `suggested:masterplan:${plan.id}:${candidate.key}`,
       identityKey: `masterplan:${plan.id}:${candidate.key}`,
@@ -6001,7 +6020,7 @@ function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
       deliverableId: candidate?.laneId ? `masterplan-deliverable:${candidate.laneId}` : null,
       status: 'suggested',
       source: 'master_plan_first_cycle',
-      blockType: candidate?.milestoneId ? 'master_plan_milestone' : 'master_plan_readiness',
+      blockType: 'action',
       owner: defaultOwner,
       milestoneType: candidate?.milestoneType || null,
       flex: candidate?.flex || null,
@@ -6012,6 +6031,10 @@ function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
       sessionIndex: index,
       sourceQuestion: candidate?.originalQuestion || null,
       transformedFromQuestion: candidate?.transformedFromQuestion === true,
+      producesArtifact: producesArtifactText,
+      consumedBy: consumedByArray,
+      consumedByRef,
+      passEvidence: passEvidenceText,
     };
   });
   const scheduledMinutes = blocks.reduce((sum, block) => sum + Number(block?.durationMinutes || 0), 0);
