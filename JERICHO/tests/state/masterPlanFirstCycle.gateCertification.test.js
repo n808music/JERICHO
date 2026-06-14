@@ -242,8 +242,10 @@ describe('GATE CERTIFICATION: First-cycle Sprint quality', () => {
         : '❌ CERTIFICATION FAILED - Plan quality gate did not pass'
     );
 
-    // Don't assert PASSED yet - just document the state
-    expect(gateResult.status).toBeDefined();
+    expect(gateResult.failureCodes).not.toContain('BLOCK_DETAIL_TOO_ABSTRACT');
+    expect(gateResult.failureCodes).not.toContain('BLOCK_DETAIL_DO_THIS_EMPTY');
+    expect(gateResult.failureCodes).not.toContain('BLOCK_DETAIL_DONE_WHEN_EMPTY');
+    expect(gateResult.status).toBe('PLAN_QUALITY_PASSED');
   });
 
   it('generated first-cycle blocks contain non-generic metadata when present', () => {

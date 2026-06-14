@@ -49,8 +49,9 @@ describe('resolveBlockPlainLanguage', () => {
       }
     );
 
-    expect(result.plainAction).toMatch(/Move Jericho System forward/i);
+    expect(result.plainAction).toMatch(/Prepare post-anchor conversion instrumentation/i);
     expect(result.steps.length).toBeGreaterThan(0);
+    expect(result.acceptanceEvidence).toMatch(/Proof that Jericho System progress note exists/i);
     expect(result.confidence).toBe('inferred');
   });
 });

@@ -372,11 +372,7 @@ describe('masterPlanStore intake completion', () => {
     expect(generated.cyclesById[generated.activeCycleId].autoAsanaPlan.summary.calendarCoverageThroughDayKey >= '2026-10-16').toBe(
       true
     );
-    expect(generated.cyclesById[generated.activeCycleId].planQualityGate?.failureCodes || []).toEqual([
-      'BLOCK_DETAIL_TOO_ABSTRACT',
-      'BLOCK_DETAIL_DO_THIS_EMPTY',
-      'BLOCK_DETAIL_DONE_WHEN_EMPTY',
-    ]);
+    expect(generated.cyclesById[generated.activeCycleId].planQualityGate?.failureCodes || []).toEqual([]);
 
     const applied = computeDerivedState(generated, { type: 'APPLY_PLAN' });
     expect(applied.scheduleLifecycle).toBe('applied_review');

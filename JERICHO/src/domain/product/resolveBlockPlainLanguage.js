@@ -32,6 +32,126 @@ function computeMolecularQuality(block) {
   };
 }
 
+function ensureSentence(text) {
+  const normalized = normalizeText(text);
+  if (!normalized) {
+    return '';
+  }
+  return /[.!?]$/.test(normalized) ? normalized : `${normalized}.`;
+}
+
+function startsWithActionVerb(text) {
+  return /^(advance|build|close|complete|confirm|coordinate|define|document|evaluate|execute|finalize|map|prepare|publish|review|run|submit|test|validate|verify)\b/i.test(
+    normalizeText(text)
+  );
+}
+
+function stripTitlePrefix(text) {
+  return normalizeText(text)
+    .replace(/^Milestone checkpoint:\s*/i, '')
+    .replace(/^First-cycle readiness work:\s*/i, '')
+    .replace(/^Concrete progress documented for:\s*/i, '')
+    .trim();
+}
+
+function formatDependencyLabel(value) {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return '';
+  }
+  if (/^masterplan-action:/i.test(normalized)) {
+    return normalized.replace(/^masterplan-action:/i, 'upstream milestone ');
+  }
+  if (/^masterPlanLane:/i.test(normalized)) {
+    return normalized.replace(/^masterPlanLane:/i, 'master plan lane ');
+  }
+  return normalized;
+}
+
+function resolveConsumerLabels(block = {}, initiativeDisplay = {}) {
+  const labels = [];
+  const laneLabel = normalizeText(initiativeDisplay?.lane || block?.laneLabel || block?.lane);
+  const initiativeLabel = normalizeText(initiativeDisplay?.initiative || '');
+  const consumedByRefType = normalizeText(block?.consumedByRef?.type).toLowerCase();
+  if (consumedByRefType === 'masterplanlane' || consumedByRefType === 'masterplanlane'.toLowerCase()) {
+    if (laneLabel) {
+      labels.push(`${laneLabel} lane`);
+    }
+  } else if (consumedByRefType === 'masterplan') {
+    labels.push('master plan');
+  }
+  (Array.isArray(block?.consumedBy) ? block.consumedBy : [])
+    .map(formatDependencyLabel)
+    .filter(Boolean)
+    .forEach((label) => {
+      if (!labels.includes(label)) {
+        labels.push(label);
+      }
+    });
+  if (labels.length === 0 && initiativeLabel) {
+    labels.push(`${initiativeLabel} execution plan`);
+  }
+  return labels;
+}
+
+function resolveDependencyLabels(block = {}) {
+  const labels = [];
+  const details = Array.isArray(block?.directDependencyDetails) ? block.directDependencyDetails : [];
+  details.forEach((detail) => {
+    const dependencyLabel = formatDependencyLabel(detail?.actionId);
+    if (dependencyLabel) {
+      labels.push(dependencyLabel);
+    }
+  });
+  (Array.isArray(block?.directDependencyIds) ? block.directDependencyIds : [])
+    .map(formatDependencyLabel)
+    .filter(Boolean)
+    .forEach((label) => {
+      if (!labels.includes(label)) {
+        labels.push(label);
+      }
+    });
+  return labels;
+}
+
+function resolveArtifact(block = {}, initiativeDisplay = {}) {
+  const raw = normalizeText(
+    block?.producesArtifact ||
+      block?.expectedOutput ||
+      block?.artifactLabel ||
+      block?.outputArtifact ||
+      block?.outputLabel ||
+      block?.deliverableLabel
+  );
+  if (raw) {
+    return stripTitlePrefix(raw);
+  }
+  return defaultArtifact(block, initiativeDisplay);
+}
+
+function resolveEvidence(block = {}, artifact = '', title = '') {
+  const raw = normalizeText(block?.acceptanceEvidence || block?.passEvidence);
+  if (raw) {
+    return stripTitlePrefix(raw);
+  }
+  const fallbackTitle = stripTitlePrefix(title);
+  if (artifact) {
+    return `Proof that ${artifact} exists, is reviewed, and is linked to the next consumer`;
+  }
+  return `Proof that ${fallbackTitle || 'the scheduled work'} is complete`;
+}
+
+function resolveWhyThisExists(block = {}, consumers = []) {
+  const reason = normalizeText(block?.passEvidence || block?.missConsequence);
+  if (reason) {
+    return ensureSentence(reason);
+  }
+  if (consumers.length > 0) {
+    return ensureSentence(`This block exists so ${consumers.join(', ')} can proceed without a missing handoff`);
+  }
+  return '';
+}
+
 function stripOperationEndgamePhrasing(title) {
   return normalizeText(title)
     .replace(/\bfor Operation Endgame [^,]+/gi, '')
@@ -169,6 +289,8 @@ function defaultArtifact(block, initiativeDisplay) {
 }
 
 function onboardingBreakdown(block, hierarchy, initiativeDisplay) {
+  const artifact = resolveArtifact(block, initiativeDisplay);
+  const acceptanceEvidence = resolveEvidence(block, artifact, block?.title || block?.label);
   return {
     intent: 'Test Jericho onboarding and login behavior enough to clear the current launch blocker.',
     plainAction: 'Run the product like a user and verify the onboarding path works end to end.',
@@ -179,32 +301,67 @@ function onboardingBreakdown(block, hierarchy, initiativeDisplay) {
       'Confirm the expected goal or initiative loads without a blocker.',
       'Record any blocker that prevents activation or use.',
     ],
-    doneWhen: 'The onboarding path works without a blocker, or the blocker is clearly documented for repair.',
-    artifact: defaultArtifact(block, initiativeDisplay),
+    doneWhen: `The onboarding path works without a blocker, or the blocker is clearly documented with ${artifact.toLowerCase()}.`,
+    artifact,
+    acceptanceEvidence,
     originalWindow: extractReviewWindow(block?.title || block?.label),
     currentWindow: currentWindowLabel(block, hierarchy),
     confidence: 'high',
+    whyThisExists: resolveWhyThisExists(block),
+    dependencies: {
+      requires: resolveDependencyLabels(block),
+      unlocks: resolveConsumerLabels(block, initiativeDisplay),
+    },
+    workType: 'Execution block',
   };
 }
 
 function genericBreakdown(block, hierarchy, initiativeDisplay) {
   const cleanedTitle = stripOperationEndgamePhrasing(block?.title || block?.label || block?.displayTitle);
+  const actionTitle = stripTitlePrefix(cleanedTitle);
   const initiativeName = initiativeDisplay?.initiative || hierarchy?.initiative || hierarchy?.lane || 'the current initiative';
+  const artifact = resolveArtifact(block, initiativeDisplay);
+  const acceptanceEvidence = resolveEvidence(block, artifact, actionTitle);
+  const dependencies = resolveDependencyLabels(block);
+  const consumers = resolveConsumerLabels(block, initiativeDisplay);
+  const canonicalAction = actionTitle || `Advance ${initiativeName}`;
+  const durationLabel = Number.isFinite(Number(block?.durationMinutes)) ? `${Number(block.durationMinutes)}-minute` : 'scheduled';
+  const explicitSteps = Array.isArray(block?.steps)
+    ? block.steps.map(normalizeText).filter(Boolean)
+    : [];
+  const inferredSteps = [
+    `Use this ${durationLabel} block to complete: ${canonicalAction}.`,
+    dependencies.length > 0 ? `Verify the required upstream inputs are ready: ${dependencies.join(', ')}.` : '',
+    artifact ? `Create or update ${artifact}.` : '',
+    consumers.length > 0 ? `Attach or hand off the output to ${consumers.join(', ')}.` : '',
+    acceptanceEvidence ? `Capture completion proof: ${acceptanceEvidence}.` : '',
+  ].filter(Boolean);
+  const plainAction =
+    normalizeText(block?.plainAction) ||
+    (startsWithActionVerb(canonicalAction)
+      ? `${canonicalAction} and produce ${artifact}.`
+      : `Complete ${canonicalAction} and produce ${artifact}.`);
+  const doneWhen =
+    normalizeText(block?.doneWhen) ||
+    `The block output exists as ${artifact} and the completion proof is recorded: ${acceptanceEvidence}.`;
   return {
-    intent: cleanedTitle
-      ? `${cleanedTitle.charAt(0).toUpperCase()}${cleanedTitle.slice(1)}.`
+    intent: actionTitle
+      ? ensureSentence(`${actionTitle} to advance ${initiativeName}`)
       : `Advance ${initiativeName} with this scheduled block.`,
-    plainAction: `Move ${initiativeName} forward by completing the work described in this block and recording the result.`,
-    steps: [
-      'Review the formal title and hierarchy for context.',
-      'Complete the concrete work needed to move this block forward.',
-      'Capture the result, blocker, or evidence produced by the work.',
-    ],
-    doneWhen: 'The scheduled work is completed or the blocking condition is clearly recorded.',
-    artifact: defaultArtifact(block, initiativeDisplay),
+    plainAction: ensureSentence(plainAction),
+    steps: explicitSteps.length > 0 ? explicitSteps.map(ensureSentence) : inferredSteps.map(ensureSentence),
+    doneWhen: ensureSentence(doneWhen),
+    artifact,
+    acceptanceEvidence: ensureSentence(acceptanceEvidence),
     originalWindow: extractReviewWindow(block?.title || block?.label),
     currentWindow: currentWindowLabel(block, hierarchy),
     confidence: 'inferred',
+    whyThisExists: resolveWhyThisExists(block, consumers),
+    dependencies: {
+      requires: dependencies,
+      unlocks: consumers,
+    },
+    workType: block?.milestoneType ? `Milestone ${normalizeText(block.milestoneType)}` : 'Execution block',
   };
 }
 
@@ -228,7 +385,13 @@ export function resolveBlockPlainLanguage(block = {}, context = {}) {
     laneLabel: initiativeDisplay?.lane || '',
     initiativeLabel: initiativeDisplay?.initiative || '',
     expectedOutput: baseResult.artifact,
-    quality: computeMolecularQuality(block),
+    quality: computeMolecularQuality({
+      expectedOutput: baseResult.artifact,
+      acceptanceEvidence: baseResult.acceptanceEvidence,
+      plainAction: baseResult.plainAction,
+      steps: baseResult.steps,
+      doneWhen: baseResult.doneWhen,
+    }),
   };
 }
 
