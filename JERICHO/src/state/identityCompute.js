@@ -36,6 +36,8 @@ import { projectBlocksForDisplay } from '../domain/masterPlan/blockDisplayProjec
 import { buildGoalIntakeContract, getIntakeGateCode } from '../domain/goal/GoalIntakeContract.ts';
 import { buildGoalPolicySnapshot } from '../domain/goal/GoalPolicy.ts';
 import { evaluatePlanQualityGate } from '../domain/planQuality/evaluatePlanQualityGate.ts';
+import { ACTION_VERB_SET } from '../domain/planQuality/actionVerbs.ts';
+import { mapLaneToEntity } from '../domain/enterprise/laneToEntity.ts';
 import { generateAutoDeliverables, debugAutoDeliverablesGeneration } from '../core/autoDeliverables.ts';
 import { getDeadlineDayKey } from '../core/deadline.ts';
 
@@ -1874,10 +1876,10 @@ function shouldPreferProposalTitle(explicitProposalTitle, canonicalActionTitle) 
     return false;
   }
   const explicitHasOperationalObject =
-    /\b(compare|request|configure|test|send|log|capture|define|draft|review|choose|select|outline|write|compile|lock|segment|adjust)\b/i.test(
+    /\b(compare|request|configure|test|send|log|capture|define|draft|review|choose|select|outline|write|compile|lock|segment|adjust|prepare|finalize|publish|coordinate|activate|execute)\b/i.test(
       explicit
     ) &&
-    /\b(moq|manufacturer|checkout|payment|shipping|fulfillment|buyer|outreach|objection|conversion|formula|sample|packaging|pricing|product page|purchase|order|evidence)\b/i.test(
+    /\b(moq|manufacturer|checkout|payment|shipping|fulfillment|buyer|outreach|objection|conversion|formula|sample|packaging|pricing|product page|purchase|order|evidence|distribution|metadata|artwork|receipt|contract|submission|proof points|checklist)\b/i.test(
       explicit
     );
   if (explicitHasOperationalObject) {
@@ -5345,7 +5347,7 @@ function buildMasterPlanReadinessCandidates(plan, lanes = [], weeklyCapacityHour
   if (hasFixedAnchors) {
     candidates.push({
       key: 'confirm-hard-anchors',
-      title: 'Confirm Operation Endgame hard anchors',
+      title: 'Validate Operation Endgame hard-anchor protection rules',
       minutes: 45,
       practice: 'FOCUS',
       priority: 125,
@@ -5358,7 +5360,7 @@ function buildMasterPlanReadinessCandidates(plan, lanes = [], weeklyCapacityHour
   if (creativeLane || productLane || mediaLane) {
     candidates.push({
       key: 'inventory-existing-assets',
-      title: 'Inventory existing album/app/podcast assets',
+      title: 'Document album, app, and podcast launch asset inventory',
       minutes: 60,
       practice: creativeLane ? mapMasterPlanLaneToPractice(creativeLane.domain) : 'FOCUS',
       priority: 120,
@@ -5383,7 +5385,7 @@ function buildMasterPlanReadinessCandidates(plan, lanes = [], weeklyCapacityHour
   }
   candidates.push({
     key: 'review-first-cycle-sequence',
-    title: 'Review first-cycle milestone sequence',
+    title: 'Validate first-cycle milestone dependency sequence',
     minutes: 45,
     practice: 'FOCUS',
     priority: 116,
@@ -5395,7 +5397,7 @@ function buildMasterPlanReadinessCandidates(plan, lanes = [], weeklyCapacityHour
   if (incomeLane || plan?.financialConstraint?.exists) {
     candidates.push({
       key: 'identify-income-calendar-burden',
-      title: 'Identify job-search/income calendar burden',
+      title: 'Map job-search and income demands against the execution calendar',
       minutes: 45,
       practice: incomeLane ? mapMasterPlanLaneToPractice(incomeLane.domain) : 'RESOURCES',
       priority: 114,
@@ -5456,6 +5458,109 @@ const QUESTION_TITLE_REWRITES = [
   },
 ];
 
+const LEGACY_SCHEDULE_TITLE_REWRITES = [
+  { match: /^distribution submitted$/i, title: 'Submit distribution' },
+  { match: /^artwork finalized$/i, title: 'Finalize artwork' },
+  { match: /^positioning complete$/i, title: 'Complete positioning' },
+  { match: /^outreach started$/i, title: 'Start outreach' },
+  { match: /^press and playlist outreach begins$/i, title: 'Begin press and playlist outreach' },
+  { match: /^final promo push begins$/i, title: 'Begin final promo push' },
+  { match: /^release-week campaign activated$/i, title: 'Activate release-week campaign' },
+  { match: /^release-day coordination and monitoring check for (.+)$/i, title: 'Coordinate release-day monitoring check for $1' },
+  { match: /^first client or contract closed$/i, title: 'Close first client or contract' },
+  { match: /^recording sessions complete$/i, title: 'Complete recording sessions' },
+  { match: /^mixing complete$/i, title: 'Complete mixing' },
+  { match: /^creative work complete$/i, title: 'Complete creative work' },
+  { match: /^mastering complete$/i, title: 'Complete mastering' },
+  { match: /^pre-release content$/i, title: 'Publish pre-release content' },
+  { match: /^pre-release single (\d+)$/i, title: 'Publish pre-release single $1' },
+  { match: /^first draft done$/i, title: 'Complete first draft' },
+  { match: /^ready to release$/i, title: 'Prepare to release' },
+  { match: /^work begins$/i, title: 'Begin work' },
+];
+
+const LEGACY_SCHEDULE_TITLE_GENERIC_REWRITES = [
+  { match: /^(.*) submitted$/i, verb: 'Submit' },
+  { match: /^(.*) finalized$/i, verb: 'Finalize' },
+  { match: /^(.*) complete$/i, verb: 'Complete' },
+  { match: /^(.*) started$/i, verb: 'Start' },
+  { match: /^(.*) begins$/i, verb: 'Begin' },
+  { match: /^(.*) activated$/i, verb: 'Activate' },
+  { match: /^(.*) closed$/i, verb: 'Close' },
+];
+
+function rewriteLegacyScheduleTitle(title = '') {
+  const normalizedTitle = String(title || '').trim().replace(/\s+/g, ' ');
+  if (!normalizedTitle) {
+    return '';
+  }
+  for (const rewrite of LEGACY_SCHEDULE_TITLE_REWRITES) {
+    const match = normalizedTitle.match(rewrite.match);
+    if (match) {
+      return toSentenceCaseTitle(rewrite.title.replace(/\$1/g, match[1] || '').trim());
+    }
+  }
+  for (const rewrite of LEGACY_SCHEDULE_TITLE_GENERIC_REWRITES) {
+    const match = normalizedTitle.match(rewrite.match);
+    if (match && match[1]) {
+      const phrase = String(match[1]).trim();
+      // If the captured phrase already starts with a canonical action verb,
+      // it is already an imperative title — use it verbatim instead of
+      // prefixing another verb (avoids "Complete Advance …", "Activate Outreach …").
+      if (titleStartsWithActionVerb(phrase)) {
+        return collapseAdjacentDuplicateWords(toSentenceCaseTitle(phrase));
+      }
+      // Lowercase the first character of the captured noun so we read
+      // "Activate outreach" not "Activate Outreach". Preserve all-caps
+      // initialisms (EP, PM, API …).
+      return collapseAdjacentDuplicateWords(
+        toSentenceCaseTitle(`${rewrite.verb} ${lowercaseUnlessInitialism(phrase)}`)
+      );
+    }
+  }
+  if (titleStartsWithActionVerb(normalizedTitle)) {
+    return collapseAdjacentDuplicateWords(toSentenceCaseTitle(normalizedTitle));
+  }
+  return collapseAdjacentDuplicateWords(
+    toSentenceCaseTitle(`Complete ${lowercaseUnlessInitialism(normalizedTitle)}`)
+  );
+}
+
+function titleStartsWithActionVerb(text) {
+  const firstWord = String(text || '').trim().split(/\s+/)[0]?.toLowerCase();
+  return Boolean(firstWord && ACTION_VERB_SET.has(firstWord));
+}
+
+function lowercaseUnlessInitialism(text) {
+  const str = String(text || '');
+  const m = str.match(/^(\S+)/);
+  if (!m) return str;
+  const firstWord = m[1];
+  const isInitialism =
+    firstWord.length >= 2 &&
+    firstWord === firstWord.toUpperCase() &&
+    firstWord !== firstWord.toLowerCase();
+  if (isInitialism) return str;
+  return str.charAt(0).toLowerCase() + str.slice(1);
+}
+
+function stripTrailingReleaseLaunchToken(label) {
+  const stripped = String(label || '').replace(/\s+\b(release|launch)\b\s*$/i, '').trim();
+  return stripped || String(label || '').trim();
+}
+
+function resolveFirstCycleExecutionLaneLabel(lane = null) {
+  const laneLabel = String(lane?.title || `${lane?.domain || ''} work`).trim().replace(/\s+/g, ' ');
+  const canonicalEntity = mapLaneToEntity(lane?.domain || '') || mapLaneToEntity(laneLabel);
+  if (
+    canonicalEntity?.companyCategory === 'Project Management' &&
+    /\b(pm company|project management|brand|operations|company)\b/i.test(laneLabel)
+  ) {
+    return canonicalEntity.displayName;
+  }
+  return laneLabel;
+}
+
 const QUESTION_PREFIX_ACTIONS = [
   { prefix: 'what', verb: 'Define' },
   { prefix: 'which', verb: 'Confirm' },
@@ -5497,6 +5602,10 @@ function toSentenceCaseTitle(text = '') {
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
+function collapseAdjacentDuplicateWords(title = '') {
+  return String(title || '').replace(/\b(\w+)\s+\1\b/gi, '$1');
+}
+
 function actionizeMasterPlanCandidateTitle(candidate = {}) {
   const originalTitle = String(candidate?.title || '').trim();
   if (!originalTitle) {
@@ -5512,13 +5621,15 @@ function actionizeMasterPlanCandidateTitle(candidate = {}) {
     };
   }
   if (!isQuestionLikeScheduleTitle(originalTitle)) {
+    const cleanedTitle = originalTitle.replace(/\?+$/g, '').trim();
+    const rewrittenTitle = rewriteLegacyScheduleTitle(cleanedTitle);
     return {
-      title: originalTitle.replace(/\?+$/g, '').trim(),
+      title: rewrittenTitle,
       expectedOutput:
         String(candidate?.expectedOutput || '').trim() ||
-        `Concrete progress documented for: ${originalTitle.replace(/\?+$/g, '').trim()}.`,
+        `Concrete progress documented for: ${cleanedTitle}.`,
       originalQuestion: null,
-      transformed: false,
+      transformed: cleanedTitle !== rewrittenTitle,
     };
   }
   const stripped = stripQuestionPrefix(originalTitle);
@@ -5614,7 +5725,7 @@ function decomposeCompositeCandidates(candidates) {
 const LANE_CADENCE_INTERVAL_DAYS = 14;
 const LANE_RECURRING_WORK = {
   creative: [
-    (l) => `Complete recording session and advance ${l} toward release`,
+    (l) => `Complete recording session and advance ${stripTrailingReleaseLaunchToken(l)} toward release`,
     (l) => `Review and finalize ${l} mastering, mix, and artwork assets`,
     (l) => `Advance ${l} distribution setup, pre-save campaign, and promotion`,
     (l) => `Evaluate ${l} release readiness and confirm distribution timeline`,
@@ -5625,7 +5736,7 @@ const LANE_RECURRING_WORK = {
     (l) => `Test and validate ${l} user flow, onboarding, and checkout path`,
     (l) => `Review ${l} beta feedback and prioritize next development cycle`,
     (l) => `Update ${l} app store listing, metadata, and landing page`,
-    (l) => `Advance ${l} launch readiness — stability, monitoring, and go-live gate`,
+    (l) => `Advance ${stripTrailingReleaseLaunchToken(l)} launch readiness — stability, monitoring, and go-live gate`,
   ],
   media: [
     (l) => `Record next ${l} episode`,
@@ -5705,8 +5816,8 @@ const MILESTONE_WORK_EXPANSION = {
       { title: (l) => `Release-day coordination and monitoring check for ${l}`, offsetDays: 0, minutes: 30 },
     ],
     gate: [
-      { title: (l) => `Prepare ${l} distribution files and metadata`, offsetDays: -4, minutes: 45 },
-      { title: (l) => `Finalize and upload ${l} artwork for distribution`, offsetDays: -3, minutes: 30 },
+      { title: (l) => `Prepare ${stripTrailingReleaseLaunchToken(l)} distribution metadata package`, offsetDays: -4, minutes: 45 },
+      { title: (l) => `Finalize ${stripTrailingReleaseLaunchToken(l)} artwork delivery package`, offsetDays: -3, minutes: 30 },
     ],
     checkpoint: [
       { title: (l) => `Review and approve ${l} checkpoint progress`, offsetDays: -1, minutes: 45 },
@@ -5741,7 +5852,7 @@ const MILESTONE_WORK_EXPANSION = {
   },
   brand: {
     checkpoint: [
-      { title: (l) => `Review ${l} outreach and positioning progress`, offsetDays: 0, minutes: 45 },
+      { title: (l) => `Prepare ${l} contract conversion path`, offsetDays: 0, minutes: 45 },
     ],
   },
   income: {
@@ -5763,7 +5874,7 @@ function expandMilestoneToWorkCandidates(milestone, todayDayKey, timeZone) {
   const domain = String(milestone?.lane?.domain || milestone?.domain || '').trim().toLowerCase();
   const milestoneType = String(milestone?.milestoneType || 'checkpoint').trim().toLowerCase();
   const targetDate = String(milestone?.targetDate || '').trim();
-  const laneLabel = milestone?.lane?.title || `${domain} work`;
+  const laneLabel = resolveFirstCycleExecutionLaneLabel(milestone?.lane || { title: milestone?.laneLabel, domain });
   const laneId = milestone?.lane?.id || milestone?.laneId || null;
   const milestoneId = milestone?.id;
   if (!targetDate || !milestoneId) {

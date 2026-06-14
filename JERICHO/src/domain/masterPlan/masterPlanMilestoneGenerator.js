@@ -17,6 +17,8 @@
  */
 import { buildMilestone, deriveTargetDateFromAnchor } from './masterPlanFactory.js';
 import { MILESTONE_TYPE, MILESTONE_FLEX } from './masterPlanSchema.js';
+import { ACTION_VERB_SET } from '../planQuality/actionVerbs.ts';
+import { mapLaneToEntity } from '../enterprise/laneToEntity.ts';
 
 // ─── Template shape ───────────────────────────────────────────────────────────
 // offsetWeeks  — weeks before anchor (backward placement). offsetWeeks: 0 = anchor date.
@@ -230,28 +232,138 @@ function addWeeks(isoDate, weeks) {
 // lane context. Rules are specific pattern matches, not generic string ops.
 
 function normalizeMilestoneTitle(rawTitle, lane) {
-  const laneLabel = lane.title || `${lane.domain} work`;
+  const laneLabelFull = String(lane.title || `${lane.domain} work`).trim().replace(/\s+/g, ' ');
+  const canonicalEntity = mapLaneToEntity(lane?.domain || '') || mapLaneToEntity(laneLabelFull);
+  const laneExecutionLabel =
+    canonicalEntity?.companyCategory === 'Project Management' && /\b(pm company|project management|brand|operations|company)\b/i.test(laneLabelFull)
+      ? canonicalEntity.displayName
+      : laneLabelFull;
+  const laneObject = stripTrailingReleaseLaunch(laneLabelFull);
 
-  // All-caps release/launch tokens → verb + lane object
-  if (rawTitle === 'DROP') return `Release ${laneLabel}`;
-  if (rawTitle === 'LAUNCH') return `Launch ${laneLabel}`;
-
-  // Lowercase single-word tokens that appear as anchor entries
-  if (/^release$/i.test(rawTitle)) return `Release ${laneLabel}`;
-  if (/^launch$/i.test(rawTitle)) return `Launch ${laneLabel}`;
+  // All-caps release/launch tokens → concrete verb + destination, avoiding noun repetition.
+  if (rawTitle === 'DROP' || /^release$/i.test(rawTitle)) {
+    return `Release ${laneObject} to distribution`;
+  }
+  if (rawTitle === 'LAUNCH' || /^launch$/i.test(rawTitle)) {
+    return `Launch ${laneObject} to production`;
+  }
 
   // Media lane vague titles
-  if (/^album promo episodes?$/i.test(rawTitle)) return `Record promo episode for ${laneLabel} anchor campaign`;
-  if (/^anchor promo push$/i.test(rawTitle)) return `Publish anchor-week promo content for ${laneLabel}`;
-  if (/^anchor tie-in series begins$/i.test(rawTitle)) return `Begin anchor tie-in content series for ${laneLabel}`;
-  if (/^promo episodes? complete$/i.test(rawTitle)) return `Publish final promo episode for ${laneLabel}`;
-  if (/^promo push$/i.test(rawTitle)) return `Execute pre-release promo push for ${laneLabel}`;
+  if (/^album promo episodes?$/i.test(rawTitle)) return `Record promo episode for ${laneLabelFull} anchor campaign`;
+  if (/^anchor promo push$/i.test(rawTitle)) return `Publish anchor-week promo content for ${laneLabelFull}`;
+  if (/^anchor tie-in series begins$/i.test(rawTitle)) return `Begin anchor tie-in content series for ${laneLabelFull}`;
+  if (/^promo episodes? complete$/i.test(rawTitle)) return `Publish final promo episode for ${laneLabelFull}`;
+  if (/^promo push$/i.test(rawTitle)) return `Execute pre-release promo push for ${laneLabelFull}`;
 
-  // Generic milestone titles — leave unchanged
+  // Distribution shorthand
+  if (/^distribution submitted$/i.test(rawTitle)) return `Submit distribution package for ${laneLabelFull}`;
+  if (
+    canonicalEntity?.companyCategory === 'Project Management' &&
+    /^positioning complete$/i.test(rawTitle)
+  ) {
+    return `Define ${laneExecutionLabel} client outreach position`;
+  }
+  if (
+    canonicalEntity?.companyCategory === 'Project Management' &&
+    /^outreach started$/i.test(rawTitle)
+  ) {
+    return `Build ${laneExecutionLabel} prospect outreach list`;
+  }
+  if (
+    canonicalEntity?.companyCategory === 'Project Management' &&
+    /^first client or contract closed$/i.test(rawTitle)
+  ) {
+    return `Close first ${laneExecutionLabel} client contract`;
+  }
+
+  // State-marker patterns: "<phrase> <state>" → imperative.
+  // If <phrase> already starts with a canonical action verb, drop the
+  // state marker and use <phrase> verbatim (prevents "Complete Advance …").
+  // Otherwise prepend the appropriate verb and decapitalize the captured
+  // noun so we don't read "Activate Outreach for X".
+  const stateMap = [
+    [/^(.*?) submitted$/i, 'Submit'],
+    [/^(.*?) finalized$/i, 'Finalize'],
+    [/^(.*?) complete$/i, 'Complete'],
+    [/^(.*?) begins$/i, 'Execute'],
+    [/^(.*?) started$/i, 'Activate'],
+    [/^(.*?) activated$/i, 'Activate'],
+    [/^(.*?) closed$/i, 'Close'],
+  ];
+  for (const [pattern, verb] of stateMap) {
+    const m = rawTitle.match(pattern);
+    if (m && m[1] && m[1].trim()) {
+      const phrase = m[1].trim();
+      if (startsWithCanonicalVerb(phrase)) {
+        return capitalizeFirst(phrase);
+      }
+      return `${verb} ${decapitalizeUnlessInitialism(phrase)} for ${laneExecutionLabel}`;
+    }
+  }
+
+  // Lead-verb swaps for non-canonical imperatives.
+  if (/^begin\s+/i.test(rawTitle)) {
+    return capitalizeFirst(rawTitle.replace(/^begin\s+/i, 'Execute '));
+  }
+  if (/^start\s+/i.test(rawTitle)) {
+    return capitalizeFirst(rawTitle.replace(/^start\s+/i, 'Activate '));
+  }
+  if (/^upload\b/i.test(rawTitle)) {
+    const rewritten = rawTitle
+      .replace(/^Upload and prepare\s+/i, 'Prepare and upload ')
+      .replace(/^Upload\s+/i, 'Prepare and upload ');
+    return /\bfor\b/i.test(rewritten) ? rewritten : `${rewritten} for ${laneExecutionLabel}`;
+  }
+  if (/^pre-release single\s*(\d+)/i.test(rawTitle)) {
+    const m = rawTitle.match(/^pre-release single\s*(\d+)/i);
+    return `Publish pre-release single ${m ? m[1] : ''} for ${laneExecutionLabel}`;
+  }
+  if (/content creation sprint/i.test(rawTitle)) {
+    return `Execute content creation sprint for ${laneExecutionLabel}`;
+  }
+
+  // Already-actionable titles pass through unchanged.
+  if (startsWithCanonicalVerb(rawTitle)) {
+    return capitalizeFirst(rawTitle);
+  }
+
+  // Generic milestone titles — leave unchanged.
   return rawTitle;
 }
 
-// ─── Main export ──────────────────────────────────────────────────────────────
+function stripTrailingReleaseLaunch(label = '') {
+  const stripped = String(label || '').replace(/\s+\b(release|launch)\b\s*$/i, '').trim();
+  return stripped || String(label || '').trim();
+}
+
+function startsWithCanonicalVerb(s) {
+  const m = String(s || '').match(/^([\w-]+)/);
+  if (!m) return false;
+  return ACTION_VERB_SET.has(m[1].toLowerCase());
+}
+
+// Lowercases the first character of `s` unless the first word is an
+// all-caps initialism (EP, PM, API, AWS …) — those stay uppercase.
+function decapitalizeUnlessInitialism(s) {
+  const str = String(s || '');
+  const m = str.match(/^(\S+)/);
+  if (!m) return str;
+  const firstWord = m[1];
+  const isInitialism =
+    firstWord.length >= 2 &&
+    firstWord === firstWord.toUpperCase() &&
+    firstWord !== firstWord.toLowerCase();
+  if (isInitialism) return str;
+  return str.charAt(0).toLowerCase() + str.slice(1);
+}
+
+function capitalizeFirst(s) {
+  const str = String(s || '');
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// ─── Main export ──────────────────────────────────────────────
 
 /**
  * Generates milestones for a single lane.
