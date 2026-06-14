@@ -23,6 +23,7 @@ function buildState() {
         laneId: 'product',
         laneLabel: 'Global State Systems',
         masterPlanLaneId: 'product',
+        owner: 'James / Operation Endgame',
         startISO: '2026-03-11T09:00:00.000Z',
         dayKey: '2026-03-11',
         durationMinutes: 60,
@@ -58,6 +59,7 @@ function buildState() {
             laneId: 'product',
             laneLabel: 'Global State Systems',
             masterPlanLaneId: 'product',
+            owner: 'James / Operation Endgame',
             startISO: '2026-03-11T09:00:00.000Z',
             dayKey: '2026-03-11',
             durationMinutes: 60,
@@ -101,6 +103,7 @@ describe('APPLY_DRAFT_SCHEDULE canonical proposal source', () => {
         laneId: 'product',
         laneLabel: 'Global State Systems',
         masterPlanLaneId: 'product',
+        owner: 'James / Operation Endgame',
       })
     );
     const transitionTraceLog = (next.debug?.traceLog || []).filter((entry) => entry?.transition);

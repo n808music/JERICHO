@@ -204,6 +204,19 @@ export function applyEnterpriseIdentityAudit(next) {
   });
 }
 
+function resolveActiveProfileOwnerLabel(state, profileIdOverride = null) {
+  const activeProfileId =
+    String(profileIdOverride || state?.activeProfileId || '').trim() ||
+    String(state?.activeGoalId && state?.goalsById?.[state.activeGoalId]?.profileId || '').trim() ||
+    null;
+  if (!activeProfileId) {
+    return null;
+  }
+  const profile = state?.profilesById?.[activeProfileId] || null;
+  const displayName = String(profile?.displayName || profile?.label || '').trim();
+  return displayName || null;
+}
+
 /**
  * @typedef {import('./identityTypes.js').IdentityState} IdentityState
  */
@@ -1902,6 +1915,8 @@ function buildScheduleReviewBlock(
     laneId: item.laneId ?? item.masterPlanLaneId ?? null,
     laneLabel: item.laneLabel ?? item.payload?.laneLabel ?? null,
     masterPlanLaneId: item.masterPlanLaneId ?? item.laneId ?? null,
+    owner: item.owner ?? item.executionOwner ?? null,
+    executionOwner: item.executionOwner ?? item.owner ?? null,
     deliverableId: item.deliverableId ?? item.payload?.deliverableId ?? null,
     actionId: item.actionId ?? null,
     directDependencyIds: Array.isArray(item.directDependencyIds) ? [...item.directDependencyIds] : [],
@@ -5758,6 +5773,7 @@ function expandMilestoneToWorkCandidates(milestone, todayDayKey, timeZone) {
 function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
   const { lanes, milestones, goalId, cycleId, profile, masterCalendarId, todayDayKey, timeZone, weeklyCapacityHours } =
     descriptors;
+  const defaultOwner = resolveActiveProfileOwnerLabel(state, profile?.id || plan?.profileId) || 'executor';
   const activePhaseDeadlineDayKey =
     String(descriptors?.goalContract?.activePhaseScheduleEndDayKey || descriptors?.activePhaseScheduleEndDayKey || '').trim() ||
     addDays(todayDayKey, 27, timeZone);
@@ -5986,6 +6002,7 @@ function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
       status: 'suggested',
       source: 'master_plan_first_cycle',
       blockType: candidate?.milestoneId ? 'master_plan_milestone' : 'master_plan_readiness',
+      owner: defaultOwner,
       milestoneType: candidate?.milestoneType || null,
       flex: candidate?.flex || null,
       missConsequence: candidate?.missConsequence || '',
@@ -11589,6 +11606,7 @@ function generatePlan(state, payload = {}) {
         : Math.max(1, Math.min(maxDailySessionCap, Math.ceil(resolvedMaxPerWeek / 5)));
   constraints.maxBlocksPerWeek = resolvedMaxPerWeek;
   constraints.maxBlocksPerDay = resolvedMaxPerDay;
+  const defaultOwner = resolveActiveProfileOwnerLabel(state, cycle?.profileId || contract?.profileId || null);
   const perfCompileStart = debugPerfActions ? Date.now() : 0;
   const compiledPlan = compileAutoAsanaPlan({
     goalId: contract.goalId,
@@ -11600,6 +11618,7 @@ function generatePlan(state, payload = {}) {
     acceptedBlocks,
     actionSequence: actionSequenceWithDeliverableIds,
     sessionPlan: Array.isArray(cycle?.llmSessionPlan) ? cycle.llmSessionPlan : [],
+    defaultOwner,
   });
   if (compiledPlan?.summary) {
     compiledPlan.summary.pacingNotes = pacingNotes;

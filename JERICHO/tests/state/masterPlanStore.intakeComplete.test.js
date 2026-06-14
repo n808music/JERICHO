@@ -307,6 +307,7 @@ describe('masterPlanStore intake completion', () => {
     expect(generated.lastPlanError).toBe(null);
     expect(generated.proposedBlocks.length).toBeGreaterThan(0);
     expect(generated.proposedBlocks.every((block) => block.profileId === DEFAULT_PROFILE_ID)).toBe(true);
+    expect(generated.proposedBlocks.every((block) => block.owner === 'Local Profile')).toBe(true);
     expect(
       generated.proposedBlocks.every((block) => block.masterCalendarId === `calendar-${DEFAULT_PROFILE_ID}`)
     ).toBe(true);
@@ -334,6 +335,9 @@ describe('masterPlanStore intake completion', () => {
     expect(generated.cyclesById[generated.activeCycleId].autoAsanaPlan.summary.coverageStatus).toBe('complete_to_anchor');
     expect(generated.cyclesById[generated.activeCycleId].autoAsanaPlan.summary.calendarCoverageThroughDayKey >= '2026-10-16').toBe(
       true
+    );
+    expect(generated.cyclesById[generated.activeCycleId].planQualityGate?.failureCodes || []).not.toContain(
+      'MISSING_EXECUTION_OWNER'
     );
 
     const applied = computeDerivedState(generated, { type: 'APPLY_PLAN' });

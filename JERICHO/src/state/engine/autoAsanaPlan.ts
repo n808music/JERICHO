@@ -192,6 +192,7 @@ export function compileAutoAsanaPlan({
   acceptedBlocks = [],
   actionSequence = [],
   sessionPlan = [],
+  defaultOwner = null,
 }: {
   goalId: string;
   cycleId: string;
@@ -227,6 +228,7 @@ export function compileAutoAsanaPlan({
     requiredWorkFamily?: string;
     capitalGateId?: string;
     pathwayTag?: string;
+    owner?: string | null;
   }>;
   sessionPlan?: Array<{
     date?: string;
@@ -246,7 +248,9 @@ export function compileAutoAsanaPlan({
     requiredWorkFamily?: string;
     capitalGateId?: string;
     pathwayTag?: string;
+    owner?: string | null;
   }>;
+  defaultOwner?: string | null;
 }): AutoAsanaPlan {
   const timeZone = constraints?.timezone || 'UTC';
   const nowDay = dayKeyFromISO(nowISO, timeZone) || nowDayKey(timeZone);
@@ -274,6 +278,7 @@ export function compileAutoAsanaPlan({
     acceptedBlocks,
     actionSequence,
     sessionPlan,
+    defaultOwner,
   });
   const conflicts: AutoAsanaPlan['conflicts'] = schedule.conflicts;
   const recoveryOptions: AutoAsanaPlan['recoveryOptions'] = schedule.recoveryOptions;
@@ -496,6 +501,7 @@ function scheduleHorizonBlocks({
   acceptedBlocks,
   actionSequence,
   sessionPlan,
+  defaultOwner,
 }: {
   dayKeys: string[];
   plannedPerDay: number;
@@ -515,6 +521,7 @@ function scheduleHorizonBlocks({
     deliverableId?: string | null;
     deliverableTitle?: string | null;
     sessionTitles?: string[];
+    owner?: string | null;
   }>;
   sessionPlan: Array<{
     date?: string;
@@ -525,7 +532,9 @@ function scheduleHorizonBlocks({
     deliverableId?: string;
     actionId?: string;
     title?: string;
+    owner?: string | null;
   }>;
+  defaultOwner?: string | null;
 }) {
   const placed: Array<{
     id: string;
@@ -563,7 +572,8 @@ function scheduleHorizonBlocks({
     acceptedBlocks,
     actionSequence,
     sessionPlan,
-    constraints
+    constraints,
+    defaultOwner
   );
   if (!dayKeys.length || requiredDrafts.length === 0) {
     return { placed, conflicts, recoveryOptions, requiredDraftCount: requiredDrafts.length };
@@ -759,7 +769,7 @@ function scheduleHorizonBlocks({
           sessionIndex: nextSessionIndex,
           identityKey,
           detailTitle: `Final validation and terminal closure checkpoint for ${anchorTitle}`,
-          owner: 'executor',
+          owner: resolveGeneratedBlockOwner('execution', defaultOwner),
           producesArtifact: `Terminal closure evidence package for ${anchorTitle}`,
           consumedBy: [`terminalOutcome:${goalId}`],
           passEvidence: `Terminal closure checkpoint recorded with final validation evidence and outcome decision for ${anchorTitle}`,
@@ -885,6 +895,7 @@ function buildRequiredDrafts(
     deliverableId?: string | null;
     deliverableTitle?: string | null;
     sessionTitles?: string[];
+    owner?: string | null;
   }>,
   sessionPlan: Array<{
     date?: string;
@@ -895,8 +906,10 @@ function buildRequiredDrafts(
     deliverableId?: string;
     actionId?: string;
     title?: string;
+    owner?: string | null;
   }>,
-  constraints: Constraints
+  constraints: Constraints,
+  defaultOwner?: string | null
 ) {
   const dependencyMeta = buildActionDependencyMeta(actionSequence);
   const committedIdentityKeys = new Set(
@@ -935,6 +948,7 @@ function buildRequiredDrafts(
       requiredWorkFamily?: string;
       capitalGateId?: string;
       pathwayTag?: string;
+      owner?: string | null;
     }
   >();
   orderedActions.forEach((action) => {
@@ -973,6 +987,7 @@ function buildRequiredDrafts(
         requiredWorkFamily: String((action as any)?.requiredWorkFamily || '').trim() || undefined,
         capitalGateId: String((action as any)?.capitalGateId || '').trim() || undefined,
         pathwayTag: String((action as any)?.pathwayTag || '').trim() || undefined,
+        owner: String((action as any)?.owner || '').trim() || undefined,
       });
     }
   });
@@ -1060,6 +1075,7 @@ function buildRequiredDrafts(
           requiredWorkFamily: actionMeta.requiredWorkFamily || null,
           capitalGateId: actionMeta.capitalGateId || null,
           pathwayTag: actionMeta.pathwayTag || null,
+          owner: session.owner ?? null,
           sessionIndex,
           identityKey,
         };
@@ -1093,6 +1109,7 @@ function buildRequiredDrafts(
         constraints,
       }),
       actionMetaById,
+      defaultOwner,
     });
   }
   // Canonical action sequence present: expand each action into one or more
@@ -1163,6 +1180,7 @@ function buildRequiredDrafts(
           requiredWorkFamily: actionMeta.requiredWorkFamily || null,
           capitalGateId: actionMeta.capitalGateId || null,
           pathwayTag: actionMeta.pathwayTag || null,
+          owner: (action as any)?.owner ?? null,
           sessionIndex: currentIndex,
         };
       });
@@ -1232,6 +1250,7 @@ function buildRequiredDrafts(
         constraints,
       }),
       actionMetaById,
+      defaultOwner,
     });
   }
   const drafts: Array<{
@@ -1290,6 +1309,7 @@ function buildRequiredDrafts(
         requiredWorkFamily: actionMeta.requiredWorkFamily || null,
         capitalGateId: actionMeta.capitalGateId || null,
         pathwayTag: actionMeta.pathwayTag || null,
+        owner: (action as any)?.owner ?? null,
         sessionIndex,
         identityKey,
       });
@@ -1305,14 +1325,16 @@ function buildRequiredDrafts(
       constraints,
     }),
     actionMetaById,
+    defaultOwner,
   });
 }
 
-function resolveGeneratedBlockOwner(blockType?: string | null) {
+function resolveGeneratedBlockOwner(blockType?: string | null, defaultOwner?: string | null) {
   if (blockType === 'waiting_period') {
     return null;
   }
-  return 'executor';
+  const normalizedDefaultOwner = String(defaultOwner || '').trim();
+  return normalizedDefaultOwner || 'executor';
 }
 
 function normalizeExecutionTitleWord(value: unknown) {
@@ -1488,6 +1510,7 @@ function hydrateDraftExecutionSubstrate({
   goalId,
   drafts,
   actionMetaById,
+  defaultOwner = null,
 }: {
   goalId: string;
   drafts: any[];
@@ -1498,8 +1521,10 @@ function hydrateDraftExecutionSubstrate({
       deliverable?: string;
       definitionOfDone?: string;
       actionType?: 'preparation' | 'execution';
+      owner?: string | null;
     }
   >;
+  defaultOwner?: string | null;
 }) {
   const safeDrafts = Array.isArray(drafts) ? drafts.map((draft) => ({ ...draft })) : [];
   const downstreamDraftsByActionId = new Map<string, any[]>();
@@ -1549,7 +1574,7 @@ function hydrateDraftExecutionSubstrate({
 
     return {
       ...draft,
-      owner: resolveGeneratedBlockOwner(draft?.blockType),
+      owner: String(draft?.owner || actionMeta?.owner || '').trim() || resolveGeneratedBlockOwner(draft?.blockType, defaultOwner),
       producesArtifact: String(actionMeta?.deliverable || '').trim() || null,
       consumedBy,
       passEvidence: String(actionMeta?.definitionOfDone || '').trim() || null,
@@ -2611,6 +2636,7 @@ function normalizeSessionPlanEntries(
     deliverableId?: string;
     actionId?: string;
     title?: string;
+    owner?: string | null;
   }>
 ) {
   if (!Array.isArray(sessions) || sessions.length === 0) return [];
@@ -2641,6 +2667,7 @@ function normalizeSessionPlanEntries(
         actionId,
         deliverableId: deliverableId || `deliv-synthetic-${index + 1}`,
         title,
+        owner: String(session?.owner || '').trim() || null,
         sessionIndex,
       };
     })
@@ -2651,6 +2678,7 @@ function normalizeSessionPlanEntries(
     actionId: string;
     deliverableId: string;
     title: string;
+    owner: string | null;
     sessionIndex: number;
   }>;
   normalized.sort((left, right) => {
