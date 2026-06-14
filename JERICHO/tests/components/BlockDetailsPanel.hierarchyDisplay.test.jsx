@@ -145,4 +145,32 @@ describe('BlockDetailsPanel hierarchy display', () => {
     expect(screen.getByText(/Jericho System progress note/i)).toBeInTheDocument();
     expect(screen.getByText(/Original May 2026 review window · Current June 2026 Operating Cycle/i)).toBeInTheDocument();
   });
+
+  it('resolves raw lane ids to canonical enterprise labels instead of showing Lane: Missing', () => {
+    render(
+      <BlockDetailsPanel
+        blockId="blk-1"
+        blocks={[
+          sampleBlock({
+            laneId: 'product',
+            laneLabel: '',
+            title: 'Validate onboarding path for the current product lane',
+            label: 'Validate onboarding path for the current product lane',
+            requiredSystemBlock: true,
+          }),
+        ]}
+        hierarchyContext={{ operatingCycle: 'June 2026 Operating Cycle' }}
+        enterpriseContext={{
+          intakeSignals: {
+            goalText: 'Build product, creative, media, operations, revenue, capital, institution, and civic pathways.',
+            declaredLaneIds: ['product'],
+          },
+        }}
+        onEdit={noop}
+      />
+    );
+
+    expect(screen.getByText((_, node) => node?.textContent === 'Lane: Global State Systems')).toBeInTheDocument();
+    expect(screen.queryByText((_, node) => node?.textContent === 'Lane: Missing')).not.toBeInTheDocument();
+  });
 });

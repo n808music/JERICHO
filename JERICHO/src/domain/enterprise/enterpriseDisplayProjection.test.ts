@@ -59,6 +59,16 @@ describe('projectEnterpriseDisplay', () => {
     expect(projection.displayName).toBe('F8 Energy Co.');
   });
 
+  it('normalizes legacy Operation Endgame product labels to Global State Systems', () => {
+    const projection = projectEnterpriseDisplay({
+      laneId: 'lane-7fdafe6a-1613-447b-877c-raw',
+      laneLabel: 'Operation Endgame product platform',
+      intakeSignals: OE_INTAKE,
+    });
+    expect(projection.displayName).toBe('Global State Systems');
+    expect(projection.companyCategory).toBe('Technology');
+  });
+
   it('produces unsupported projection with no display name when the lane has no map entry', () => {
     const projection = projectEnterpriseDisplay({
       laneId: 'mystery_lane',

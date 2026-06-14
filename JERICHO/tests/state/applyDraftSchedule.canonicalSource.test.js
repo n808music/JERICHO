@@ -20,6 +20,9 @@ function buildState() {
         cycleId,
         status: 'suggested',
         title: 'Canonical Proposed Title',
+        laneId: 'product',
+        laneLabel: 'Global State Systems',
+        masterPlanLaneId: 'product',
         startISO: '2026-03-11T09:00:00.000Z',
         dayKey: '2026-03-11',
         durationMinutes: 60,
@@ -52,6 +55,9 @@ function buildState() {
             cycleId,
             status: 'suggested',
             title: 'Canonical Proposed Title',
+            laneId: 'product',
+            laneLabel: 'Global State Systems',
+            masterPlanLaneId: 'product',
             startISO: '2026-03-11T09:00:00.000Z',
             dayKey: '2026-03-11',
             durationMinutes: 60,
@@ -90,6 +96,13 @@ describe('APPLY_DRAFT_SCHEDULE canonical proposal source', () => {
     expect((next.executionEvents || []).filter((event) => event?.kind === 'create')).toHaveLength(0);
     expect((next.scheduleReviewBlocks || []).some((block) => block?.suggestionId === 'p1')).toBe(true);
     expect((next.scheduleReviewBlocks || []).some((block) => block?.suggestionId === 's1')).toBe(false);
+    expect(next.scheduleReviewBlocks[0]).toEqual(
+      expect.objectContaining({
+        laneId: 'product',
+        laneLabel: 'Global State Systems',
+        masterPlanLaneId: 'product',
+      })
+    );
     const transitionTraceLog = (next.debug?.traceLog || []).filter((entry) => entry?.transition);
     expect(transitionTraceLog).toEqual(
       expect.arrayContaining([

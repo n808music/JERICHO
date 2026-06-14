@@ -1899,6 +1899,9 @@ function buildScheduleReviewBlock(
     origin: 'schedule_review',
     suggestionId: item.id || null,
     identityKey: item.identityKey || null,
+    laneId: item.laneId ?? item.masterPlanLaneId ?? null,
+    laneLabel: item.laneLabel ?? item.payload?.laneLabel ?? null,
+    masterPlanLaneId: item.masterPlanLaneId ?? item.laneId ?? null,
     deliverableId: item.deliverableId ?? item.payload?.deliverableId ?? null,
     actionId: item.actionId ?? null,
     directDependencyIds: Array.isArray(item.directDependencyIds) ? [...item.directDependencyIds] : [],
@@ -5076,12 +5079,23 @@ function ensureMasterPlanOperationalCycle(state, plan) {
       maxActiveBlocks: 8,
     },
   };
-  const deliverables = lanes.map((lane) => ({
-    id: `masterplan-deliverable:${lane.id}`,
-    title: lane.title,
-    domain: lane.domain,
-    masterPlanLaneId: lane.id,
-  }));
+  const deliverables = lanes.map((lane) => {
+    const projection = projectEnterpriseDisplay({
+      laneId: lane.id || lane.domain || '',
+      laneLabel: lane.title || lane.label || lane.domain || lane.id || '',
+      intakeSignals: {
+        goalText: String(plan?.goalText || plan?.title || '').trim(),
+        declaredLaneIds: Array.isArray(plan?.laneIds) ? plan.laneIds : [],
+      },
+    });
+    return {
+      id: `masterplan-deliverable:${lane.id}`,
+      title: projection.displayName || lane.title,
+      domain: lane.domain,
+      masterPlanLaneId: lane.id,
+      laneLabel: projection.displayName || lane.title || lane.label || lane.id,
+    };
+  });
   const actions = milestones.map((milestone) => ({
     id: `masterplan-action:${milestone.id}`,
     title: milestone.title,
@@ -5926,6 +5940,23 @@ function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
     const start = buildLocalStartISO(scheduledDayKey, slotStartHHMM, timeZone);
     const startISO = start?.startISO || `${scheduledDayKey}T10:00:00.000Z`;
     const durationMinutes = Number(candidate?.minutes || 60);
+    const lane = state?.masterPlanLanesById?.[candidate?.laneId || ''] || null;
+    const laneProjection = projectEnterpriseDisplay({
+      laneId: candidate?.laneId || lane?.domain || '',
+      laneLabel: candidate?.laneLabel || candidate?.laneTitle || lane?.title || lane?.label || candidate?.laneId || '',
+      intakeSignals: {
+        goalText: String(plan?.goalText || plan?.title || '').trim(),
+        declaredLaneIds: Array.isArray(plan?.laneIds) ? plan.laneIds : [],
+      },
+    });
+    const laneLabel =
+      laneProjection.displayName ||
+      candidate?.laneLabel ||
+      candidate?.laneTitle ||
+      lane?.title ||
+      lane?.label ||
+      candidate?.laneId ||
+      null;
     return {
       id: `suggested:masterplan:${plan.id}:${candidate.key}`,
       identityKey: `masterplan:${plan.id}:${candidate.key}`,
@@ -5935,6 +5966,8 @@ function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
       masterCalendarId: masterCalendarId || null,
       masterPlanId: plan.id,
       coreMissionContractId: plan?.coreMissionContractId || null,
+      laneId: candidate?.laneId || null,
+      laneLabel,
       masterPlanLaneId: candidate?.laneId || null,
       masterPlanMilestoneId: candidate?.milestoneId || null,
       title: candidate.title,

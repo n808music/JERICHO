@@ -51,7 +51,7 @@ export function projectEnterpriseDisplay(
   input: EnterpriseDisplayProjectionInput,
 ): EnterpriseDisplayProjection {
   const { laneId, laneLabel, intakeSignals } = input;
-  const entity = mapLaneToEntity(laneId);
+  const entity = mapLaneToEntity(laneId) || mapLaneToEntity(laneLabel);
   const isDeprecatedLabel = DEPRECATED_LANE_LABELS.includes(
     String(laneId || '').toLowerCase().trim(),
   );

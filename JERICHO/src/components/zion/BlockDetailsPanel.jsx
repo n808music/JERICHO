@@ -86,8 +86,9 @@ export default function BlockDetailsPanel({
   const [editDate, setEditDate] = useState(initialDate);
   const [editTime, setEditTime] = useState(`${startHours}:${startMinutes}`);
   const [editDuration, setEditDuration] = useState(() => {
-    const end = block?.end ? new Date(block.end) : null;
-    return end && initialTime ? Math.max(1, Math.round((end.getTime() - initialTime.getTime()) / 60000)) : 30;
+    const end = blockEndISO ? new Date(blockEndISO) : null;
+    const start = blockStartISO ? new Date(blockStartISO) : null;
+    return end && start ? Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000)) : 30;
   });
   const [editDomain, setEditDomain] = useState(block?.practice || block?.domain || 'FOCUS');
   const [editTitle, setEditTitle] = useState(block?.label || '');

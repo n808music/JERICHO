@@ -1,3 +1,5 @@
+import { projectEnterpriseDisplay } from '../enterprise/enterpriseDisplayProjection';
+
 function normalizeText(value) {
   return String(value || '')
     .trim()
@@ -99,6 +101,11 @@ function normalizeLaneLabel(rawLane) {
 }
 
 function resolveInitiativeDisplay(block = {}, hierarchy = {}) {
+  const enterpriseProjection = projectEnterpriseDisplay({
+    laneId: normalizeText(block?.laneId || block?.masterPlanLaneId || hierarchy?.lane),
+    laneLabel: normalizeText(hierarchy?.lane || block?.laneLabel || block?.laneName || block?.lane),
+    intakeSignals: { goalText: '', declaredLaneIds: [] },
+  });
   const explicitInitiative = normalizeText(
     hierarchy?.initiative ||
       block?.initiativeName ||
@@ -109,6 +116,7 @@ function resolveInitiativeDisplay(block = {}, hierarchy = {}) {
       block?.initiative
   );
   const normalizedLane = normalizeLaneLabel(hierarchy?.lane || block?.laneLabel || block?.laneName || block?.lane);
+  const canonicalLane = enterpriseProjection?.displayName || normalizedLane;
   const titleHaystack = normalizeLower(
     [block?.displayTitle, block?.title, block?.label, block?.laneLabel, block?.laneName, explicitInitiative, normalizedLane].join(
       ' '
@@ -118,36 +126,36 @@ function resolveInitiativeDisplay(block = {}, hierarchy = {}) {
   if (explicitInitiative) {
     return {
       initiative: explicitInitiative,
-      lane: normalizedLane || explicitInitiative,
+      lane: canonicalLane || explicitInitiative,
     };
   }
   if (/jericho system|app platform|onboarding|product platform/.test(titleHaystack)) {
-    return { initiative: 'Jericho System', lane: 'Product / Software' };
+    return { initiative: 'Jericho System', lane: canonicalLane || 'Product / Software' };
   }
   if (/album|release engine|blackman|d8 n8|our fearless leader|romance riot/.test(titleHaystack)) {
-    return { initiative: 'Release Engine', lane: 'Creative / Music' };
+    return { initiative: 'Release Engine', lane: canonicalLane || 'Creative / Music' };
   }
   if (/podcast|media narrative|help yourself|state of control|content pipeline/.test(titleHaystack)) {
-    return { initiative: 'Content Engine', lane: 'Media / Content' };
+    return { initiative: 'Content Engine', lane: canonicalLane || 'Media / Content' };
   }
   if (/services revenue|revenue bridge|offer|sales/.test(titleHaystack)) {
-    return { initiative: 'Revenue Bridge', lane: 'Revenue' };
+    return { initiative: 'Revenue Bridge', lane: canonicalLane || 'Revenue' };
   }
   if (/studio operations|operator checklist|operating system/.test(titleHaystack)) {
-    return { initiative: 'Operating System', lane: 'Operations' };
+    return { initiative: 'Operating System', lane: canonicalLane || 'Operations' };
   }
   if (/institution|apprenticeship|school/.test(titleHaystack)) {
-    return { initiative: 'Institution', lane: 'Institution' };
+    return { initiative: 'Institution', lane: canonicalLane || 'Institution' };
   }
   if (/real estate|district|civic|corridor|property|site/.test(titleHaystack)) {
-    return { initiative: 'Real Estate', lane: 'Real Estate' };
+    return { initiative: 'Real Estate', lane: canonicalLane || 'Real Estate' };
   }
   if (/patent|ip|trademark|legal/.test(titleHaystack)) {
-    return { initiative: 'Capital / IP', lane: 'Capital / IP' };
+    return { initiative: 'Capital / IP', lane: canonicalLane || 'Capital / IP' };
   }
   return {
-    initiative: normalizedLane || 'Unspecified Initiative',
-    lane: normalizedLane,
+    initiative: canonicalLane || 'Unspecified Initiative',
+    lane: canonicalLane,
   };
 }
 
@@ -215,7 +223,13 @@ export function resolveBlockPlainLanguage(block = {}, context = {}) {
     ? onboardingBreakdown(block, hierarchy, initiativeDisplay)
     : genericBreakdown(block, hierarchy, initiativeDisplay);
 
-  return { ...baseResult, expectedOutput: baseResult.artifact, quality: computeMolecularQuality(block) };
+  return {
+    ...baseResult,
+    laneLabel: initiativeDisplay?.lane || '',
+    initiativeLabel: initiativeDisplay?.initiative || '',
+    expectedOutput: baseResult.artifact,
+    quality: computeMolecularQuality(block),
+  };
 }
 
 export default resolveBlockPlainLanguage;
