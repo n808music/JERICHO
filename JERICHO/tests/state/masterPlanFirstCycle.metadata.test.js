@@ -114,6 +114,8 @@ describe('First-cycle block execution metadata', () => {
       expect(block.producesArtifact).toBeTruthy();
       expect(typeof block.producesArtifact).toBe('string');
       expect(block.producesArtifact.length).toBeGreaterThan(0);
+      expect(Number.isFinite(block.durationMinutes)).toBe(true);
+      expect(block.durationMinutes).toBeGreaterThan(0);
     });
   });
 
@@ -311,12 +313,76 @@ describe('First-cycle block execution metadata', () => {
     expect(actionReviewBlocks.length).toBeGreaterThan(0);
 
     actionReviewBlocks.forEach((reviewBlock) => {
+      const proposed = actionProposals.find((proposal) => proposal.id === reviewBlock.suggestionId);
+      expect(proposed).toBeDefined();
       expect(reviewBlock.producesArtifact).toBeTruthy();
       expect(reviewBlock.consumedBy).toBeDefined();
       expect(Array.isArray(reviewBlock.consumedBy)).toBe(true);
       expect(reviewBlock.passEvidence).toBeTruthy();
       expect(reviewBlock.consumedByRef).toBeDefined();
+      expect(Number.isFinite(reviewBlock.durationMinutes)).toBe(true);
+      expect(reviewBlock.durationMinutes).toBeGreaterThan(0);
+      expect(reviewBlock.durationMinutes).toBe(proposed.durationMinutes);
     });
+  });
+
+  it('derives durationMinutes from start/end interval when explicit duration is missing', () => {
+    const draft = buildIntakeDraftState();
+
+    const handled = applyMasterPlanAction(draft, {
+      type: 'MASTER_PLAN_INTAKE_COMPLETE',
+      nowISO: '2026-05-04T12:00:00.000Z',
+    });
+
+    expect(handled).toBe(true);
+
+    const planId = draft.masterPlanIntake.draft.masterPlanId;
+    const started = computeDerivedState(draft, {
+      type: 'START_NEW_CYCLE_WITH_DECISION',
+      payload: { mode: 'archive' },
+    });
+    const reassessed = computeDerivedState(started, {
+      type: 'COMPLETE_CYCLE_REASSESSMENT',
+      cycleId: started.activeCycleId,
+    });
+    const constrained = computeDerivedState(reassessed, {
+      type: 'UPDATE_WORK_WINDOWS',
+      payload: {
+        cycleId: reassessed.activeCycleId,
+        workWindows: {
+          mon: [{ start: '09:00', end: '12:00' }],
+          tue: [{ start: '09:00', end: '12:00' }],
+          wed: [{ start: '09:00', end: '12:00' }],
+          thu: [{ start: '09:00', end: '12:00' }],
+          fri: [{ start: '09:00', end: '12:00' }],
+          sat: [],
+          sun: [],
+        },
+      },
+    });
+    const generated = computeDerivedState(constrained, {
+      type: 'GENERATE_PLAN',
+      payload: { masterPlanId: planId, source: 'MASTER_PLAN_FIRST_CYCLE' },
+    });
+
+    const actionProposal = generated.proposedBlocks.find((b) => b?.blockType === 'action');
+    expect(actionProposal).toBeDefined();
+
+    const modified = {
+      ...generated,
+      proposedBlocks: generated.proposedBlocks.map((block) =>
+        block.id === actionProposal.id
+          ? { ...block, durationMinutes: null }
+          : block
+      ),
+    };
+    const applied = computeDerivedState(modified, { type: 'APPLY_PLAN' });
+
+    const reviewBlock = applied.scheduleReviewBlocks.find((b) => b?.suggestionId === actionProposal.id);
+    expect(reviewBlock).toBeDefined();
+    expect(Number.isFinite(reviewBlock.durationMinutes)).toBe(true);
+    expect(reviewBlock.durationMinutes).toBeGreaterThan(0);
+    expect(reviewBlock.durationMinutes).toBe(actionProposal.durationMinutes);
   });
 
   it('plan-quality gate does not fail on first-cycle metadata for execution blocks', () => {

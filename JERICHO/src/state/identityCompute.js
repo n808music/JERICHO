@@ -1898,11 +1898,33 @@ function buildScheduleReviewBlock(
   if (!Number.isFinite(startDate.getTime())) {
     return null;
   }
-  const duration = Number.isFinite(item.durationMinutes) ? Number(item.durationMinutes) : 30;
-  const minutes = clampDurationMinutes(duration);
-  const endDate = item.endISO ? new Date(item.endISO) : new Date(startDate.getTime() + minutes * 60000);
+  const explicitDuration = Number.isFinite(item.durationMinutes) ? Number(item.durationMinutes) : null;
+  const explicitEndDate = item.endISO ? new Date(item.endISO) : null;
+  const intervalDuration = explicitEndDate && Number.isFinite(explicitEndDate.getTime())
+    ? Math.max(1, Math.round((explicitEndDate.getTime() - startDate.getTime()) / 60000))
+    : null;
+  let durationMinutes = Number.isFinite(explicitDuration)
+    ? clampDurationMinutes(explicitDuration)
+    : intervalDuration;
+  let endDate = explicitEndDate;
+
+  if (!endDate) {
+    if (Number.isFinite(durationMinutes)) {
+      endDate = new Date(startDate.getTime() + durationMinutes * 60000);
+    } else if (item.blockType === 'action') {
+      durationMinutes = 30;
+      endDate = new Date(startDate.getTime() + durationMinutes * 60000);
+    } else {
+      endDate = new Date(startDate.getTime());
+    }
+  }
+
   if (!Number.isFinite(endDate.getTime())) {
     return null;
+  }
+
+  if (!Number.isFinite(durationMinutes)) {
+    durationMinutes = null;
   }
   const { domain, practice } = normalizeDomainValue(item.domain || item.domainKey || defaultDomain || 'FOCUS');
   return {
@@ -1941,6 +1963,7 @@ function buildScheduleReviewBlock(
     end: endDate.toISOString(),
     startISO: startDate.toISOString(),
     endISO: endDate.toISOString(),
+    durationMinutes: Number.isFinite(durationMinutes) ? durationMinutes : null,
     status: 'planned',
     optional: Boolean(item.optional),
     objectiveId: state.today?.primaryObjectiveId || null,

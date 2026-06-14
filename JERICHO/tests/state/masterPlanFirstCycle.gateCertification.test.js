@@ -170,6 +170,7 @@ describe('GATE CERTIFICATION: First-cycle Sprint quality', () => {
       'MISSING_EXECUTION_CONSUMER',
       'MISSING_EXECUTION_PASS_EVIDENCE',
       'MISSING_CONSUMED_BY_REF',
+      'MISSING_EXECUTION_DURATION',
     ];
 
     console.log(`\n[METADATA CODES] Checking if resolved:`);
