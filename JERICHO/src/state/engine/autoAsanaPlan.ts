@@ -1,4 +1,4 @@
-import { addDays, buildLocalStartISO, dayKeyFromISO, nowDayKey } from '../time/time.ts';
+import { addDays, buildLocalStartISO, dayKeyFromISO, localMinutesFromISO, nowDayKey } from '../time/time.ts';
 import { isRuntimeEnvFlagEnabled } from '../../utils/runtimeEnv.js';
 import type { FeasibilityAssessment } from '../../domain/feasibility/feasibilityDerivation';
 
@@ -2987,23 +2987,7 @@ function busyFromAcceptedBlocks(blocks: Array<{ startISO: string; durationMinute
   return byDay;
 }
 
-function minutesFromISO(iso: string, timeZone: string) {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return 0;
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).formatToParts(date);
-  const map: Record<string, string> = {};
-  parts.forEach((p) => {
-    if (p.type !== 'literal') map[p.type] = p.value;
-  });
-  const hours = Number(map.hour || 0);
-  const minutes = Number(map.minute || 0);
-  return hours * 60 + minutes;
-}
+const minutesFromISO = localMinutesFromISO;
 
 function minutesToTime(minutes: number) {
   const h = Math.floor(minutes / 60);

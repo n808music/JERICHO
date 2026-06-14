@@ -4,6 +4,7 @@ import { describeBlockMeaning } from './blockMeaning.js';
 import { resolveOperatingHierarchyDisplay } from '../../domain/product/resolveOperatingHierarchyDisplay.js';
 import { resolveBlockPlainLanguage } from '../../domain/product/resolveBlockPlainLanguage.js';
 import { projectEnterpriseDisplay } from '../../domain/enterprise/enterpriseDisplayProjection';
+import { dayKeyFromISO, formatISOTime, localTimePartsFromISO } from '../../state/time/time.ts';
 
 /**
  * Shared block details panel.
@@ -74,10 +75,13 @@ export default function BlockDetailsPanel({
   }, [block, hierarchy]);
   const [editing, setEditing] = useState(false);
 
-  const initialDate = block?.start ? block.start.slice(0, 10) : '';
-  const initialTime = block?.start ? new Date(block.start) : null;
-  const startHours = initialTime ? pad2(initialTime.getHours()) : '09';
-  const startMinutes = initialTime ? pad2(initialTime.getMinutes()) : '00';
+  const resolvedTimeZone = timeZone || 'UTC';
+  const blockStartISO = block?.startISO || block?.start || '';
+  const blockEndISO = block?.endISO || block?.end || '';
+  const initialDate = blockStartISO ? dayKeyFromISO(blockStartISO, resolvedTimeZone) : '';
+  const initialTimeParts = localTimePartsFromISO(blockStartISO, resolvedTimeZone);
+  const startHours = initialTimeParts ? pad2(initialTimeParts.hours) : '09';
+  const startMinutes = initialTimeParts ? pad2(initialTimeParts.minutes) : '00';
 
   const [editDate, setEditDate] = useState(initialDate);
   const [editTime, setEditTime] = useState(`${startHours}:${startMinutes}`);
@@ -91,27 +95,26 @@ export default function BlockDetailsPanel({
   React.useEffect(() => {
     setEditDate(initialDate);
     setEditTime(`${startHours}:${startMinutes}`);
-    const end = block?.end ? new Date(block.end) : null;
+    const end = blockEndISO ? new Date(blockEndISO) : null;
     const newDuration =
-      end && initialTime ? Math.max(1, Math.round((end.getTime() - initialTime.getTime()) / 60000)) : 30;
+      end && blockStartISO ? Math.max(1, Math.round((end.getTime() - new Date(blockStartISO).getTime()) / 60000)) : 30;
     setEditDuration(newDuration);
     setEditDomain(block?.practice || block?.domain || 'FOCUS');
     setEditTitle(block?.label || '');
     setEditing(false);
-  }, [blockId, initialDate, startHours, startMinutes, block?.start, block?.end, block?.practice, block?.domain, block?.label]);
+  }, [blockId, initialDate, startHours, startMinutes, blockEndISO, blockStartISO, block?.practice, block?.domain, block?.label]);
 
   if (!block) return null;
   const lockedUntil = block?.lockedUntilDayKey || '';
-  const blockDayKey = block?.start ? block.start.slice(0, 10) : '';
+  const blockDayKey = blockStartISO ? dayKeyFromISO(blockStartISO, resolvedTimeZone) : '';
   const isLocked = Boolean(lockedUntil && blockDayKey && blockDayKey <= lockedUntil);
   const isProtectedSystemBlock = Boolean(
     block?.requiredSystemBlock || String(block?.origin || '').trim() === 'schedule_active'
   );
-  const start = block.start ? new Date(block.start) : null;
-  const end = block.end ? new Date(block.end) : null;
+  const start = blockStartISO ? new Date(blockStartISO) : null;
+  const end = blockEndISO ? new Date(blockEndISO) : null;
   const durationMinutes = start && end ? Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000)) : 0;
-  const formatTime = (d) =>
-    d ? `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}` : '--:--';
+  const formatTime = (iso) => formatISOTime(iso, resolvedTimeZone);
   const hierarchyTrail = hierarchy
     ? [hierarchy.masterPlan, hierarchy.phase, hierarchy.operatingCycle, hierarchy.sprint, hierarchy.lane, hierarchy.initiative].filter(
         (value, index, values) => Boolean(value) && (index === 0 || value !== values[index - 1])
@@ -242,9 +245,9 @@ export default function BlockDetailsPanel({
       <p className="text-muted">
         {block.practice || block.domain} · {block.status}
       </p>
-      <p className="text-muted">Date: {block.start ? block.start.slice(0, 10) : '—'}</p>
+      <p className="text-muted">Date: {blockDayKey || '—'}</p>
       <p className="text-muted">
-        {formatTime(start)} – {formatTime(end)} ({durationMinutes}m)
+        {formatTime(blockStartISO)} – {formatTime(blockEndISO)} ({durationMinutes}m)
       </p>
       {isLocked ? <p className="text-[11px] text-amber-600">Locked until {lockedUntil}</p> : null}
       {isProtectedSystemBlock ? (
@@ -311,10 +314,10 @@ export default function BlockDetailsPanel({
               className="rounded-full border border-jericho-accent px-3 py-1 text-jericho-accent hover:bg-jericho-accent/5"
               onClick={() => {
                 if (!onEdit) return setEditing(false);
-                const startResult = editDate ? localStartFromDayAndTime(editDate, editTime, timeZone) : null;
-                const startStr = startResult?.ok ? startResult.startISO : block.start;
+                const startResult = editDate ? localStartFromDayAndTime(editDate, editTime, resolvedTimeZone) : null;
+                const startStr = startResult?.ok ? startResult.startISO : blockStartISO;
                 onEdit(block.id, {
-                  date: editDate || block.start?.slice(0, 10),
+                  date: editDate || blockDayKey,
                   start: startStr,
                   durationMinutes: editDuration,
                   domain: editDomain,

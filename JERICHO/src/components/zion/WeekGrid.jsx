@@ -5,6 +5,7 @@ export default function WeekGrid({
   days = [],
   metrics = {},
   summaryLine,
+  timeZone = 'UTC',
   completeBlock,
   deleteBlock,
   selectedDayKey,
@@ -41,6 +42,7 @@ export default function WeekGrid({
             <BlockColumn
               dateLabel={day.label || day.date}
               blocks={day.blocks}
+              timeZone={timeZone}
               onBlockClick={(id) => {
                 setSelectedBlockId?.(id);
                 setSelectedDayKey?.(day.date);

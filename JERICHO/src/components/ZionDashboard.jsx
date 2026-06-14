@@ -3385,6 +3385,7 @@ export default function ZionDashboard({
                       dateLabel={effectiveExecutionDayKey}
                       blocks={selectedDayBlocks}
                       drafts={[]}
+                      timeZone={timeZone}
                       selectedBlockId={selectedBlockId}
                       lineageBlocks={calendarSurfaceBlocks}
                       deliverableLabelById={deliverableLabelById}
@@ -3885,6 +3886,7 @@ export default function ZionDashboard({
                       })}
                       onSelectDay={handleDrillToDay}
                       onSelectBlock={setSelectedBlockId}
+                      timeZone={timeZone}
                       lineageBlocks={calendarSurfaceBlocks}
                       deliverableLabelById={deliverableLabelById}
                       criterionLabelById={criterionLabelById}

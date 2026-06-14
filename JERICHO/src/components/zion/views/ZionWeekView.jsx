@@ -1,16 +1,10 @@
 import React from 'react';
 import { describeBlockMeaning } from '../blockMeaning.js';
-
-function formatTime(iso = '') {
-  if (!iso) return '--:--';
-  const d = new Date(iso);
-  const h = d.getHours().toString().padStart(2, '0');
-  const m = d.getMinutes().toString().padStart(2, '0');
-  return `${h}:${m}`;
-}
+import { formatISOTime } from '../../../state/time/time.ts';
 
 export default function ZionWeekView({
   days = [],
+  timeZone = 'UTC',
   onSelectDay,
   onSelectBlock,
   lineageBlocks = null,
@@ -46,7 +40,8 @@ export default function ZionWeekView({
                     data-block-id={block.id}
                   >
                     <div className="text-jericho-text">
-                      {formatTime(block.start)} · {block.displayTitle || block.title || block.label || 'Untitled task'}
+                      {formatISOTime(block.startISO || block.start || '', timeZone)} ·{' '}
+                      {block.displayTitle || block.title || block.label || 'Untitled task'}
                     </div>
                     {meaning?.lines?.length ? (
                       <div className="mt-0.5 space-y-0.5 text-[10px] text-muted">
