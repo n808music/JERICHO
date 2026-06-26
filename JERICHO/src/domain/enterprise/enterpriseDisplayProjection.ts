@@ -1,4 +1,4 @@
-import { mapLaneToEntity, DEPRECATED_LANE_LABELS } from './laneToEntity';
+import { mapLaneToEntity, resolveLaneEntity, DEPRECATED_LANE_LABELS } from './laneToEntity';
 import {
   classifyProvenance,
 } from './provenanceClassification';
@@ -13,6 +13,7 @@ export type EnterprisePriorityStatus =
   | 'blocked';
 
 export interface EnterpriseDisplayProjection {
+  entityId: string;
   displayName: string;
   displaySubtitle: string;
   internalLane: string;
@@ -47,11 +48,22 @@ const F8_PRONUNCIATION_NOTE =
 const UNSUPPORTED_WARNING =
   'No canonical enterprise entity matched this lane; treat as system-only until intake supports it.';
 
+function toEntityId(displayName: string): string {
+  return String(displayName || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 export function projectEnterpriseDisplay(
   input: EnterpriseDisplayProjectionInput,
 ): EnterpriseDisplayProjection {
   const { laneId, laneLabel, intakeSignals } = input;
-  const entity = mapLaneToEntity(laneId) || mapLaneToEntity(laneLabel);
+  const entity =
+    resolveLaneEntity({ laneId, laneLabel }) ||
+    mapLaneToEntity(laneId) ||
+    mapLaneToEntity(laneLabel);
   const isDeprecatedLabel = DEPRECATED_LANE_LABELS.includes(
     String(laneId || '').toLowerCase().trim(),
   );
@@ -64,6 +76,7 @@ export function projectEnterpriseDisplay(
       intakeSignals,
     });
     return {
+      entityId: '',
       displayName: laneLabel || laneId || 'Unknown',
       displaySubtitle: '',
       internalLane: laneId,
@@ -106,6 +119,7 @@ export function projectEnterpriseDisplay(
     : entity.typeLabel;
 
   return {
+    entityId: toEntityId(entity.displayName),
     displayName: entity.displayName,
     displaySubtitle: subtitle,
     internalLane: laneId,

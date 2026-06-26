@@ -49,6 +49,16 @@ describe('projectEnterpriseDisplay', () => {
     expect(projection.priorityStatus).toBe('deferred');
   });
 
+  it('projects Operation Endgame services revenue bridge as the capital or revenue entity unless F8 is explicit', () => {
+    const projection = projectEnterpriseDisplay({
+      laneId: 'income',
+      laneLabel: 'Operation Endgame services revenue bridge',
+      intakeSignals: OE_INTAKE,
+    });
+    expect(projection.displayName).toBe('Capital Path or Revenue Engine');
+    expect(projection.companyCategory).toBe('Capital / Revenue');
+  });
+
   it('never produces E8 Energy Co. as a display name', () => {
     const projection = projectEnterpriseDisplay({
       laneId: 'energy_gym',
