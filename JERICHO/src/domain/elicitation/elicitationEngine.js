@@ -26,6 +26,13 @@ import {
 } from './slots/verificationSourceSlot.js';
 import { probeFor } from './reprobes.js';
 
+// Byte-identical for identical inputs — no interpolation, no randomness.
+function buildReadbackSentence(captured) {
+  const source = String(captured.verificationSource || '').trim();
+  const metric = String(captured.successMetric || '').trim();
+  return `Your done-when will read: 'Open ${source} and confirm ${metric}.' Is that the check you'll perform?`;
+}
+
 export { PROJECT_SLOT_ID } from './slots/projectSlot.js';
 export { VERIFICATION_SOURCE_SLOT_ID } from './slots/verificationSourceSlot.js';
 
@@ -197,6 +204,24 @@ function finalizeCompletedSlots(state) {
     const slotDef = SLOT_REGISTRY[topSlotState.slotId];
     const failure = firstFailingGate(slotDef, topSlotState.captured);
     if (failure) break;
+    // PROJECT_SLOT requires operator confirmation before dispatching.
+    if (topSlotState.slotId === PROJECT_SLOT_ID) {
+      if (!nextState.readbackPending) {
+        const sentence = buildReadbackSentence(topSlotState.captured);
+        nextState = {
+          ...nextState,
+          readbackPending: {
+            sentence,
+            fields: {
+              name: topSlotState.captured.name,
+              successMetric: topSlotState.captured.successMetric,
+              verificationSource: topSlotState.captured.verificationSource,
+            },
+          },
+        };
+      }
+      break;
+    }
     const action = dispatchForCompletedSlot(nextState, topSlotState);
     dispatches.push(action);
     let poppedStack = nextState.slotStack.slice(0, -1);
@@ -239,15 +264,49 @@ export function createElicitationEngine({ goalType, matrixSnapshot, scope = [PRO
         return nextProbeForCurrentSlot(currentState);
       },
       nextStep() {
+        if (currentState.readbackPending) {
+          return { done: false, readback: currentState.readbackPending };
+        }
         const peek = nextProbeForCurrentSlot(currentState);
         if (peek.pendingDispatch) {
           // No probe to ask — but a slot is ready to dispatch. Run it.
           const finalized = finalizeCompletedSlots(currentState);
+          if (finalized.state.readbackPending) {
+            return { done: false, readback: finalized.state.readbackPending };
+          }
           // Recurse with finalized state to keep walking through dispatches
           // until either a probe is needed or the engine is done.
           return wrap(finalized.state).nextStep();
         }
         return peek;
+      },
+      confirmReadback({ confirmed, reopen }) {
+        if (!currentState.readbackPending) {
+          throw new Error('confirmReadback called with no readback pending');
+        }
+        const topSlotState = topOfStack(currentState.slotStack);
+        if (confirmed) {
+          const action = dispatchForCompletedSlot(currentState, topSlotState);
+          const poppedStack = currentState.slotStack.slice(0, -1);
+          const nextState = {
+            ...currentState,
+            slotStack: poppedStack,
+            readbackPending: null,
+            completedSlotIds: new Set([...currentState.completedSlotIds, topSlotState.slotId]),
+          };
+          return { engine: wrap(nextState), dispatches: [action] };
+        }
+        // confirmed: false — clear the named field, preserve all siblings
+        const nextCaptured = { ...topSlotState.captured };
+        delete nextCaptured[reopen];
+        const nextSlotState = { ...topSlotState, captured: nextCaptured };
+        const nextStack = [...currentState.slotStack.slice(0, -1), nextSlotState];
+        const nextState = {
+          ...currentState,
+          slotStack: nextStack,
+          readbackPending: null,
+        };
+        return { engine: wrap(nextState), dispatches: [] };
       },
       consumeAnswer(answer) {
         const applied = applyAnswerToCurrentSlot(currentState, answer);
@@ -278,5 +337,6 @@ export function createElicitationEngine({ goalType, matrixSnapshot, scope = [PRO
     matrixSnapshot: matrixSnapshot || {},
     slotStack: initialStack,
     completedSlotIds: new Set(),
+    readbackPending: null,
   });
 }

@@ -54,6 +54,19 @@ function runScript(initialState, script, opts = {}) {
   let safety = 0;
   while (!step.done) {
     if (safety++ > 50) throw new Error('Engine did not terminate within safety bound');
+    if (step.readback) {
+      // Auto-confirm readbacks in acceptance tests — the readback mechanic has
+      // its own test suite; here we care about the probe + dispatch contract.
+      const result = engine.confirmReadback({ confirmed: true });
+      engine = result.engine;
+      for (const action of result.dispatches || []) {
+        dispatchedActions.push(action);
+        state = computeDerivedState(state, action);
+      }
+      engine = engine.refreshMatrix(state.matrix);
+      step = engine.nextStep();
+      continue;
+    }
     probes.push(step.probe);
     if (pendingAnswers.length === 0) {
       throw new Error(`Out of scripted answers — engine still asking ${step.probe.spine}`);
