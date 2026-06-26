@@ -21,9 +21,10 @@ describe('resolveBlockPlainLanguage molecular sections', () => {
       doneWhen: '',
     };
     const result = resolveBlockPlainLanguage(block, { hierarchy: HIERARCHY });
-    expect(result.quality?.status).toBe('passes');
-    expect(result.plainAction).toMatch(/Advance Global State Solutions and produce Progress note or blocker report/i);
-    expect(result.expectedOutput).toMatch(/Progress note or blocker report/i);
+    expect(result.quality?.status).toBe('under_specified');
+    expect(result.plainAction).toMatch(/concrete operator work for operations/i);
+    expect(result.expectedOutput).toMatch(/Operations with completion record/i);
+    expect(result.completionAssertion).toMatch(/Completing this asserts the operator produced/i);
   });
 
   it('flags under_specified when explicit output stays generic after synthesis', () => {
@@ -53,6 +54,12 @@ describe('resolveBlockPlainLanguage molecular sections', () => {
       plainAction: 'TBD',
       steps: [],
       doneWhen: 'TBD',
+      // Attestation contract — molecular tests focus on legacy synthesis,
+      // so the canonical triple is supplied here to keep the gate isolated
+      // to the molecular concerns under test.
+      target: 'Operations control sheet reviewed and saved',
+      verificationSource: 'Operations control sheet (shared workspace)',
+      operatorAttestation: 'Operator opens the sheet and attests review completion',
     };
     const result = resolveBlockPlainLanguage(block, { hierarchy: HIERARCHY });
     expect(result.quality?.status).toBe('passes');
@@ -77,6 +84,9 @@ describe('resolveBlockPlainLanguage molecular sections', () => {
         'Save and notify the operating review chair.',
       ],
       doneWhen: 'All rows reviewed and the checklist is saved.',
+      target: 'Operations checklist reviewed end-to-end with all rows confirmed',
+      verificationSource: 'Operations checklist (shared workspace)',
+      operatorAttestation: 'Operator opens the checklist and attests the review is complete',
     };
     const result = resolveBlockPlainLanguage(block, { hierarchy: HIERARCHY });
     expect(result.quality?.status).not.toBe('under_specified');
@@ -95,14 +105,33 @@ describe('resolveBlockPlainLanguage molecular sections', () => {
       consumedByRef: { type: 'masterPlanLane', id: 'lane-ep' },
       consumedBy: ['masterPlanLane:lane-ep'],
       directDependencyIds: ['masterplan-action:upstream-distribution-approval'],
+      target: 'EP distributor metadata package saved and linked to the EP release lane',
+      verificationSource: 'EP release lane workspace',
+      operatorAttestation: 'Operator opens the EP release lane workspace and attests the metadata package is saved',
     };
     const result = resolveBlockPlainLanguage(block, { hierarchy: HIERARCHY });
     expect(result.quality?.status).toBe('passes');
-    expect(result.plainAction).toMatch(/Prepare EP distribution metadata package/i);
+    expect(result.plainAction).toMatch(/Gather the required inputs for ep distribution metadata package/i);
     expect(result.steps.join(' ')).toMatch(/upstream milestone upstream-distribution-approval/i);
     expect(result.expectedOutput).toMatch(/EP distributor metadata package/i);
     expect(result.acceptanceEvidence).toMatch(/Distributor-ready metadata package/i);
-    expect(result.doneWhen).toMatch(/completion proof is recorded/i);
+    expect(result.doneWhen).toMatch(/assembled with the inputs the next execution step needs to proceed/i);
     expect(result.dependencies?.unlocks).toContain('Global State Corp. lane');
+  });
+
+  it('keeps generic review fallback fields semantically distinct and purpose-shaped', () => {
+    const block = {
+      id: 'f',
+      title: 'Review founder narrative memo',
+      laneId: 'operations',
+      laneLabel: 'Operation Endgame studio operations system',
+    };
+    const result = resolveBlockPlainLanguage(block, { hierarchy: HIERARCHY });
+    expect(result.whyThisExists).toMatch(/^(Because|So that|To) /);
+    expect(result.whyThisExists).not.toEqual(result.acceptanceEvidence);
+    expect(result.doneWhen).not.toEqual(result.expectedOutput);
+    expect(result.plainAction).not.toEqual(result.whyThisExists);
+    expect(result.expectedOutput).toMatch(/Reviewed founder narrative memo record with findings and next actions/i);
+    expect(result.acceptanceEvidence).toMatch(/saved review record for founder narrative memo/i);
   });
 });
