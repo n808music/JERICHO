@@ -969,6 +969,15 @@ export function computeDerivedState(state, action) {
       }
       break;
     }
+    case 'DECLARE_VERIFICATION_SOURCE':
+      declareVerificationSource(next, action.payload || {});
+      break;
+    case 'DECLARE_NODE':
+      declareNode(next, action.payload || {});
+      break;
+    case 'DECLARE_PROJECT':
+      declareProject(next, action.payload || {});
+      break;
     case 'NO_OP':
       break;
     default:
@@ -14597,4 +14606,126 @@ function applyNextSuggestion(state) {
     };
     createBlock(state, payload);
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  MATRIX — Section 1A (Verification Sources), Section 2 (Nodes), Section 5 (Projects)
+//  Minimal subset needed to support the deterministic elicitation engine.
+//  These are canonical write reducers: no schedule generation, no block
+//  derivation, no dependency synthesis. They only record operator declarations.
+// ─────────────────────────────────────────────────────────────────────────
+
+function ensureMatrixSlot(state) {
+  if (!state || typeof state !== 'object') return;
+  if (!state.matrix || typeof state.matrix !== 'object') {
+    state.matrix = {
+      verificationSourcesById: {},
+      entitiesById: {},
+      initiativesById: {},
+      systemsById: {},
+      projectsById: {},
+      artifactsById: {},
+      dependenciesById: {},
+      convergenceEdgesById: {},
+      resources: { available: {}, needed: {}, gap: {} },
+      bootstrap: { candidates: [], selectedNodeId: null },
+    };
+    return;
+  }
+  if (!state.matrix.verificationSourcesById) state.matrix.verificationSourcesById = {};
+  if (!state.matrix.entitiesById) state.matrix.entitiesById = {};
+  if (!state.matrix.projectsById) state.matrix.projectsById = {};
+}
+
+function declareVerificationSource(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const domain = String(payload?.domain || '').trim();
+  const source = String(payload?.source || '').trim();
+  if (!id || !domain || !source) {
+    state.lastPlanError = {
+      code: 'VERIFICATION_SOURCE_INVALID',
+      reason: 'Verification source requires id, domain, and source.',
+      meta: { id, domain, source },
+    };
+    return;
+  }
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  state.matrix.verificationSourcesById[id] = {
+    id,
+    domain,
+    source,
+    notes: String(payload?.notes || '').trim() || null,
+    declaredAtISO: nowISO,
+  };
+}
+
+function declareNode(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const name = String(payload?.name || '').trim();
+  const roleTags = Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [];
+  if (!id || !name || roleTags.length === 0) {
+    state.lastPlanError = {
+      code: 'NODE_INVALID',
+      reason: 'Node requires id, name, and at least one roleTag.',
+      meta: { id, name, roleTagCount: roleTags.length },
+    };
+    return;
+  }
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  state.matrix.entitiesById[id] = {
+    id,
+    name,
+    purpose: String(payload?.purpose || '').trim() || null,
+    currentStatus: String(payload?.currentStatus || '').trim() || null,
+    desiredFutureState: String(payload?.desiredFutureState || '').trim() || null,
+    roleTags,
+    notes: String(payload?.notes || '').trim() || null,
+    declaredAtISO: nowISO,
+    source: payload?.source || 'operator_declared',
+  };
+}
+
+function declareProject(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const name = String(payload?.name || '').trim();
+  const owningEntityId = String(payload?.owningEntityId || '').trim();
+  const successMetric = String(payload?.successMetric || '').trim();
+  const verificationSourceId = String(payload?.verificationSourceId || '').trim();
+  if (!id || !name || !owningEntityId || !successMetric || !verificationSourceId) {
+    state.lastPlanError = {
+      code: 'PROJECT_INVALID',
+      reason: 'Project requires id, name, owningEntityId, successMetric, and verificationSourceId.',
+      meta: { id, hasName: Boolean(name), hasOwner: Boolean(owningEntityId), hasMetric: Boolean(successMetric), hasSource: Boolean(verificationSourceId) },
+    };
+    return;
+  }
+  if (!state.matrix.entitiesById[owningEntityId]) {
+    state.lastPlanError = {
+      code: 'PROJECT_OWNING_ENTITY_UNKNOWN',
+      reason: `Project owningEntityId "${owningEntityId}" is not in matrix.entitiesById. Declare the node first.`,
+      meta: { id, owningEntityId },
+    };
+    return;
+  }
+  if (!state.matrix.verificationSourcesById[verificationSourceId]) {
+    state.lastPlanError = {
+      code: 'PROJECT_VERIFICATION_SOURCE_UNKNOWN',
+      reason: `Project verificationSourceId "${verificationSourceId}" is not in matrix.verificationSourcesById. Declare the source first.`,
+      meta: { id, verificationSourceId },
+    };
+    return;
+  }
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  state.matrix.projectsById[id] = {
+    id,
+    name,
+    owningEntityId,
+    successMetric,
+    verificationSourceId,
+    notes: String(payload?.notes || '').trim() || null,
+    declaredAtISO: nowISO,
+  };
 }
