@@ -45,6 +45,16 @@ export const REPROBES = {
       generic: 'e.g. 50 signups, 4 reviews completed',
     },
   },
+  PROJECT_METRIC_UNQUANTIFIED: {
+    spine:
+      'That needs a number or a clear finish line — give me the count, amount, or the event that declares it done.',
+    examples: {
+      musician: "e.g. '10,000 streams' or 'signed by a label'",
+      founder: "e.g. '100 paying users' or 'launched in the App Store'",
+      writer: "e.g. '3 full-manuscript requests' or 'accepted by an agent'",
+      generic: "e.g. '50 signups' or 'approved by the client'",
+    },
+  },
   PROJECT_SOURCE_MISSING: {
     spine:
       "Name the place you'll read that number from — the tool, app, or screen you'll open to check it.",

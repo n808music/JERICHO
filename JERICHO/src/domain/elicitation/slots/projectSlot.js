@@ -1,5 +1,6 @@
 import { REPROBES } from '../reprobes.js';
 import { isHoldableNoun } from '../../planQuality/isHoldableNoun';
+import { isQuantifiableMetric } from '../../planQuality/isQuantifiableMetric';
 
 // Section 5 (Projects) slot contract.
 // Required declaration fields: id, name, owningEntityId, successMetric, verificationSourceId.
@@ -39,6 +40,12 @@ export const PROJECT_SLOT = {
       code: 'PROJECT_METRIC_MISSING',
       fieldName: 'successMetric',
       detect: (captured) => !captured?.successMetric,
+    },
+    {
+      code: 'PROJECT_METRIC_UNQUANTIFIED',
+      fieldName: 'successMetric',
+      detect: (captured) =>
+        Boolean(captured?.successMetric) && !isQuantifiableMetric(String(captured.successMetric)),
     },
     {
       code: 'PROJECT_SOURCE_MISSING',
