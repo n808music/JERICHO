@@ -556,6 +556,17 @@ export function deriveMasterPlanPhaseModel({
     } else if (index === activePhaseIndex) {
       activeState = 'active';
     }
+    const normalizedCycleScheduleLifecycle = String(planCycle?.scheduleLifecycle || '')
+      .trim()
+      .toLowerCase();
+    const hasGeneratedCycleSchedule =
+      index === activePhaseIndex &&
+      (Array.isArray(planCycle?.proposedBlocks) && planCycle.proposedBlocks.length > 0
+        ? true
+        : Array.isArray(planCycle?.scheduleReviewBlocks) && planCycle.scheduleReviewBlocks.length > 0
+          ? true
+          : normalizedCycleScheduleLifecycle === 'draft_schedule_ready' ||
+              normalizedCycleScheduleLifecycle === 'applied_review');
 
     const phaseCritiques = critiques.filter((issue) => {
       if (!issue.affectedLane) {
@@ -580,6 +591,8 @@ export function deriveMasterPlanPhaseModel({
         index === activePhaseIndex
           ? phaseCommittedBlocks.length > 0
             ? 'scheduled'
+            : hasGeneratedCycleSchedule
+              ? 'generated'
             : 'not_generated'
           : 'visible_but_not_executable',
       nextPhaseImplications: blueprint.nextPhaseImplications,

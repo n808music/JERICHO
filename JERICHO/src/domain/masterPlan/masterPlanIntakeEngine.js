@@ -1005,7 +1005,7 @@ export function buildStructureQuestionPlan({ goalText = '', extractedLanes = [],
     laneQuestionsByLaneIndex[laneIdx] = shouldAskDuringStructure(laneQuestion) ? [laneQuestion] : [];
     deferredLaneQuestionsByLaneIndex[laneIdx] = shouldAskDuringStructure(laneQuestion) ? [] : [laneQuestion];
   });
-  return {
+  const result = {
     globalQuestions,
     deferredGlobalQuestions,
     laneQuestionsByLaneIndex,
@@ -1023,6 +1023,7 @@ export function buildStructureQuestionPlan({ goalText = '', extractedLanes = [],
         0
       ),
   };
+  return result;
 }
 
 /**
@@ -1147,7 +1148,7 @@ export function evaluateStructureCritic(questionPlan, answers = {}, extractedLan
         )
       : []),
   ];
-  return {
+  const result = {
     state: blockerUnresolved.length > 0 ? 'blocked' : unresolvedQuestions.length > 0 ? 'assumption_marked' : 'resolved',
     selectedQuestionCount:
       Number(questionPlan?.selectedQuestionCount || 0) ||
@@ -1160,6 +1161,7 @@ export function evaluateStructureCritic(questionPlan, answers = {}, extractedLan
     criticalUnresolvedCount: criticalUnresolved.length,
     blockerUnresolvedCount: blockerUnresolved.length,
   };
+  return result;
 }
 
 // ─── Intake question prompts ──────────────────────────────────────────────────

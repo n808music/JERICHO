@@ -950,12 +950,6 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Define institution model assumptions for ${laneTitle} in P1 institution/education lane`, 'action', 'Institution model assumptions with gating list'],
         [`Review legal and operating prerequisites for ${laneTitle} in institution/education lane`, 'review', 'Prerequisite review with blocked items'],
         [`Evaluate gate for early execution in ${laneTitle} until proof and capital dependencies clear`, 'gate', 'Early execution gate with explicit dependencies'],
-        [`Map stakeholders and partner targets for ${laneTitle} in P1 institution/education lane`, 'readiness', 'Stakeholder map with named partner/agency targets, decision authority, and access path', null, { isExternalBdMechanic: true }],
-        [`Submit meeting requests to partner targets for ${laneTitle} in P1 institution/education lane`, 'readiness', 'Meeting request log with target list, reply status, and scheduled discovery sessions', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
-        [`Draft pilot scope or partnership proposal for ${laneTitle} in P1 institution/education lane`, 'readiness', 'Pilot scope or partnership proposal with deliverables, term, and signature path', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
-          [`Define ${laneTitle} institutional target segment and ICP`, 'readiness', 'Institutional ICP and target segment brief', null, { commercialStage: 'segment_definition' }],
-          [`Qualify ${laneTitle} institutional partners against pilot criteria`, 'readiness', 'Institutional partner qualification scorecard', null, { commercialStage: 'qualification' }],
-          [`Prepare ${laneTitle} institutional pilot proposal with scope and terms`, 'readiness', 'Institutional pilot proposal with scope and terms', null, { commercialStage: 'proposal_prep' }],
       ],
       P2: [
         [`Audit curriculum or program viability for ${laneTitle} in P2 institution/education lane`, 'audit', 'Program viability audit with next experiments'],
@@ -988,12 +982,6 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Map credibility dependencies for ${laneTitle} in P1 civic/district lane`, 'action', 'Credibility dependency map for later activation'],
         [`Review coalition prerequisites for ${laneTitle} in civic/district lane`, 'review', 'Coalition prerequisite review with blocked paths'],
         [`Evaluate gate for direct district execution in ${laneTitle} until proof and capital stack exist`, 'gate', 'Direct district execution gate with unmet prerequisites'],
-        [`Map agency and coalition targets for ${laneTitle} in P1 civic/district lane`, 'readiness', 'Agency and coalition target list with named contacts, decision authority, and access path', null, { isExternalBdMechanic: true }],
-        [`Submit meeting requests to agency or coalition targets for ${laneTitle} in P1 civic/district lane`, 'readiness', 'Meeting request log with reply status and scheduled discovery sessions', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
-        [`Draft partnership or pilot proposal for ${laneTitle} in P1 civic/district lane`, 'readiness', 'Partnership or pilot proposal with public-interest case, deliverables, and signature path', null, { isExternalBdMechanic: true, isExternalStakeholderTouchpoint: true }],
-          [`Define ${laneTitle} civic stakeholder target segment and criteria`, 'readiness', 'Civic stakeholder segment and target criteria brief', null, { commercialStage: 'segment_definition' }],
-          [`Qualify ${laneTitle} civic partners against engagement criteria`, 'readiness', 'Civic partner qualification scorecard', null, { commercialStage: 'qualification' }],
-          [`Draft ${laneTitle} civic partnership proposal with scope and outcomes`, 'readiness', 'Civic partnership proposal with scope and outcomes', null, { commercialStage: 'proposal_prep' }],
       ],
       P2: [
         [`Audit district opportunity criteria for ${laneTitle} in P2 civic/district lane`, 'audit', 'District opportunity criteria audit'],
@@ -1088,6 +1076,10 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
     isScaleAction: sequencing.isScaleAction === true,
     isExternalBdMechanic: sequencing.isExternalBdMechanic === true,
     isExternalStakeholderTouchpoint: sequencing.isExternalStakeholderTouchpoint === true,
+    phaseJustification:
+      phaseLabel === 'P1' && ['capital_real_estate', 'institution_education', 'civic_development'].includes(family)
+        ? 'Prerequisite proof'
+        : null,
     derivationReason: `${phaseLabel} ${blockType} derived for ${laneLabel} from phase objective and lane role.${supportException}`,
     riskOrConstraintAddressed: gated
       ? `Execution remains gated for ${laneLabel} until prior proof, dependency, or capital constraints clear.${supportException}`
@@ -1252,6 +1244,7 @@ function buildBlock({
     riskOrConstraintAddressed: occurrenceDescriptor.riskOrConstraintAddressed,
     successCriterionServed: occurrenceDescriptor.successCriterionServed,
     sequencingRole: occurrenceDescriptor.sequencingRole || null,
+    phaseJustification: occurrenceDescriptor.phaseJustification || null,
     lifecycleStage: occurrenceDescriptor.lifecycleStage || null,
     commercialStage: occurrenceDescriptor.commercialStage || null,
     prerequisiteType: occurrenceDescriptor.prerequisiteType || null,
@@ -1382,8 +1375,10 @@ export function expandFullHorizonSchedule({
       const descriptors = createDescriptor({ phaseLabel, lane, laneStatus, planOrientation });
       if (!descriptors.length) continue;
 
-      // Offset each lane's rotation so lanes don't pile up on the same weekday.
-      const laneRotationBase = laneIndex * 2;
+      // Offset each lane's rotation with a co-prime spread plus phase offset so
+      // long-horizon forecast work does not collapse onto the same 1-2 weekdays.
+      const phaseRotationOffset = phaseLabel === 'P2' ? 1 : phaseLabel === 'P3' ? 2 : 0;
+      const laneRotationBase = laneIndex * 3 + phaseRotationOffset;
 
       let cursor = phaseStart;
       let idx = 0;

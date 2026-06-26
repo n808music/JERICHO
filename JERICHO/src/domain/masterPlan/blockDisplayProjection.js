@@ -15,11 +15,6 @@ function shortenOperationEndgamePhrases(title) {
   next = next.replace(/\s+in P\d\s+[^,]+?\s+lane\b/gi, '');
   next = next.replace(/\bconversion-readiness\b/gi, 'conversion');
   next = next.replace(/\bagainst the success standard and outcome target\b/gi, 'against success standard');
-  next = next.replace(/\s+for the [A-Z][a-z]{2,8}\s+\d{4}\s+review window\b/gi, '');
-
-  if (next.length > 88) {
-    next = next.replace(/\s+using\s+.+$/i, '');
-  }
 
   return normalizeText(next.replace(/\s+,/g, ','));
 }
@@ -66,4 +61,3 @@ export function projectBlockForDisplay(block, context = {}) {
 export function projectBlocksForDisplay(blocks, context = {}) {
   return Array.isArray(blocks) ? blocks.map((block) => projectBlockForDisplay(block, context)) : [];
 }
-

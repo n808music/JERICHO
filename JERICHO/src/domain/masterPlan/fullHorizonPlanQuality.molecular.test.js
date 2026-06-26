@@ -9,6 +9,7 @@ import { summarizeBlockDetailQuality } from './fullHorizonPlanQuality.js';
 const OE_SHAPED_BLOCK = {
   id: 'fh-test-product-p1-001',
   title: 'Sequence release asset completion for Operation Endgame in P1 product lane',
+  source: 'derived',
   laneId: 'product',
   laneLabel: 'Product',
   phaseLabel: 'P1',
@@ -47,5 +48,19 @@ describe('summarizeBlockDetailQuality', () => {
     const summary = summarizeBlockDetailQuality([OE_SHAPED_BLOCK]);
     expect(summary.findings).toHaveLength(0);
     expect(summary.codeCounts).toEqual({});
+  });
+
+  it('does not downgrade trust for forecast-only placeholder language emitted by derived horizon blocks', () => {
+    const summary = summarizeBlockDetailQuality([
+      {
+        ...OE_SHAPED_BLOCK,
+        id: 'fh-test-forecast-placeholder-001',
+        source: 'derived',
+        title:
+          'Produce next release asset increment for Operation Endgame album release engine in P1 creative project lane using distribution readiness for the May 2026 review window',
+      },
+    ]);
+    expect(summary.failureCount).toBe(0);
+    expect(summary.failureCodes).toHaveLength(0);
   });
 });
