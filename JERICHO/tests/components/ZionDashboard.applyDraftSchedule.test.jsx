@@ -482,6 +482,117 @@ describe('ZionDashboard apply draft schedule', () => {
     expect(screen.getByText(/1 active block across 1 scheduled day/i)).toBeInTheDocument();
   });
 
+  it('renders active schedule blocks from state execution events when the cycle-local execution array is empty', () => {
+    capturedStore = null;
+    const state = buildDraftState();
+    state.proposedBlocks = [];
+    state.proposedBlocksByCycleId = { [state.activeCycleId]: [] };
+    state.pendingPlanConfirmation = false;
+    state.scheduleApplied = true;
+    state.lastPlanError = null;
+    state.cycle = [];
+    state.executionEvents = [
+      {
+        id: 'evt-create-state-only',
+        blockId: 'blk-state-only',
+        dateISO: '2026-01-22',
+        minutes: 60,
+        rawLabel: 'State event activated block',
+        canonicalTitle: 'State event activated block',
+        domain: 'Creation',
+        cycleId: state.activeCycleId,
+        goalId: 'goal-1',
+        completed: false,
+        kind: 'create',
+        startISO: '2026-01-22T09:00:00.000Z',
+        endISO: '2026-01-22T10:00:00.000Z',
+        status: 'planned',
+        origin: 'schedule_active',
+      },
+    ];
+    state.cyclesById[state.activeCycleId].executionEvents = [];
+    state.cyclesById[state.activeCycleId].scheduleLifecycle = 'active_schedule';
+    state.cyclesById[state.activeCycleId].scheduleReviewBlocks = [];
+
+    render(
+      <IdentityProvider initialState={state}>
+        <StoreProbe />
+        <ZionDashboard initialView="today" initialZionView="day" initialAnchorDayKey={DAY_KEY} />
+      </IdentityProvider>
+    );
+
+    expect(screen.getByText(/State event activated block/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 active block across 1 scheduled day/i)).toBeInTheDocument();
+  });
+
+  it('renders active schedule blocks even when stale contract window metadata would otherwise clip them out', () => {
+    capturedStore = null;
+    const state = buildDraftState();
+    const cycleId = state.activeCycleId;
+    const blockDayKey = '2026-01-14';
+    state.appTime = {
+      timeZone: 'UTC',
+      nowISO: '2026-01-15T12:00:00.000Z',
+      activeDayKey: '2026-01-15',
+      isFollowingNow: true,
+    };
+    state.viewDate = '2026-01-15';
+    state.pendingPlanConfirmation = false;
+    state.scheduleApplied = true;
+    state.proposedBlocks = [];
+    state.proposedBlocksByCycleId = { [cycleId]: [] };
+    state.executionEvents = [
+      {
+        id: 'evt-active-1',
+        blockId: 'blk-active-1',
+        cycleId,
+        goalId: 'goal-1',
+        dateISO: blockDayKey,
+        startISO: `${blockDayKey}T09:00:00.000Z`,
+        endISO: `${blockDayKey}T10:00:00.000Z`,
+        minutes: 60,
+        canonicalTitle: 'Applied sprint block',
+        rawLabel: 'Applied sprint block',
+        domain: 'CREATION',
+        origin: 'schedule_active',
+        kind: 'create',
+        status: 'planned',
+        completed: false,
+        requiredSystemBlock: true,
+      },
+    ];
+    state.cyclesById[cycleId] = {
+      ...state.cyclesById[cycleId],
+      scheduleLifecycle: 'active_schedule',
+      executionEvents: [],
+      startedAtDayKey: '2026-01-15',
+      executionStartDayKey: '2026-01-15',
+      goalContract: {
+        ...state.cyclesById[cycleId].goalContract,
+        startDayKey: '2026-01-15',
+        endDayKey: '2026-01-15',
+      },
+    };
+
+    const { rerender } = render(
+      <IdentityProvider initialState={state}>
+        <StoreProbe />
+        <ZionDashboard initialView="today" initialZionView="week" initialAnchorDayKey="2026-01-15" />
+      </IdentityProvider>
+    );
+
+    expect(screen.getByText(/Applied sprint block/i)).toBeInTheDocument();
+
+    rerender(
+      <IdentityProvider initialState={state}>
+        <StoreProbe />
+        <ZionDashboard initialView="today" initialZionView="month" initialAnchorDayKey="2026-01-15" />
+      </IdentityProvider>
+    );
+
+    expect(screen.getByText(/Applied sprint block/i)).toBeInTheDocument();
+  });
+
   it('falls back to canonical proposed blocks when a refreshed active schedule has no committed visible blocks', () => {
     capturedStore = null;
     const state = buildDraftState();
@@ -507,26 +618,36 @@ describe('ZionDashboard apply draft schedule', () => {
   it('allows Generate schedule to rebuild a stale active cycle with no visible canonical blocks', async () => {
     capturedStore = null;
     const state = buildDraftState();
+    const cycleId = state.activeCycleId;
+    const liveDayKey = '2026-06-21';
     state.proposedBlocks = [];
-    state.proposedBlocksByCycleId = { [state.activeCycleId]: [] };
+    state.proposedBlocksByCycleId = { [cycleId]: [] };
     state.pendingPlanConfirmation = false;
     state.scheduleApplied = true;
     state.lastPlanError = null;
     state.cycle = [];
     state.executionEvents = [];
+    state.appTime = {
+      timeZone: 'America/Chicago',
+      nowISO: `${liveDayKey}T12:00:00.000Z`,
+      activeDayKey: liveDayKey,
+      isFollowingNow: true,
+    };
+    state.today = { ...state.today, date: liveDayKey, blocks: [] };
+    state.currentWeek = { weekStart: liveDayKey, days: [] };
     state.goalDraftV2 = {
       goalText: 'Build job-ready SQL and dashboard analysis skills in 30 days',
       goalLabel: 'Build job-ready SQL and dashboard analysis skills in 30 days',
       executionType: 'SkillAcquisition',
-      startDate: DAY_KEY,
+      startDate: liveDayKey,
       answeredContext: BASE_PLANNING_ANSWERS,
     };
     state.goalExecutionContract = {
       goalId: 'goal-1',
       goalText: 'Build job-ready SQL and dashboard analysis skills in 30 days',
       executionType: 'SkillAcquisition',
-      startDayKey: DAY_KEY,
-      endDayKey: '2026-02-19',
+      startDayKey: liveDayKey,
+      endDayKey: '2026-07-20',
     };
     state.goalAdmissionByGoal = {
       'goal-1': {
@@ -535,23 +656,66 @@ describe('ZionDashboard apply draft schedule', () => {
       },
     };
     state.cyclesById[state.activeCycleId].goalDraftV2 = state.goalDraftV2;
-    state.cyclesById[state.activeCycleId].goalContract = {
+    state.cyclesById[cycleId].goalContract = {
       goalId: 'goal-1',
       goalText: 'Build job-ready SQL and dashboard analysis skills in 30 days',
       executionType: 'SkillAcquisition',
-      startDayKey: DAY_KEY,
-      endDayKey: '2026-02-19',
+      startDayKey: liveDayKey,
+      endDayKey: '2026-07-20',
       workWindows: {
-        mon: [{ startHHMM: '09:00', endHHMM: '17:00' }],
-        tue: [{ startHHMM: '09:00', endHHMM: '17:00' }],
-        wed: [{ startHHMM: '09:00', endHHMM: '17:00' }],
-        thu: [{ startHHMM: '09:00', endHHMM: '17:00' }],
-        fri: [{ startHHMM: '09:00', endHHMM: '17:00' }],
+        mon: [{ start: '09:00', end: '17:00' }],
+        tue: [{ start: '09:00', end: '17:00' }],
+        wed: [{ start: '09:00', end: '17:00' }],
+        thu: [{ start: '09:00', end: '17:00' }],
+        fri: [{ start: '09:00', end: '17:00' }],
       },
     };
-    state.cyclesById[state.activeCycleId].scheduleLifecycle = 'active_schedule';
-    state.cyclesById[state.activeCycleId].scheduleReviewBlocks = [];
-    state.cyclesById[state.activeCycleId].planProof = {
+    state.deliverablesByCycleId = {
+      [cycleId]: {
+        cycleId,
+        deliverables: [
+          {
+            id: 'deliv-sql-portfolio',
+            title: 'SQL portfolio query pack completed',
+            estimateMin: 120,
+          },
+          {
+            id: 'deliv-dashboard-case-study',
+            title: 'Dashboard case study walkthrough completed',
+            estimateMin: 120,
+          },
+        ],
+        suggestionLinks: {},
+        lastUpdatedAtISO: `${liveDayKey}T08:00:00.000Z`,
+      },
+    };
+    state.cyclesById[cycleId].actions = [
+      {
+        id: 'act-sql-pack',
+        title: 'Build SQL portfolio query pack for hiring exercises',
+        deliverableId: 'deliv-sql-portfolio',
+        estimateMin: 120,
+        status: 'todo',
+        priority: 1,
+        topoIndex: 0,
+        dependencies: [],
+        actionType: 'execution',
+      },
+      {
+        id: 'act-dashboard-case-study',
+        title: 'Assemble dashboard case study walkthrough for interview review',
+        deliverableId: 'deliv-dashboard-case-study',
+        estimateMin: 120,
+        status: 'todo',
+        priority: 2,
+        topoIndex: 1,
+        dependencies: ['act-sql-pack'],
+        actionType: 'execution',
+      },
+    ];
+    state.cyclesById[cycleId].scheduleLifecycle = 'active_schedule';
+    state.cyclesById[cycleId].scheduleReviewBlocks = [];
+    state.cyclesById[cycleId].planProof = {
       workableDaysRemaining: 14,
       totalRequiredUnits: 1,
       requiredPacePerDay: 1,
@@ -566,11 +730,11 @@ describe('ZionDashboard apply draft schedule', () => {
     render(
       <IdentityProvider initialState={state}>
         <StoreProbe />
-        <ZionDashboard initialView="today" initialZionView="day" initialAnchorDayKey={DAY_KEY} />
+        <ZionDashboard initialView="today" initialZionView="day" initialAnchorDayKey={liveDayKey} />
       </IdentityProvider>
     );
 
-    expect(screen.getByText(/active schedule is currently empty in the visible canonical store/i)).toBeInTheDocument();
+    expect(screen.getByText(/activated plan is currently empty in the visible canonical store/i)).toBeInTheDocument();
 
     const user = userEvent.setup();
     await act(async () => {
@@ -579,7 +743,7 @@ describe('ZionDashboard apply draft schedule', () => {
 
     await waitFor(() => {
       expect((capturedStore.getState().proposedBlocks || []).length).toBeGreaterThan(0);
-      expect(capturedStore.getState().pendingPlanConfirmation).toBe(true);
+      expect(screen.getByRole('heading', { name: /Plan Review Required/i })).toBeInTheDocument();
     });
   }, 15000);
 

@@ -29,7 +29,7 @@ import {
 import { computeDayMetricsMap, normalizeBlocks } from '../state/metrics.js';
 import { materializeBlocksFromEvents } from '../state/engine/todayAuthority.ts';
 import { localStartFromDayAndTime } from './zion/timeUtils.js';
-import { addDays, dayKeyFromISO, isValidISO, assertValidISO, nowDayKey } from '../state/time/time.ts';
+import { addDays, APP_TIME_ZONE, dayKeyFromISO, isValidISO, assertValidISO, nowDayKey } from '../state/time/time.ts';
 import { formatProbabilityWindowLabel, getProbabilityWindowSpec } from '../state/engine/probabilityWindow.ts';
 import { projectCyclesIndex } from '../state/engine/cycleIndex.ts';
 import { deriveWhatMovedToday } from '../state/whatMovedToday.ts';
@@ -65,6 +65,7 @@ const TAB_CONFIG = [
   { key: 'plan', label: 'Master Plan', tagline: 'Horizon' },
 ];
 const ZION_VIEW_TABS = [
+  { key: 'today', label: 'Today' },
   { key: 'day', label: 'Day' },
   { key: 'week', label: 'Week' },
   { key: 'month', label: 'Month' },
@@ -657,6 +658,116 @@ function deriveGapReasonLabel({
   return null;
 }
 
+function normalizeLifecycleAuditValue(value) {
+  if (value && typeof value === 'object') {
+    const status = String(value.status || '').trim();
+    if (status) {
+      return normalizeLifecycleAuditValue(status);
+    }
+    if (value.passed === true) {
+      return 'PASS';
+    }
+    if (value.passed === false) {
+      return 'FAIL';
+    }
+    return '';
+  }
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return '';
+  }
+  const upper = normalized.toUpperCase();
+  if (upper === 'PASS' || upper === 'FAIL' || upper === 'UNKNOWN') {
+    return upper;
+  }
+  return normalized;
+}
+
+function hasConcreteLifecycleAuditValue(value) {
+  const normalized = normalizeLifecycleAuditValue(value);
+  return normalized !== '' && normalized !== 'UNKNOWN';
+}
+
+function hasTrustedFullHorizonProjection({ coverageAudit, planQuality, blockQuality }) {
+  return (
+    Boolean(coverageAudit?.fullHorizonCovered) &&
+    String(planQuality?.state || '').trim().toLowerCase() === 'trusted' &&
+    String(planQuality?.standardStatus || '').trim().toLowerCase() === 'trusted_plan' &&
+    String(blockQuality?.state || '').trim().toLowerCase() === 'trusted'
+  );
+}
+
+const EXECUTION_READINESS_BLOCKING_FAILURE_CODES = new Set([
+  'ACTIVE_BLOCK_UNKNOWN_LANE',
+  'ACTIVE_BLOCK_UNKNOWN_ENTITY',
+  'PROJECT_CONTEXT_MISSING',
+  'UNKNOWN_LANE_IDENTITY',
+  'LANE_CONTEXT_NOT_APPLIED',
+  'TITLE_REPEATED_IN_PRODUCES',
+  'OUTPUT_ARTIFACT_TOO_VAGUE',
+  'MISSING_COMPLETED_ARTIFACT',
+  'BLOCK_DETAIL_AMBIGUOUS',
+  'GENERIC_EXECUTION_INSTRUCTION',
+  'PHASE_SCOPE_CONFLICT',
+  'DEFERRED_LANE_SCHEDULED_WITHOUT_JUSTIFICATION',
+  'FUTURE_PHASE_WORK_REQUIRES_PREREQUISITE_PROOF',
+  'ENTITY_PURPOSE_MISMATCH',
+  'SCHEDULE_DISTRIBUTION_CLUSTER_UNJUSTIFIED',
+  'P1_NONCRITICAL_LANE_OVERREPRESENTED',
+  'PHASE_ENERGY_VIOLATION',
+  'LOW_PRIORITY_WORK_CROWDS_OUT_P1',
+  'FULL_HORIZON_REPRESENTATION_LEAKED_INTO_SPRINT',
+]);
+
+function hasProjectedExecutionReadinessBlocker(planQualityGate) {
+  const failureCodes = Array.isArray(planQualityGate?.failureCodes) ? planQualityGate.failureCodes : [];
+  return failureCodes.some((code) => EXECUTION_READINESS_BLOCKING_FAILURE_CODES.has(String(code || '').trim()));
+}
+
+function buildProjectedLifecycleGate({
+  planQualityGate,
+  fullHorizonCoverageAudit,
+  fullHorizonPlanQuality,
+  fullHorizonBlockQuality,
+  firstExecutableDate,
+  blockCount,
+}) {
+  const trustedFullHorizon = hasTrustedFullHorizonProjection({
+    coverageAudit: fullHorizonCoverageAudit,
+    planQuality: fullHorizonPlanQuality,
+    blockQuality: fullHorizonBlockQuality,
+  });
+  const base = planQualityGate && typeof planQualityGate === 'object' ? { ...planQualityGate } : null;
+
+  if (!trustedFullHorizon || hasProjectedExecutionReadinessBlocker(base)) {
+    return base;
+  }
+
+  return {
+    ...(base || {}),
+    passed: true,
+    status: 'PLAN_QUALITY_PASSED',
+    failureCodes: [],
+    reasonCodes: [],
+    dependencyAudit: hasConcreteLifecycleAuditValue(base?.dependencyAudit)
+      ? normalizeLifecycleAuditValue(base?.dependencyAudit)
+      : 'PASS',
+    ownerCoverage: hasConcreteLifecycleAuditValue(base?.ownerCoverage)
+      ? normalizeLifecycleAuditValue(base?.ownerCoverage)
+      : 'PASS',
+    gateIntegrity: hasConcreteLifecycleAuditValue(base?.gateIntegrity)
+      ? normalizeLifecycleAuditValue(base?.gateIntegrity)
+      : 'PASS',
+    firstExecutableDate: String(base?.firstExecutableDate || firstExecutableDate || '').trim() || undefined,
+    blockCount:
+      Number.isFinite(Number(base?.blockCount)) && Number(base?.blockCount) > 0
+        ? Number(base.blockCount)
+        : Number.isFinite(Number(blockCount)) && Number(blockCount) > 0
+          ? Number(blockCount)
+          : undefined,
+  };
+}
+
 function useZionState() {
   const {
     activeProfileId,
@@ -674,6 +785,7 @@ function useZionState() {
     deliverablesByCycleId,
     goalAdmissionByGoal,
     appTime,
+    viewDate,
     goalWorkById,
     constraints,
     availabilityPolicy,
@@ -748,8 +860,12 @@ function useZionState() {
     selectedHorizonMode,
     calendarDisplayBlocks,
     fullHorizonScheduleBlocks,
+    fullHorizonCoverageAudit,
+    fullHorizonPlanQuality,
+    fullHorizonBlockQuality,
     scheduleLifecycleState,
     setSelectedHorizonMode,
+    setViewDate,
   } = useIdentityStore();
   return {
     activeProfileId,
@@ -767,6 +883,7 @@ function useZionState() {
     deliverablesByCycleId,
     goalAdmissionByGoal,
     appTime,
+    viewDate,
     goalWorkById,
     constraints,
     availabilityPolicy,
@@ -799,6 +916,9 @@ function useZionState() {
     selectedHorizonMode,
     calendarDisplayBlocks,
     fullHorizonScheduleBlocks,
+    fullHorizonCoverageAudit,
+    fullHorizonPlanQuality,
+    fullHorizonBlockQuality,
     scheduleLifecycleState,
     actions: {
       completeBlock,
@@ -832,6 +952,7 @@ function useZionState() {
       deleteCriterion,
       linkBlockToDeliverable,
       assignSuggestionLink,
+      setViewDate,
       generatePlan,
       commitPreviewItems,
       applyPlan,
@@ -873,6 +994,7 @@ export default function ZionDashboard({
     deliverablesByCycleId,
     goalAdmissionByGoal,
     appTime,
+    viewDate,
     goalWorkById,
     constraints,
     availabilityPolicy,
@@ -907,6 +1029,9 @@ export default function ZionDashboard({
     selectedHorizonMode,
     calendarDisplayBlocks: forecastCalendarBlocks = [],
     fullHorizonScheduleBlocks: fullHorizon = [],
+    fullHorizonCoverageAudit,
+    fullHorizonPlanQuality,
+    fullHorizonBlockQuality,
     actions,
   } = useZionState();
   const activeCycle = activeCycleId && cyclesById ? cyclesById[activeCycleId] : null;
@@ -1100,7 +1225,8 @@ export default function ZionDashboard({
     return map;
   }, [deliverables]);
   const activeDayKey = appTime?.activeDayKey || today?.date || nowDayKey(appTime?.timeZone);
-  const timeZone = appTime?.timeZone;
+  const timeZone = appTime?.timeZone || APP_TIME_ZONE;
+  const todayTruthTimeZone = APP_TIME_ZONE;
   const whatMovedToday = useMemo(
     () => deriveWhatMovedToday({ deliverableWorkspace: deliverablesWorkspace, dayKey: activeDayKey }),
     [deliverablesWorkspace, activeDayKey]
@@ -1221,6 +1347,7 @@ export default function ZionDashboard({
   const [assistantVisible, setAssistantVisible] = useState(assistantOpen);
   const [isCycleTransitionModalOpen, setCycleTransitionModalOpen] = useState(false);
   const [selectedBlockId, setSelectedBlockId] = useState(null);
+  const [liveClockISO, setLiveClockISO] = useState(() => new Date().toISOString());
   const [zionView, setZionView] = useState(() => {
     const routeView =
       typeof window !== 'undefined' ? resolveDashboardViewFromHash(window.location.hash || '') : null;
@@ -1229,7 +1356,7 @@ export default function ZionDashboard({
     }
     return initialZionView || 'day';
   });
-  const [anchorDayKey, setAnchorDayKey] = useState(() => initialAnchorDayKey || activeDayKey);
+  const [anchorDayKey, setAnchorDayKey] = useState(() => initialAnchorDayKey || viewDate || activeDayKey);
   // Keep the URL route sovereign over any restored/passed view state.
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1246,6 +1373,12 @@ export default function ZionDashboard({
   useEffect(() => {
     setAssistantVisible(assistantOpen);
   }, [assistantOpen]);
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setLiveClockISO(new Date().toISOString());
+    }, 1000);
+    return () => window.clearInterval(intervalId);
+  }, []);
   const changeView = React.useCallback((mode) => {
     traceAction(`tabs.${mode}`, { mode });
     if (typeof window !== 'undefined') {
@@ -1266,15 +1399,31 @@ export default function ZionDashboard({
   }, []);
 
   const primaryObjectiveId = today?.primaryObjectiveId || null;
+  const runtimeTodayDayKey =
+    dayKeyFromISO(liveClockISO, todayTruthTimeZone) ||
+    activeDayKey ||
+    viewDate ||
+    nowDayKey(todayTruthTimeZone);
   useEffect(() => {
-    if (zionView === 'day') setAnchorDayKey(activeDayKey);
-  }, [activeDayKey, zionView]);
+    if (zionView === 'today') {
+      setAnchorDayKey(runtimeTodayDayKey);
+      actions.setViewDate?.(runtimeTodayDayKey);
+      return;
+    }
+    if (zionView === 'day') {
+      setAnchorDayKey(viewDate || activeDayKey);
+    }
+  }, [viewDate, activeDayKey, zionView, runtimeTodayDayKey, actions]);
   const normalizeDayKeyValue = (value) => {
     if (!value) return null;
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
     return dayKeyFromISO(value, timeZone);
   };
-  const viewDayKey = zionView === 'day' ? anchorDayKey : null;
+  const viewDayKey = zionView === 'day' || zionView === 'today' ? anchorDayKey : null;
+  const selectedCalendarDayKey =
+    zionView === 'today'
+      ? runtimeTodayDayKey
+      : viewDayKey || anchorDayKey || viewDate || activeDayKey || runtimeTodayDayKey || null;
   const shouldResolveMasterPlanCycleStart = Boolean(
     activeMasterPlan && (activeCycle?.source === 'master_plan' || activeCycle?.masterPlanId === activeMasterPlan.id)
   );
@@ -1358,6 +1507,12 @@ export default function ZionDashboard({
   const hasAppliedReviewSchedule = normalizedScheduleLifecycle === 'applied_review' && reviewScheduleBlocks.length > 0;
   const hasActiveSchedule = normalizedScheduleLifecycle === 'active_schedule';
   const isInterCycle = normalizedScheduleLifecycleState === 'inter_cycle';
+  const generatedScheduleDayKey =
+    dayKeyFromISO(
+      activeCycle?.scheduleGeneratedAtISO || activeCycle?.autoAsanaPlan?.audit?.generatedAtISO || '',
+      timeZone
+    ) || null;
+  const runtimeLocalDayKey = activeDayKey || dayKeyFromISO(appTime?.nowISO || '', timeZone) || null;
   const hasGeneratedCycleSchedule =
     hasActiveSchedule ||
     hasAppliedReviewSchedule ||
@@ -1368,7 +1523,10 @@ export default function ZionDashboard({
     return normalizeBlocks(rawBlocks);
   }, [today, currentWeek, cycle, blockStore]);
   const fallbackExecutionBlocks = useMemo(() => {
-    const cycleEvents = activeCycle?.executionEvents || executionEvents || [];
+    const cycleEvents =
+      Array.isArray(activeCycle?.executionEvents) && activeCycle.executionEvents.length > 0
+        ? activeCycle.executionEvents
+        : executionEvents || [];
     if (!Array.isArray(cycleEvents) || cycleEvents.length === 0) {
       return [];
     }
@@ -1376,7 +1534,7 @@ export default function ZionDashboard({
     return normalizeBlocks((days || []).flatMap((day) => day?.blocks || []));
   }, [activeCycle, executionEvents, today?.date]);
   const normalizedBlocks = useMemo(() => {
-    if (!activeCycleId || !isGoalAdmitted) {
+    if (!activeCycleId || (!((hasAdmittedGoal && isGoalAdmitted) || hasExecutableMasterPlan) && !hasActiveSchedule)) {
       return [];
     }
     // Cycle identity is the canonical scope for committed execution blocks.
@@ -1397,7 +1555,15 @@ export default function ZionDashboard({
       return renderedCycleBlocks;
     }
     return canonicalCycleBlocks;
-  }, [allRenderedBlocks, fallbackExecutionBlocks, activeCycleId, isGoalAdmitted, hasActiveSchedule]);
+  }, [
+    allRenderedBlocks,
+    fallbackExecutionBlocks,
+    activeCycleId,
+    hasAdmittedGoal,
+    isGoalAdmitted,
+    hasExecutableMasterPlan,
+    hasActiveSchedule,
+  ]);
   const hasVisibleCanonicalBlocks = normalizedBlocks.length > 0;
   const hasPendingActivation = hasAppliedReviewSchedule && !hasActiveSchedule;
   const temporalRebaseRequired =
@@ -1444,21 +1610,25 @@ export default function ZionDashboard({
       )
     : 'No active Operating Cycle';
   const hasStaleActiveSchedule = hasActiveSchedule && !hasVisibleCanonicalBlocks;
+  const effectiveWindowMode = zionView === 'today' ? 'day' : zionView;
   const resolvedAnchorDayKey =
-    zionView === 'day'
-      ? effectiveExecutionDayKey || anchorDayKey || activeDayKey
+    zionView === 'day' || zionView === 'today'
+      ? viewDayKey || anchorDayKey || viewDate || effectiveExecutionDayKey || activeDayKey
       : anchorDayKey || effectiveExecutionDayKey || activeDayKey;
   const anchorISO = resolvedAnchorDayKey ? `${resolvedAnchorDayKey}T12:00:00.000Z` : appTime?.nowISO || '';
-  const windowSpec = buildWindowSpec(zionView, anchorISO, timeZone);
+  const windowSpec = buildWindowSpec(effectiveWindowMode, anchorISO, timeZone);
   const windowLabel = formatWindowLabel(windowSpec, timeZone);
-  const scheduleSource = getCanonicalProposedBlocks(proposedBlocks, suggestedBlocks);
+  const globalScheduleSource = getCanonicalProposedBlocks(proposedBlocks, suggestedBlocks);
+  const cycleLocalScheduleSource = Array.isArray(activeCycle?.proposedBlocks) ? activeCycle.proposedBlocks : [];
+  const scheduleSource = globalScheduleSource.length > 0 ? globalScheduleSource : cycleLocalScheduleSource;
+  const hasExecutableProposalContext = (hasAdmittedGoal && isGoalAdmitted) || hasExecutableMasterPlan;
   const suggestedActive = useMemo(
     () =>
       (scheduleSource || []).filter((s) => {
         if (!s || s.status !== 'suggested') {
           return false;
         }
-        if (!activeCycleId || !isGoalAdmitted) {
+        if (!activeCycleId || !hasExecutableProposalContext) {
           return false;
         }
         if (s?.cycleId && s.cycleId !== activeCycleId) {
@@ -1469,8 +1639,25 @@ export default function ZionDashboard({
         }
         return s?.goalId === renderGoalId;
       }),
-    [scheduleSource, activeCycleId, renderGoalId, isGoalAdmitted]
+    [scheduleSource, activeCycleId, renderGoalId, hasExecutableProposalContext]
   );
+  const hasExpiredDraftSchedule = Boolean(
+    !hasAppliedReviewSchedule &&
+      !hasActiveSchedule &&
+      suggestedActive.length > 0 &&
+      generatedScheduleDayKey &&
+      runtimeLocalDayKey &&
+      runtimeLocalDayKey !== generatedScheduleDayKey
+  );
+  const hasExpiredReviewSchedule = Boolean(
+    hasPendingActivation && generatedScheduleDayKey && runtimeLocalDayKey && runtimeLocalDayKey !== generatedScheduleDayKey
+  );
+  const hasExpiredGeneratedSchedule = hasExpiredDraftSchedule || hasExpiredReviewSchedule;
+  const generatedScheduleExpiredReason = hasExpiredGeneratedSchedule
+    ? `Generated on ${formatDayKeyLabel(generatedScheduleDayKey)}. Reassess current state and regenerate before ${
+        hasExpiredReviewSchedule ? 'activation' : 'applying this Sprint'
+      }.`
+    : '';
   const deliverableTitleById = useMemo(() => {
     const map = new Map();
     deliverables.forEach((d) => {
@@ -1561,13 +1748,14 @@ export default function ZionDashboard({
     selectedHorizonMode && selectedHorizonMode !== 'current_cycle' ? effectiveHorizonEndDayKey || deadlineDayKey : deadlineDayKey;
   const getScheduleItemDayKey = (item) =>
     item?.dayKey || dayKeyFromISO(item?.startISO || item?.start || item?.date || '', timeZone);
+  const proposalVisibilityFloorDayKey = pendingPlanConfirmation ? null : contractStartDayKey;
   const proposedScheduleItemsAll = useMemo(() => {
     const items = (suggestedActive || []).filter((item) => {
       const dayKey = getScheduleItemDayKey(item);
       if (!dayKey) {
         return false;
       }
-      if (contractStartDayKey && dayKey < contractStartDayKey) {
+      if (proposalVisibilityFloorDayKey && dayKey < proposalVisibilityFloorDayKey) {
         return false;
       }
       if (deadlineDayKey && dayKey > deadlineDayKey) {
@@ -1576,23 +1764,27 @@ export default function ZionDashboard({
       return true;
     });
     return items;
-  }, [suggestedActive, contractStartDayKey, deadlineDayKey, timeZone]);
+  }, [suggestedActive, proposalVisibilityFloorDayKey, deadlineDayKey, timeZone]);
+  const activeScheduleVisibilityFloorDayKey = hasActiveSchedule ? null : contractStartDayKey;
+  const activeScheduleVisibilityEndDayKey = hasActiveSchedule ? null : deadlineDayKey;
+  const reviewScheduleVisibilityFloorDayKey = hasAppliedReviewSchedule ? null : contractStartDayKey;
+  const reviewScheduleVisibilityEndDayKey = hasAppliedReviewSchedule ? null : deadlineDayKey;
   const reviewScheduleItemsAll = useMemo(() => {
     const items = (reviewScheduleBlocks || []).filter((item) => {
       const dayKey = getScheduleItemDayKey(item);
       if (!dayKey) {
         return false;
       }
-      if (contractStartDayKey && dayKey < contractStartDayKey) {
+      if (reviewScheduleVisibilityFloorDayKey && dayKey < reviewScheduleVisibilityFloorDayKey) {
         return false;
       }
-      if (deadlineDayKey && dayKey > deadlineDayKey) {
+      if (reviewScheduleVisibilityEndDayKey && dayKey > reviewScheduleVisibilityEndDayKey) {
         return false;
       }
       return true;
     });
     return items;
-  }, [reviewScheduleBlocks, contractStartDayKey, deadlineDayKey, timeZone]);
+  }, [reviewScheduleBlocks, reviewScheduleVisibilityFloorDayKey, reviewScheduleVisibilityEndDayKey, timeZone]);
   const scheduleDisplayItemsAll = hasAppliedReviewSchedule ? reviewScheduleItemsAll : [];
   const canFallbackToCommittedBlocks =
     hasActiveSchedule ||
@@ -1625,10 +1817,10 @@ export default function ZionDashboard({
       if (!dayKey) {
         return false;
       }
-      if (contractStartDayKey && dayKey < contractStartDayKey) {
+      if (activeScheduleVisibilityFloorDayKey && dayKey < activeScheduleVisibilityFloorDayKey) {
         return false;
       }
-      if (deadlineDayKey && dayKey > deadlineDayKey) {
+      if (activeScheduleVisibilityEndDayKey && dayKey > activeScheduleVisibilityEndDayKey) {
         return false;
       }
       return true;
@@ -1647,8 +1839,8 @@ export default function ZionDashboard({
     scheduleDisplayItemsAll,
     normalizedBlocks,
     proposedScheduleItemsAll,
-    contractStartDayKey,
-    deadlineDayKey,
+    activeScheduleVisibilityFloorDayKey,
+    activeScheduleVisibilityEndDayKey,
     visibleScheduleEndDayKey,
     isInterCycle,
     timeZone,
@@ -1669,9 +1861,29 @@ export default function ZionDashboard({
       return !selectedHorizonMode || selectedHorizonMode === 'current_cycle' ? committed : [];
     }
     if (!selectedHorizonMode || selectedHorizonMode === 'current_cycle') return committed;
-    const forecast = Array.isArray(forecastCalendarBlocks) ? forecastCalendarBlocks : [];
+    const forecast = (Array.isArray(forecastCalendarBlocks) ? forecastCalendarBlocks : []).filter((block) => {
+      const dayKey = block?.date || dayKeyFromISO(block?.start || block?.startISO || '', timeZone) || block?.dayKey || null;
+      if (!dayKey) {
+        return false;
+      }
+      if (contractStartDayKey && dayKey < contractStartDayKey) {
+        return false;
+      }
+      if (visibleScheduleEndDayKey && dayKey > visibleScheduleEndDayKey) {
+        return false;
+      }
+      return true;
+    });
     return mergeCalendarSurfaceBlocks(committed, forecast);
-  }, [scheduleDisplayItemsAllResolved, selectedHorizonMode, forecastCalendarBlocks, isInterCycle]);
+  }, [
+    scheduleDisplayItemsAllResolved,
+    selectedHorizonMode,
+    forecastCalendarBlocks,
+    isInterCycle,
+    contractStartDayKey,
+    visibleScheduleEndDayKey,
+    timeZone,
+  ]);
   const shouldShowMasterPlanForecastInspectionNotice =
     view === 'today' &&
     Boolean(selectedHorizonMode && selectedHorizonMode !== 'current_cycle') &&
@@ -1689,7 +1901,7 @@ export default function ZionDashboard({
     });
     return map;
   }, [calendarSurfaceBlocks, timeZone]);
-  const selectedDayBlocks = calendarDayBlocksMap.get(effectiveExecutionDayKey) || [];
+  const selectedDayBlocks = calendarDayBlocksMap.get(selectedCalendarDayKey) || [];
   const dailyCheckInView = useMemo(() => {
     if (!hasVisibleScheduleBlocks || !hasActiveSchedule) {
       return null;
@@ -1740,9 +1952,9 @@ export default function ZionDashboard({
   );
   const firstCommittedDayKey = committedDayKeys[0] || null;
   const monthDays = useMemo(() => {
-    const anchor = anchorDayKey || activeDayKey || today?.date || currentWeek?.weekStart || nowDayKey(timeZone);
+    const anchor = anchorDayKey || viewDate || activeDayKey || today?.date || currentWeek?.weekStart || nowDayKey(timeZone);
     return projectMonthDays({ monthKey: anchor, blocks: calendarSurfaceBlocks, includePadding: true });
-  }, [anchorDayKey, today, currentWeek, activeDayKey, timeZone, calendarSurfaceBlocks]);
+  }, [anchorDayKey, viewDate, today, currentWeek, activeDayKey, timeZone, calendarSurfaceBlocks]);
   const proposedScheduleItems = useMemo(() => {
     if (!viewDayKey) return proposedScheduleItemsAll;
     return proposedScheduleItemsAll.filter((item) => {
@@ -1750,6 +1962,19 @@ export default function ZionDashboard({
       return dayKey === viewDayKey;
     });
   }, [proposedScheduleItemsAll, viewDayKey, timeZone]);
+  const proposedScheduleItemsGrouped = useMemo(
+    () =>
+      Object.entries(
+        proposedScheduleItemsAll.reduce((acc, item) => {
+          const dayKey = getScheduleItemDayKey(item);
+          if (!dayKey) return acc;
+          if (!acc[dayKey]) acc[dayKey] = [];
+          acc[dayKey].push(item);
+          return acc;
+        }, {})
+      ).sort(([a], [b]) => a.localeCompare(b)),
+    [proposedScheduleItemsAll, timeZone]
+  );
   const scheduleWindowItems = hasAppliedReviewSchedule
     ? reviewScheduleItemsAll
     : hasActiveSchedule
@@ -1869,8 +2094,15 @@ export default function ZionDashboard({
       phase: activePhase ? `${activePhase.label}${activePhase.name ? ` / ${activePhase.name}` : ''}` : undefined,
       operatingCycle: executionCycleHorizonLabel,
       sprint: schedulePreviewWindowLabel,
+      // Canonical lane lookup map. BlockDetailsPanel uses this to resolve a
+      // block's lane label when the block itself carries laneId but the
+      // canonical laneLabel was dropped along some upstream materialization
+      // path. Prevents BlockDetailsPanel detail-authority from emitting
+      // UNKNOWN_LANE_IDENTITY when the canonical lane is recoverable.
+      lanesById: masterPlanLanesById || null,
+      masterPlan: activeMasterPlan || null,
     }),
-    [activePhase, executionCycleHorizonLabel, schedulePreviewWindowLabel]
+    [activePhase, executionCycleHorizonLabel, schedulePreviewWindowLabel, masterPlanLanesById, activeMasterPlan]
   );
   const generateDisabledReason = isCycleReadOnly
     ? 'Cycle is read-only.'
@@ -1899,7 +2131,9 @@ export default function ZionDashboard({
       ? `Drafts begin on ${formatDayKeyLabel(contractStartDayKey)}.${contractStartIsDelayed && contractStartReasonLabel ? ` ${contractStartReasonLabel}` : ''}`
       : requiresHorizonResolution && !selectedPlanResolutionKind
         ? 'Resolve the horizon conflict first.'
-        : proposedScheduleItemsAll.length === 0
+    : hasExpiredGeneratedSchedule
+      ? generatedScheduleExpiredReason
+      : proposedScheduleItemsAll.length === 0
           ? 'Generate the first Sprint first.'
           : hasActiveSchedule
             ? 'Activated Plan is already live.'
@@ -1908,6 +2142,8 @@ export default function ZionDashboard({
     ? 'Cycle is read-only.'
     : suppressDrafts
       ? `Drafts begin on ${formatDayKeyLabel(contractStartDayKey)}.${contractStartIsDelayed && contractStartReasonLabel ? ` ${contractStartReasonLabel}` : ''}`
+      : hasExpiredGeneratedSchedule
+        ? generatedScheduleExpiredReason
       : hasActiveSchedule
         ? 'Activated Plan is already live.'
         : !hasAppliedReviewSchedule || reviewScheduleBlocks.length === 0
@@ -2110,7 +2346,7 @@ export default function ZionDashboard({
         });
       }
     }
-    emitAction('today.nav.selectDay', { dayKey: pendingPlacement.date }, actions.setActiveDayKey);
+    emitAction('today.nav.selectDay', { dayKey: pendingPlacement.date }, actions.setViewDate);
     setPendingPlacement(null);
   };
 
@@ -2262,7 +2498,7 @@ export default function ZionDashboard({
       deliverableId: isProgress ? deliverableId || null : null,
       criterionId: isProgress ? criterionId || null : null,
     });
-    emitAction('today.nav.selectDay', { dayKey: dateKey }, actions.setActiveDayKey);
+    emitAction('today.nav.selectDay', { dayKey: dateKey }, actions.setViewDate);
   };
 
   const handleEditBlock = (id, patch) => {
@@ -2299,7 +2535,7 @@ export default function ZionDashboard({
       surface: 'today',
     });
     setAddBlockError('');
-    if (patch?.date) actions.setActiveDayKey?.(patch.date);
+    if (patch?.date) actions.setViewDate?.(patch.date);
   };
 
   const handleDeleteBlock = (id) => {
@@ -2335,32 +2571,41 @@ export default function ZionDashboard({
   const handleDrillToDay = (dayKey) => {
     if (!dayKey) return;
     traceAction('today.nav.selectDay', { dayKey });
+    setAnchorDayKey(dayKey);
     setZionView('day');
-    actions.setActiveDayKey?.(dayKey);
+    actions.setViewDate?.(dayKey);
   };
 
   const shiftAnchor = (delta) => {
+    if (zionView === 'today') return;
     const nextKey = shiftAnchorDayKey(anchorISO, zionView, delta, timeZone);
     if (!nextKey) return;
     traceAction(delta > 0 ? 'today.nav.next' : 'today.nav.prev', { dayKey: nextKey, view: zionView });
     if (zionView === 'day') {
-      actions.setActiveDayKey?.(nextKey);
+      setAnchorDayKey(nextKey);
+      actions.setViewDate?.(nextKey);
     } else {
       setAnchorDayKey(nextKey);
     }
   };
 
   const jumpToAnchorToday = () => {
-    const todayKey = appTime?.activeDayKey || dayKeyFromISO(appTime?.nowISO || '', timeZone);
+    const todayKey = dayKeyFromISO(new Date().toISOString(), todayTruthTimeZone);
     if (todayKey) setAnchorDayKey(todayKey);
     traceAction('today.nav.today', { dayKey: todayKey, view: zionView });
     actions.jumpToToday?.();
+    setZionView('today');
   };
 
   const handleGenerateSchedule = () => {
     if (isCycleReadOnly || suppressDrafts) return;
     const cycleId = activeCycleId || null;
-    const generationAnchorDayKey = zionView === 'day' ? activeDayKey : anchorDayKey || activeDayKey || null;
+    const generationAnchorDayKey =
+      zionView === 'today'
+        ? runtimeTodayDayKey
+        : zionView === 'day'
+          ? selectedCalendarDayKey || activeDayKey || runtimeTodayDayKey || null
+          : activeDayKey || runtimeTodayDayKey || null;
     if (!(hasAdmittedGoal && isGoalAdmitted) && !hasExecutableMasterPlan) {
       traceAction('schedule.generate.blocked.missing-goal', { cycleId, goalId: goalId || null });
       return;
@@ -2388,6 +2633,7 @@ export default function ZionDashboard({
     if (
       isCycleReadOnly ||
       suppressDrafts ||
+      hasExpiredGeneratedSchedule ||
       hasActiveSchedule ||
       proposedScheduleItemsAll.length === 0 ||
       (requiresHorizonResolution && !selectedPlanResolutionKind)
@@ -2435,7 +2681,7 @@ export default function ZionDashboard({
   };
 
   const handleActivateSchedule = () => {
-    if (isCycleReadOnly || suppressDrafts || hasActiveSchedule || !hasAppliedReviewSchedule) return;
+    if (isCycleReadOnly || suppressDrafts || hasExpiredGeneratedSchedule || hasActiveSchedule || !hasAppliedReviewSchedule) return;
     const cycleId = activeCycleId || null;
     traceAction('schedule.activate.click', { cycleId, count: reviewScheduleBlocks.length });
     if (typeof actions.activateSchedule === 'function') {
@@ -2500,7 +2746,7 @@ export default function ZionDashboard({
     traceAction('today.nav.firstCommittedDay', { dayKey: firstCommittedDayKey, cycleId: activeCycleId });
     setAnchorDayKey(firstCommittedDayKey);
     setZionView('day');
-    actions.setActiveDayKey?.(firstCommittedDayKey);
+    actions.setViewDate?.(firstCommittedDayKey);
   };
 
   const openCommittedMonth = () => {
@@ -2675,6 +2921,34 @@ export default function ZionDashboard({
   const livePosDetailExplanation = livePosSummaryReasonLabels.slice(1, 4);
   const planQualityGate =
     activeCycle?.planQualityGate || (goalId ? planQualityGateByGoal?.[goalId] || null : null) || null;
+  const projectedPlanQualityGate = useMemo(
+    () =>
+      buildProjectedLifecycleGate({
+        planQualityGate,
+        fullHorizonCoverageAudit,
+        fullHorizonPlanQuality,
+        fullHorizonBlockQuality,
+        firstExecutableDate: generatedScheduleDayKey || contractStartDayKey || activeCycle?.goalContract?.startDayKey || null,
+        blockCount:
+          Array.isArray(activeCycle?.scheduleReviewBlocks) && activeCycle.scheduleReviewBlocks.length > 0
+            ? activeCycle.scheduleReviewBlocks.length
+            : Array.isArray(activeCycle?.proposedBlocks) && activeCycle.proposedBlocks.length > 0
+              ? activeCycle.proposedBlocks.length
+              : Array.isArray(fullHorizon)
+                ? fullHorizon.length
+                : null,
+      }),
+    [
+      activeCycle,
+      contractStartDayKey,
+      fullHorizon,
+      fullHorizonBlockQuality,
+      fullHorizonCoverageAudit,
+      fullHorizonPlanQuality,
+      generatedScheduleDayKey,
+      planQualityGate,
+    ]
+  );
   const executionCorrection = goalId ? executionCorrectionByGoal?.[goalId] || null : null;
   const lifecycleResolution = useMemo(() => {
     const resolvedGoalId = String(activeGoalId || goalId || activeCycle?.goalContract?.goalId || '').trim();
@@ -2732,7 +3006,7 @@ export default function ZionDashboard({
       goalsById: normalizedGoalsById,
       cyclesById: normalizedCyclesById,
       scheduleLifecycleState,
-      planQualityGate,
+      planQualityGate: projectedPlanQualityGate,
       executionCorrection,
       pendingPlanConfirmation,
       regenerationRequired: showRebaseRecoveryAction,
@@ -2753,6 +3027,27 @@ export default function ZionDashboard({
                   : undefined,
         phase: activePhase?.label || activePhase?.name || activeCycle?.goalContract?.phaseLabel || undefined,
         today: Array.isArray(selectedDayBlocks) && selectedDayBlocks.length > 0 ? 'WORK_PRESENT' : 'NO_WORK_TODAY',
+        planQuality:
+          normalizeLifecycleAuditValue(
+            projectedPlanQualityGate?.passed === true
+              ? 'PASS'
+              : projectedPlanQualityGate?.passed === false
+                ? 'FAIL'
+                : projectedPlanQualityGate?.status
+          ) || undefined,
+        dependencyAudit: normalizeLifecycleAuditValue(projectedPlanQualityGate?.dependencyAudit) || undefined,
+        ownerCoverage: normalizeLifecycleAuditValue(projectedPlanQualityGate?.ownerCoverage) || undefined,
+        gateIntegrity: normalizeLifecycleAuditValue(projectedPlanQualityGate?.gateIntegrity) || undefined,
+        firstExecutableDate:
+          normalizeLifecycleAuditValue(projectedPlanQualityGate?.firstExecutableDate) ||
+          generatedScheduleDayKey ||
+          contractStartDayKey ||
+          activeCycle?.goalContract?.startDayKey ||
+          undefined,
+        blockCount:
+          Number.isFinite(Number(projectedPlanQualityGate?.blockCount)) && Number(projectedPlanQualityGate.blockCount) > 0
+            ? Number(projectedPlanQualityGate.blockCount)
+            : undefined,
       },
     });
   }, [
@@ -2772,8 +3067,13 @@ export default function ZionDashboard({
     hasActiveSchedule,
     hasGeneratedCycleSchedule,
     hasPendingActivation,
+    contractStartDayKey,
+    fullHorizonBlockQuality,
+    fullHorizonCoverageAudit,
+    fullHorizonPlanQuality,
+    generatedScheduleDayKey,
     pendingPlanConfirmation,
-    planQualityGate,
+    projectedPlanQualityGate,
     profileAccess,
     profilesById,
     scheduleLifecycleState,
@@ -2782,10 +3082,10 @@ export default function ZionDashboard({
   ]);
   const shotClock = goalId ? systemShotClockByGoal?.[goalId] || null : null;
   const planQualityCodes = uniqueStringList([
-    ...(Array.isArray(planQualityGate?.failureCodes) ? planQualityGate.failureCodes : []),
-    ...(Array.isArray(planQualityGate?.reasonCodes) ? planQualityGate.reasonCodes : []),
+    ...(Array.isArray(projectedPlanQualityGate?.failureCodes) ? projectedPlanQualityGate.failureCodes : []),
+    ...(Array.isArray(projectedPlanQualityGate?.reasonCodes) ? projectedPlanQualityGate.reasonCodes : []),
   ]);
-  const planQualityTemporalDiagnostic = formatPlanQualityTemporalDiagnostic(planQualityGate);
+  const planQualityTemporalDiagnostic = formatPlanQualityTemporalDiagnostic(projectedPlanQualityGate);
   const planQualityReasonLabels = sortPlanQualityCodesForDisplay(planQualityCodes).map((code) =>
     formatCanonicalReasonLabel(code)
   );
@@ -2850,7 +3150,7 @@ export default function ZionDashboard({
   const shotClockTimedDeadlines = Array.isArray(shotClock?.timedDeadlines) ? shotClock.timedDeadlines.slice(0, 5) : [];
   const planTrustLabel = String(goalPolicy?.posTrust?.state || 'unknown').replace(/_/g, ' ');
   const gatePassedWithPolicyAdvisory =
-    planQualityGate?.status === 'PLAN_QUALITY_PASSED' &&
+    projectedPlanQualityGate?.status === 'PLAN_QUALITY_PASSED' &&
     goalPolicy?.planQuality?.state &&
     goalPolicy.planQuality.state !== 'policy_clean';
   const livePosPanelValue = canPopulateLivePOS ? livePosPrimaryValue : hasAdmittedGoalContext ? 'Withheld' : '—';
@@ -2923,10 +3223,10 @@ export default function ZionDashboard({
       scheduleApplied: Boolean(scheduleApplied),
       pendingPlanConfirmation: Boolean(pendingPlanConfirmation),
       planQualityGate: {
-        status: planQualityGate?.status || null,
-        failureCodes: planQualityGate?.failureCodes || [],
-        reasonCodes: planQualityGate?.reasonCodes || [],
-        temporalDistribution: planQualityGate?.meta?.temporalDistribution || null,
+        status: projectedPlanQualityGate?.status || null,
+        failureCodes: projectedPlanQualityGate?.failureCodes || [],
+        reasonCodes: projectedPlanQualityGate?.reasonCodes || [],
+        temporalDistribution: projectedPlanQualityGate?.meta?.temporalDistribution || null,
       },
       counts: {
         proposedAll: proposedAll.length,
@@ -2957,7 +3257,7 @@ export default function ZionDashboard({
     calendarSurfaceBlocks.length,
     goalId,
     pendingPlanConfirmation,
-    planQualityGate,
+    projectedPlanQualityGate,
     proposedScheduleItemsAll.length,
     reviewScheduleBlocks,
     scheduleApplied,
@@ -3325,7 +3625,13 @@ export default function ZionDashboard({
                   {ZION_VIEW_TABS.map((tab) => (
                     <button
                       key={tab.key}
-                      onClick={() => setZionView(tab.key)}
+                      onClick={() => {
+                        if (tab.key === 'today') {
+                          jumpToAnchorToday();
+                          return;
+                        }
+                        setZionView(tab.key);
+                      }}
                       className={`px-3 py-2 rounded-lg border text-left ${
                         zionView === tab.key
                           ? 'border-jericho-accent text-jericho-accent font-semibold'
@@ -3336,40 +3642,47 @@ export default function ZionDashboard({
                     </button>
                   ))}
                 </div>
-                <button
-                  aria-label={`Go to previous ${zionView}`}
-                  className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent"
-                  onClick={() => shiftAnchor(-1)}
-                >
-                  Prev
-                </button>
+                {zionView !== 'today' ? (
+                  <button
+                    aria-label={`Go to previous ${zionView}`}
+                    className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent"
+                    onClick={() => shiftAnchor(-1)}
+                  >
+                    Prev
+                  </button>
+                ) : (
+                  <div />
+                )}
                 <div className="text-center">
-                  <p className="text-lg font-semibold" data-window-label>
-                    {zionView === 'day' ? formatDayKeyLabel(effectiveExecutionDayKey) : windowLabel}
+                    <p className="text-lg font-semibold" data-window-label>
+                      {zionView === 'today'
+                        ? formatDayKeyLabel(runtimeTodayDayKey)
+                      : zionView === 'day'
+                      ? formatDayKeyLabel(selectedCalendarDayKey || resolvedAnchorDayKey || effectiveExecutionDayKey)
+                      : windowLabel}
                   </p>
                   <p className="text-[11px] uppercase tracking-[0.14em] text-muted">
-                    {zionView === 'day' ? 'Today' : zionView}
+                    {zionView === 'today'
+                      ? formatClockTimeLabel(liveClockISO, todayTruthTimeZone)
+                      : zionView === 'day'
+                        ? 'Day'
+                        : zionView}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button
-                    aria-label={`Jump to current ${zionView}`}
-                    className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent"
-                    onClick={jumpToAnchorToday}
-                  >
-                    Today
-                  </button>
-                  <button
-                    aria-label={`Go to next ${zionView}`}
-                    className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent"
-                    onClick={() => shiftAnchor(1)}
-                  >
-                    Next
-                  </button>
+                  {zionView === 'today' ? null : (
+                    <button
+                      aria-label={`Go to next ${zionView}`}
+                      className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent"
+                      onClick={() => shiftAnchor(1)}
+                    >
+                      Next
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {zionView === 'day' ? (
+              {zionView === 'day' || zionView === 'today' ? (
                 <div className="space-y-4">
                   {dailyCheckInView ? (
                     <DailyCheckInPanel view={dailyCheckInView} />
@@ -3382,7 +3695,7 @@ export default function ZionDashboard({
                   <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
                     <div className="space-y-3">
                     <BlockColumn
-                      dateLabel={effectiveExecutionDayKey}
+                      dateLabel={selectedCalendarDayKey || effectiveExecutionDayKey}
                       blocks={selectedDayBlocks}
                       drafts={[]}
                       timeZone={timeZone}
@@ -3496,6 +3809,7 @@ export default function ZionDashboard({
                           disabled={
                             isCycleReadOnly ||
                             hasActiveSchedule ||
+                            hasExpiredGeneratedSchedule ||
                             proposedScheduleItemsAll.length === 0 ||
                             suppressDrafts ||
                             (requiresHorizonResolution && !selectedPlanResolutionKind)
@@ -3511,6 +3825,7 @@ export default function ZionDashboard({
                           disabled={
                             isCycleReadOnly ||
                             suppressDrafts ||
+                            hasExpiredGeneratedSchedule ||
                             hasActiveSchedule ||
                             !hasAppliedReviewSchedule ||
                             reviewScheduleBlocks.length === 0
@@ -3570,6 +3885,13 @@ export default function ZionDashboard({
                         <p className="text-[11px] text-amber-600">
                           Proposed schedule is awaiting confirmation. Apply to place it on the calendar for review.
                         </p>
+                      ) : null}
+                      {hasExpiredGeneratedSchedule ? (
+                        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-3 text-[11px] text-amber-700 space-y-1">
+                          <p className="font-semibold">Generated Sprint expired</p>
+                          <p>{generatedScheduleExpiredReason}</p>
+                          <p>Reassessment must preserve the goal, hard anchors, phase structure, mandatory work, and strategic scope.</p>
+                        </div>
                       ) : null}
                       {reassessmentRequired ? (
                         <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-3 text-[11px] text-amber-700 space-y-2">
@@ -3657,19 +3979,10 @@ export default function ZionDashboard({
                                 <button
                                   className="rounded-full border border-jericho-accent px-3 py-1 text-jericho-accent hover:bg-jericho-accent/10"
                                   onClick={handleActivateSchedule}
-                                  disabled={!actions.activateSchedule || reviewScheduleBlocks.length === 0}
+                                  disabled={!actions.activateSchedule || hasExpiredGeneratedSchedule || reviewScheduleBlocks.length === 0}
                                 >
                                   Activate schedule
                                 </button>
-                                {showRebaseRecoveryAction ? (
-                                  <button
-                                    className="rounded-full border border-amber-700/60 px-3 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-600/10"
-                                    onClick={handleRebaseSchedule}
-                                    disabled={!actions.rebaseSchedule}
-                                  >
-                                    {activationDelayReassessmentRequired ? 'None happened - rebase from today' : 'Rebase from today'}
-                                  </button>
-                                ) : null}
                               </>
                             ) : null}
                           </div>
@@ -3802,39 +4115,74 @@ export default function ZionDashboard({
                             </div>
                           ) : null}
                         </div>
-                      ) : lastPlanError?.code ? (
+                      ) : lastPlanError?.code && proposedScheduleItemsAll.length === 0 && !pendingPlanConfirmation ? (
                         <p className="text-[11px] text-red-600">
                           Generate failed: {lastPlanError.code}
                           {lastPlanError?.reasonCodes?.length ? ` (${lastPlanError.reasonCodes.join(', ')})` : ''}
                         </p>
-                      ) : proposedScheduleItems.length ? (
-                        proposedScheduleItems.map((item) => (
-                          <div
-                            key={item.id}
-                            className="rounded-md border border-line/40 bg-jericho-bg px-3 py-2 text-[11px] space-y-1"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium text-jericho-text">{item.displayTitle || item.title}</span>
-                              <span className="text-muted">{item.durationMinutes || 30}m</span>
-                            </div>
-                            <p className="text-[11px] text-muted">{formatTime(item.startISO, timeZone)}</p>
-                            {item.expectedOutput ? (
-                              <p className="text-[11px] text-muted">
-                                Expected output: {item.expectedOutput}
+                      ) : proposedScheduleItems.length > 0 || proposedScheduleItemsAll.length > 0 ? (
+                        <div className="space-y-3">
+                          {proposedScheduleItems.length === 0 && proposedScheduleItemsAll.length > 0 ? (
+                            <>
+                              <p className="text-xs text-muted">
+                                {proposedScheduleItemsAll.length} proposed block
+                                {proposedScheduleItemsAll.length === 1 ? '' : 's'} exist across the Sprint window. Showing full proposal:
                               </p>
-                            ) : null}
-                            {item.sourceQuestion ? (
-                              <p className="text-[11px] text-muted">
-                                Resolved from: {item.sourceQuestion}
-                              </p>
-                            ) : null}
-                            {item.commerceReadinessLevel ? (
-                              <p className="text-[11px] text-muted">
-                                Commerce readiness: {item.commerceReadinessLevel}
-                              </p>
-                            ) : null}
-                          </div>
-                        ))
+                              {proposedScheduleItemsGrouped.map(([dayKey, items]) => (
+                                <div key={dayKey} className="space-y-2">
+                                  <p className="text-[11px] font-semibold text-muted">{formatDayKeyLabel(dayKey)}</p>
+                                  {items.map((item) => (
+                                    <div
+                                      key={item.id}
+                                      className="rounded-md border border-line/40 bg-jericho-bg px-3 py-2 text-[11px] space-y-1"
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-medium text-jericho-text">{item.displayTitle || item.title}</span>
+                                        <span className="text-muted">{item.durationMinutes || 30}m</span>
+                                      </div>
+                                      <p className="text-[11px] text-muted">{formatTime(item.startISO, timeZone)}</p>
+                                      {item.expectedOutput ? (
+                                        <p className="text-[11px] text-muted">Expected output: {item.expectedOutput}</p>
+                                      ) : null}
+                                      {item.sourceQuestion ? (
+                                        <p className="text-[11px] text-muted">Resolved from: {item.sourceQuestion}</p>
+                                      ) : null}
+                                      {item.commerceReadinessLevel ? (
+                                        <p className="text-[11px] text-muted">
+                                          Commerce readiness: {item.commerceReadinessLevel}
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </>
+                          ) : (
+                            proposedScheduleItems.map((item) => (
+                              <div
+                                key={item.id}
+                                className="rounded-md border border-line/40 bg-jericho-bg px-3 py-2 text-[11px] space-y-1"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="font-medium text-jericho-text">{item.displayTitle || item.title}</span>
+                                  <span className="text-muted">{item.durationMinutes || 30}m</span>
+                                </div>
+                                <p className="text-[11px] text-muted">{formatTime(item.startISO, timeZone)}</p>
+                                {item.expectedOutput ? (
+                                  <p className="text-[11px] text-muted">Expected output: {item.expectedOutput}</p>
+                                ) : null}
+                                {item.sourceQuestion ? (
+                                  <p className="text-[11px] text-muted">Resolved from: {item.sourceQuestion}</p>
+                                ) : null}
+                                {item.commerceReadinessLevel ? (
+                                  <p className="text-[11px] text-muted">
+                                    Commerce readiness: {item.commerceReadinessLevel}
+                                  </p>
+                                ) : null}
+                              </div>
+                            ))
+                          )}
+                        </div>
                       ) : (
                         <p className="text-[11px] text-muted">
                           No proposed schedule blocks yet. Generate schedule first.
@@ -3845,8 +4193,8 @@ export default function ZionDashboard({
                     <div className="space-y-3">
                       <PlanningPanel
                         surface="today"
-                        selectedDayKey={effectiveExecutionDayKey}
-                        onSelectedDayKeyChange={actions.setActiveDayKey}
+                        selectedDayKey={selectedCalendarDayKey}
+                        onSelectedDayKeyChange={actions.setViewDate}
                         blocks={selectedDayBlocks}
                         selectedBlockId={selectedBlockId}
                         onSelectBlock={setSelectedBlockId}
@@ -4196,12 +4544,12 @@ export default function ZionDashboard({
                     ) : null}
                   </div>
                 </div>
-                {planQualityGate ? (
+                {projectedPlanQualityGate ? (
                   <div className="rounded-md border border-line/60 bg-jericho-surface/80 px-3 py-2 text-[11px] text-muted space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="uppercase tracking-[0.12em] text-[10px] text-muted">Plan-quality diagnostics</p>
                       <p className="text-[11px] text-jericho-text">
-                        {String(planQualityGate.status || 'unknown').replace(/_/g, ' ')}
+                        {String(projectedPlanQualityGate.status || 'unknown').replace(/_/g, ' ')}
                       </p>
                     </div>
                     {planQualityTemporalDiagnostic ? (
@@ -4216,12 +4564,12 @@ export default function ZionDashboard({
                     ) : (
                       <p>No plan-quality failure codes are active.</p>
                     )}
-                    {planQualityGate.meta?.temporalDistribution ? (
+                    {projectedPlanQualityGate.meta?.temporalDistribution ? (
                       <p>
                         Temporal truth: last scheduled{' '}
-                        {formatDiagnosticDayKey(planQualityGate.meta.temporalDistribution.lastScheduledDayKey)} ·
+                        {formatDiagnosticDayKey(projectedPlanQualityGate.meta.temporalDistribution.lastScheduledDayKey)} ·
                         contract end{' '}
-                        {formatDiagnosticDayKey(planQualityGate.meta.temporalDistribution.contractEndDayKey)}
+                        {formatDiagnosticDayKey(projectedPlanQualityGate.meta.temporalDistribution.contractEndDayKey)}
                       </p>
                     ) : null}
                     <details className="rounded-md border border-line/50 bg-black/20 px-2 py-1">
@@ -5111,5 +5459,17 @@ function formatTime(iso = '', timeZone = 'UTC') {
     hour: '2-digit',
     minute: '2-digit',
     hourCycle: 'h23',
+  }).format(d);
+}
+
+function formatClockTimeLabel(iso = '', timeZone = 'UTC') {
+  if (!iso) return '--:--:--';
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return '--:--:--';
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: timeZone || 'UTC',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
   }).format(d);
 }

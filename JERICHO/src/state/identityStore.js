@@ -11,7 +11,7 @@ import {
   deriveExecutionTruthClassification,
 } from './engine/todayAuthority.ts';
 import { appendFrictionEvent, buildFrictionEvent } from './engine/profileExecutionContainment.ts';
-import { addDays, dayKeyFromDate, dayKeyFromISO, nowDayKey } from './time/time.ts';
+import { APP_TIME_ZONE, addDays, dayKeyFromDate, dayKeyFromISO, nowDayKey } from './time/time.ts';
 import { assertEngineAuthority } from './invariants/engineAuthority.ts';
 import { validateGoalAdmission } from '../domain/goal/GoalAdmissionPolicy.ts';
 import { GoalRejectionCode } from '../domain/goal/GoalRejectionCode.ts';
@@ -20,6 +20,7 @@ import { buildGoalIntakeContract, getIntakeGateCode } from '../domain/goal/GoalI
 import { createGeneratePlanWithLLM } from './storeLLMActions.ts';
 import { getCanonicalCycleActions } from './cycleSelectors.js';
 import { IS_PRODUCTION } from '../utils/runtimeEnv.js';
+import { resolveEffectiveExecutableStartDayKey } from '../domain/product/resolveEffectiveExecutableStartDayKey.js';
 import {
   applyMasterPlanAction,
   buildMasterPlanStateFields,
@@ -341,11 +342,7 @@ function buildRecoveredGoalArtifacts({ goalId, startDayKey, endDayKey, goalText,
 const seedState = buildInitialIdentityState();
 
 export function buildBlankIdentityState(options = {}) {
-  const deviceTimeZone =
-    options.timeZone ||
-    (typeof Intl !== 'undefined' && Intl.DateTimeFormat().resolvedOptions
-      ? Intl.DateTimeFormat().resolvedOptions().timeZone
-      : 'UTC');
+  const deviceTimeZone = options.timeZone || APP_TIME_ZONE;
   const nowISO = options.nowISO || new Date().toISOString();
   const todayDate = options.todayDate || dayKeyFromISO(nowISO, deviceTimeZone);
   const requestedProfileId = String(options.activeProfileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
@@ -445,6 +442,33 @@ export function buildBlankIdentityState(options = {}) {
     currentWeek: { weekStart: todayDate, days: [], metrics: {} },
     cycle: [],
     blockStore: { blocks: {} },
+    // MATRIX v2 (Truth Representation contract). The matrix is the canonical
+    // source of truth populated by the intake survey. Schedule, milestones,
+    // dependencies, and the enterprise graph are downstream projections of
+    // this state — never the other way around.
+    //   Section 1A — verificationSourcesById   (every external system the
+    //                                            operator can verify against)
+    //   Section 2  — entitiesById               (Nodes / businesses)
+    //   Section 3  — initiativesById            (missions)
+    //   Section 4  — systemsById                (recurring engines)
+    //   Section 5  — projectsById               (finite outcomes)
+    //   Section 6  — artifactsById              (physical outputs)
+    //   Section 7  — dependenciesById           (upstream/downstream edges)
+    //   Section 8  — convergenceEdgesById       (cross-lane convergence)
+    //   Section 9  — resources                  (available / needed / gap)
+    //   Section 10 — bootstrap                  (where execution can begin)
+    matrix: {
+      verificationSourcesById: {},
+      entitiesById: {},
+      initiativesById: {},
+      systemsById: {},
+      projectsById: {},
+      artifactsById: {},
+      dependenciesById: {},
+      convergenceEdgesById: {},
+      resources: { available: {}, needed: {}, gap: {} },
+      bootstrap: { candidates: [], selectedNodeId: null },
+    },
     goalPolicyByGoalId: {},
     masterPlanPolicyByPlanId: {},
     planQualityGateByGoal: {},
@@ -500,11 +524,177 @@ export function buildBlankIdentityState(options = {}) {
   return blankState;
 }
 
+function repairPersistedExecutionFloors(state) {
+  if (!state?.cyclesById || typeof state.cyclesById !== 'object') {
+    return state;
+  }
+
+  Object.values(state.cyclesById).forEach((cycle) => {
+    if (!cycle || !isLiveCycleStatus(cycle?.status || cycle?.state)) {
+      return;
+    }
+
+    const repairedExecutionStartDayKey = resolveEffectiveExecutableStartDayKey({
+      executionStartDayKey: cycle?.executionStartDayKey || null,
+      reassessmentCompletedAtISO: cycle?.reassessmentCompletedAtISO || null,
+      scheduleGeneratedAtISO: cycle?.scheduleGeneratedAtISO || cycle?.autoAsanaPlan?.audit?.generatedAtISO || null,
+      fallbackStartDayKey:
+        cycle?.startedAtDayKey ||
+        cycle?.goalGovernanceContract?.activeFromISO ||
+        cycle?.goalContract?.startDayKey ||
+        cycle?.goalContract?.startDateISO ||
+        cycle?.goalContract?.startDate ||
+        state?.goalExecutionContract?.startDayKey ||
+        state?.goalExecutionContract?.startDateISO ||
+        state?.goalExecutionContract?.startDate ||
+        null,
+    });
+
+    if (repairedExecutionStartDayKey) {
+      cycle.executionStartDayKey = repairedExecutionStartDayKey;
+    }
+  });
+
+  return state;
+}
+
+function normalizePersistedDayKey(value) {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return null;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return normalized;
+  }
+  return normalized.slice(0, 10) || null;
+}
+
+function normalizePersistedActiveBlockFromEvent(event = {}) {
+  const startISO = String(event?.startISO || event?.start || '').trim();
+  const endISO = String(event?.endISO || event?.end || '').trim();
+  const startDayKey = normalizePersistedDayKey(event?.dateISO || startISO || event?.dayKey);
+  const endDayKey = normalizePersistedDayKey(endISO || startISO || event?.dateISO || event?.dayKey);
+  const durationMinutes =
+    Number(event?.durationMinutes) ||
+    Number(event?.minutes) ||
+    (startISO && endISO ? Math.max(1, Math.round((Date.parse(endISO) - Date.parse(startISO)) / 60000)) : 30);
+
+  return {
+    id: event?.blockId || event?.id || null,
+    cycleId: event?.cycleId || null,
+    goalId: event?.goalId || null,
+    title: event?.canonicalTitle || event?.rawLabel || event?.title || event?.label || 'Carry-forward block',
+    label: event?.label || event?.canonicalTitle || event?.rawLabel || event?.title || 'Carry-forward block',
+    startISO,
+    endISO,
+    start: startISO,
+    end: endISO,
+    startDayKey,
+    endDayKey,
+    dayKey: startDayKey,
+    durationMinutes,
+    origin: 'schedule_review',
+    status: 'planned',
+    requiredSystemBlock: Boolean(event?.requiredSystemBlock),
+    practice: event?.practice || event?.domain || null,
+    domain: event?.domain || event?.practice || null,
+  };
+}
+
+function rebasePersistedActiveScheduleIfNeeded(state) {
+  const cycleId = state?.activeCycleId || null;
+  const cycle = cycleId ? state?.cyclesById?.[cycleId] || null : null;
+  if (!cycle) {
+    return state;
+  }
+
+  const lifecycle = String(cycle?.scheduleLifecycle || '').trim().toLowerCase();
+  const executionStartDayKey = normalizePersistedDayKey(cycle?.executionStartDayKey);
+  if (lifecycle !== 'active_schedule' || !executionStartDayKey) {
+    return state;
+  }
+
+  const cycleEvents = Array.isArray(cycle?.executionEvents) ? cycle.executionEvents : [];
+  const stateEvents = Array.isArray(state?.executionEvents) ? state.executionEvents : [];
+  const events = cycleEvents.length > 0 ? cycleEvents : stateEvents;
+  if (!events.length) {
+    return state;
+  }
+
+  const outcomeBlockIds = new Set(
+    events
+      .filter((event) => ['complete', 'completed', 'missed', 'skipped', 'backfill'].includes(String(event?.kind || '').trim().toLowerCase()))
+      .map((event) => String(event?.blockId || '').trim())
+      .filter(Boolean)
+  );
+
+  const pendingBlocks = events
+    .filter((event) => String(event?.kind || '').trim().toLowerCase() === 'create')
+    .filter((event) => {
+      const blockId = String(event?.blockId || '').trim();
+      return blockId && !outcomeBlockIds.has(blockId);
+    })
+    .map(normalizePersistedActiveBlockFromEvent)
+    .filter((block) => block?.id);
+
+  const hasPreFloorDebt = pendingBlocks.some((block) => {
+    const dayKey = normalizePersistedDayKey(block?.dayKey || block?.startDayKey || block?.startISO);
+    return Boolean(dayKey && dayKey < executionStartDayKey);
+  });
+
+  if (!hasPreFloorDebt) {
+    return state;
+  }
+
+  cycle.scheduleReviewBlocks = pendingBlocks;
+  cycle.scheduleLifecycle = 'applied_review';
+  cycle.activationDelayAssessment = {
+    status: 'ready_to_rebase',
+    appliedAtISO: cycle?.scheduleAppliedAtISO || null,
+    activationRequestedAtISO: state?.appTime?.nowISO || null,
+    appliedStartDayKey: pendingBlocks.map((block) => block?.dayKey).filter(Boolean).sort()[0] || null,
+    requestedExecutionStartDayKey: executionStartDayKey,
+    workHappenedDuringDelay: 'none',
+    selectedResolution: 'rebase',
+    pastDatedBlockCount: pendingBlocks.filter((block) => String(block?.dayKey || '') < executionStartDayKey).length,
+    scheduleDebtMinutes: pendingBlocks
+      .filter((block) => String(block?.dayKey || '') < executionStartDayKey)
+      .reduce((sum, block) => sum + Number(block?.durationMinutes || 0), 0),
+    reasonCodes: ['DELAY_WINDOW_REBASE_SELECTED', 'PERSISTED_ACTIVE_SCHEDULE_REBASE_REQUIRED'],
+  };
+
+  const pendingBlockIds = new Set(pendingBlocks.map((block) => String(block?.id || '').trim()).filter(Boolean));
+  const retainedEvents = events.filter((event) => {
+    const blockId = String(event?.blockId || '').trim();
+    const kind = String(event?.kind || '').trim().toLowerCase();
+    if (!pendingBlockIds.has(blockId)) {
+      return true;
+    }
+    return kind !== 'create';
+  });
+  cycle.executionEvents = retainedEvents;
+  state.executionEvents = retainedEvents;
+  state.scheduleReviewBlocks = pendingBlocks;
+  state.scheduleLifecycle = 'applied_review';
+  state.scheduleApplied = true;
+  state.pendingPlanConfirmation = false;
+
+  return computeDerivedState(state, {
+    type: 'REBASE_SCHEDULE',
+    payload: {
+      cycleId: cycle.id,
+      executionStartDayKey,
+      activationDelayResolution: 'rebase',
+      workHappenedDuringDelay: 'none',
+    },
+  });
+}
+
 export function rehydratePersistedState(persisted) {
   if (!persisted || persisted.meta?.version !== STATE_VERSION) {
     return null;
   }
-  const withTemplates = ensureTemplates(persisted);
+  const withTemplates = rebasePersistedActiveScheduleIfNeeded(repairPersistedExecutionFloors(ensureTemplates(persisted)));
   withTemplates.profileAccess =
     withTemplates.profileAccess && typeof withTemplates.profileAccess === 'object'
       ? withTemplates.profileAccess
@@ -588,10 +778,7 @@ function buildInitialIdentityState() {
     return hydrated;
   }
 
-  const deviceTimeZone =
-    typeof Intl !== 'undefined' && Intl.DateTimeFormat().resolvedOptions
-      ? Intl.DateTimeFormat().resolvedOptions().timeZone
-      : 'UTC';
+  const deviceTimeZone = APP_TIME_ZONE;
   const nowISO = new Date().toISOString();
   const todayDate = dayKeyFromISO(nowISO, deviceTimeZone);
   const activeDayKey = dayKeyFromISO(nowISO, deviceTimeZone);
@@ -1140,7 +1327,7 @@ function identityReducer(state, action) {
   if (action.type === 'JUMP_TO_TODAY') {
     const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
     const timeZone = draft.appTime?.timeZone || 'UTC';
-    const nowISO = draft.appTime?.nowISO || new Date().toISOString();
+    const nowISO = new Date().toISOString();
     const activeDayKey = dayKeyFromISO(nowISO, timeZone);
     draft.appTime = {
       ...(draft.appTime || {}),
@@ -1625,6 +1812,56 @@ export function IdentityProvider({ children, initialState }) {
     dispatch({ type: 'UPDATE_BLOCK', payload: { ...(payload || {}), id: `blk-${proposalId}` } });
   }, []);
   const resetIdentity = useCallback(() => dispatch({ type: 'RESET_IDENTITY' }), []);
+  const hardResetIdentity = useCallback(async () => {
+    const current = stateRef.current;
+    const activeProfileId = String(current?.activeProfileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
+    const currentProfile = current?.profilesById?.[activeProfileId] || {};
+    const profileLabel = currentProfile?.label || DEFAULT_PROFILE_LABEL;
+    const profileDisplayName = currentProfile?.displayName || profileLabel || DEFAULT_PROFILE_DISPLAY_NAME;
+    const roleLabel = currentProfile?.roleLabel || null;
+    const sanitizedProfiles = {
+      [activeProfileId]: {
+        id: activeProfileId,
+        ...normalizeProfileIdentity(
+          {
+            label: profileLabel,
+            displayName: profileDisplayName,
+            roleLabel,
+          },
+          {
+            profileLabel,
+            displayName: profileDisplayName,
+            roleLabel,
+          }
+        ),
+        masterCalendarId: currentProfile?.masterCalendarId || `calendar-${activeProfileId}`,
+        strategicClusterIds: [],
+        goalIds: [],
+        activeGoalId: null,
+        status: currentProfile?.status || 'active',
+      },
+    };
+    const blankNextState = computeDerivedState(
+      buildBlankIdentityState({
+        activeProfileId,
+        profileLabel,
+        displayName: profileDisplayName,
+        roleLabel,
+        profilesById: sanitizedProfiles,
+        profileAccess: {
+          status: 'profile_selected',
+          selectedProfileId: activeProfileId,
+          lastSelectedAtISO: current?.appTime?.nowISO || new Date().toISOString(),
+        },
+        timeZone: current?.appTime?.timeZone || APP_TIME_ZONE,
+      }),
+      { type: 'NO_OP' }
+    );
+    persistState(blankNextState);
+    await syncPush(buildPersistableIdentityState(blankNextState));
+    dispatch({ type: 'APPLY_NEXT_STATE', nextState: blankNextState });
+    return blankNextState;
+  }, []);
   const selectProfile = useCallback((profileId) => dispatch({ type: 'SELECT_PROFILE', profileId }), []);
   const upsertProfileDetails = useCallback(
     (payload = {}) => dispatch({ type: 'UPSERT_PROFILE_DETAILS', ...payload }),
@@ -1752,6 +1989,7 @@ export function IdentityProvider({ children, initialState }) {
     assignSuggestionLink,
     compileGoalEquation,
     resetIdentity,
+    hardResetIdentity,
     selectProfile,
     upsertProfileDetails,
     restoreOperationEndgameProfile,
@@ -2048,10 +2286,7 @@ export function ensureTemplates(state) {
     state.goalDirective = null;
   }
   if (!state.appTime) {
-    const deviceTimeZone =
-      typeof Intl !== 'undefined' && Intl.DateTimeFormat().resolvedOptions
-        ? Intl.DateTimeFormat().resolvedOptions().timeZone
-        : 'UTC';
+    const deviceTimeZone = APP_TIME_ZONE;
     const nowISO = new Date().toISOString();
     state.appTime = {
       timeZone: deviceTimeZone,
@@ -2061,10 +2296,7 @@ export function ensureTemplates(state) {
     };
   } else {
     if (!state.appTime.timeZone) {
-      state.appTime.timeZone =
-        typeof Intl !== 'undefined' && Intl.DateTimeFormat().resolvedOptions
-          ? Intl.DateTimeFormat().resolvedOptions().timeZone
-          : 'UTC';
+      state.appTime.timeZone = APP_TIME_ZONE;
     }
     if (!state.appTime.nowISO) {
       state.appTime.nowISO = new Date().toISOString();

@@ -39,12 +39,17 @@ function humanizeReasonCode(value) {
     .trim();
 }
 
-function projectLaneDisplayName(domainOrLaneId, intakeSignals) {
-  const key = String(domainOrLaneId || '').trim().toLowerCase();
-  if (!key) return 'Unassigned';
+function projectLaneDisplayName(laneOrDomain, intakeSignals) {
+  const lane =
+    laneOrDomain && typeof laneOrDomain === 'object'
+      ? laneOrDomain
+      : { domain: String(laneOrDomain || '').trim().toLowerCase(), title: String(laneOrDomain || '').trim() };
+  const key = String(lane?.domain || lane?.id || '').trim().toLowerCase();
+  const laneLabel = String(lane?.title || lane?.label || lane?.name || '').trim();
+  if (!key && !laneLabel) return 'Unassigned';
   const projection = projectEnterpriseDisplay({
     laneId: key,
-    laneLabel: key,
+    laneLabel: laneLabel || key,
     intakeSignals: intakeSignals || { goalText: '', declaredLaneIds: [] },
   });
   return projection.displayName;
@@ -84,22 +89,28 @@ function getAgendaSummaryCounts(summary = {}) {
 }
 
 const AGENDA_RANGE_OPTIONS = ['1Y', '2Y', '3Y', '4Y', '5Y'];
-const AGENDA_LANE_DOMAINS = ['all', 'product', 'creative', 'media', 'brand', 'income', 'capital', 'institution', 'civic'];
 
-function buildAgendaLaneOptions(intakeSignals) {
-  return AGENDA_LANE_DOMAINS.map((value) => {
-    if (value === 'all') return { value: 'all', label: 'All lanes' };
-    return { value, label: projectLaneDisplayName(value, intakeSignals) };
+function buildAgendaLaneOptions(intakeSignals, lanes = []) {
+  const options = [{ value: 'all', label: 'All lanes' }];
+  (Array.isArray(lanes) ? lanes : []).forEach((lane) => {
+    if (!lane?.id) {
+      return;
+    }
+    options.push({
+      value: lane.id,
+      label: projectLaneDisplayName(lane, intakeSignals),
+    });
   });
+  return options;
 }
 
 function getAgendaLaneFilterValue(label) {
   return String(label || 'all').trim().toLowerCase();
 }
 
-function getAgendaLaneFilterLabel(value, intakeSignals) {
-  const options = buildAgendaLaneOptions(intakeSignals);
-  const filter = options.find((option) => option.value === String(value || 'all').trim().toLowerCase());
+function getAgendaLaneFilterLabel(value, intakeSignals, lanes = []) {
+  const options = buildAgendaLaneOptions(intakeSignals, lanes);
+  const filter = options.find((option) => option.value === String(value || 'all').trim());
   return filter ? filter.label : 'All lanes';
 }
 
@@ -114,17 +125,15 @@ function summarizeFilteredScheduledAgenda(blocks = [], selectedRange = '5Y', sel
   const rangeStart = normalizeDayKey(agendaRangeStartDayKey) ||
     (Array.isArray(blocks) ? blocks.map((block) => normalizeDayKey(block?.dayKey || block?.date || block?.startISO)).filter(Boolean).sort()[0] : null);
   const rangeEnd = getScheduledAgendaRangeEnd(rangeStart, selectedRange);
-  const filterDomain = String(selectedLane || 'all').trim().toLowerCase();
-  const selectedDomain =
-    filterDomain === 'brand/operations' ? 'brand' : filterDomain === 'income/revenue' ? 'income' : filterDomain;
+  const selectedLaneId = String(selectedLane || 'all').trim();
 
   const filteredBlocks = (Array.isArray(blocks) ? blocks : []).filter((block) => {
     const dayKey = normalizeDayKey(block?.dayKey || block?.date || block?.startISO);
     if (!dayKey) return false;
     if (rangeEnd && dayKey > rangeEnd) return false;
-    if (selectedDomain === 'all') return true;
-    const lane = lanes.find((laneItem) => laneItem?.id === block?.masterPlanLaneId);
-    return String(lane?.domain || '').trim().toLowerCase() === selectedDomain;
+    if (selectedLaneId === 'all') return true;
+    const blockLaneId = String(block?.masterPlanLaneId || block?.laneId || '').trim();
+    return blockLaneId === selectedLaneId;
   });
 
   const byPhase = filteredBlocks.reduce((acc, block) => {
@@ -135,8 +144,7 @@ function summarizeFilteredScheduledAgenda(blocks = [], selectedRange = '5Y', sel
 
   const byLane = filteredBlocks.reduce((acc, block) => {
     const lane = lanes.find((laneItem) => laneItem?.id === (block?.masterPlanLaneId || block?.laneId));
-    const domain = String(lane?.domain || '').trim().toLowerCase();
-    const label = domain ? projectLaneDisplayName(domain, intakeSignals) : (lane?.title || 'Unassigned');
+    const label = lane ? projectLaneDisplayName(lane, intakeSignals) : (block?.entityLabel || block?.laneLabel || 'Unassigned');
     acc[label] = (acc[label] || 0) + 1;
     return acc;
   }, {});
@@ -942,12 +950,12 @@ function MasterPlanTimelineView({ plan, store }) {
     () =>
       lanes.map((lane) => ({
         id: lane.id,
-        title: lane.title,
+        title: projectLaneDisplayName(lane, intakeSignals),
         domain: lane.domain,
         activationState: lane.activationState,
         anchorIds: lane.anchorIds || [],
       })),
-    [lanes]
+    [intakeSignals, lanes]
   );
 
   return (
@@ -1262,7 +1270,7 @@ function StrategicCoveragePanel({
                 ))}
               </div>
               <div className="flex flex-wrap gap-2 pb-2">
-                {buildAgendaLaneOptions(intakeSignals).map((option) => (
+                {buildAgendaLaneOptions(intakeSignals, lanes).map((option) => (
                   <button
                     key={option.value}
                     type="button"
@@ -1279,7 +1287,7 @@ function StrategicCoveragePanel({
                 ))}
               </div>
               <p className="text-[11px] text-muted">
-                {selectedAgendaRange} horizon · {getAgendaLaneFilterLabel(selectedAgendaLane, intakeSignals)}
+                {selectedAgendaRange} horizon · {getAgendaLaneFilterLabel(selectedAgendaLane, intakeSignals, lanes)}
               </p>
               <p className="text-[11px] text-muted">
                 {scheduledAgendaSummary?.totalBlocks ?? 0} visible planned blocks

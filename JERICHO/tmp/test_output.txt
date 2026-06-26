@@ -1,0 +1,551 @@
+
+ RUN  v1.6.1 /Users/jamesdotson/vscode/JERICHO/JERICHO
+
+(node:78711) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:78711) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | warnMirrorUsage (/Users/jamesdotson/vscode/JERICHO/JERICHO/src/state/cycleSelectors.js:178:11)
+[jericho:sot] contract-mirror-present { reason: 'canonical present alongside mirror' }
+
+stdout | tests/state/debugFirstCycleTitles.test.js > debug first-cycle titles
+[
+  {
+    "title": "Confirm Operation Endgame hard anchors",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 45,
+    "actionId": "masterplan-readiness:1",
+    "laneId": null
+  },
+  {
+    "title": "Complete Inventory existing album/app/podcast assets",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-readiness:2",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Review first-cycle milestone sequence",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 45,
+    "actionId": "masterplan-readiness:3",
+    "laneId": null
+  },
+  {
+    "title": "Identify job-search/income calendar burden",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 45,
+    "actionId": "masterplan-readiness:4",
+    "laneId": null
+  },
+  {
+    "title": "Submit distribution for EP",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 90,
+    "actionId": "masterplan-action:milestone-1fbcd25e-7c62-4e38-8f94-9c5730ce93e1",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Close First client or contract",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 90,
+    "actionId": "masterplan-action:milestone-5e9640d3-6a99-4f67-abd4-e8f3ca17d5e6",
+    "laneId": "lane-1593f520-7fd1-4357-99db-8b63666b918c"
+  },
+  {
+    "title": "Prepare EP release distribution files and metadata",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 45,
+    "actionId": "masterplan-action:milestone-1fbcd25e-7c62-4e38-8f94-9c5730ce93e1",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Review PM company outreach and positioning progress",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 45,
+    "actionId": "masterplan-action:milestone-5e9640d3-6a99-4f67-abd4-e8f3ca17d5e6",
+    "laneId": "lane-1593f520-7fd1-4357-99db-8b63666b918c"
+  },
+  {
+    "title": "Finalize and upload EP release artwork for distribution",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 30,
+    "actionId": "masterplan-action:milestone-1fbcd25e-7c62-4e38-8f94-9c5730ce93e1",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Finalize Artwork for EP",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-action:milestone-514e54de-34de-4222-910c-d59b84c79bfa",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Execute Final promo push for EP",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-action:milestone-731d54d6-fb13-4ea7-8b1d-ad0f529db330",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Activate Release-week campaign for EP",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-action:milestone-000fdec4-672a-4205-b6f7-c4a4f1840e16",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Release EP release",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 75,
+    "actionId": "masterplan-action:milestone-690e0726-2b44-4c9a-ac9c-90340d57b323",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Finalize EP release checklist and confirm distribution is live",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-action:milestone-690e0726-2b44-4c9a-ac9c-90340d57b323",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Prepare EP release-day social campaign and notification push",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 45,
+    "actionId": "masterplan-action:milestone-690e0726-2b44-4c9a-ac9c-90340d57b323",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Coordinate release-day monitoring check for EP release",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 30,
+    "actionId": "masterplan-action:milestone-690e0726-2b44-4c9a-ac9c-90340d57b323",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Prepare and upload release files for distribution",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-action:milestone-8142ff85-2119-4ad6-a1e1-360c87212b38",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Complete Positioning for PM company",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-action:milestone-6207250d-24ad-41a5-86a1-699b3c45ec7a",
+    "laneId": "lane-1593f520-7fd1-4357-99db-8b63666b918c"
+  },
+  {
+    "title": "Activate Outreach for PM company",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-action:milestone-f4b4ed49-bc4a-43ea-8a13-4c07ed398443",
+    "laneId": "lane-1593f520-7fd1-4357-99db-8b63666b918c"
+  },
+  {
+    "title": "Execute Press and playlist outreach for EP",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-action:milestone-c5334977-6b3c-4fbe-95fe-d8af65d25452",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Publish pre-release single 1 for EP",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-action:milestone-b4ac0b7e-5826-4111-9fd7-28f3fc593d22",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Execute Content creation sprint for EP",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-action:milestone-3da3763b-b5a9-4ffa-8d72-a5c90805c1a3",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Publish pre-release single 2 for EP",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-action:milestone-2fd4cc35-5889-48f1-9743-e930c3bcdd0c",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Complete recording session and advance EP release toward release",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-readiness:24",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Review and finalize EP release mastering, mix, and artwork assets",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-readiness:25",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Complete Advance EP release distribution setup, pre-save campaign, and promotion",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-readiness:26",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Evaluate EP release readiness and confirm distribution timeline",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-readiness:27",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Execute EP release promo material batch — social, press, and visual assets",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-readiness:28",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Complete recording session and advance EP release toward release",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-readiness:29",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Review and finalize EP release mastering, mix, and artwork assets",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-readiness:30",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Complete Advance EP release distribution setup, pre-save campaign, and promotion",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-readiness:31",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Evaluate EP release readiness and confirm distribution timeline",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-readiness:32",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Execute EP release promo material batch — social, press, and visual assets",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-readiness:33",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Complete recording session and advance EP release toward release",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-readiness:34",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  },
+  {
+    "title": "Review and finalize EP release mastering, mix, and artwork assets",
+    "blockType": "action",
+    "owner": "Local Profile",
+    "durationMinutes": 60,
+    "actionId": "masterplan-readiness:35",
+    "laneId": "lane-ef6108ba-c233-423d-9cdb-28db125c0cc6"
+  }
+]
+gateResult {
+  "status": "PLAN_QUALITY_WITHHELD",
+  "failureCodes": [
+    "BLOCK_DETAIL_TOO_ABSTRACT",
+    "BLOCK_DETAIL_DO_THIS_EMPTY",
+    "BLOCK_DETAIL_DONE_WHEN_EMPTY"
+  ],
+  "reasonCodes": [
+    "BLOCK_DETAIL_TOO_ABSTRACT",
+    "BLOCK_DETAIL_DO_THIS_EMPTY",
+    "BLOCK_DETAIL_DONE_WHEN_EMPTY"
+  ],
+  "meta": {
+    "blockDetailQualityFailures": {
+      "BLOCK_DETAIL_TOO_ABSTRACT": [
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:confirm-hard-anchors",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:inventory-existing-assets",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:review-first-cycle-sequence",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:identify-income-calendar-burden",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-1fbcd25e-7c62-4e38-8f94-9c5730ce93e1",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-5e9640d3-6a99-4f67-abd4-e8f3ca17d5e6",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:expand:milestone-1fbcd25e-7c62-4e38-8f94-9c5730ce93e1:0",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:expand:milestone-5e9640d3-6a99-4f67-abd4-e8f3ca17d5e6:0",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:expand:milestone-1fbcd25e-7c62-4e38-8f94-9c5730ce93e1:1",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-514e54de-34de-4222-910c-d59b84c79bfa",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-731d54d6-fb13-4ea7-8b1d-ad0f529db330",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-000fdec4-672a-4205-b6f7-c4a4f1840e16",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-690e0726-2b44-4c9a-ac9c-90340d57b323",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:expand:milestone-690e0726-2b44-4c9a-ac9c-90340d57b323:0",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:expand:milestone-690e0726-2b44-4c9a-ac9c-90340d57b323:1",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:expand:milestone-690e0726-2b44-4c9a-ac9c-90340d57b323:2",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-8142ff85-2119-4ad6-a1e1-360c87212b38",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-6207250d-24ad-41a5-86a1-699b3c45ec7a",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-f4b4ed49-bc4a-43ea-8a13-4c07ed398443",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-c5334977-6b3c-4fbe-95fe-d8af65d25452",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-b4ac0b7e-5826-4111-9fd7-28f3fc593d22",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-3da3763b-b5a9-4ffa-8d72-a5c90805c1a3",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-2fd4cc35-5889-48f1-9743-e930c3bcdd0c",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-05-11",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-05-25",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-06-08",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-06-22",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-07-06",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-07-20",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-08-03",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-08-17",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-08-31",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-09-14",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-09-28",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-10-12"
+      ],
+      "BLOCK_DETAIL_DO_THIS_EMPTY": [
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:confirm-hard-anchors",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:inventory-existing-assets",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:review-first-cycle-sequence",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:identify-income-calendar-burden",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-1fbcd25e-7c62-4e38-8f94-9c5730ce93e1",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-5e9640d3-6a99-4f67-abd4-e8f3ca17d5e6",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:expand:milestone-1fbcd25e-7c62-4e38-8f94-9c5730ce93e1:0",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:expand:milestone-5e9640d3-6a99-4f67-abd4-e8f3ca17d5e6:0",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:expand:milestone-1fbcd25e-7c62-4e38-8f94-9c5730ce93e1:1",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-514e54de-34de-4222-910c-d59b84c79bfa",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-731d54d6-fb13-4ea7-8b1d-ad0f529db330",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-000fdec4-672a-4205-b6f7-c4a4f1840e16",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-690e0726-2b44-4c9a-ac9c-90340d57b323",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:expand:milestone-690e0726-2b44-4c9a-ac9c-90340d57b323:0",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:expand:milestone-690e0726-2b44-4c9a-ac9c-90340d57b323:1",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:expand:milestone-690e0726-2b44-4c9a-ac9c-90340d57b323:2",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-8142ff85-2119-4ad6-a1e1-360c87212b38",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-6207250d-24ad-41a5-86a1-699b3c45ec7a",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-f4b4ed49-bc4a-43ea-8a13-4c07ed398443",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-c5334977-6b3c-4fbe-95fe-d8af65d25452",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-b4ac0b7e-5826-4111-9fd7-28f3fc593d22",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-3da3763b-b5a9-4ffa-8d72-a5c90805c1a3",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-2fd4cc35-5889-48f1-9743-e930c3bcdd0c",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-05-11",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-05-25",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-06-08",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-06-22",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-07-06",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-07-20",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-08-03",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-08-17",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-08-31",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-09-14",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-09-28",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-10-12"
+      ],
+      "BLOCK_DETAIL_DONE_WHEN_EMPTY": [
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:confirm-hard-anchors",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:inventory-existing-assets",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:review-first-cycle-sequence",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:identify-income-calendar-burden",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-1fbcd25e-7c62-4e38-8f94-9c5730ce93e1",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-5e9640d3-6a99-4f67-abd4-e8f3ca17d5e6",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:expand:milestone-1fbcd25e-7c62-4e38-8f94-9c5730ce93e1:0",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:expand:milestone-5e9640d3-6a99-4f67-abd4-e8f3ca17d5e6:0",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:expand:milestone-1fbcd25e-7c62-4e38-8f94-9c5730ce93e1:1",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-514e54de-34de-4222-910c-d59b84c79bfa",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-731d54d6-fb13-4ea7-8b1d-ad0f529db330",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-000fdec4-672a-4205-b6f7-c4a4f1840e16",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-690e0726-2b44-4c9a-ac9c-90340d57b323",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:expand:milestone-690e0726-2b44-4c9a-ac9c-90340d57b323:0",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:expand:milestone-690e0726-2b44-4c9a-ac9c-90340d57b323:1",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:expand:milestone-690e0726-2b44-4c9a-ac9c-90340d57b323:2",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-8142ff85-2119-4ad6-a1e1-360c87212b38",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-6207250d-24ad-41a5-86a1-699b3c45ec7a",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-f4b4ed49-bc4a-43ea-8a13-4c07ed398443",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-c5334977-6b3c-4fbe-95fe-d8af65d25452",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-b4ac0b7e-5826-4111-9fd7-28f3fc593d22",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-3da3763b-b5a9-4ffa-8d72-a5c90805c1a3",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:milestone:milestone-2fd4cc35-5889-48f1-9743-e930c3bcdd0c",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-05-11",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-05-25",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-06-08",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-06-22",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-07-06",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-07-20",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-08-03",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-08-17",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-08-31",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-09-14",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-09-28",
+        "suggested:masterplan:masterplan-46520435-e030-4bb8-83ba-8c0b824405f0:cadence:lane-ef6108ba-c233-423d-9cdb-28db125c0cc6:2026-10-12"
+      ]
+    }
+  }
+}
+titleAudit []
+
+stderr | tests/state/debugFirstCycleTitles.test.js > debug first-cycle titles
+[jericho:sot] contract-adapter-present { reason: 'canonical present alongside legacy cycle.contract adapter' }
+[jericho:sot] proposed-mirror-present {
+  reason: 'canonical proposedBlocks present alongside suggestedBlocks mirror'
+}
+
+ ✓ tests/state/debugFirstCycleTitles.test.js > debug first-cycle titles 788ms
+stderr | warnMirrorUsage (/Users/jamesdotson/vscode/JERICHO/JERICHO/src/state/cycleSelectors.js:178:11)
+[jericho:sot] contract-mirror-present { reason: 'canonical present alongside mirror' }
+
+stdout | tests/state/masterPlanFirstCycle.gateCertification.test.js > GATE CERTIFICATION: First-cycle Sprint quality > generated first-cycle Sprint passes plan-quality gate without metadata or coverage failures
+
+[CERTIFICATION] Generated 35 proposed blocks
+JERICHO_GENERATE_TRACE
+  {
+    traceId: 'trace-masterplan-cycle:masterplan-8bce91ce-3808-49dd-96b0-4521c1437e07-apply',
+    cycleId: 'masterplan-cycle:masterplan-8bce91ce-3808-49dd-96b0-4521c1437e07',
+    goalId: 'masterplan:masterplan-8bce91ce-3808-49dd-96b0-4521c1437e07',
+    moduleName: 'applyDraftSchedule',
+    stepName: 'complete',
+    status: 'ok',
+    timestamp: '2026-06-14T02:12:47.262Z',
+    inputSummary: {
+      proposedBlocksCount: 35,
+      suggestedCount: 0,
+      cycleId: 'masterplan-cycle:masterplan-8bce91ce-3808-49dd-96b0-4521c1437e07'
+    },
+    outputSummary: {
+      appliedReviewBlocksCount: 35,
+      committedBlocksCount: 0,
+      cycleBlocksCount: 35,
+      scheduleApplied: true,
+      draftScheduleAppliedAtISO: '2026-05-04T12:00:00.000Z'
+    },
+    errorCode: null,
+    reasonCodes: []
+  }
+[CERTIFICATION] Applied 35 review blocks
+
+[GATE RESULT] Status: PLAN_QUALITY_WITHHELD
+[GATE RESULT] Failure codes (3):
+  - BLOCK_DETAIL_TOO_ABSTRACT
+  - BLOCK_DETAIL_DO_THIS_EMPTY
+  - BLOCK_DETAIL_DONE_WHEN_EMPTY
+
+[METADATA CODES] Checking if resolved:
+  MISSING_EXECUTION_ARTIFACT: ✅ RESOLVED
+  MISSING_EXECUTION_CONSUMER: ✅ RESOLVED
+  MISSING_EXECUTION_PASS_EVIDENCE: ✅ RESOLVED
+  MISSING_CONSUMED_BY_REF: ✅ RESOLVED
+  MISSING_EXECUTION_DURATION: ✅ RESOLVED
+
+[COVERAGE CODES] Checking if resolved:
+  BLOCK_GOAL_OBJECT_MISSING: ✅ RESOLVED
+  PLAN_COVERAGE_MISSING_DELIVERABLE_BRANCH: ✅ RESOLVED
+  PLAN_COVERAGE_PARTIAL_SCOPE_COLLAPSE: ✅ RESOLVED
+
+[METADATA SPECIFICITY] Inspecting action blocks...
+  Found 35 action blocks
+  Block 1: Confirm Operation Endgame hard anchors
+    - artifact: First-cycle readiness work: Confirm Operation Endgame hard anchors...
+    - evidence: Anchor drift weakens every downstream lane sequence....
+    - specific? artifact=false evidence=true
+  Block 2: Complete Inventory existing album/app/podcast assets
+    - artifact: First-cycle readiness work: Complete Inventory existing album/app/podcast assets...
+    - evidence: Without asset inventory, first-cycle sequencing and readiness gates stay fuzzy....
+    - specific? artifact=false evidence=true
+  Block 3: Review first-cycle milestone sequence
+    - artifact: First-cycle readiness work: Review first-cycle milestone sequence...
+    - evidence: Sequence ambiguity increases schedule churn before execution begins....
+    - specific? artifact=false evidence=true
+  Block 4: Identify job-search/income calendar burden
+    - artifact: First-cycle readiness work: Identify job-search/income calendar burden...
+    - evidence: Runway pressure can silently consume the master calendar if it is not made expli...
+    - specific? artifact=false evidence=true
+  Block 5: Submit distribution for EP
+    - artifact: Milestone checkpoint: Submit distribution for EP completed for EP release...
+    - evidence: DSPs require lead time — missing this collapses the release date....
+    - specific? artifact=false evidence=true
+
+  Generic artifact patterns: 5/5
+  Generic evidence patterns: 0/5
+
+[FINAL STATUS] PLAN_QUALITY_WITHHELD
+❌ CERTIFICATION FAILED - Plan quality gate did not pass
+
+stderr | tests/state/masterPlanFirstCycle.gateCertification.test.js > GATE CERTIFICATION: First-cycle Sprint quality > generated first-cycle Sprint passes plan-quality gate without metadata or coverage failures
+[jericho:sot] contract-adapter-present { reason: 'canonical present alongside legacy cycle.contract adapter' }
+[jericho:sot] proposed-mirror-present {
+  reason: 'canonical proposedBlocks present alongside suggestedBlocks mirror'
+}
+
+stdout | tests/state/masterPlanFirstCycle.gateCertification.test.js > GATE CERTIFICATION: First-cycle Sprint quality > generated first-cycle blocks contain non-generic metadata when present
+JERICHO_GENERATE_TRACE
+  {
+    traceId: 'trace-masterplan-cycle:masterplan-c36d4cfc-3e6f-4f32-8090-30f5a781a725-apply',
+    cycleId: 'masterplan-cycle:masterplan-c36d4cfc-3e6f-4f32-8090-30f5a781a725',
+    goalId: 'masterplan:masterplan-c36d4cfc-3e6f-4f32-8090-30f5a781a725',
+    moduleName: 'applyDraftSchedule',
+    stepName: 'complete',
+    status: 'ok',
+    timestamp: '2026-06-14T02:12:47.905Z',
+    inputSummary: {
+      proposedBlocksCount: 35,
+      suggestedCount: 0,
+      cycleId: 'masterplan-cycle:masterplan-c36d4cfc-3e6f-4f32-8090-30f5a781a725'
+    },
+    outputSummary: {
+      appliedReviewBlocksCount: 35,
+      committedBlocksCount: 0,
+      cycleBlocksCount: 35,
+      scheduleApplied: true,
+      draftScheduleAppliedAtISO: '2026-05-04T12:00:00.000Z'
+    },
+    errorCode: null,
+    reasonCodes: []
+  }
+
+[MILESTONE SPECIFICITY] Found 0 milestone-derived blocks
+
+ ✓ tests/state/masterPlanFirstCycle.gateCertification.test.js > GATE CERTIFICATION: First-cycle Sprint quality > generated first-cycle Sprint passes plan-quality gate without metadata or coverage failures 842ms
+ ✓ tests/state/masterPlanFirstCycle.gateCertification.test.js > GATE CERTIFICATION: First-cycle Sprint quality > generated first-cycle blocks contain non-generic metadata when present 632ms
+
+ Test Files  2 passed (2)
+      Tests  3 passed (3)
+   Start at  21:12:43
+   Duration  5.06s (transform 1.22s, setup 241ms, collect 3.57s, tests 2.27s, environment 1.27s, prepare 237ms)
+

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeDerivedState } from '../identityCompute.js';
+import { computeDerivedState, resolveFirstCycleScheduleStart } from '../identityCompute.js';
 
 function buildAppliedReviewState({
   nowDayKey = '2026-05-26',
@@ -303,5 +303,73 @@ describe('activation-date reassessment and calendar re-anchor (May 19 → May 28
     const todayBlocks = derived.today?.blocks || [];
     const staleToday = todayBlocks.find((b) => b?.id === 'blk-stale-1');
     expect(staleToday).toBeUndefined();
+  });
+});
+
+describe('master-plan occupied cycle start resolution', () => {
+  it('does not fall back to the original occupied May start after a later reassessment/generation floor exists', () => {
+    const resolution = resolveFirstCycleScheduleStart(
+      {
+        today: { date: '2026-06-08' },
+        appTime: {
+          nowISO: '2026-06-08T12:00:00.000Z',
+          activeDayKey: '2026-06-08',
+          timeZone: 'UTC',
+          isFollowingNow: true,
+        },
+        availabilityPolicy: {
+          workWindows: {
+            mon: [{ start: '09:00', end: '17:00' }],
+            tue: [{ start: '09:00', end: '17:00' }],
+            wed: [{ start: '09:00', end: '17:00' }],
+            thu: [{ start: '09:00', end: '17:00' }],
+            fri: [{ start: '09:00', end: '17:00' }],
+            sat: [],
+            sun: [],
+          },
+        },
+        profilesById: {},
+        masterCalendarsById: {},
+      },
+      {
+        plan: {
+          id: 'plan-1',
+          horizonStart: '2026-05-19',
+          horizonEnd: '2031-05-19',
+        },
+        cycle: {
+          id: 'cycle-1',
+          source: 'master_plan',
+          scheduleLifecycle: 'active_schedule',
+          startedAtDayKey: '2026-05-19',
+          reassessmentCompletedAtISO: '2026-06-07T02:29:09.880Z',
+          scheduleGeneratedAtISO: '2026-06-07T03:11:21.442Z',
+          executionEvents: [
+            {
+              id: 'evt-stale',
+              kind: 'create',
+              blockId: 'blk-stale',
+              dateISO: '2026-05-19',
+              startISO: '2026-05-19T09:00:00.000Z',
+              endISO: '2026-05-19T10:00:00.000Z',
+            },
+          ],
+          goalContract: {
+            goalId: 'goal-1',
+            startDayKey: '2026-05-19',
+            endDayKey: '2026-10-17',
+          },
+        },
+        contract: {
+          goalId: 'goal-1',
+          startDayKey: '2026-05-19',
+          endDayKey: '2026-10-17',
+        },
+      }
+    );
+
+    expect(resolution.candidateStartDayKey).toBe('2026-06-08');
+    expect(resolution.resolvedStartDayKey).toBe('2026-06-07');
+    expect(resolution.reasonCode).toBe('ACTIVE_CYCLE_OCCUPANCY');
   });
 });

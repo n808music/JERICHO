@@ -1,13 +1,14 @@
 import React from 'react';
 import '@testing-library/jest-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import { StructurePageConsolidated } from '../../src/components/zion/StructurePageConsolidated.jsx';
 import { buildBlankIdentityState, DEFAULT_PROFILE_ID } from '../../src/state/identityStore.js';
 
 const noop = vi.fn();
 let mockStore = {};
+const originalLocation = window.location;
 
 vi.mock('../../src/state/identityStore', async () => {
   const actual = await vi.importActual('../../src/state/identityStore.js');
@@ -50,6 +51,15 @@ function buildPreAdmissionStore() {
 describe('StructurePageConsolidated unified intake ownership', () => {
   beforeEach(() => {
     mockStore = buildPreAdmissionStore();
+    vi.restoreAllMocks();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: {
+        ...originalLocation,
+        hash: '',
+        reload: vi.fn(),
+      },
+    });
   });
 
   it('renders one initial Structure goal textarea with the 1000-character contract', () => {
@@ -127,6 +137,38 @@ describe('StructurePageConsolidated unified intake ownership', () => {
     expect(screen.queryByRole('button', { name: /Apply schedule/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Activate schedule/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Reset master plan/i })).not.toBeInTheDocument();
+  });
+
+  it('resets identity, routes to structure, and requests reload when clearing the goal', () => {
+    const hardResetIdentity = vi.fn().mockResolvedValue({});
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mockStore = {
+      ...buildPreAdmissionStore(),
+      hardResetIdentity,
+      profilesById: {
+        [DEFAULT_PROFILE_ID]: {
+          id: DEFAULT_PROFILE_ID,
+          activeMasterPlanId: 'mp-1',
+          masterPlanIds: ['mp-1'],
+        },
+      },
+      masterPlansById: {
+        'mp-1': {
+          id: 'mp-1',
+          title: 'Operation Endgame',
+          laneIds: ['lane-1'],
+        },
+      },
+    };
+
+    render(<StructurePageConsolidated />);
+
+    fireEvent.click(screen.getByRole('button', { name: /clear goal/i }));
+
+    return waitFor(() => {
+      expect(hardResetIdentity).toHaveBeenCalledTimes(1);
+      expect(window.location.reload).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('surfaces a persistence recovery notice instead of silently implying a clean blank state', () => {

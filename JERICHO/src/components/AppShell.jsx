@@ -102,7 +102,9 @@ function getAppShellAuthState() {
   // Auth Containment Stabilization: if account exists and the session was lost to a
   // crash/reload (no explicit_sign_out marker), restore the session transparently
   // BEFORE evaluating render state. Explicit logout is honored — see resumeSessionIfSafe.
-  localAuth.resumeSessionIfSafe();
+  // `resumed: true` exactly once per crash/reload — used downstream to scope the
+  // browser-restart profile auto-restore (see AppShellInner).
+  const resumeResult = localAuth.resumeSessionIfSafe();
 
   const evaluation = localAuth.evaluateAuthState();
   const hasLocalAccount = Boolean(evaluation.account?.username);
@@ -123,6 +125,7 @@ function getAppShellAuthState() {
     localProfileAvailable,
     devRestoreAvailable,
     syncUnavailable,
+    sessionJustResumed: Boolean(resumeResult?.resumed),
   };
 }
 
@@ -254,14 +257,57 @@ export default function AppShell() {
   return (
     <JerichoProvider>
       <IdentityProvider>
-        <AppShellInner onLogout={handleLogout} />
+        <AppShellInner onLogout={handleLogout} initialAuthState={authState} />
       </IdentityProvider>
     </JerichoProvider>
   );
 }
 
-function AppShellInner({ onLogout = NOOP }) {
+function AppShellInner({ onLogout = NOOP, initialAuthState = null }) {
   const store = useIdentityStore();
+  // Browser-restart auto-restore: scoped to the exact mount where session was just
+  // resumed (crash/reload). Fresh login paths keep the manual ProfileAccessGate.
+  const sessionJustResumed = Boolean(initialAuthState?.sessionJustResumed);
+  const autoRestoreFiredRef = React.useRef(false);
+  React.useEffect(() => {
+    if (autoRestoreFiredRef.current) {
+      return;
+    }
+    if (!sessionJustResumed) {
+      return;
+    }
+    autoRestoreFiredRef.current = true;
+
+    const coherence = evaluateProfileContextCoherence(store);
+    if (coherence.coherent) {
+      return;
+    }
+
+    const activeProfileId = String(store?.activeProfileId || '').trim();
+    const activeProfile = activeProfileId ? store?.profilesById?.[activeProfileId] || null : null;
+    const isRealActiveProfile =
+      activeProfile && !isPlaceholderProfile(activeProfileId, activeProfile);
+
+    if (
+      isRealActiveProfile &&
+      store?.profileAccess?.status !== 'profile_selected' &&
+      typeof store?.selectProfile === 'function'
+    ) {
+      store.selectProfile(activeProfileId);
+      return;
+    }
+
+    const hasAnyRealProfile = Object.values(store?.profilesById || {}).some(
+      (profile) => profile?.id && !isPlaceholderProfile(profile.id, profile)
+    );
+    if (
+      !hasAnyRealProfile &&
+      store?.operationEndgameRestoreAvailable &&
+      typeof store?.restoreOperationEndgameProfile === 'function'
+    ) {
+      store.restoreOperationEndgameProfile();
+    }
+  }, [sessionJustResumed, store]);
   const commandContext = React.useMemo(
     () => ({
       mode: null,
@@ -270,7 +316,7 @@ function AppShellInner({ onLogout = NOOP }) {
     }),
     []
   );
-  const initialView = React.useMemo(() => getInitialZionViewFromHash(), []);
+  const initialView = getInitialZionViewFromHash();
 
   React.useEffect(() => {
     if (typeof document !== 'undefined') {

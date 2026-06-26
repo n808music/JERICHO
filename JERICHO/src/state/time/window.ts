@@ -58,7 +58,7 @@ export function getWeekDayKeys(anchorISO: string, timeZone: string) {
   if (!anchorDayKey) return [];
   const anchorDate = dayKeyToDateUTC(anchorDayKey);
   const dow = anchorDate.getUTCDay();
-  const offset = (dow + 6) % 7; // Monday start
+  const offset = dow; // Sunday start
   const weekStart = addDays(anchorDayKey, -offset, timeZone);
   return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i, timeZone));
 }

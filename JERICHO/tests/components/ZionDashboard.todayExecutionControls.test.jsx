@@ -2,10 +2,16 @@ import React from 'react';
 import '@testing-library/jest-dom';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ZionDashboard from '../../src/components/ZionDashboard.jsx';
-import { IdentityProvider, DEFAULT_PROFILE_ID, buildBlankIdentityState, useIdentityStore } from '../../src/state/identityStore.js';
+import {
+  IdentityProvider,
+  DEFAULT_PROFILE_ID,
+  buildBlankIdentityState,
+  rehydratePersistedState,
+  useIdentityStore,
+} from '../../src/state/identityStore.js';
 import { computeDerivedState, getCanonicalBlocks } from '../../src/state/identityCompute.js';
 
 vi.mock('../../src/services/syncService.js', () => ({
@@ -212,6 +218,8 @@ function buildExecutionState() {
     },
   };
 
+  state.viewDate = DAY_KEY;
+
   return computeDerivedState(state, { type: 'NO_OP' });
 }
 
@@ -239,6 +247,10 @@ describe('ZionDashboard today execution controls', () => {
         localStorage.removeItem('jericho-identity');
       }
     }
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('completes the active today block and preserves completion across restore', async () => {
@@ -315,7 +327,8 @@ describe('ZionDashboard today execution controls', () => {
       expect(rescheduledBlock?.start).toBe('2026-06-09T11:30:00.000Z');
     });
 
-    expect(capturedStore.getState().appTime.activeDayKey).toBe(NEXT_DAY_KEY);
+    expect(capturedStore.getState().viewDate).toBe(NEXT_DAY_KEY);
+    expect(capturedStore.getState().appTime.activeDayKey).toBe(DAY_KEY);
   });
 
   it('does not offer pre-floor stale blocks in today execution', async () => {
@@ -325,7 +338,7 @@ describe('ZionDashboard today execution controls', () => {
       expect(capturedStore.getState().today.blocks.some((block) => block.id === 'blk-stale')).toBe(false);
     });
 
-    expect(screen.queryByText(/Stale pre-floor block/i)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('block-blk-stale')).not.toBeInTheDocument();
     expect(screen.getByTestId('block-blk-today')).toBeInTheDocument();
   });
 
@@ -345,7 +358,117 @@ describe('ZionDashboard today execution controls', () => {
 
     expect(screen.getByText(/Day details — 2026-06-08/i)).toBeInTheDocument();
     expect(screen.getByTestId('block-blk-today')).toBeInTheDocument();
-    expect(screen.queryByText(/Stale pre-floor block/i)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('block-blk-stale')).not.toBeInTheDocument();
     expect(screen.queryByText(/Day details — 2026-05-26/i)).not.toBeInTheDocument();
+  });
+
+  it('does not repopulate pre-floor May blocks after a refresh on the master-plan path', async () => {
+    const initialState = buildExecutionState();
+    initialState.cyclesById[CYCLE_ID] = {
+      ...initialState.cyclesById[CYCLE_ID],
+      source: 'master_plan',
+      masterPlanId: 'plan-1',
+      executionStartDayKey: null,
+      reassessmentCompletedAtISO: '2026-06-07T02:29:09.880Z',
+      scheduleGeneratedAtISO: '2026-06-07T03:11:21.442Z',
+    };
+    initialState.profilesById[DEFAULT_PROFILE_ID] = {
+      ...initialState.profilesById[DEFAULT_PROFILE_ID],
+      activeMasterPlanId: 'plan-1',
+      masterPlanIds: ['plan-1'],
+    };
+    initialState.masterPlansById = {
+      'plan-1': {
+        id: 'plan-1',
+        profileId: DEFAULT_PROFILE_ID,
+        horizonStart: PRE_FLOOR_DAY_KEY,
+        horizonEnd: '2031-05-19',
+        fullHorizonEndDayKey: '2031-05-19',
+      },
+    };
+
+    const rehydrated = rehydratePersistedState(JSON.parse(JSON.stringify(initialState)));
+    renderExecutionDashboard(rehydrated);
+
+    await waitFor(() => {
+      expect(capturedStore.getState().today.blocks.some((block) => block.id === 'blk-stale')).toBe(false);
+    });
+
+    expect(capturedStore.getState().cyclesById[CYCLE_ID].executionStartDayKey).toBe('2026-06-07');
+    expect(capturedStore.getState().scheduleLifecycle).toBe('applied_review');
+    expect(screen.queryByTestId('block-blk-stale')).not.toBeInTheDocument();
+    expect(screen.getByTestId('block-blk-today')).toBeInTheDocument();
+  });
+
+  it('keeps an explicitly selected day instead of snapping back to a stale pre-floor anchor', async () => {
+    const initialState = buildExecutionState();
+    initialState.appTime = {
+      ...initialState.appTime,
+      activeDayKey: PRE_FLOOR_DAY_KEY,
+      nowISO: `${DAY_KEY}T12:00:00.000Z`,
+    };
+    initialState.today = {
+      ...initialState.today,
+      date: PRE_FLOOR_DAY_KEY,
+    };
+    initialState.viewDate = NEXT_DAY_KEY;
+    initialState.cyclesById[CYCLE_ID] = {
+      ...initialState.cyclesById[CYCLE_ID],
+      executionStartDayKey: null,
+      goalContract: {
+        ...initialState.cyclesById[CYCLE_ID].goalContract,
+        startDayKey: PRE_FLOOR_DAY_KEY,
+      },
+    };
+
+    renderExecutionDashboard(initialState);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Day details — 2026-06-09/i)).toBeInTheDocument();
+      expect(screen.getByTestId('block-blk-next')).toBeInTheDocument();
+      expect(screen.queryByText(/Day details — 2026-05-19/i)).not.toBeInTheDocument();
+    });
+
+    act(() => {
+      capturedStore.setViewDate?.(DAY_KEY);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Day details — 2026-06-08/i)).toBeInTheDocument();
+      expect(screen.getByTestId('block-blk-today')).toBeInTheDocument();
+      expect(screen.queryByText(/Day details — 2026-05-19/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it('updates the day-view header to the selected day instead of the stale execution floor', async () => {
+    const initialState = buildExecutionState();
+    initialState.appTime = {
+      ...initialState.appTime,
+      timeZone: 'America/Chicago',
+      activeDayKey: PRE_FLOOR_DAY_KEY,
+      nowISO: '2026-05-19T12:00:00.000Z',
+    };
+    initialState.today = {
+      ...initialState.today,
+      date: PRE_FLOOR_DAY_KEY,
+    };
+    initialState.viewDate = NEXT_DAY_KEY;
+
+    renderExecutionDashboard(initialState);
+
+    expect(screen.getByText(/Day details — 2026-06-09/i)).toBeInTheDocument();
+    expect(screen.getByText('Jun 9, 2026')).toBeInTheDocument();
+
+    act(() => {
+      capturedStore.setViewDate?.(DAY_KEY);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Day details — 2026-06-08/i)).toBeInTheDocument();
+      expect(screen.getByText('Jun 8, 2026')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId('block-blk-stale')).not.toBeInTheDocument();
+    expect(capturedStore.getState().viewDate).toBe(DAY_KEY);
   });
 });

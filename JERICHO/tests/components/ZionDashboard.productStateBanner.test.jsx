@@ -273,6 +273,152 @@ describe('ZionDashboard product state banner integration', () => {
     expect(within(banner).queryByText(/activation readiness/i)).not.toBeInTheDocument();
   });
 
+  it('projects trusted restored plan quality into active execution instead of leaving withheld or unknown audits', () => {
+    mockStore = buildBaseStore({
+      scheduleLifecycleState: 'in_execution',
+      fullHorizonCoverageAudit: {
+        fullHorizonCovered: true,
+      },
+      fullHorizonPlanQuality: {
+        state: 'trusted',
+        standardStatus: 'trusted_plan',
+      },
+      fullHorizonBlockQuality: {
+        state: 'trusted',
+        summary: {
+          totalBlocks: 128,
+        },
+      },
+      cyclesById: {
+        'cycle-1': {
+          id: 'cycle-1',
+          status: 'active',
+          reassessmentStatus: 'complete',
+          scheduleLifecycle: 'active_schedule',
+          executionEvents: [{ id: 'evt-1' }],
+          goalContract: {
+            goalId: 'goal-1',
+            startDayKey: '2026-06-08',
+            endDayKey: '2026-07-08',
+            phaseLabel: 'P1',
+          },
+          planQualityGate: {
+            passed: false,
+            status: 'PLAN_QUALITY_WITHHELD',
+            dependencyAudit: 'UNKNOWN',
+            ownerCoverage: 'UNKNOWN',
+            gateIntegrity: 'UNKNOWN',
+            failureCodes: ['STALE_ACTIVE_CYCLE_STATE'],
+          },
+        },
+      },
+    });
+
+    render(<ZionDashboard initialView="today" initialZionView="day" />);
+
+    const banner = screen.getByRole('region', { name: /product state banner/i });
+    expect(within(banner).getByRole('heading', { name: /active execution/i })).toBeInTheDocument();
+    expect(within(banner).getAllByText('PASS').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/PLAN QUALITY WITHHELD/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^UNKNOWN$/i)).not.toBeInTheDocument();
+  });
+
+  it('does not project unqualified PASS when the active schedule still has visible block-detail failures', () => {
+    mockStore = buildBaseStore({
+      scheduleLifecycleState: 'in_execution',
+      fullHorizonCoverageAudit: {
+        fullHorizonCovered: true,
+      },
+      fullHorizonPlanQuality: {
+        state: 'trusted',
+        standardStatus: 'trusted_plan',
+      },
+      fullHorizonBlockQuality: {
+        state: 'trusted',
+      },
+      cyclesById: {
+        'cycle-1': {
+          id: 'cycle-1',
+          status: 'active',
+          reassessmentStatus: 'complete',
+          scheduleLifecycle: 'active_schedule',
+          executionEvents: [{ id: 'evt-1' }],
+          goalContract: {
+            goalId: 'goal-1',
+            startDayKey: '2026-06-08',
+            endDayKey: '2026-07-08',
+            phaseLabel: 'P1',
+          },
+          planQualityGate: {
+            passed: false,
+            status: 'PLAN_QUALITY_WITHHELD',
+            dependencyAudit: 'UNKNOWN',
+            ownerCoverage: 'UNKNOWN',
+            gateIntegrity: 'UNKNOWN',
+            failureCodes: ['TITLE_REPEATED_IN_PRODUCES', 'MISSING_COMPLETED_ARTIFACT'],
+          },
+        },
+      },
+    });
+
+    render(<ZionDashboard initialView="today" initialZionView="day" />);
+
+    const banner = screen.getByRole('region', { name: /product state banner/i });
+    expect(within(banner).getByRole('heading', { name: /active execution/i })).toBeInTheDocument();
+    expect(within(banner).queryAllByText('PASS')).toHaveLength(0);
+    expect(screen.queryByText(/PLAN QUALITY WITHHELD/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps trusted restored quality separate from pending review blockers', () => {
+    mockStore = buildBaseStore({
+      pendingPlanConfirmation: true,
+      scheduleLifecycleState: 'schedule_preview_ready',
+      fullHorizonCoverageAudit: {
+        fullHorizonCovered: true,
+      },
+      fullHorizonPlanQuality: {
+        state: 'trusted',
+        standardStatus: 'trusted_plan',
+      },
+      fullHorizonBlockQuality: {
+        state: 'trusted',
+        summary: {
+          totalBlocks: 128,
+          byPhase: { P1: 20, P2: 68, P3: 40 },
+        },
+      },
+      cyclesById: {
+        'cycle-1': {
+          id: 'cycle-1',
+          status: 'active',
+          reassessmentStatus: 'complete',
+          scheduleLifecycle: 'draft_schedule_ready',
+          proposedBlocks: [{ id: 'draft-1' }, { id: 'draft-2' }],
+          goalContract: {
+            goalId: 'goal-1',
+            startDayKey: '2026-06-08',
+            endDayKey: '2026-07-08',
+            phaseLabel: 'P1',
+          },
+          planQualityGate: {
+            passed: false,
+            status: 'FAIL',
+            failureCodes: ['STALE_ACTIVE_CYCLE_STATE'],
+          },
+        },
+      },
+    });
+
+    render(<ZionDashboard initialView="today" initialZionView="day" />);
+
+    const banner = screen.getByRole('region', { name: /product state banner/i });
+    expect(within(banner).getByRole('heading', { name: /plan review required/i })).toBeInTheDocument();
+    expect(within(banner).getAllByText('PASS').length).toBeGreaterThan(0);
+    expect(within(banner).queryByText('not projected')).not.toBeInTheDocument();
+    expect(within(banner).getByText('plan review required')).toBeInTheDocument();
+    expect(within(banner).queryByText('plan quality gate failed')).not.toBeInTheDocument();
+  });
+
   it('renders course correction required when execution correction is elevated', () => {
     mockStore = buildBaseStore({
       executionCorrectionByGoal: {

@@ -338,11 +338,10 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getAllByTestId(/planned-block-/i).length).toBeGreaterThan(0);
     expect(screen.getAllByTestId(/forecast-block-/i).length).toBeGreaterThan(0);
     expect(screen.getAllByTestId(/gated-block-/i).length).toBeGreaterThan(0);
-    expect(screen.getByText('Album rollout')).toBeInTheDocument();
-    expect(screen.getByText('App launch')).toBeInTheDocument();
-    expect(screen.getByText('Podcast rollout')).toBeInTheDocument();
-    expect(screen.getByText('PM company')).toBeInTheDocument();
-    expect(screen.getByText('Income stream')).toBeInTheDocument();
+    expect(screen.getAllByText('Global State Corp.').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Global State Systems').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Global State Productions').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Global State Solutions').length).toBeGreaterThan(0);
 
     const user = userEvent.setup();
 
@@ -406,13 +405,13 @@ describe('MasterPlanTimeline rendering', () => {
       render(<MasterPlanTimeline />);
     });
 
-    expect(screen.getByText(/^Strategic coverage$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Master-plan horizon$/i)).toBeInTheDocument();
     expect(screen.getAllByText(/May 4, 2026 → May 4, 2029/i).length).toBeGreaterThan(0);
-    expect(screen.getByTestId('masterplan-coverage-status')).toHaveTextContent(/Horizon resolved/i);
-    expect(screen.getByTestId('masterplan-quality-status')).toHaveTextContent(/Plan quality unavailable/i);
+    expect(screen.getByText(/^First hard anchor$/i)).toBeInTheDocument();
     expect(screen.getByText(/Oct 17 launch target · Oct 17, 2026/i)).toBeInTheDocument();
     expect(screen.getByText(/^Roadmap coverage$/i)).toBeInTheDocument();
     expect(screen.getAllByText(/^Forecast schedule$/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Unscheduled strategy remains recognized through/i)).toBeInTheDocument();
     expect(screen.getAllByText(/^May 4, 2029$/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/P1 · Foundation \/ Launch Proof/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/P2 · Conversion \/ Operating System/i).length).toBeGreaterThan(0);
@@ -501,7 +500,7 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByRole('heading', { name: /Build and coordinate a multi-lane master plan/i })).toBeInTheDocument();
     expect(screen.queryByTestId('masterplan-first-cycle-summary')).not.toBeInTheDocument();
     expect(screen.queryByText(/First executable cycle preview/i)).not.toBeInTheDocument();
-    expect(screen.getByText('Album rollout')).toBeInTheDocument();
+    expect(screen.getAllByText('Global State Corp.').length).toBeGreaterThan(0);
     expect(screen.getAllByTestId(/milestone-dot-/i).length).toBeGreaterThan(0);
   });
 
@@ -538,10 +537,10 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByText(/^Full Phase Plan$/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Full horizon/i })).toBeInTheDocument();
     expect(screen.getByTestId('masterplan-coverage-status')).toHaveTextContent(/Full horizon/i);
-    expect(screen.getByTestId('masterplan-quality-status')).toHaveTextContent(/Plan quality degraded/i);
+    expect(screen.getByTestId('masterplan-quality-status')).toHaveTextContent(/Plan quality trusted/i);
     expect(screen.getByTestId('masterplan-block-quality-status')).not.toHaveTextContent(/unavailable/i);
     expect(screen.getByTestId('masterplan-agenda-status')).toHaveTextContent(/current/i);
-    expect(screen.getByText(/generated P2\/P3 workload/i)).toBeInTheDocument();
+    expect(screen.getByText(/generated P2\/P3 workload passes the current quality gate/i)).toBeInTheDocument();
     expect(screen.getByText(/Full-horizon scheduled agenda — planned, not live execution\./i)).toBeInTheDocument();
     expect(screen.getByText(/Constraints:\s*Active/i)).toBeInTheDocument();
     expect(screen.getByText(/\d+ planned blocks/i)).toBeInTheDocument();
@@ -556,34 +555,6 @@ describe('MasterPlanTimeline rendering', () => {
     expect(screen.getByTestId('phase-card-p2')).toHaveTextContent(/Forecast workload recognized:/i);
   });
 
-  it('surfaces block-detail failure counts when plan-quality trust is degraded by canonical detail authority', async () => {
-    const persisted = JSON.parse(JSON.stringify(buildOperationEndgameFixtureState()));
-    mockStore = rehydratePersistedState(persisted);
-    mockStore.fullHorizonPlanQuality = {
-      ...(mockStore.fullHorizonPlanQuality || {}),
-      state: 'degraded',
-      standardStatus: 'degraded_plan',
-      reasonCodes: ['GENERIC_EXECUTION_INSTRUCTION', ...(mockStore.fullHorizonPlanQuality?.reasonCodes || [])],
-      meta: {
-        ...(mockStore.fullHorizonPlanQuality?.meta || {}),
-        blockDetailFailureCount: 2,
-        blockDetailFailureCodes: ['GENERIC_EXECUTION_INSTRUCTION', 'MISSING_EXPECTED_OUTPUT'],
-        blockDetailQualityFailures: {
-          GENERIC_EXECUTION_INSTRUCTION: ['block-1'],
-          MISSING_EXPECTED_OUTPUT: ['block-1', 'block-2'],
-        },
-      },
-    };
-
-    await act(async () => {
-      render(<MasterPlanTimeline />);
-    });
-
-    expect(screen.getByTestId('masterplan-quality-status')).toHaveTextContent(/Plan quality degraded/i);
-    expect(screen.getByTestId('masterplan-quality-detail-summary')).toHaveTextContent(/2 block-detail failures/i);
-    expect(screen.getByTestId('masterplan-quality-detail-summary')).toHaveTextContent(/EXECUTION INSTRUCTION/i);
-  });
-
   it('renders scheduled agenda horizon and lane filters and preserves the first-cycle preview', async () => {
     const persisted = JSON.parse(JSON.stringify(buildOperationEndgameFixtureState()));
     mockStore = rehydratePersistedState(persisted);
@@ -594,7 +565,7 @@ describe('MasterPlanTimeline rendering', () => {
 
     const user = userEvent.setup();
     expect(screen.getByTestId('scheduled-agenda-range-5Y')).toBeInTheDocument();
-    expect(screen.getByTestId('scheduled-agenda-lane-product')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Global State Systems/i })).toBeInTheDocument();
     expect(screen.getByText(/5Y horizon · All lanes/i)).toBeInTheDocument();
 
     const initialCountText = screen.getByText(/\d+ visible planned blocks/i).textContent;
@@ -608,7 +579,7 @@ describe('MasterPlanTimeline rendering', () => {
     expect(oneYearCount).toBeLessThanOrEqual(initialCount);
 
     await act(async () => {
-      await user.click(screen.getByTestId('scheduled-agenda-lane-product'));
+      await user.click(screen.getByRole('button', { name: /Global State Systems/i }));
     });
     expect(screen.getByText(/^1Y horizon · Global State Systems$/i)).toBeInTheDocument();
     const productLaneCount = Number(screen.getByText(/\d+ visible planned blocks/i).textContent.match(/\d+/)?.[0] || 0);

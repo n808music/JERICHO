@@ -170,7 +170,7 @@ describe('StructurePageConsolidated keeps schedule generation on Today only', ()
 
     render(<StructurePageConsolidated />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Reset Cycle/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Reset Operating Cycle/i }));
 
     expect(resetActiveCycle).toHaveBeenCalledWith('cycle-1');
     confirmSpy.mockRestore();

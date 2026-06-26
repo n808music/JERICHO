@@ -739,8 +739,14 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   const hasExecutableMasterPlan = Boolean(
     activeMasterPlan?.id && Array.isArray(activeMasterPlan?.laneIds) && activeMasterPlan.laneIds.length > 0
   );
+  const canonicalProposedInput = useMemo(() => {
+    if (Array.isArray(proposedBlocks) && proposedBlocks.length > 0) {
+      return proposedBlocks;
+    }
+    return Array.isArray(activeCycle?.proposedBlocks) ? activeCycle.proposedBlocks : [];
+  }, [proposedBlocks, activeCycle?.proposedBlocks]);
   const canonicalProposedChartBlocks = useMemo(() => {
-    const canonicalProposed = getCanonicalProposedBlocks(proposedBlocks, suggestedBlocks);
+    const canonicalProposed = getCanonicalProposedBlocks(canonicalProposedInput, suggestedBlocks);
     return (Array.isArray(canonicalProposed) ? canonicalProposed : [])
       .filter((block) => {
         if (
@@ -760,7 +766,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
         return true;
       })
       .sort((a, b) => String(a?.start || a?.startISO || '').localeCompare(String(b?.start || b?.startISO || '')));
-  }, [proposedBlocks, suggestedBlocks, activeCycleId, activeGoalId]);
+  }, [canonicalProposedInput, suggestedBlocks, activeCycleId, activeGoalId]);
   const canonicalExecutionBlocks = useMemo(() => {
     const cycleEvents = Array.isArray(activeCycle?.executionEvents) ? activeCycle.executionEvents : [];
     if (cycleEvents.length === 0) {
@@ -933,7 +939,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   const semanticSummary = useMemo(
     () =>
       deriveStructureSchedulingSemanticSummary({
-        proposedBlocks,
+        proposedBlocks: canonicalProposedInput,
         suggestedBlocks,
         deliverables: workspace?.deliverables || [],
         workspace,
@@ -946,7 +952,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
         activePlanSummary: activeCycle?.autoAsanaPlan?.summary || activeCycle?.lastResolvedPlanSummary || null,
       }),
     [
-      proposedBlocks,
+      canonicalProposedInput,
       suggestedBlocks,
       workspace,
       activeCycle?.executionEvents,
@@ -1037,17 +1043,26 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
     store?.masterPlanIntakeStart?.(activeProfileId);
   }, [showMasterPlanFlow, hasActiveMasterPlan, activeProfileId, masterPlanIntake?.status, store]);
 
-  const handleClearGoal = () => {
+  const handleClearGoal = async () => {
     if (
       window.confirm(
         'Clear the current goal? This deletes the goal, Master Plan, Operating Cycle, schedule, and evidence and returns Jericho to blank state.'
       )
     ) {
-      resetIdentity?.();
+      if (typeof store?.hardResetIdentity === 'function') {
+        await store.hardResetIdentity();
+      } else {
+        resetIdentity?.();
+      }
       try {
         window.location.hash = '#/structure';
       } catch {
         // ignore hash routing failures
+      }
+      try {
+        window.location.reload?.();
+      } catch {
+        // ignore reload failures
       }
     }
   };

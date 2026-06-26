@@ -13,6 +13,10 @@ const setPlanResolutionKind = vi.fn();
 const noop = vi.fn();
 let mockStore = {};
 
+function hasExactTextContent(fragment) {
+  return (_, node) => Boolean(node?.textContent?.includes(fragment));
+}
+
 vi.mock('../../src/state/identityStore', () => ({
   useIdentityStore: () => mockStore,
 }));
@@ -145,6 +149,201 @@ describe('ZionDashboard apply schedule dispatch wiring', () => {
     expect(commitPreviewItems).not.toHaveBeenCalled();
   });
 
+  it('uses cycle-local proposed blocks to enable apply and mark the active phase as generated', async () => {
+    mockStore = buildStore();
+    mockStore.proposedBlocks = [];
+    mockStore.cyclesById['cycle-active'] = {
+      ...mockStore.cyclesById['cycle-active'],
+      proposedBlocks: [
+        {
+          id: 'cycle-proposal-1',
+          cycleId: 'cycle-active',
+          goalId: 'goal-1',
+          status: 'suggested',
+          title: 'Cycle-local draft block',
+          domain: 'FOCUS',
+          durationMinutes: 45,
+          dayKey: '2026-02-03',
+          startISO: '2026-02-03T09:00:00.000Z',
+        },
+      ],
+    };
+    mockStore.lastPlanError = {
+      code: 'FEASIBILITY_MISSING_FOR_PLAN',
+      reasonCodes: ['POS_FEASIBILITY_INPUT_MISSING'],
+    };
+
+    await renderDashboard();
+
+    expect(screen.getAllByText(hasExactTextContent('Apply schedule: Ready')).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Generate failed: FEASIBILITY_MISSING_FOR_PLAN/i)).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /apply schedule/i }));
+    });
+
+    expect(applyPlan).toHaveBeenCalledTimes(1);
+    expect(applyPlan).toHaveBeenCalledWith({ cycleId: 'cycle-active' });
+  });
+
+  it('shows the full proposed Sprint window when the selected day has no proposed blocks', async () => {
+    mockStore = buildStore();
+    mockStore.appTime = {
+      nowISO: '2026-02-05T12:00:00.000Z',
+      activeDayKey: '2026-02-05',
+      timeZone: 'UTC',
+    };
+    mockStore.today = {
+      ...mockStore.today,
+      date: '2026-02-05',
+    };
+    mockStore.proposedBlocks = [
+      {
+        id: 'proposal-1',
+        cycleId: 'cycle-active',
+        goalId: 'goal-1',
+        status: 'suggested',
+        title: 'Draft block',
+        domain: 'FOCUS',
+        durationMinutes: 45,
+        dayKey: '2026-02-03',
+        startISO: '2026-02-03T09:00:00.000Z',
+      },
+      {
+        id: 'proposal-2',
+        cycleId: 'cycle-active',
+        goalId: 'goal-1',
+        status: 'suggested',
+        title: 'Draft block day 2',
+        domain: 'FOCUS',
+        durationMinutes: 30,
+        dayKey: '2026-02-04',
+        startISO: '2026-02-04T10:00:00.000Z',
+      },
+    ];
+
+    await renderDashboard();
+
+    expect(
+      screen.getByText(/proposed blocks exist across the sprint window\. showing full proposal:/i)
+    ).toBeInTheDocument();
+    expect(screen.getByText('Draft block')).toBeInTheDocument();
+    expect(screen.getByText('Draft block day 2')).toBeInTheDocument();
+    expect(screen.queryByText(/no proposed schedule blocks yet/i)).not.toBeInTheDocument();
+  });
+
+  it('surfaces master-plan first-cycle proposals even when classic goal admission is not present', async () => {
+    mockStore = buildStore();
+    mockStore.activeProfileId = 'profile-1';
+    mockStore.appTime = {
+      nowISO: '2026-02-05T12:00:00.000Z',
+      activeDayKey: '2026-02-05',
+      timeZone: 'UTC',
+    };
+    mockStore.today = {
+      ...mockStore.today,
+      date: '2026-02-05',
+    };
+    mockStore.profilesById = {
+      'profile-1': {
+        id: 'profile-1',
+        activeMasterPlanId: 'plan-1',
+        goalIds: ['goal-1'],
+      },
+    };
+    mockStore.masterPlansById = {
+      'plan-1': {
+        id: 'plan-1',
+        laneIds: ['lane-1'],
+      },
+    };
+    mockStore.goalAdmissionByGoal = {
+      'goal-1': { status: 'PENDING' },
+    };
+
+    await renderDashboard();
+
+    expect(screen.getByText(/showing full proposal:/i)).toBeInTheDocument();
+    expect(screen.getByText('Draft block')).toBeInTheDocument();
+    expect(screen.queryByText(/no proposed schedule blocks yet/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps pending first-cycle proposals visible and applicable even when the executable floor moves later', async () => {
+    mockStore = buildStore();
+    mockStore.appTime = {
+      nowISO: '2026-06-15T12:00:00.000Z',
+      activeDayKey: '2026-06-15',
+      timeZone: 'America/Chicago',
+    };
+    mockStore.today = {
+      ...mockStore.today,
+      date: '2026-06-15',
+    };
+    mockStore.proposedBlocks = [
+      {
+        id: 'proposal-1',
+        cycleId: 'cycle-active',
+        goalId: 'goal-1',
+        status: 'suggested',
+        title: 'Draft block before floor',
+        domain: 'FOCUS',
+        durationMinutes: 45,
+        dayKey: '2026-06-12',
+        startISO: '2026-06-12T14:00:00.000Z',
+      },
+      {
+        id: 'proposal-2',
+        cycleId: 'cycle-active',
+        goalId: 'goal-1',
+        status: 'suggested',
+        title: 'Draft block before floor day 2',
+        domain: 'FOCUS',
+        durationMinutes: 30,
+        dayKey: '2026-06-13',
+        startISO: '2026-06-13T14:00:00.000Z',
+      },
+    ];
+    mockStore.cyclesById['cycle-active'] = {
+      ...mockStore.cyclesById['cycle-active'],
+      source: 'master_plan',
+      startedAtDayKey: '2026-06-12',
+      reassessmentCompletedAtISO: '2026-06-15T12:00:00.000Z',
+      scheduleGeneratedAtISO: '2026-06-15T12:05:00.000Z',
+      goalContract: {
+        ...mockStore.cyclesById['cycle-active'].goalContract,
+        startDayKey: '2026-06-12',
+        endDayKey: '2026-06-15',
+      },
+      autoAsanaPlan: {
+        summary: {
+          scheduledBlockCount: 2,
+          scheduledMinutes: 75,
+          unscheduledBlockCount: 0,
+          unscheduledMinutes: 0,
+          calendarCoverageThroughDayKey: '2026-06-15',
+          coverageStatus: 'complete_to_anchor',
+          activePhaseDeadlineDayKey: '2026-06-15',
+        },
+      },
+    };
+
+    await renderDashboard();
+
+    expect(screen.queryByText(/no proposed schedule blocks yet/i)).not.toBeInTheDocument();
+    expect(screen.getAllByText(hasExactTextContent('Apply schedule: Ready')).length).toBeGreaterThan(0);
+    expect(screen.getByText(/proposed blocks exist across the sprint window\. showing full proposal:/i)).toBeInTheDocument();
+    expect(screen.getByText('Draft block before floor')).toBeInTheDocument();
+    expect(screen.getByText('Draft block before floor day 2')).toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /apply schedule/i }));
+    });
+
+    expect(applyPlan).toHaveBeenCalledWith({ cycleId: 'cycle-active' });
+  });
+
   it('falls back to commitPreviewItems only when applyPlan is unavailable', async () => {
     mockStore = buildStore();
     mockStore.applyPlan = undefined;
@@ -158,6 +357,28 @@ describe('ZionDashboard apply schedule dispatch wiring', () => {
 
     expect(commitPreviewItems).toHaveBeenCalledTimes(1);
     expect(applyPlan).not.toHaveBeenCalled();
+  });
+
+  it('blocks stale generated proposals from being applied on the next local day', async () => {
+    mockStore = buildStore();
+    mockStore.appTime = {
+      nowISO: '2026-02-04T12:00:00.000Z',
+      activeDayKey: '2026-02-04',
+      timeZone: 'UTC',
+    };
+    mockStore.today = {
+      ...mockStore.today,
+      date: '2026-02-04',
+    };
+    mockStore.cyclesById['cycle-active'] = {
+      ...mockStore.cyclesById['cycle-active'],
+      scheduleGeneratedAtISO: '2026-02-03T12:00:00.000Z',
+    };
+
+    await renderDashboard();
+
+    expect(screen.getByText(/Generated Sprint expired/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /apply schedule/i })).toBeDisabled();
   });
 
   it('Activate schedule dispatches activateSchedule once review blocks exist', async () => {

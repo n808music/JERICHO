@@ -10,6 +10,7 @@ import {
   evaluateCommercialProductLaunchSemanticCoverage,
   isCommercialProductLaunchGoal,
 } from './commercialProductLaunchSemanticDetector.ts';
+import { resolveBlockPlainLanguage } from '../product/resolveBlockPlainLanguage.js';
 
 type PlanArtifact = {
   id?: string;
@@ -60,6 +61,9 @@ type PlanArtifact = {
   isHistorical?: boolean;
   isBackfilled?: boolean;
   isImported?: boolean;
+  gatesJustification?: unknown;
+  phaseJustification?: unknown;
+  justification?: unknown;
 };
 
 // Block types that are exempt from execution-substrate requirements.
@@ -94,6 +98,16 @@ function isReviewClassBlock(block: PlanArtifact): boolean {
 
 function isNonExecutionOccupancyBlock(block: PlanArtifact): boolean {
   return Boolean(block?.blockType && NON_EXECUTION_OCCUPANCY_BLOCK_TYPES.has(block.blockType));
+}
+
+function buildDetailHierarchyContext(block: PlanArtifact) {
+  return {
+    phase: normalizeText(block?.phaseLabel),
+    lane: normalizeText(block?.laneLabel),
+    initiative: normalizeText((block as any)?.initiativeLabel || (block as any)?.initiativeName || (block as any)?.initiative),
+    operatingCycle: normalizeText((block as any)?.operatingCycleLabel || (block as any)?.cycleLabel || (block as any)?.reviewWindowLabel),
+    sprint: normalizeText((block as any)?.sprintLabel),
+  };
 }
 
 type PlanDeliverable = {
@@ -153,8 +167,45 @@ type EvaluatePlanQualityGateInput = {
     contractEndDayKey?: string | null;
     isRecurring?: boolean;
     earlyCompletionJustification?: string | null;
+    workWindows?: Record<string, Array<{ start?: string | null; end?: string | null }>> | null;
   };
 };
+
+type BlockDetailQualityResult = ReturnType<typeof resolveBlockPlainLanguage>;
+type BlockAdmissionAuditResult = {
+  detailContract: BlockDetailQualityResult;
+  failureCodes: PlanQualityFailureCode[];
+  phaseJustification: string;
+  resolvedEntityLabel: string;
+  laneFamily: string;
+  laneStatus: string;
+  isFuturePhaseScope: boolean;
+  isDeferredRealEstateLane: boolean;
+};
+
+export const HARD_BLOCK_ADMISSION_FAILURE_CODES = new Set<PlanQualityFailureCode>([
+  'UNKNOWN_LANE_IDENTITY',
+  'ACTIVE_BLOCK_UNKNOWN_LANE',
+  'ACTIVE_BLOCK_UNKNOWN_ENTITY',
+  'LANE_CONTEXT_NOT_APPLIED',
+  'PROJECT_CONTEXT_MISSING',
+  'MISSING_COMPLETED_ARTIFACT',
+  'OUTPUT_ARTIFACT_TOO_VAGUE',
+  'TITLE_REPEATED_IN_PRODUCES',
+  'ABSTRACT_BLOCK_MEANING',
+  'BLOCK_DETAIL_AMBIGUOUS',
+  'PHASE_SCOPE_CONFLICT',
+  'PHASE_ENERGY_VIOLATION',
+  'DEFERRED_LANE_SCHEDULED_WITHOUT_JUSTIFICATION',
+  'LOW_PRIORITY_WORK_CROWDS_OUT_P1',
+  'FULL_HORIZON_REPRESENTATION_LEAKED_INTO_SPRINT',
+  'ENTITY_PURPOSE_MISMATCH',
+  'INTAKE_FACT_CONTRADICTION',
+  'MILESTONE_RENDERED_AS_EXECUTION_BLOCK',
+  'PLACEHOLDER_EXECUTION_LANGUAGE',
+  'GENERIC_PROGRESS_NOTE_ARTIFACT',
+  'ENTITY_DOCTRINE_UNRESOLVED',
+]);
 
 const TOKEN_SPLIT_PATTERN = /[^a-z0-9]+/i;
 
@@ -475,6 +526,347 @@ function inferRecurringGoal(goalText: string, verificationText: string) {
 
 function explicitEarlyCompletionAllowed(value: unknown) {
   return normalizeText(value).length >= 12;
+}
+
+const EXECUTION_READINESS_ALLOWED_JUSTIFICATIONS = [
+  {
+    label: 'Prerequisite proof',
+    pattern: /\bprerequisite proof|coalition prerequisite proof|legal prerequisite proof|dependency proof|proof before execution\b/i,
+  },
+  {
+    label: 'Blocking-dependency removal',
+    pattern: /\bblocking[- ]dependency removal|remove blocker|dependency removal|unblock\b/i,
+  },
+  {
+    label: 'Low-cost preservation',
+    pattern: /\blow[- ]cost preservation|preservation step|keep alive|preserve option\b/i,
+  },
+  {
+    label: 'Legal/capital/runway prerequisite',
+    pattern: /\blegal|capital|runway|income|job-search|funding|cashflow|financial constraint\b/i,
+  },
+  {
+    label: 'Hard-anchor protection',
+    pattern: /\bhard-anchor|hard anchor|timing-slip non-negotiables|non-negotiables\b/i,
+  },
+];
+
+function resolveExecutionReadinessJustification(block: PlanArtifact, detailContract?: BlockDetailQualityResult) {
+  const candidates = [
+    (block as any)?.phaseJustification,
+    (block as any)?.gatesJustification,
+    (block as any)?.justification,
+    detailContract?.phaseJustification,
+  ]
+    .map((value) => normalizeText(value))
+    .filter(Boolean);
+
+  for (const candidate of candidates) {
+    const match = EXECUTION_READINESS_ALLOWED_JUSTIFICATIONS.find(({ pattern }) => pattern.test(candidate));
+    if (match) {
+      return match.label;
+    }
+  }
+  return '';
+}
+
+function inferEntityPhaseScope(entityLabel: string): 'P1' | 'P2' | 'P3' | 'P1-P3' | 'P2-P3' | '' {
+  const normalized = normalizeText(entityLabel).toLowerCase();
+  if (!normalized) return '';
+  if (normalized === 'global state holdings' || normalized === 'f8 energy co.' || normalized === 'global state academy') {
+    return 'P2-P3';
+  }
+  if (
+    normalized === 'global state systems' ||
+    normalized === 'global state corp.' ||
+    normalized === 'global state productions' ||
+    normalized === 'global state solutions' ||
+    normalized === 'capital path or revenue engine'
+  ) {
+    return 'P1-P3';
+  }
+  return '';
+}
+
+function isUnknownIdentityLabel(value: unknown) {
+  return /^(unknown|missing|unassigned)?$/i.test(normalizeText(value));
+}
+
+function entityPurposeMismatched(entityLabel: string, title: string, laneContext: string) {
+  const entity = normalizeText(entityLabel).toLowerCase();
+  const text = normalizeText(title).toLowerCase();
+  const laneText = normalizeText(laneContext).toLowerCase();
+  if (!entity || !text) return false;
+  if (
+    (entity === 'f8 energy co.' || /energy_gym|energy gym|services revenue bridge/.test(laneText)) &&
+    /job-search|income demands|execution calendar|runway pressure|survival constraint/.test(text) &&
+    !/energy gym|wellness|manufactur|facility|member|services revenue bridge/.test(text)
+  ) {
+    return true;
+  }
+  if (
+    entity === 'global state holdings' &&
+    !/real-estate|real estate|asset thesis|property|site|district|corridor|acquisition|coalition|agency|public-interest|credibility dependency/.test(text)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function projectContextMissing(detailContract?: BlockDetailQualityResult) {
+  const projectLabel = normalizeText((detailContract as any)?.projectLabel || detailContract?.initiativeLabel);
+  const entityLabel = normalizeText(detailContract?.entityLabel).toLowerCase();
+  if (!projectLabel || /^unspecified initiative$/i.test(projectLabel)) {
+    return true;
+  }
+  if (entityLabel === 'global state productions' && /^content engine$/i.test(projectLabel)) {
+    return true;
+  }
+  if (entityLabel === 'global state holdings' && /^real estate$/i.test(projectLabel)) {
+    return true;
+  }
+  if (entityLabel === 'global state academy' && /^institution$/i.test(projectLabel)) {
+    return true;
+  }
+  if (entityLabel === 'f8 energy co.' && /^(revenue bridge|runway \/ income support)$/i.test(projectLabel)) {
+    return true;
+  }
+  return false;
+}
+
+function intakeFactContradicted(title: string, intakeText: string, entityLabel: string) {
+  const normalizedTitle = normalizeText(title).toLowerCase();
+  const normalizedIntake = normalizeText(intakeText).toLowerCase();
+  const normalizedEntity = normalizeText(entityLabel).toLowerCase();
+  if (!normalizedTitle || !normalizedIntake) {
+    return false;
+  }
+  const albumLane =
+    normalizedEntity === 'global state corp.' || /album|release engine|music/.test(`${normalizedTitle} ${normalizedEntity}`);
+  if (!albumLane) {
+    return false;
+  }
+  const intakeSaysComplete =
+    /recorded, mixed, and mastered|recording complete|mixing complete|mastering complete|production complete/.test(normalizedIntake);
+  const blockCommandsCompleteWork = /record|mix|master/.test(normalizedTitle);
+  return intakeSaysComplete && blockCommandsCompleteWork;
+}
+
+function entityDoctrineUnresolved(entityLabel: string, title: string, intakeText: string) {
+  const entity = normalizeText(entityLabel).toLowerCase();
+  const normalizedTitle = normalizeText(title).toLowerCase();
+  const normalizedIntake = normalizeText(intakeText).toLowerCase();
+  if (entity !== 'f8 energy co.') {
+    return false;
+  }
+  if (!/job-search|income|runway|survival|revenue bridge|execution calendar/.test(normalizedTitle)) {
+    return false;
+  }
+  return !/f8.*runway|f8.*income|runway bridge|energy\/runway bridge/.test(normalizedIntake);
+}
+
+function isLaunchCriticalP1Block(input: {
+  title: string;
+  entityLabel: string;
+  laneFamily: string;
+  phaseJustification: string;
+}) {
+  const title = normalizeText(input.title).toLowerCase();
+  const entityLabel = normalizeText(input.entityLabel).toLowerCase();
+  const laneFamily = normalizeText(input.laneFamily).toLowerCase();
+  const phaseJustification = normalizeText(input.phaseJustification);
+  if (phaseJustification) {
+    return true;
+  }
+  if (
+    entityLabel === 'global state systems' ||
+    entityLabel === 'global state corp.' ||
+    entityLabel === 'global state productions' ||
+    entityLabel === 'global state solutions' ||
+    entityLabel === 'capital path or revenue engine'
+  ) {
+    return true;
+  }
+  return /album|app|podcast|media|launch|runway|income|job-search|hard-anchor|hard anchor|dependency|onboarding|auth|cadence/.test(
+    `${title} ${laneFamily}`
+  );
+}
+
+function isNonCriticalP1EnergyLeak(input: {
+  title: string;
+  entityLabel: string;
+  laneStatus: string;
+  isFuturePhaseScope: boolean;
+  isDeferredRealEstateLane: boolean;
+  phaseJustification: string;
+}) {
+  const title = normalizeText(input.title).toLowerCase();
+  const entityLabel = normalizeText(input.entityLabel).toLowerCase();
+  const laneStatus = normalizeText(input.laneStatus).toLowerCase();
+  const phaseJustification = normalizeText(input.phaseJustification);
+  if (phaseJustification) {
+    return false;
+  }
+  const protectedNow = /launch blocker|prerequisite|dependency|runway|income|job-search|housing|transport|legal|capital|hard-anchor|hard anchor/.test(
+    title
+  );
+  if (protectedNow) {
+    return false;
+  }
+  return (
+    input.isFuturePhaseScope ||
+    input.isDeferredRealEstateLane ||
+    laneStatus === 'deferred' ||
+    laneStatus === 'incubating' ||
+    entityLabel === 'global state holdings' ||
+    entityLabel === 'global state academy' ||
+    entityLabel === 'f8 energy co.'
+  );
+}
+
+export function auditExecutionBlockAdmission(
+  block: Record<string, unknown>,
+  options: {
+    hierarchy?: Record<string, unknown>;
+    intakeText?: string;
+  } = {}
+): BlockAdmissionAuditResult {
+  const detailContract = resolveBlockPlainLanguage(block, {
+    hierarchy: options?.hierarchy || buildDetailHierarchyContext(block as PlanArtifact),
+  }) as BlockDetailQualityResult;
+  const phaseJustification = resolveExecutionReadinessJustification(block as PlanArtifact, detailContract);
+  const detailFailureCodes = Array.isArray(detailContract?.quality?.failureCodes)
+    ? detailContract.quality.failureCodes.map((code) => code as PlanQualityFailureCode)
+    : [];
+  const phaseLabel = normalizeText((block as any)?.phaseLabel).toUpperCase();
+  const laneStatus = normalizeText((block as any)?.executionContext?.laneStatus).toLowerCase();
+  const laneFamily = normalizeText((block as any)?.executionContext?.laneFamily).toLowerCase();
+  const laneText = `${normalizeText((block as any)?.laneLabel)} ${normalizeText((block as any)?.title)}`.toLowerCase();
+  const resolvedLaneLabel = normalizeText(detailContract?.laneLabel);
+  const resolvedEntityLabel = normalizeText(detailContract?.entityLabel);
+  const entityPhaseScope = inferEntityPhaseScope(resolvedEntityLabel);
+  const isFuturePhaseScope = entityPhaseScope === 'P2' || entityPhaseScope === 'P3' || entityPhaseScope === 'P2-P3';
+  const isDeferredRealEstateLane =
+    laneFamily === 'capital_real_estate' ||
+    /district|civic|real estate|property|site control|acquisition thesis/.test(laneText);
+  const failureCodes = new Set<PlanQualityFailureCode>(detailFailureCodes);
+
+  if (isUnknownIdentityLabel(resolvedLaneLabel) || detailFailureCodes.includes('UNKNOWN_LANE_IDENTITY')) {
+    failureCodes.add('ACTIVE_BLOCK_UNKNOWN_LANE');
+  }
+  if (isUnknownIdentityLabel(resolvedEntityLabel)) {
+    failureCodes.add('ACTIVE_BLOCK_UNKNOWN_ENTITY');
+  }
+  if (projectContextMissing(detailContract)) {
+    failureCodes.add('PROJECT_CONTEXT_MISSING');
+  }
+  if (entityPurposeMismatched(resolvedEntityLabel, normalizeText((block as any)?.title), `${normalizeText((block as any)?.laneId)} ${normalizeText((block as any)?.laneLabel)}`)) {
+    failureCodes.add('ENTITY_PURPOSE_MISMATCH');
+  }
+  if (entityDoctrineUnresolved(resolvedEntityLabel, normalizeText((block as any)?.title), normalizeText(options?.intakeText))) {
+    failureCodes.add('ENTITY_DOCTRINE_UNRESOLVED');
+  }
+  if (intakeFactContradicted(normalizeText((block as any)?.title), normalizeText(options?.intakeText), resolvedEntityLabel)) {
+    failureCodes.add('INTAKE_FACT_CONTRADICTION');
+  }
+  if (phaseLabel === 'P1' && (isFuturePhaseScope || laneStatus === 'deferred' || laneStatus === 'incubating' || isDeferredRealEstateLane)) {
+    if (!phaseJustification) {
+      failureCodes.add('PHASE_SCOPE_CONFLICT');
+      failureCodes.add('DEFERRED_LANE_SCHEDULED_WITHOUT_JUSTIFICATION');
+      failureCodes.add('FUTURE_PHASE_WORK_REQUIRES_PREREQUISITE_PROOF');
+    }
+  }
+  if (isDeferredRealEstateLane && phaseLabel === 'P1' && laneStatus === 'active' && !phaseJustification) {
+    failureCodes.add('PREMATURE_INITIATIVE_ACTIVATION');
+    failureCodes.add('DEFERRED_LANE_SCHEDULED_AS_ACTIVE');
+    failureCodes.add('LONG_HORIZON_LANE_OVERWEIGHTED_IN_P1');
+    failureCodes.add('PHASE_PRIORITY_MISCLASSIFIED');
+    if (/^decide whether\b/i.test(normalizeText((block as any)?.title))) {
+      failureCodes.add('USER_DECISION_DUMPING');
+    }
+  }
+
+  return {
+    detailContract,
+    failureCodes: Array.from(failureCodes),
+    phaseJustification,
+    resolvedEntityLabel,
+    laneFamily,
+    laneStatus,
+    isFuturePhaseScope,
+    isDeferredRealEstateLane,
+  };
+}
+
+function resolveAvailableWeekdayCount(workWindows: EvaluatePlanQualityGateInput['temporalContext']['workWindows']) {
+  const weekdayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  return weekdayKeys.reduce((count, key) => {
+    const windows = Array.isArray(workWindows?.[key]) ? workWindows[key] : [];
+    return count + (windows.some((window) => normalizeText(window?.start) && normalizeText(window?.end)) ? 1 : 0);
+  }, 0);
+}
+
+function analyzeScheduleDistributionClustering(input: {
+  executionArtifacts: PlanArtifact[];
+  temporalContext?: EvaluatePlanQualityGateInput['temporalContext'];
+}) {
+  const contractStartDayKey = normalizeText(input.temporalContext?.contractStartDayKey);
+  const contractEndDayKey = normalizeText(input.temporalContext?.contractEndDayKey);
+  if (!isDayKey(contractStartDayKey) || !isDayKey(contractEndDayKey)) return null;
+  const horizonDays = daysBetween(contractStartDayKey, contractEndDayKey) + 1;
+  if (horizonDays <= 0 || horizonDays > 60) return null;
+  const scheduledDayKeys = input.executionArtifacts
+    .map((block) => resolveArtifactDayKey(block))
+    .filter(isDayKey)
+    .filter((dayKey) => dayKey >= contractStartDayKey && dayKey <= contractEndDayKey)
+    .sort();
+  if (scheduledDayKeys.length < 6) return null;
+
+  const weekdayCounts = new Map<number, number>();
+  scheduledDayKeys.forEach((dayKey) => {
+    const weekday = new Date(`${dayKey}T12:00:00.000Z`).getUTCDay();
+    weekdayCounts.set(weekday, (weekdayCounts.get(weekday) || 0) + 1);
+  });
+  const rankedWeekdays = Array.from(weekdayCounts.entries()).sort((a, b) => b[1] - a[1]);
+  const topWeekdays = rankedWeekdays.slice(0, 2);
+  const clusteredWeekdayRatio =
+    topWeekdays.reduce((sum, [, count]) => sum + count, 0) / Math.max(1, scheduledDayKeys.length);
+  const usedWeekdayCount = weekdayCounts.size;
+  const availableWeekdayCount = resolveAvailableWeekdayCount(input.temporalContext?.workWindows || null);
+  const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const temporalDistribution = {
+    contractStartDayKey,
+    contractEndDayKey,
+    firstScheduledDayKey: scheduledDayKeys[0],
+    lastScheduledDayKey: scheduledDayKeys[scheduledDayKeys.length - 1],
+    horizonDays,
+    scheduledSpanDays: daysBetween(scheduledDayKeys[0], scheduledDayKeys[scheduledDayKeys.length - 1]) + 1,
+    occupiedMonths: Array.from(new Set(scheduledDayKeys.map((dayKey) => dayKey.slice(0, 7)))),
+    latestScheduledHorizonRatio: Math.max(0, daysBetween(contractStartDayKey, scheduledDayKeys[scheduledDayKeys.length - 1])) / Math.max(1, horizonDays),
+    requiredLatestHorizonRatio: 0,
+    requiredOccupiedMonths: 0,
+    remainingTailDays: Math.max(0, daysBetween(scheduledDayKeys[scheduledDayKeys.length - 1], contractEndDayKey)),
+    remainingTailRatio: Math.max(0, daysBetween(scheduledDayKeys[scheduledDayKeys.length - 1], contractEndDayKey)) / Math.max(1, horizonDays),
+    maxUnjustifiedTailRatio: 0,
+    scheduledBlockCount: scheduledDayKeys.length,
+    averageBlocksPerWeek: scheduledDayKeys.length / Math.max(1, horizonDays / 7),
+    requiredAverageBlocksPerWeek: 0,
+    maxInterBlockGapDays: 0,
+    maxAllowedInterBlockGapDays: 0,
+    averageActiveWeekdaysPerScheduledWeek: usedWeekdayCount,
+    requiredActiveWeekdaysPerScheduledWeek: 0,
+    clusteredWeekdayLabels: topWeekdays.map(([weekday]) => weekdayLabels[weekday] || String(weekday)),
+    clusteredWeekdayRatio,
+    availableWeekdayCount,
+  };
+
+  if (clusteredWeekdayRatio >= 0.75 && usedWeekdayCount <= 2 && availableWeekdayCount > usedWeekdayCount) {
+    return {
+      failureCode: 'SCHEDULE_DISTRIBUTION_CLUSTER_UNJUSTIFIED' as const,
+      temporalDistribution,
+    };
+  }
+  return { temporalDistribution };
 }
 
 function analyzeLongHorizonTemporalDistribution(input: {
@@ -1049,6 +1441,12 @@ function analyzeLaneContributionAuthenticity(input: {
   };
 }
 
+// Canonical plan-quality standard:
+// A Jericho plan is high quality when it converts a user goal into a dated,
+// owned, dependency-valid, phase-aware operating schedule whose blocks produce
+// inspectable artifacts, advance measurable gates, and preserve strategic
+// coherence across the full horizon. This gate is one enforcement surface for
+// that executable-schedule standard.
 export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): PlanQualityGateResult {
   const goalText = normalizeText(input.goalText);
   const verificationText = normalizeText(input.verificationText);
@@ -1367,8 +1765,12 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
   const fragmentaryBlockIds = new Set<string>();
   const nonActionableBlockIds = new Set<string>();
   const questionBlockIds = new Set<string>();
+  const detailQualityFailureBlockIds = new Map<PlanQualityFailureCode, Set<string>>();
   let reviewClassCount = 0;
   let executionClassCount = 0;
+  const p1EnergyLeakBlockIds = new Set<string>();
+  const p1CriticalBlockIds = new Set<string>();
+  const p1EnergyLeakEntities = new Set<string>();
 
   executionArtifacts.forEach((block, index) => {
     const blockId = normalizeText(block?.id) || `block-${index + 1}`;
@@ -1458,7 +1860,77 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
         reasonCodes.add('NON_ACTIONABLE_BLOCK_TITLE');
       }
     }
+
+    const admissionAudit = auditExecutionBlockAdmission(block as Record<string, unknown>, {
+      hierarchy: buildDetailHierarchyContext(block),
+    });
+    const detailContract = admissionAudit.detailContract;
+    const phaseJustification = admissionAudit.phaseJustification;
+    const detailFailureCodes = Array.isArray(detailContract?.quality?.failureCodes)
+      ? detailContract.quality.failureCodes
+      : [];
+    admissionAudit.failureCodes.forEach((code) => {
+      failureCodes.add(code as PlanQualityFailureCode);
+      reasonCodes.add(String(code));
+      if (detailFailureCodes.includes(code as any)) {
+        const existing = detailQualityFailureBlockIds.get(code as PlanQualityFailureCode) || new Set<string>();
+        existing.add(blockId);
+        detailQualityFailureBlockIds.set(code as PlanQualityFailureCode, existing);
+      }
+    });
+
+    const phaseLabel = normalizeText(block?.phaseLabel).toUpperCase();
+    const laneStatus = admissionAudit.laneStatus;
+    const laneFamily = admissionAudit.laneFamily;
+    const resolvedEntityLabel = admissionAudit.resolvedEntityLabel;
+    const isFuturePhaseScope = admissionAudit.isFuturePhaseScope;
+    const isDeferredRealEstateLane = admissionAudit.isDeferredRealEstateLane;
+    if (phaseLabel === 'P1') {
+      const blockTitle = normalizeText(block?.title);
+      if (
+        isLaunchCriticalP1Block({
+          title: blockTitle,
+          entityLabel: resolvedEntityLabel,
+          laneFamily,
+          phaseJustification,
+        })
+      ) {
+        p1CriticalBlockIds.add(blockId);
+      }
+      if (
+        isNonCriticalP1EnergyLeak({
+          title: blockTitle,
+          entityLabel: resolvedEntityLabel,
+          laneStatus,
+          isFuturePhaseScope,
+          isDeferredRealEstateLane,
+          phaseJustification,
+        })
+      ) {
+        p1EnergyLeakBlockIds.add(blockId);
+        if (resolvedEntityLabel) {
+          p1EnergyLeakEntities.add(resolvedEntityLabel);
+        }
+      }
+    }
   });
+
+  if (p1EnergyLeakBlockIds.size > 0) {
+    failureCodes.add('PHASE_ENERGY_VIOLATION');
+    reasonCodes.add('PHASE_ENERGY_VIOLATION');
+  }
+  if (p1EnergyLeakBlockIds.size >= 2) {
+    failureCodes.add('P1_NONCRITICAL_LANE_OVERREPRESENTED');
+    reasonCodes.add('P1_NONCRITICAL_LANE_OVERREPRESENTED');
+  }
+  if (p1EnergyLeakBlockIds.size > 0 && p1CriticalBlockIds.size > 0 && p1EnergyLeakBlockIds.size >= p1CriticalBlockIds.size) {
+    failureCodes.add('LOW_PRIORITY_WORK_CROWDS_OUT_P1');
+    reasonCodes.add('LOW_PRIORITY_WORK_CROWDS_OUT_P1');
+  }
+  if (p1EnergyLeakEntities.size >= 2) {
+    failureCodes.add('FULL_HORIZON_REPRESENTATION_LEAKED_INTO_SPRINT');
+    reasonCodes.add('FULL_HORIZON_REPRESENTATION_LEAKED_INTO_SPRINT');
+  }
 
   // MONITORING_WITHOUT_PRODUCTION: a plan whose classified blocks are majority review/audit/checkpoint
   // has scheduled oversight of work it never scheduled. Requires at least 3 classified blocks to fire.
@@ -1717,12 +2189,17 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
     }
   }
 
-  const temporalFinding = analyzeLongHorizonTemporalDistribution({
-    goalText,
-    verificationText,
-    executionArtifacts,
-    temporalContext: input.temporalContext,
-  });
+  const temporalFinding =
+    analyzeLongHorizonTemporalDistribution({
+      goalText,
+      verificationText,
+      executionArtifacts,
+      temporalContext: input.temporalContext,
+    }) ||
+    analyzeScheduleDistributionClustering({
+      executionArtifacts,
+      temporalContext: input.temporalContext,
+    });
   if (temporalFinding?.failureCode) {
     const temporalFailureCodes = Array.isArray(temporalFinding.failureCodes)
       ? temporalFinding.failureCodes
@@ -1821,6 +2298,12 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
       ...(fragmentaryBlockIds.size > 0 && { fragmentaryBlockIds: Array.from(fragmentaryBlockIds) }),
       ...(nonActionableBlockIds.size > 0 && { nonActionableBlockIds: Array.from(nonActionableBlockIds) }),
       ...(questionBlockIds.size > 0 && { questionBlockIds: Array.from(questionBlockIds) }),
+      ...(detailQualityFailureBlockIds.size > 0 && {
+        blockDetailQualityFailures: Array.from(detailQualityFailureBlockIds.entries()).reduce(
+          (acc, [code, ids]) => ({ ...acc, [code]: Array.from(ids) }),
+          {}
+        ),
+      }),
       ...(consumedByRefMissingBlockIds.size > 0 && { consumedByRefMissingBlockIds: Array.from(consumedByRefMissingBlockIds) }),
       ...(consumedByRefUnresolvedBlockIds.size > 0 && { consumedByRefUnresolvedBlockIds: Array.from(consumedByRefUnresolvedBlockIds) }),
       ...(consumedByRefNonDownstreamBlockIds.size > 0 && { consumedByRefNonDownstreamBlockIds: Array.from(consumedByRefNonDownstreamBlockIds) }),

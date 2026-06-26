@@ -73,4 +73,24 @@ describe('structure scheduling semantics summary', () => {
     );
     expect(getStructureSchedulingLabels(summary).scheduleStatusLabel).toMatch(/26\/45 blocks fit/i);
   });
+
+  it('keeps draft schedule status when canonical proposed blocks exist alongside a stale feasibility error', () => {
+    const summary = deriveStructureSchedulingSemanticSummary({
+      proposedBlocks: [{ id: 'p1', cycleId: 'c1', goalId: 'g1', status: 'suggested' }],
+      activeCycleId: 'c1',
+      activeGoalId: 'g1',
+      lastPlanError: {
+        code: 'FEASIBILITY_MISSING_FOR_PLAN',
+        reasonCodes: ['POS_FEASIBILITY_INPUT_MISSING'],
+      },
+    });
+
+    expect(summary).toEqual(
+      expect.objectContaining({
+        scheduleStatus: 'draft_schedule_ready',
+        proposedBlockCount: 1,
+      })
+    );
+    expect(getStructureSchedulingLabels(summary).scheduleStatusLabel).toBe('Schedule draft ready.');
+  });
 });

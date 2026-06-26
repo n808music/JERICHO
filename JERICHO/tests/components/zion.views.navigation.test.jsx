@@ -1,6 +1,9 @@
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
-import { describe, it, expect } from 'vitest';
+import '@testing-library/jest-dom';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import ZionDashboard from '../../src/components/ZionDashboard.jsx';
 import { IdentityProvider } from '../../src/state/identityStore.js';
 import {
@@ -92,6 +95,10 @@ function buildState(blockLabel = 'Anchor block') {
 }
 
 describe('Zion multi-view navigation', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('renders week view with correct header and 7 days', () => {
     const html = ReactDOMServer.renderToString(
       <IdentityProvider initialState={buildState()}>
@@ -99,10 +106,21 @@ describe('Zion multi-view navigation', () => {
       </IdentityProvider>
     );
     const weekKeys = getWeekDayKeys(ANCHOR_ISO, TIME_ZONE);
+    expect(weekKeys).toEqual([
+      '2026-02-08',
+      '2026-02-09',
+      '2026-02-10',
+      '2026-02-11',
+      '2026-02-12',
+      '2026-02-13',
+      '2026-02-14',
+    ]);
     weekKeys.forEach((dayKey) => {
       expect(html).toContain(`data-day="${dayKey}"`);
     });
     const label = formatWindowLabel(buildWindowSpec('week', ANCHOR_ISO, TIME_ZONE), TIME_ZONE);
+    expect(label).toContain('Feb 8, 2026');
+    expect(label).toContain('Feb 14, 2026');
     expect(html).toContain(label);
   });
 
@@ -150,5 +168,27 @@ describe('Zion multi-view navigation', () => {
     expect(nextWeek).toBe(addDays(ANCHOR_DAY, 7, TIME_ZONE));
     const nextMonth = shiftAnchorDayKey(ANCHOR_ISO, 'month', 1, TIME_ZONE);
     expect(nextMonth.startsWith('2026-03-')).toBe(true);
+  });
+
+  it('treats Today as its own mode and leaves month view when selected', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-02-10T15:30:45.000Z'));
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    render(
+      <IdentityProvider initialState={buildState()}>
+        <ZionDashboard initialView="today" initialZionView="month" initialAnchorDayKey={ANCHOR_DAY} />
+      </IdentityProvider>
+    );
+
+    expect(screen.getByText(/February 2026/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /^Today$/i }));
+
+    expect(screen.getByText('Feb 10')).toBeInTheDocument();
+    expect(screen.getByText('9:30:45 AM')).toBeInTheDocument();
+    expect(screen.queryByText(/February 2026/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Jump to current/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Go to next today/i })).not.toBeInTheDocument();
   });
 });

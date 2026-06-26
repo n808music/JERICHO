@@ -854,6 +854,67 @@ describe('evaluatePlanQualityGate', () => {
     expect(result.failureCodes).not.toContain('LONG_HORIZON_UNJUSTIFIED_TAIL_GAP');
   });
 
+  it('withholds short active schedules that cluster onto Tuesday and Wednesday without an availability reason', () => {
+    const deliverables = [
+      { id: 'd1', title: 'Jericho execution package', actionIds: ['a1'] },
+      { id: 'd2', title: 'Jericho validation package', actionIds: ['a2'] },
+    ];
+    const actions = actionsForDeliverables(deliverables);
+    const proposedBlocks = [
+      ...blocksForDates(['2026-06-02', '2026-06-03', '2026-06-09', '2026-06-10', '2026-06-16', '2026-06-17'], deliverables, actions),
+    ];
+
+    const result = evaluatePlanQualityGate({
+      goalText: 'Ship Jericho v1 platform',
+      verificationText: 'Jericho v1 platform shipped with onboarding, scheduler, dashboard, and validation ready',
+      deliverables,
+      actions,
+      proposedBlocks,
+      temporalContext: {
+        contractStartDayKey: '2026-06-01',
+        contractEndDayKey: '2026-06-21',
+        workWindows: {
+          mon: [{ start: '09:00', end: '15:00' }],
+          tue: [{ start: '09:00', end: '15:00' }],
+          wed: [{ start: '09:00', end: '15:00' }],
+          thu: [{ start: '09:00', end: '15:00' }],
+          fri: [{ start: '09:00', end: '15:00' }],
+        },
+      },
+    });
+
+    expect(result.status).toBe('PLAN_QUALITY_WITHHELD');
+    expect(result.failureCodes).toContain('SCHEDULE_DISTRIBUTION_CLUSTER_UNJUSTIFIED');
+    expect(result.meta?.temporalDistribution?.clusteredWeekdayLabels).toEqual(['Tue', 'Wed']);
+  });
+
+  it('does not flag Tuesday and Wednesday concentration when availability only allows those days', () => {
+    const deliverables = [
+      { id: 'd1', title: 'Jericho execution package', actionIds: ['a1'] },
+      { id: 'd2', title: 'Jericho validation package', actionIds: ['a2'] },
+    ];
+    const actions = actionsForDeliverables(deliverables);
+    const proposedBlocks = blocksForDates(['2026-06-02', '2026-06-03', '2026-06-09', '2026-06-10', '2026-06-16', '2026-06-17'], deliverables, actions);
+
+    const result = evaluatePlanQualityGate({
+      goalText: 'Ship Jericho v1 platform',
+      verificationText: 'Jericho v1 platform shipped with onboarding, scheduler, dashboard, and validation ready',
+      deliverables,
+      actions,
+      proposedBlocks,
+      temporalContext: {
+        contractStartDayKey: '2026-06-01',
+        contractEndDayKey: '2026-06-21',
+        workWindows: {
+          tue: [{ start: '09:00', end: '15:00' }],
+          wed: [{ start: '09:00', end: '15:00' }],
+        },
+      },
+    });
+
+    expect(result.failureCodes).not.toContain('SCHEDULE_DISTRIBUTION_CLUSTER_UNJUSTIFIED');
+  });
+
   it('does not apply non-recurring temporal compression rules to recurring cadence goals', () => {
     const result = evaluatePlanQualityGate({
       goalText: 'Publish a weekly podcast for one year',

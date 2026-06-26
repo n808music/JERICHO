@@ -65,4 +65,20 @@ describe('Structure schedule status semantic rule', () => {
     expect(screen.getByText(/schedule active\./i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /view in today/i })).not.toBeInTheDocument();
   });
+
+  it('keeps draft-ready status when a stale feasibility error exists alongside cycle-local proposed blocks', () => {
+    mockStore = buildStore({
+      proposedBlocks: [],
+      lastPlanError: { code: 'FEASIBILITY_MISSING_FOR_PLAN', reasonCodes: ['POS_FEASIBILITY_INPUT_MISSING'] },
+    });
+    mockStore.cyclesById['cycle-1'] = {
+      ...mockStore.cyclesById['cycle-1'],
+      proposedBlocks: [{ id: 'cycle-proposal-1', cycleId: 'cycle-1', goalId: 'goal-1', status: 'suggested' }],
+    };
+
+    render(<StructurePageConsolidated />);
+
+    expect(screen.getByText(/schedule draft ready\./i)).toBeInTheDocument();
+    expect(screen.queryByText(/generation failed: FEASIBILITY_MISSING_FOR_PLAN/i)).not.toBeInTheDocument();
+  });
 });
