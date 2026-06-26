@@ -41,6 +41,19 @@ describe('resolveOperatingHierarchyDisplay', () => {
     expect(result.initiative).toBe('Creative / Entertainment');
   });
 
+  it('projects named initiatives from Operation Endgame substrate labels', () => {
+    const result = resolveOperatingHierarchyDisplay({
+      block: {
+        title: 'Validate onboarding path for Operation Endgame app platform in P1 product/software lane',
+        phaseLabel: 'P1',
+        laneLabel: 'Operation Endgame app platform',
+      },
+    });
+
+    expect(result.lane).toBe('Product / Software');
+    expect(result.initiative).toBe('Jericho System');
+  });
+
   it('handles missing sprint and operating cycle metadata gracefully', () => {
     expect(
       resolveOperatingHierarchyDisplay({
