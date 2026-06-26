@@ -5,7 +5,7 @@ import {
 } from '../state/identityStore.js';
 import { computeDerivedState } from '../state/identityCompute.js';
 import { applyMasterPlanAction } from '../state/masterPlanStore.js';
-import { dayKeyFromISO } from '../state/time/time.ts';
+import { APP_TIME_ZONE, dayKeyFromISO } from '../state/time/time.ts';
 import { IS_PRODUCTION } from '../utils/runtimeEnv.js';
 
 export const OPERATION_ENDGAME_GOAL_TEXT =
@@ -75,7 +75,7 @@ const BACKUP_LATEST_KEY = 'jericho-identity-backup-latest';
 const BACKUP_LATEST_POINTER_KEY = 'jericho-identity-backup-latest-key';
 const BACKUP_PREFIX = 'jericho-identity-backup:';
 
-function resolveLiveAppClock({ appNowISO = null, appTodayDate = null, timeZone = 'UTC' } = {}) {
+function resolveLiveAppClock({ appNowISO = null, appTodayDate = null, timeZone = APP_TIME_ZONE } = {}) {
   const liveNowISO = String(appNowISO || '').trim() || new Date().toISOString();
   const liveTodayDate = String(appTodayDate || '').trim() || dayKeyFromISO(liveNowISO, timeZone) || DEFAULT_TODAY_DATE;
   return {
@@ -502,9 +502,9 @@ export function buildOperationEndgameFixtureState(options = {}) {
   const { liveNowISO, liveTodayDate } = resolveLiveAppClock({
     appNowISO: appNowISO || (hasExplicitSeedNowISO ? nowISO : null),
     appTodayDate,
-    timeZone: 'UTC',
+    timeZone: APP_TIME_ZONE,
   });
-  const state = buildBlankIdentityState({ timeZone: 'UTC', nowISO, todayDate });
+  const state = buildBlankIdentityState({ timeZone: APP_TIME_ZONE, nowISO, todayDate });
   const laneConfigs = buildLaneConfigs();
   const answers = {
     step_1: OPERATION_ENDGAME_GOAL_TEXT,
@@ -659,7 +659,7 @@ export function buildOperationEndgameFixtureState(options = {}) {
 
   next.appTime = {
     ...(next.appTime || {}),
-    timeZone: next.appTime?.timeZone || 'UTC',
+    timeZone: next.appTime?.timeZone || APP_TIME_ZONE,
     nowISO: liveNowISO,
     activeDayKey: liveTodayDate,
     isFollowingNow: true,

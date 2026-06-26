@@ -15,6 +15,7 @@ import {
 } from '../../src/dev/operationEndgameRestore.js';
 import MasterPlanTimeline from '../../src/ui/masterPlan/MasterPlanTimeline.jsx';
 import { DEFAULT_PROFILE_ID, rehydratePersistedState } from '../../src/state/identityStore.js';
+import { APP_TIME_ZONE } from '../../src/state/time/time.ts';
 
 let mockStore = {};
 
@@ -162,6 +163,7 @@ describe('Operation Endgame dev restore fixture', () => {
 
     expect(plan.horizonStart).toBe('2026-05-19');
     expect(plan.officialStartDate).toBe('2026-05-19');
+    expect(state.appTime.timeZone).toBe(APP_TIME_ZONE);
     expect(state.appTime.nowISO).toBe('2026-06-13T12:00:00.000Z');
     expect(state.appTime.activeDayKey).toBe('2026-06-13');
     expect(state.today.date).toBe('2026-06-13');
@@ -250,6 +252,7 @@ describe('Operation Endgame dev restore fixture', () => {
     const plan = rehydrated.masterPlansById?.[rehydrated.profilesById?.[DEFAULT_PROFILE_ID]?.activeMasterPlanId];
 
     expect(plan?.horizonStart).toBe('2026-05-19');
+    expect(rehydrated.appTime.timeZone).toBe(APP_TIME_ZONE);
     expect(rehydrated.appTime.nowISO).toBe('2026-06-13T12:00:00.000Z');
     expect(rehydrated.appTime.activeDayKey).toBe('2026-06-13');
     expect(rehydrated.today.date).toBe('2026-06-13');
