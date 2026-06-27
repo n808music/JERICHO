@@ -1861,30 +1861,49 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
       }
     }
 
-    const admissionAudit = auditExecutionBlockAdmission(block as Record<string, unknown>, {
-      hierarchy: buildDetailHierarchyContext(block),
-    });
-    const detailContract = admissionAudit.detailContract;
-    const phaseJustification = admissionAudit.phaseJustification;
-    const detailFailureCodes = Array.isArray(detailContract?.quality?.failureCodes)
-      ? detailContract.quality.failureCodes
-      : [];
-    admissionAudit.failureCodes.forEach((code) => {
-      failureCodes.add(code as PlanQualityFailureCode);
-      reasonCodes.add(String(code));
-      if (detailFailureCodes.includes(code as any)) {
+    // The admission audit is an enterprise-identity check: it only produces
+    // meaningful signal for blocks that carry lane/entity labels (master-plan
+    // blocks enriched by buildCanonicalScheduleIdentityMetadata). For blocks
+    // without that context (direct-goal, unit-test fixtures, first-cycle sprint
+    // blocks not yet enriched) the audit would emit ACTIVE_BLOCK_UNKNOWN_LANE /
+    // ACTIVE_BLOCK_UNKNOWN_ENTITY / PROJECT_CONTEXT_MISSING as false positives.
+    // Additionally, detailFailureCodes come from resolveBlockPlainLanguage
+    // (content-quality); those are already surfaced by the substrate checks above,
+    // so we skip them to avoid double-counting.
+    const blockHasEntityContext = Boolean(
+      normalizeText((block as any)?.entityLabel) || normalizeText((block as any)?.laneLabel)
+    );
+    let laneStatus = '';
+    let laneFamily = '';
+    let resolvedEntityLabel = '';
+    let isFuturePhaseScope = false;
+    let isDeferredRealEstateLane = false;
+    let phaseJustification = '';
+    if (blockHasEntityContext) {
+      const admissionAudit = auditExecutionBlockAdmission(block as Record<string, unknown>, {
+        hierarchy: buildDetailHierarchyContext(block),
+      });
+      const detailContract = admissionAudit.detailContract;
+      phaseJustification = admissionAudit.phaseJustification;
+      const detailFailureCodeSet = new Set(
+        Array.isArray(detailContract?.quality?.failureCodes) ? detailContract.quality.failureCodes : []
+      );
+      admissionAudit.failureCodes.forEach((code) => {
+        if (detailFailureCodeSet.has(code as any)) return;
+        failureCodes.add(code as PlanQualityFailureCode);
+        reasonCodes.add(String(code));
         const existing = detailQualityFailureBlockIds.get(code as PlanQualityFailureCode) || new Set<string>();
         existing.add(blockId);
         detailQualityFailureBlockIds.set(code as PlanQualityFailureCode, existing);
-      }
-    });
+      });
+      laneStatus = admissionAudit.laneStatus;
+      laneFamily = admissionAudit.laneFamily;
+      resolvedEntityLabel = admissionAudit.resolvedEntityLabel;
+      isFuturePhaseScope = admissionAudit.isFuturePhaseScope;
+      isDeferredRealEstateLane = admissionAudit.isDeferredRealEstateLane;
+    }
 
     const phaseLabel = normalizeText(block?.phaseLabel).toUpperCase();
-    const laneStatus = admissionAudit.laneStatus;
-    const laneFamily = admissionAudit.laneFamily;
-    const resolvedEntityLabel = admissionAudit.resolvedEntityLabel;
-    const isFuturePhaseScope = admissionAudit.isFuturePhaseScope;
-    const isDeferredRealEstateLane = admissionAudit.isDeferredRealEstateLane;
     if (phaseLabel === 'P1') {
       const blockTitle = normalizeText(block?.title);
       if (

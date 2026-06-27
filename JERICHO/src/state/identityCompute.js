@@ -3680,8 +3680,15 @@ function setCycleProposedBlocks(state, cycleId, proposals = []) {
       identityKey: proposal.identityKey || identity,
     });
   });
+  // Admission audit requires lane/entity context that only master-plan cycles have.
+  // Direct-goal cycles (no masterPlanId) bypass hard rejection.
+  const cycleRecord = state?.cyclesById?.[cycleId] || null;
+  const hasMasterPlanContext = Boolean(cycleRecord?.masterPlanId);
   const audited = normalized.map((proposal) => {
     if (proposal?.status && proposal.status !== 'suggested') {
+      return proposal;
+    }
+    if (!hasMasterPlanContext) {
       return proposal;
     }
     const reviewBlock = buildScheduleReviewBlock(state, proposal, {
@@ -12969,7 +12976,13 @@ function applyDraftSchedule(state, payload = {}) {
     return;
   }
   const admissionRejectedDrafts = [];
+  // Admission audit only applies to master-plan cycles; direct-goal cycles
+  // lack lane/entity context the audit requires.
+  const applyHasMasterPlanContext = Boolean(cycle?.masterPlanId);
   proposedItems = proposedItems.filter((item) => {
+    if (!applyHasMasterPlanContext) {
+      return true;
+    }
     const reviewBlock = buildScheduleReviewBlock(state, item, {
       cycleId: cycle.id,
       goalId: contract.goalId,
@@ -13055,6 +13068,10 @@ function applyDraftSchedule(state, payload = {}) {
     .filter(Boolean);
   const admittedReviewBlocks = [];
   reviewBlocks.forEach((block) => {
+    if (!applyHasMasterPlanContext) {
+      admittedReviewBlocks.push(block);
+      return;
+    }
     const admissionAudit = auditBlockForSurfaceAdmission(state, block, {
       cycleId: cycle.id,
       goalId: contract.goalId,

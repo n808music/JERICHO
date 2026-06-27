@@ -174,9 +174,6 @@ export default function BlockDetailsPanel({
             <p className="text-muted">
               <span className="font-semibold text-jericho-text">Lane:</span> {plainLanguage.laneLabel || 'Missing'}
             </p>
-            <p className="text-muted">
-              <span className="font-semibold text-jericho-text">Entity:</span> {plainLanguage.entityLabel || 'Missing'}
-            </p>
           </div>
           <div className="grid gap-1 sm:grid-cols-2">
             <p className="text-muted">

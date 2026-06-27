@@ -12,6 +12,7 @@ export default function BlockColumn({
   drafts = [],
   timeZone = 'UTC',
   onBlockClick,
+  selectedBlockId = null,
   lineageBlocks = null,
   deliverableLabelById = {},
   criterionLabelById = {},
@@ -71,6 +72,7 @@ export default function BlockColumn({
               key={block.id || `${label}-${block.start}`}
               data-testid={`block-${block.id || label}`}
               data-block-id={block.id || label}
+              aria-pressed={String(selectedBlockId === (block.id || label))}
               className="absolute left-1 right-1 overflow-hidden text-left group rounded-md border border-line/60 bg-white shadow-xs"
               style={{ top: y, height: h }}
               onClick={() => onBlockClick?.(block.id)}
