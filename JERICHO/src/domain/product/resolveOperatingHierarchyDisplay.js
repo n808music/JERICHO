@@ -4,6 +4,14 @@ const PHASE_LABELS = {
   P3: 'P3 Scale / Terminal Readiness',
 };
 
+const INITIATIVE_ALIAS_TABLE = [
+  {
+    initiative: 'Jericho System',
+    lane: 'Product / Software',
+    aliases: ['jericho system', 'operation endgame app platform', 'product platform onboarding', 'onboarding implementation'],
+  },
+];
+
 const MILESTONE_TYPE_LABELS = {
   macro: 'Macro Milestone',
   cross_lane: 'Macro Milestone',
@@ -52,18 +60,60 @@ function phaseFromInput({ phase, block }) {
 }
 
 function laneFromInput({ lane, block }) {
-  return (
+  const rawLane =
     normalizeText(lane?.label || lane?.title || lane?.name || lane) ||
-    normalizeText(block?.laneLabel || block?.laneName || block?.lane)
-  );
+    normalizeText(block?.laneLabel || block?.laneName || block?.lane);
+  const laneText = rawLane.toLowerCase();
+  if (/district|civic|corridor|physical footprint|real estate|site control|property|acquisition thesis/.test(laneText)) {
+    return 'Real Estate';
+  }
+  return rawLane;
 }
 
 function initiativeFromInput({ initiative, block, laneLabel }) {
-  return (
+  const explicitInitiative =
     normalizeText(initiative?.label || initiative?.title || initiative?.name || initiative) ||
-    normalizeText(block?.initiativeLabel || block?.initiativeTitle || block?.initiativeName || block?.initiative) ||
-    laneLabel
-  );
+    normalizeText(block?.initiativeLabel || block?.initiativeTitle || block?.initiativeName || block?.initiative);
+  if (explicitInitiative) {
+    return {
+      initiative: explicitInitiative,
+      lane: laneLabel,
+    };
+  }
+
+  const haystacks = [
+    block?.displayTitle,
+    block?.title,
+    block?.label,
+    block?.laneLabel,
+    block?.laneName,
+    block?.mission,
+    block?.cluster,
+  ]
+    .map((value) => normalizeText(value).toLowerCase())
+    .filter(Boolean);
+
+  for (const candidate of INITIATIVE_ALIAS_TABLE) {
+    const matched = candidate.aliases.some((alias) => haystacks.some((haystack) => haystack.includes(alias)));
+    if (matched) {
+      return {
+        initiative: candidate.initiative,
+        lane: candidate.lane || laneLabel,
+      };
+    }
+  }
+
+  if (/district|civic|corridor|physical footprint|real estate|site control|property|acquisition thesis/.test(haystacks.join(' '))) {
+    return {
+      initiative: 'Real Estate',
+      lane: 'Real Estate',
+    };
+  }
+
+  return {
+    initiative: laneLabel,
+    lane: laneLabel,
+  };
 }
 
 function cycleFromInput({ operatingCycle, cycle }) {
@@ -130,6 +180,11 @@ function milestoneTypeFromInput({ milestoneType, block, laneLabel }) {
 export function resolveOperatingHierarchyDisplay(input = {}) {
   const block = input?.block || {};
   const laneLabel = laneFromInput({ lane: input?.lane, block });
+  const initiativeDisplay = initiativeFromInput({
+    initiative: input?.initiative,
+    block,
+    laneLabel,
+  });
 
   return {
     masterPlan: normalizeText(input?.masterPlan || 'Operation Endgame'),
@@ -137,8 +192,8 @@ export function resolveOperatingHierarchyDisplay(input = {}) {
     phase: phaseFromInput({ phase: input?.phase, block }),
     operatingCycle: cycleFromInput({ operatingCycle: input?.operatingCycle, cycle: input?.cycle }),
     sprint: sprintFromInput({ sprint: input?.sprint, block }),
-    lane: laneLabel,
-    initiative: initiativeFromInput({ initiative: input?.initiative, block, laneLabel }),
+    lane: initiativeDisplay.lane || laneLabel,
+    initiative: initiativeDisplay.initiative || laneLabel,
     block: titleFromBlock(block),
     milestoneType: milestoneTypeFromInput({ milestoneType: input?.milestoneType, block, laneLabel }),
   };

@@ -43,6 +43,7 @@ describe('autoAsanaPlan execution substrate', () => {
   it('emits execution-contract substrate for split sessions and terminal blocks', () => {
     const plan = compileAutoAsanaPlan(
       baseArgs({
+        defaultOwner: 'James / Operation Endgame',
         actionSequence: [
           {
             id: 'a1',
@@ -76,7 +77,7 @@ describe('autoAsanaPlan execution substrate', () => {
     const second = executionBlocks[1];
     const last = executionBlocks[executionBlocks.length - 1];
 
-    expect(first.owner).toBe('executor');
+    expect(first.owner).toBe('James / Operation Endgame');
     expect(first.producesArtifact).toBe('Offer positioning brief with ICP, promise, and pricing stance');
     expect(first.passEvidence).toBe(
       'Positioning brief reviewed with target customer, promise, and pricing stance validated'
@@ -84,14 +85,14 @@ describe('autoAsanaPlan execution substrate', () => {
     expect(first.consumedBy).toEqual([second.title]);
     expect(first.consumedByRef).toEqual({ type: 'block', id: second.id });
 
-    expect(second.owner).toBe('executor');
+    expect(second.owner).toBe('James / Operation Endgame');
     expect(second.producesArtifact).toBe('Offer positioning brief with ICP, promise, and pricing stance');
     expect(second.passEvidence).toBe(
       'Positioning brief reviewed with target customer, promise, and pricing stance validated'
     );
     expect(second.consumedByRef).toEqual({ type: 'block', id: executionBlocks[2].id });
 
-    expect(last.owner).toBe('executor');
+    expect(last.owner).toBe('James / Operation Endgame');
     expect(last.producesArtifact).toBe('Checkout page live with CTA, product details, and test order path');
     expect(last.passEvidence).toBe(
       'Checkout page loads, CTA works, and a test order reaches confirmation successfully'
@@ -136,5 +137,49 @@ describe('autoAsanaPlan execution substrate', () => {
     expect(waitingBlock.producesArtifact ?? null).toBeNull();
     expect(waitingBlock.passEvidence ?? null).toBeNull();
     expect(waitingBlock.consumedByRef ?? null).toBeNull();
+  });
+
+  it('preserves explicit owner overrides on generated execution blocks', () => {
+    const plan = compileAutoAsanaPlan(
+      baseArgs({
+        defaultOwner: 'James / Operation Endgame',
+        actionSequence: [
+          {
+            id: 'a1',
+            title: 'Draft charter and timeline',
+            deliverable: 'Charter and timeline package',
+            definitionOfDone: 'Charter and timeline reviewed and approved',
+            estimateMin: 60,
+            dependencies: [],
+            deliverableId: 'd1',
+            deliverableTitle: 'Charter and timeline package',
+            owner: 'Strategy Lead',
+          },
+        ],
+      })
+    );
+
+    expect(plan.horizonBlocks[0].owner).toBe('Strategy Lead');
+  });
+
+  it('falls back to executor only when no profile owner is provided', () => {
+    const plan = compileAutoAsanaPlan(
+      baseArgs({
+        actionSequence: [
+          {
+            id: 'a1',
+            title: 'Draft offer positioning brief',
+            deliverable: 'Offer positioning brief',
+            definitionOfDone: 'Offer positioning brief reviewed',
+            estimateMin: 60,
+            dependencies: [],
+            deliverableId: 'd1',
+            deliverableTitle: 'Offer positioning brief',
+          },
+        ],
+      })
+    );
+
+    expect(plan.horizonBlocks[0].owner).toBe('executor');
   });
 });

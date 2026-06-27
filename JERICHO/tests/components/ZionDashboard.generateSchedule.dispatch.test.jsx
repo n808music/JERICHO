@@ -220,9 +220,22 @@ function buildMasterPlanOnlyStore() {
 
 describe('ZionDashboard schedule generation dispatch wiring', () => {
   beforeEach(() => {
+    window.location.hash = '';
     generateScheduleForActiveCycle.mockClear();
     completeCycleReassessment.mockClear();
     mockStore = buildStore();
+  });
+
+  it('keeps Today active when schedule generation is the next step from structure', async () => {
+    window.location.hash = '#/structure';
+
+    render(<ZionDashboard initialView="structure" initialZionView="day" />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /today execution/i }));
+
+    expect(window.location.hash).toBe('#/today');
+    expect(screen.getByRole('button', { name: /generate schedule/i })).toBeEnabled();
   });
 
   it('generate schedule button uses canonical active-cycle scheduler action', async () => {
@@ -319,6 +332,79 @@ describe('ZionDashboard schedule generation dispatch wiring', () => {
     await user.click(screen.getByRole('button', { name: /Accept current-state reassessment/i }));
 
     expect(completeCycleReassessment).toHaveBeenCalledWith('cycle-active');
+  });
+
+  it('does not let a stale future startedAtDayKey suppress first-cycle generation when the canonical start is today', async () => {
+    mockStore = buildStore();
+    mockStore.activeProfileId = 'profile-1';
+    mockStore.profilesById = {
+      'profile-1': {
+        id: 'profile-1',
+        label: 'Local Profile',
+        goalIds: ['goal-1'],
+        activeGoalId: 'goal-1',
+        activeMasterPlanId: 'masterplan-1',
+        masterCalendarId: 'calendar-profile-1',
+        strategicClusterIds: [],
+        status: 'active',
+      },
+    };
+    mockStore.masterCalendarsById = {
+      'calendar-profile-1': {
+        id: 'calendar-profile-1',
+        profileId: 'profile-1',
+        availableCapacityHours: 30,
+      },
+    };
+    mockStore.masterPlansById = {
+      'masterplan-1': {
+        id: 'masterplan-1',
+        profileId: 'profile-1',
+        title: 'Operation Endgame',
+        horizonStart: '2026-05-19',
+        horizonEnd: '2031-05-19',
+        fullHorizonEndDayKey: '2031-05-19',
+        laneIds: [],
+        anchors: [{ id: 'anchor-oct17', date: '2026-10-17', label: 'Oct 17', isFixed: true }],
+      },
+    };
+    mockStore.today.date = '2026-06-04';
+    mockStore.appTime = {
+      nowISO: '2026-06-04T12:00:00.000Z',
+      activeDayKey: '2026-06-04',
+      timeZone: 'America/Chicago',
+    };
+    mockStore.cyclesById['cycle-active'].source = 'master_plan';
+    mockStore.cyclesById['cycle-active'].masterPlanId = 'masterplan-1';
+    mockStore.cyclesById['cycle-active'].startedAtDayKey = '2026-08-04';
+    mockStore.cyclesById['cycle-active'].goalContract.startDayKey = '2026-06-04';
+    mockStore.cyclesById['cycle-active'].goalContract.endDayKey = '2026-10-17';
+    mockStore.cyclesById['cycle-active'].goalContract.masterPlanId = 'masterplan-1';
+    mockStore.cyclesById['cycle-active'].goalContract.constraintsStatus = 'approved';
+    mockStore.cyclesById['cycle-active'].goalContract.capacityValidation = {
+      status: 'approved',
+      availableWeeklyMinutes: 1800,
+      requiredWeeklyMinutes: 528,
+      gapWeeklyMinutes: 0,
+      mitigationSuggestions: [],
+    };
+    mockStore.goalExecutionContract = {
+      ...mockStore.goalExecutionContract,
+      startDayKey: '2026-06-04',
+      endDayKey: '2026-10-17',
+      constraintsStatus: 'approved',
+      capacityValidation: mockStore.cyclesById['cycle-active'].goalContract.capacityValidation,
+    };
+
+    render(<ZionDashboard initialView="today" initialZionView="day" />);
+
+    expect(document.body.textContent).not.toMatch(/Drafts begin on Aug 4/i);
+    expect(screen.getByRole('button', { name: /generate schedule/i })).toBeEnabled();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /generate schedule/i }));
+
+    expect(generateScheduleForActiveCycle).toHaveBeenCalledTimes(1);
   });
 
   it('renders expected output and partial first-cycle coverage for proposed draft blocks', () => {

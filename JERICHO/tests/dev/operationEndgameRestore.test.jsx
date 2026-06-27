@@ -15,6 +15,7 @@ import {
 } from '../../src/dev/operationEndgameRestore.js';
 import MasterPlanTimeline from '../../src/ui/masterPlan/MasterPlanTimeline.jsx';
 import { DEFAULT_PROFILE_ID, rehydratePersistedState } from '../../src/state/identityStore.js';
+import { APP_TIME_ZONE } from '../../src/state/time/time.ts';
 
 let mockStore = {};
 
@@ -153,6 +154,21 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(state.planRecovery).toBeNull();
   });
 
+  it('keeps the master-plan horizon on May 19 while resolving live appTime from the runtime date', () => {
+    const state = buildOperationEndgameFixtureState({
+      appNowISO: '2026-06-13T12:00:00.000Z',
+    });
+    const summary = summarizeOperationEndgameFixtureState(state);
+    const plan = state.masterPlansById[summary.activeMasterPlanId];
+
+    expect(plan.horizonStart).toBe('2026-05-19');
+    expect(plan.officialStartDate).toBe('2026-05-19');
+    expect(state.appTime.timeZone).toBe(APP_TIME_ZONE);
+    expect(state.appTime.nowISO).toBe('2026-06-13T12:00:00.000Z');
+    expect(state.appTime.activeDayKey).toBe('2026-06-13');
+    expect(state.today.date).toBe('2026-06-13');
+  });
+
   it('keeps canonical Operation Endgame mission text free of demo revenue and fixture user-target contamination', () => {
     const state = buildOperationEndgameFixtureState();
     const summary = summarizeOperationEndgameFixtureState(state);
@@ -222,6 +238,26 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(rehydratedAgenda?.blockCount).toBe((rehydrated.fullHorizonScheduleBlocks || []).length);
   });
 
+  it('restoring Operation Endgame does not pin persisted live appTime to the fixture horizon start', () => {
+    const storage = createStorageMock();
+
+    restoreOperationEndgameFixture({
+      reload: false,
+      storage,
+      appNowISO: '2026-06-13T12:00:00.000Z',
+    });
+
+    const written = JSON.parse(storage.getItem('jericho-identity'));
+    const rehydrated = rehydratePersistedState(written);
+    const plan = rehydrated.masterPlansById?.[rehydrated.profilesById?.[DEFAULT_PROFILE_ID]?.activeMasterPlanId];
+
+    expect(plan?.horizonStart).toBe('2026-05-19');
+    expect(rehydrated.appTime.timeZone).toBe(APP_TIME_ZONE);
+    expect(rehydrated.appTime.nowISO).toBe('2026-06-13T12:00:00.000Z');
+    expect(rehydrated.appTime.activeDayKey).toBe('2026-06-13');
+    expect(rehydrated.today.date).toBe('2026-06-13');
+  });
+
   it('still writes the active identity when full backup storage hits QuotaExceededError', () => {
     const writes = new Map([['jericho-identity', JSON.stringify({ existing: true })]]);
     const storage = {
@@ -255,7 +291,12 @@ describe('Operation Endgame dev restore fixture', () => {
       },
     };
 
-    const summary = restoreOperationEndgameFixture({ reload: false, storage, nowISO: '2026-05-20T00:00:00.000Z' });
+    const summary = restoreOperationEndgameFixture({
+      reload: false,
+      storage,
+      nowISO: '2026-05-20T00:00:00.000Z',
+      appNowISO: '2026-05-20T00:00:00.000Z',
+    });
     const written = JSON.parse(storage.getItem('jericho-identity'));
     const compactBackup = JSON.parse(storage.getItem('jericho-identity-backup-latest'));
 
@@ -273,7 +314,13 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(rehydrated.fullHorizonCoverageAudit?.fullHorizonCovered).toBe(true);
     expect(rehydrated.fullHorizonPlanQuality?.state).toBe('trusted');
     expect(rehydrated.fullHorizonBlockQuality?.state).toBeTruthy();
-    expect(Object.keys(rehydrated.masterPlanAgendaVersionsById || {})).toHaveLength(1);
+    expect(Object.keys(rehydrated.masterPlanAgendaVersionsById || {}).length).toBeGreaterThan(0);
+    expect(
+      rehydrated.masterPlanAgendaVersionsById?.[
+        rehydrated.masterPlansById?.[rehydrated.profilesById?.[DEFAULT_PROFILE_ID]?.activeMasterPlanId]
+          ?.currentAgendaVersionId
+      ]?.state
+    ).toBe('current');
     expect(compactBackup.type).toBe('compact-backup-metadata');
     expect(compactBackup.activeProfileId).toBeNull();
   });

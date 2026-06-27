@@ -1,4 +1,27 @@
-const API_BASE = 'http://localhost:8000';
+function trimTrailingSlash(value) {
+  return String(value || '').replace(/\/+$/, '');
+}
+
+function getConfiguredApiBase() {
+  const envBase =
+    (typeof process !== 'undefined' && (process.env?.VITE_API_BASE || process.env?.JERICHO_API_BASE)) || '';
+  if (envBase) {
+    return trimTrailingSlash(envBase);
+  }
+  if (typeof window !== 'undefined') {
+    // In the browser, prefer same-origin /api requests so Vite dev proxy can
+    // forward to the backend without tripping CORS on localhost.
+    return '';
+  }
+  return 'http://localhost:8000';
+}
+
+function buildApiUrl(path) {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const base = getConfiguredApiBase();
+  return base ? `${base}${normalizedPath}` : normalizedPath;
+}
+
 const DEVICE_ID_KEY = 'jericho-device-id';
 const AUTH_TOKEN_KEY = 'jericho-auth-token';
 
@@ -18,10 +41,14 @@ async function ensureAuth() {
   if (existing) return existing;
 
   const deviceId = getOrCreateDeviceId();
-  const resp = await fetch(`${API_BASE}/api/auth/device`, {
+  const deviceUrl = new URL(buildApiUrl('/api/auth/device'), typeof window !== 'undefined' ? window.location.origin : undefined);
+  deviceUrl.searchParams.set('device_id', deviceId);
+  const requestUrl =
+    typeof window !== 'undefined' && getConfiguredApiBase() === ''
+      ? `${deviceUrl.pathname}${deviceUrl.search}`
+      : deviceUrl.toString();
+  const resp = await fetch(requestUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ device_id: deviceId }),
   });
   if (!resp.ok) throw new Error(`Device auth failed: ${resp.status}`);
   const { access_token } = await resp.json();
@@ -32,7 +59,8 @@ async function ensureAuth() {
 export async function pushState(stateBlob) {
   try {
     const token = await ensureAuth();
-    const resp = await fetch(`${API_BASE}/api/sync/push`, {
+    const pushUrl = buildApiUrl('/api/sync/push');
+    const resp = await fetch(pushUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -47,7 +75,7 @@ export async function pushState(stateBlob) {
       // Token expired — clear and retry once
       localStorage.removeItem(AUTH_TOKEN_KEY);
       const freshToken = await ensureAuth();
-      await fetch(`${API_BASE}/api/sync/push`, {
+      await fetch(pushUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -67,7 +95,7 @@ export async function pushState(stateBlob) {
 export async function pullState() {
   try {
     const token = await ensureAuth();
-    const resp = await fetch(`${API_BASE}/api/sync/pull`, {
+    const resp = await fetch(buildApiUrl('/api/sync/pull'), {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!resp.ok) return null;

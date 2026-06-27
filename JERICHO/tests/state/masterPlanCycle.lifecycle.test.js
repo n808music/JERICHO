@@ -109,6 +109,38 @@ describe('master-plan cycle lifecycle semantics', () => {
     expect(started.scheduleReviewBlocks).toHaveLength(0);
   });
 
+  it('replaces a stale future cycle start with the earliest valid current start when no schedule exists yet', () => {
+    const established = buildIntakeDraftState();
+    const planId = established.masterPlanIntake.draft.masterPlanId;
+    const cycleId = `masterplan-cycle:${planId}`;
+    established.cyclesById[cycleId] = {
+      id: cycleId,
+      status: 'active',
+      source: 'master_plan',
+      masterPlanId: planId,
+      startedAtDayKey: '2026-08-04',
+      scheduleLifecycle: 'no_schedule',
+      executionEvents: [],
+      scheduleReviewBlocks: [],
+      proposedBlocks: [],
+      goalContract: {
+        goalId: `masterplan:${planId}`,
+        startDayKey: '2026-08-04',
+        endDayKey: '2026-10-17',
+      },
+    };
+    established.activeCycleId = null;
+
+    const started = computeDerivedState(established, {
+      type: 'START_NEW_CYCLE_WITH_DECISION',
+      payload: { mode: 'archive' },
+    });
+
+    expect(started.activeCycleId).toBe(cycleId);
+    expect(started.cyclesById[cycleId].startedAtDayKey).toBe('2026-05-04');
+    expect(started.cyclesById[cycleId].goalContract.startDayKey).toBe('2026-05-04');
+  });
+
   it('requires current-state reassessment before schedule generation', () => {
     const established = buildIntakeDraftState();
     const planId = established.masterPlanIntake.draft.masterPlanId;

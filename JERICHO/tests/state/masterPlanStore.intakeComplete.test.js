@@ -98,14 +98,21 @@ describe('masterPlanStore intake completion', () => {
     const brandMilestones = brandLane.milestoneIds.map((id) => draft.masterPlanMilestonesById[id]);
 
     expect(creativeMilestones.map((m) => m.title)).toEqual(
-      // 'DROP' is now normalized to 'Release {lane.title}' by normalizeMilestoneTitle
-      expect.arrayContaining(['Distribution submitted', 'Artwork finalized', 'Release EP release'])
+      expect.arrayContaining([
+        'Submit distribution package for EP release',
+        'Finalize artwork for EP release',
+        'Release EP to distribution',
+      ])
     );
     expect(creativeMilestones.every((m) => m.derivedFrom.includes('anchorId:anchor-oct17'))).toBe(true);
     expect(creativeMilestones.every((m) => m.flex && m.milestoneType && typeof m.missConsequence === 'string')).toBe(true);
 
     expect(brandMilestones.map((m) => m.title)).toEqual(
-      expect.arrayContaining(['Positioning complete', 'Outreach started', 'First client or contract closed'])
+      expect.arrayContaining([
+        'Define Global State Solutions client outreach position',
+        'Build Global State Solutions prospect outreach list',
+        'Close first Global State Solutions client contract',
+      ])
     );
     expect(brandMilestones.every((m) => m.derivedFrom.startsWith('forward from today + '))).toBe(true);
     expect(brandMilestones.every((m) => m.targetDate >= '2026-05-18')).toBe(true);
@@ -307,6 +314,7 @@ describe('masterPlanStore intake completion', () => {
     expect(generated.lastPlanError).toBe(null);
     expect(generated.proposedBlocks.length).toBeGreaterThan(0);
     expect(generated.proposedBlocks.every((block) => block.profileId === DEFAULT_PROFILE_ID)).toBe(true);
+    expect(generated.proposedBlocks.every((block) => block.owner === 'Local Profile')).toBe(true);
     expect(
       generated.proposedBlocks.every((block) => block.masterCalendarId === `calendar-${DEFAULT_PROFILE_ID}`)
     ).toBe(true);
@@ -323,6 +331,35 @@ describe('masterPlanStore intake completion', () => {
         (block) => !/^(what|why|how|when|where|which|do|does|can|should|will)\b/i.test(String(block.title || '').trim())
       )
     ).toBe(true);
+    const generatedTitles = generated.proposedBlocks.map((block) => block.title);
+    expect(generatedTitles).toEqual(
+      expect.arrayContaining([
+        'Validate Operation Endgame hard-anchor protection rules',
+        'Document album, app, and podcast launch asset inventory',
+        'Validate first-cycle milestone dependency sequence',
+        'Map job-search and income demands against the execution calendar',
+        'Prepare EP distribution metadata package',
+        'Finalize EP artwork delivery package',
+        'Prepare Global State Solutions contract conversion path',
+        'Define Global State Solutions client outreach position',
+        'Build Global State Solutions prospect outreach list',
+        'Close first Global State Solutions client contract',
+      ])
+    );
+    expect(generatedTitles.filter((title) => title === 'Submit distribution package for EP release')).toHaveLength(1);
+    expect(generatedTitles).not.toEqual(
+      expect.arrayContaining([
+        'Confirm Operation Endgame hard anchors',
+        'Audit existing album, app, and podcast assets',
+        'Complete inventory album, app, and podcast launch assets',
+        'Review first-cycle milestone sequence',
+        'Identify job-search/income calendar burden',
+        'Review PM company outreach and positioning progress',
+        'Complete positioning for PM company',
+        'Activate outreach for PM company',
+        'Close first client or contract for PM company',
+      ])
+    );
     expect(generated.cyclesById[generated.activeCycleId].autoAsanaPlan.summary.scheduledBlockCount).toBe(
       generated.proposedBlocks.length
     );
@@ -335,6 +372,7 @@ describe('masterPlanStore intake completion', () => {
     expect(generated.cyclesById[generated.activeCycleId].autoAsanaPlan.summary.calendarCoverageThroughDayKey >= '2026-10-16').toBe(
       true
     );
+    expect(generated.cyclesById[generated.activeCycleId].planQualityGate?.failureCodes || []).toEqual([]);
 
     const applied = computeDerivedState(generated, { type: 'APPLY_PLAN' });
     expect(applied.scheduleLifecycle).toBe('applied_review');

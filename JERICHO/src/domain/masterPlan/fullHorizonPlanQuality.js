@@ -118,7 +118,19 @@ export function summarizeBlockDetailQuality(blocks = []) {
     const rawFailureCodes = Array.isArray(resolution?.quality?.failureCodes)
       ? resolution.quality.failureCodes
       : [];
-    const failureCodes = rawFailureCodes.filter((code) => !MOLECULAR_ADVISORY_CODES.has(code));
+    const failureCodes = rawFailureCodes.filter((code) => {
+      const normalizedCode = String(code || '').trim();
+      if (!normalizedCode) {
+        return false;
+      }
+      if (MOLECULAR_ADVISORY_CODES.has(normalizedCode)) {
+        return false;
+      }
+      if (normalizedCode === 'PLACEHOLDER_EXECUTION_LANGUAGE' && block?.source === 'derived') {
+        return false;
+      }
+      return true;
+    });
     if (!failureCodes.length) {
       return;
     }
@@ -151,6 +163,8 @@ export function summarizeBlockDetailQuality(blocks = []) {
       blockCount: blocks.length,
       failureBlockCount: uniqueBlockIds.size,
       failureCodeCount: Object.keys(byCode).length,
+      failureCodes: byCode,
+      sampleFindings: findings.slice(0, 10),
       durationMs: Date.now() - startedAt,
     });
   }

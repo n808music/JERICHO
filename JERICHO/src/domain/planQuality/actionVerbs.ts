@@ -42,6 +42,12 @@ export const ACTION_VERB_SET: ReadonlySet<string> = new Set([
   // see follow-up to redesign that phrasing as a separate cleanup.
   'author', 'capture', 'clarify', 'enrich', 'groom',
   'log', 'qualify', 're-clarify', 'source', 'summarize', 'triage',
+  // Milestone-generator surfaced verbs (2026-06-13): "advance" is the
+  // imperative business verb used by EP/release milestone templates
+  // ("Advance EP release distribution setup, …"). Keeping it in the
+  // canonical set lets the generator detect titles that are already
+  // actionable and avoid double-verb prefixes like "Complete Advance …".
+  'advance',
 ]);
 
 export function isActionableTitleVerb(firstWord: string | null | undefined): boolean {

@@ -141,6 +141,30 @@ describe('phase horizon — correctly declared 5-year plan', () => {
     expect(p2?.endBoundary > '2027-01-01').toBe(true);
     expect(p3?.endBoundary).toMatch(/^203[01]/);
   });
+
+  it('marks the active phase as generated when a Sprint proposal exists before activation', () => {
+    const derived = buildFiveYearPlanState();
+    const plan = getPlan(derived);
+    const lanes = (plan.laneIds || []).map((id) => derived.masterPlanLanesById?.[id]).filter(Boolean);
+    const milestones = lanes
+      .flatMap((lane) => (lane.milestoneIds || []).map((id) => derived.masterPlanMilestonesById?.[id]))
+      .filter(Boolean);
+    const model = deriveMasterPlanPhaseModel({
+      plan,
+      lanes,
+      milestones,
+      anchors: plan.anchors || [],
+      planCycle: {
+        scheduleLifecycle: 'draft_schedule_ready',
+        proposedBlocks: [{ id: 'proposal-1', status: 'suggested' }],
+        scheduleReviewBlocks: [],
+      },
+      committedBlocks: [],
+      criticQuestionsByLane: {},
+    });
+
+    expect(model?.activePhase?.executionScheduleStatus).toBe('generated');
+  });
 });
 
 // ─── Suite 2: Truncated horizon migration (old plan) ─────────────────────────

@@ -1,0 +1,87 @@
+export const OPERATION_ENDGAME_INITIATIVES = [
+  {
+    id: 'jericho-system',
+    name: 'Jericho System',
+    lane: 'product/software',
+    laneLabel: 'Product / Software',
+    aliases: ['operation endgame app platform', 'app platform', 'product platform', 'jericho system', 'jericho'],
+  },
+  {
+    id: 'help-yourself-podcast',
+    name: 'Podcast Pilot',
+    lane: 'media/content',
+    laneLabel: 'Media / Content',
+    aliases: ['media narrative pipeline', 'help yourself podcast', 'help yourself broadcast', 'podcast'],
+  },
+  {
+    id: 'romance-riot',
+    name: 'Romance Riot',
+    lane: 'creative project',
+    laneLabel: 'Creative Project',
+    aliases: ['operation endgame album release engine', 'album release engine', 'romance riot'],
+  },
+  {
+    id: 'blackman',
+    name: 'BLACKMAN',
+    lane: 'creative project',
+    laneLabel: 'Creative Project',
+    aliases: ['blackman', 'black man', 'shorts'],
+  },
+  {
+    id: 'd8-n8',
+    name: 'D8 N8',
+    lane: 'creative project',
+    laneLabel: 'Creative Project',
+    aliases: ['d8 n8', 'date n8'],
+  },
+  {
+    id: 'global-state-solutions',
+    name: 'Global State Solutions',
+    lane: 'company/operations',
+    laneLabel: 'Company / Operations',
+    aliases: [
+      'brand and operations system',
+      'studio operations system',
+      'global state solutions',
+      'operations system',
+      'project management brand',
+    ],
+  },
+  {
+    id: 'revenue-bridge',
+    name: 'Revenue Bridge',
+    lane: 'income stream',
+    laneLabel: 'Income Stream',
+    aliases: ['services revenue bridge', 'revenue bridge', 'runway bridge', 'first offer', 'buyer outreach'],
+  },
+  {
+    id: 'f8-energy-gum',
+    name: 'F8 ENERGY GUM',
+    lane: 'income stream',
+    laneLabel: 'Income Stream',
+    aliases: ['f8 energy gum', 'energy gum', 'gum', 'energy gym'],
+  },
+  {
+    id: 'imaginary-ceo-season-1',
+    name: 'The Imaginary CEO Season 1',
+    lane: 'media/content',
+    laneLabel: 'Media / Content',
+    aliases: ['imaginary ceo', 'the imaginary ceo', 'season 1'],
+  },
+  {
+    id: '79th-street-real-estate',
+    name: '79th Street Real Estate',
+    lane: 'capital/real-estate',
+    laneLabel: 'Capital / Real Estate',
+    aliases: ['real estate acquisition thesis', '79th street real estate', '79th street', 'headquarters', 'corridor'],
+  },
+  {
+    id: 'institution-school',
+    name: 'Institutional Product',
+    lane: 'institution/education',
+    laneLabel: 'Institution / Education',
+    aliases: ['apprenticeship institution design', 'institution design', 'institution / school', 'school', 'education'],
+  },
+];
+
+export default OPERATION_ENDGAME_INITIATIVES;

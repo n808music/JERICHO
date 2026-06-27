@@ -12,7 +12,7 @@ export type OperatingLifecycleState =
   | 'REASSESSMENT_ACCEPTED'
   | 'REGENERATION_REQUIRED';
 
-export type OperatingLifecycleAudit = 'PASS' | 'FAIL' | 'UNKNOWN';
+export type OperatingLifecycleAudit = string;
 
 export type OperatingLifecycleReadinessSummary = {
   profile?: string;
@@ -202,10 +202,13 @@ function normalizeText(value: unknown): string {
 }
 
 function normalizeAuditStatus(value: unknown): OperatingLifecycleAudit {
-  const normalized = normalizeText(value).toUpperCase();
-  if (normalized === 'PASS') return 'PASS';
-  if (normalized === 'FAIL') return 'FAIL';
-  return 'UNKNOWN';
+  const normalized = normalizeText(value);
+  if (!normalized) return 'UNKNOWN';
+  const upper = normalized.toUpperCase();
+  if (upper === 'PASS') return 'PASS';
+  if (upper === 'FAIL') return 'FAIL';
+  if (upper === 'UNKNOWN') return 'UNKNOWN';
+  return normalized;
 }
 
 function hasPlanQualityFailures(gate: PlanQualityGateLike | null | undefined): boolean {
@@ -412,7 +415,11 @@ export function resolveOperatingLifecycleState(input: OperatingLifecycleInput): 
   }
   if (scheduleLifecycle === 'schedule_preview_ready') {
     if (planReviewRequired || hasPlanQualityFailures(gate)) {
-      return buildResolution('PLAN_REVIEW_REQUIRED', readinessSummary);
+      return buildResolution(
+        'PLAN_REVIEW_REQUIRED',
+        readinessSummary,
+        hasPlanQualityFailures(gate) ? ['PLAN_QUALITY_GATE_FAILED'] : []
+      );
     }
     return buildResolution('SCHEDULE_GENERATED', readinessSummary);
   }

@@ -124,6 +124,22 @@ describe('system shot clock derivation', () => {
     expect(result.remainingDays).toBe(29);
   });
 
+  it('uses live appTime as Today even when the contract horizon starts earlier', () => {
+    const result = deriveSystemShotClock({
+      goalId: GOAL_ID,
+      cycleId: CYCLE_ID,
+      contract: { startDayKey: '2026-05-19', endDayKey: '2031-05-19' },
+      nowISO: '2026-06-13T12:00:00.000Z',
+      timeZone: 'UTC',
+      blocks: [],
+      executionEvents: [],
+    });
+
+    expect(result.contractStartDate).toBe('2026-05-19');
+    expect(result.currentDate).toBe('2026-06-13');
+    expect(result.currentDateTimeISO).toBe('2026-06-13T12:00:00.000Z');
+  });
+
   it('classifies timed deadlines across upcoming, due soon, due now, missed candidate, and completed late states', () => {
     const blocks = [
       makeBlock({

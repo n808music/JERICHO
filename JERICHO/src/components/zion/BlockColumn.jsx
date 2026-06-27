@@ -1,5 +1,6 @@
 import React from 'react';
 import { describeBlockMeaning } from './blockMeaning.js';
+import { localMinutesFromISO } from '../../state/time/time.ts';
 
 const DAY_COLUMN_HEIGHT_PX = 720;
 const MIN_BLOCK_HEIGHT_PX = 16;
@@ -9,6 +10,7 @@ export default function BlockColumn({
   dateLabel = 'Today',
   blocks = [],
   drafts = [],
+  timeZone = 'UTC',
   onBlockClick,
   lineageBlocks = null,
   deliverableLabelById = {},
@@ -38,10 +40,12 @@ export default function BlockColumn({
           </div>
         ))}
         {(blocks || []).map((block) => {
-          const startDate = block?.start ? new Date(block.start) : null;
-          const endDate = block?.end ? new Date(block.end) : null;
-          const startMin = startDate ? startDate.getHours() * 60 + startDate.getMinutes() : 0;
-          const endMin = endDate ? endDate.getHours() * 60 + endDate.getMinutes() : startMin;
+          const startISO = block?.startISO || block?.start || '';
+          const endISO = block?.endISO || block?.end || '';
+          const startDate = startISO ? new Date(startISO) : null;
+          const endDate = endISO ? new Date(endISO) : null;
+          const startMin = localMinutesFromISO(startISO, timeZone);
+          const endMin = endISO ? localMinutesFromISO(endISO, timeZone) : startMin;
           const durationMinutesRaw = (() => {
             const s = startDate ? startDate.getTime() : 0;
             const e = endDate ? endDate.getTime() : 0;
@@ -90,8 +94,7 @@ export default function BlockColumn({
           );
         })}
         {visibleDrafts.map((draft) => {
-          const draftDate = draft?.startISO ? new Date(draft.startISO) : null;
-          const startMin = draftDate ? draftDate.getHours() * 60 + draftDate.getMinutes() : 0;
+          const startMin = localMinutesFromISO(draft?.startISO || '', timeZone);
           const durationMinutes = Number.isFinite(draft?.minutes) ? draft.minutes : 30;
           let y = startMin * PX_PER_MINUTE;
           let h = Math.max(MIN_BLOCK_HEIGHT_PX, durationMinutes * PX_PER_MINUTE || 0);

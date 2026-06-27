@@ -162,6 +162,39 @@ describe('resolveOperatingLifecycleState', () => {
     expect(result.readinessSummary.today).toBe('WORK_PRESENT');
   });
 
+  it('preserves projected active-execution audits when trusted restored plan quality is supplied', () => {
+    const result = expectState(
+      makeInput({
+        scheduleLifecycleState: 'in_execution',
+        activeTodayBlockCount: 1,
+        readinessSummary: {
+          planQuality: 'PLAN_QUALITY_PASSED',
+          dependencyAudit: 'PASS',
+          ownerCoverage: 'PASS',
+          gateIntegrity: 'PASS',
+        },
+        cyclesById: {
+          'cycle-1': {
+            id: 'cycle-1',
+            scheduleLifecycle: 'active_schedule',
+            goalContract: { startDayKey: '2026-06-08', phaseId: 'P1' },
+            executionEvents: [{ id: 'evt-1' }],
+            planQualityGate: {
+              passed: false,
+              status: 'PLAN_QUALITY_WITHHELD',
+              dependencyAudit: 'UNKNOWN',
+            },
+          },
+        },
+      }),
+      'ACTIVE_EXECUTION'
+    );
+    expect(result.readinessSummary.planQuality).toBe('PLAN_QUALITY_PASSED');
+    expect(result.readinessSummary.dependencyAudit).toBe('PASS');
+    expect(result.readinessSummary.ownerCoverage).toBe('PASS');
+    expect(result.readinessSummary.gateIntegrity).toBe('PASS');
+  });
+
   it('returns COURSE_CORRECTION_REQUIRED when execution correction is elevated', () => {
     const result = expectState(
       makeInput({

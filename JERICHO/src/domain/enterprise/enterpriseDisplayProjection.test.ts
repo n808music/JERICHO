@@ -49,6 +49,16 @@ describe('projectEnterpriseDisplay', () => {
     expect(projection.priorityStatus).toBe('deferred');
   });
 
+  it('projects Operation Endgame services revenue bridge as the capital or revenue entity unless F8 is explicit', () => {
+    const projection = projectEnterpriseDisplay({
+      laneId: 'income',
+      laneLabel: 'Operation Endgame services revenue bridge',
+      intakeSignals: OE_INTAKE,
+    });
+    expect(projection.displayName).toBe('Capital Path or Revenue Engine');
+    expect(projection.companyCategory).toBe('Capital / Revenue');
+  });
+
   it('never produces E8 Energy Co. as a display name', () => {
     const projection = projectEnterpriseDisplay({
       laneId: 'energy_gym',
@@ -57,6 +67,16 @@ describe('projectEnterpriseDisplay', () => {
     });
     expect(projection.displayName).not.toBe('E8 Energy Co.');
     expect(projection.displayName).toBe('F8 Energy Co.');
+  });
+
+  it('normalizes legacy Operation Endgame product labels to Global State Systems', () => {
+    const projection = projectEnterpriseDisplay({
+      laneId: 'lane-7fdafe6a-1613-447b-877c-raw',
+      laneLabel: 'Operation Endgame product platform',
+      intakeSignals: OE_INTAKE,
+    });
+    expect(projection.displayName).toBe('Global State Systems');
+    expect(projection.companyCategory).toBe('Technology');
   });
 
   it('produces unsupported projection with no display name when the lane has no map entry', () => {

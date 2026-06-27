@@ -12,6 +12,52 @@ const dayKeyFormatter = (timeZone: string) =>
 
 export const APP_TIME_ZONE = DEFAULT_TIME_ZONE;
 
+const timeZonePartFormatterCache = new Map<string, Intl.DateTimeFormat>();
+
+function getTimeZonePartFormatter(timeZone: string) {
+  const cacheKey = String(timeZone || APP_TIME_ZONE);
+  if (!timeZonePartFormatterCache.has(cacheKey)) {
+    timeZonePartFormatterCache.set(
+      cacheKey,
+      new Intl.DateTimeFormat('en-US', {
+        timeZone: cacheKey,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hourCycle: 'h23',
+      })
+    );
+  }
+  return timeZonePartFormatterCache.get(cacheKey)!;
+}
+
+function formatDateParts(date: Date, timeZone: string) {
+  const formatter = getTimeZonePartFormatter(timeZone);
+  const parts = formatter.formatToParts(date);
+  const map: Record<string, string> = {};
+  parts.forEach((part) => {
+    if (part.type !== 'literal') {
+      map[part.type] = part.value;
+    }
+  });
+  return map;
+}
+
+function timeZoneOffsetMs(date: Date, timeZone: string) {
+  const map = formatDateParts(date, timeZone);
+  const year = Number(map.year || 0);
+  const month = Number(map.month || 1);
+  const day = Number(map.day || 1);
+  const hour = Number(map.hour || 0);
+  const minute = Number(map.minute || 0);
+  const second = Number(map.second || 0);
+  const asUTC = Date.UTC(year, month - 1, day, hour, minute, second);
+  return asUTC - date.getTime();
+}
+
 export function parseTimeString(timeStr = '') {
   const raw = String(timeStr || '').trim();
   if (!raw) return { ok: false, reason: 'empty' };
@@ -52,10 +98,21 @@ export function buildLocalStartISO(dayKey: string, timeStr = '09:00', timeZone: 
   const parsed = parseTimeString(timeStr);
   if (!parsed.ok) return { ok: false, reason: parsed.reason };
   const canonicalTime = formatCanonicalTime(parsed);
-  const localStr = `${dayKey}T${canonicalTime}:00`;
-  const date = new Date(localStr);
-  if (!Number.isFinite(date.getTime())) return { ok: false, reason: 'invalid_date' };
-  const startISO = date.toISOString();
+  const [yearText, monthText, dayText] = String(dayKey).split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return { ok: false, reason: 'invalid_day_key' };
+  }
+
+  const utcGuess = Date.UTC(year, month - 1, day, parsed.hours, parsed.minutes, 0);
+  let candidate = new Date(utcGuess - timeZoneOffsetMs(new Date(utcGuess), timeZone));
+  const refinedOffset = timeZoneOffsetMs(candidate, timeZone);
+  candidate = new Date(utcGuess - refinedOffset);
+  if (!Number.isFinite(candidate.getTime())) return { ok: false, reason: 'invalid_date' };
+
+  const startISO = candidate.toISOString();
   const resolvedDayKey = dayKeyFromISO(startISO, timeZone);
   if (resolvedDayKey !== dayKey) {
     return { ok: false, reason: 'daykey_mismatch', startISO, resolvedDayKey };
@@ -85,6 +142,33 @@ export function dayKeyFromParts(year: number, monthIndex: number, day: number, t
 export function dayKeyFromISO(iso = '', timeZone: string = APP_TIME_ZONE) {
   if (!iso) return '';
   return dayKeyFromDate(new Date(iso), timeZone);
+}
+
+export function localTimePartsFromISO(iso = '', timeZone: string = APP_TIME_ZONE) {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = formatDateParts(date, timeZone);
+  return {
+    year: Number(parts.year || 0),
+    month: Number(parts.month || 1),
+    day: Number(parts.day || 1),
+    hours: Number(parts.hour || 0),
+    minutes: Number(parts.minute || 0),
+    seconds: Number(parts.second || 0),
+  };
+}
+
+export function localMinutesFromISO(iso = '', timeZone: string = APP_TIME_ZONE) {
+  const parts = localTimePartsFromISO(iso, timeZone);
+  if (!parts) return 0;
+  return parts.hours * 60 + parts.minutes;
+}
+
+export function formatISOTime(iso = '', timeZone: string = APP_TIME_ZONE) {
+  const parts = localTimePartsFromISO(iso, timeZone);
+  if (!parts) return '--:--';
+  return formatCanonicalTime({ hours: parts.hours, minutes: parts.minutes });
 }
 
 export function nowDayKey(timeZone: string = APP_TIME_ZONE) {
