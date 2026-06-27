@@ -1393,7 +1393,8 @@ function quarantineOrphanedActiveExecution(state) {
         activeCycle?.goalGovernanceContract?.goalId ||
         activeCycle?.goalContract?.goalId ||
         activeCycle?.contract?.goalId ||
-        state?.activeGoalId
+        state?.activeGoalId ||
+        ''
     ).trim() || null;
   const activeGoal = activeGoalId ? state?.goalsById?.[activeGoalId] || null : null;
   const masterPlanIdCandidate =
@@ -1408,7 +1409,7 @@ function quarantineOrphanedActiveExecution(state) {
   if (!activeCycle) {
     reasonCodes.push('ACTIVE_CYCLE_RECORD_MISSING');
   }
-  if (activeCycle && !activeGoal) {
+  if (activeCycle && activeGoalId && !activeGoal) {
     reasonCodes.push('ACTIVE_CYCLE_GOAL_MISSING');
   }
   if (activeGoal && activeGoal.profileId && activeGoal.profileId !== activeProfileId) {

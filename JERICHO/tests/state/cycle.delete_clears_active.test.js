@@ -4,6 +4,7 @@ import { computeDerivedState } from '../../src/state/identityCompute.js';
 function makeState() {
   const state = {
     appTime: { activeDayKey: '2026-01-09', timeZone: 'UTC', nowISO: '2026-01-09T00:00:00.000Z' },
+    goalsById: { 'goal-1': { id: 'goal-1' } },
     cyclesById: {
       'cycle-1': {
         id: 'cycle-1',
