@@ -90,17 +90,30 @@ function getAgendaSummaryCounts(summary = {}) {
 
 const AGENDA_RANGE_OPTIONS = ['1Y', '2Y', '3Y', '4Y', '5Y'];
 
-function buildAgendaLaneOptions(intakeSignals, lanes = []) {
+function buildEntitySpine(entitiesById) {
+  if (!entitiesById || Object.keys(entitiesById).length === 0) return null;
+  return Object.values(entitiesById)
+    .map((entity) => ({ id: String(entity?.id || '').trim(), name: String(entity?.name || '').trim() }))
+    .filter((e) => e.id && e.name);
+}
+
+function buildAgendaLaneOptions(intakeSignals, lanes = [], entitySpine = null) {
   const options = [{ value: 'all', label: 'All lanes' }];
-  (Array.isArray(lanes) ? lanes : []).forEach((lane) => {
-    if (!lane?.id) {
-      return;
-    }
-    options.push({
-      value: lane.id,
-      label: projectLaneDisplayName(lane, intakeSignals),
+  if (entitySpine && entitySpine.length > 0) {
+    entitySpine.forEach((entity) => {
+      options.push({ value: entity.id, label: entity.name });
     });
-  });
+  } else {
+    (Array.isArray(lanes) ? lanes : []).forEach((lane) => {
+      if (!lane?.id) {
+        return;
+      }
+      options.push({
+        value: lane.id,
+        label: projectLaneDisplayName(lane, intakeSignals),
+      });
+    });
+  }
   return options;
 }
 
@@ -108,8 +121,8 @@ function getAgendaLaneFilterValue(label) {
   return String(label || 'all').trim().toLowerCase();
 }
 
-function getAgendaLaneFilterLabel(value, intakeSignals, lanes = []) {
-  const options = buildAgendaLaneOptions(intakeSignals, lanes);
+function getAgendaLaneFilterLabel(value, intakeSignals, lanes = [], entitySpine = null) {
+  const options = buildAgendaLaneOptions(intakeSignals, lanes, entitySpine);
   const filter = options.find((option) => option.value === String(value || 'all').trim());
   return filter ? filter.label : 'All lanes';
 }
@@ -946,16 +959,29 @@ function MasterPlanTimelineView({ plan, store }) {
     [plan, visibleHorizonEnd]
   );
 
+  const entitySpine = useMemo(
+    () => buildEntitySpine(store?.matrix?.entitiesById),
+    [store?.matrix?.entitiesById]
+  );
+
   const gridLanes = useMemo(
     () =>
-      lanes.map((lane) => ({
-        id: lane.id,
-        title: projectLaneDisplayName(lane, intakeSignals),
-        domain: lane.domain,
-        activationState: lane.activationState,
-        anchorIds: lane.anchorIds || [],
-      })),
-    [intakeSignals, lanes]
+      entitySpine && entitySpine.length > 0
+        ? entitySpine.map((entity) => ({
+            id: entity.id,
+            title: entity.name,
+            domain: null,
+            activationState: 'active',
+            anchorIds: [],
+          }))
+        : lanes.map((lane) => ({
+            id: lane.id,
+            title: projectLaneDisplayName(lane, intakeSignals),
+            domain: lane.domain,
+            activationState: lane.activationState,
+            anchorIds: lane.anchorIds || [],
+          })),
+    [entitySpine, intakeSignals, lanes]
   );
 
   return (
@@ -1034,6 +1060,7 @@ function MasterPlanTimelineView({ plan, store }) {
       <StrategicCoveragePanel
         plan={plan}
         lanes={lanes}
+        entitySpine={entitySpine}
         strategicCoverage={strategicCoverage}
         strategicCoverageAudit={strategicCoverageAudit}
         strategicPlanQuality={store?.fullHorizonPlanQuality || null}
@@ -1112,6 +1139,7 @@ function StrategicCoveragePanel({
   onHorizonViewChange,
   visibleHorizonEnd,
   scheduleLifecycleState = 'no_goal',
+  entitySpine = null,
 }) {
   const normalizedScheduleLifecycleState = String(scheduleLifecycleState || '').trim().toLowerCase();
   const isForecastOnlyLifecycle =
@@ -1270,7 +1298,7 @@ function StrategicCoveragePanel({
                 ))}
               </div>
               <div className="flex flex-wrap gap-2 pb-2">
-                {buildAgendaLaneOptions(intakeSignals, lanes).map((option) => (
+                {buildAgendaLaneOptions(intakeSignals, lanes, entitySpine).map((option) => (
                   <button
                     key={option.value}
                     type="button"
@@ -1287,7 +1315,7 @@ function StrategicCoveragePanel({
                 ))}
               </div>
               <p className="text-[11px] text-muted">
-                {selectedAgendaRange} horizon · {getAgendaLaneFilterLabel(selectedAgendaLane, intakeSignals, lanes)}
+                {selectedAgendaRange} horizon · {getAgendaLaneFilterLabel(selectedAgendaLane, intakeSignals, lanes, entitySpine)}
               </p>
               <p className="text-[11px] text-muted">
                 {scheduledAgendaSummary?.totalBlocks ?? 0} visible planned blocks

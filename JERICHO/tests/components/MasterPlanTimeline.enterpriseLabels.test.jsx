@@ -19,6 +19,17 @@ afterEach(() => {
   cleanup();
 });
 
+const CANONICAL_ENTITY_FIXTURE = [
+  { id: 'entity-systems', name: 'Global State Systems', roleTags: ['technology'] },
+  { id: 'entity-corp', name: 'Global State Corp.', roleTags: ['creative'] },
+  { id: 'entity-productions', name: 'Global State Productions', roleTags: ['media'] },
+  { id: 'entity-solutions', name: 'Global State Solutions', roleTags: ['operations'] },
+  { id: 'entity-f8', name: 'F8 Energy Co.', roleTags: ['energy'] },
+  { id: 'entity-capital', name: 'Capital Path or Revenue Engine', roleTags: ['capital'] },
+  { id: 'entity-academy', name: 'Global State Academy', roleTags: ['education'] },
+  { id: 'entity-holdings', name: 'Global State Holdings', roleTags: ['civic'] },
+];
+
 function buildStoreWithLanes(laneDomains) {
   const laneTitleByDomain = {
     product: 'Operation Endgame app platform',
@@ -109,6 +120,21 @@ function buildStoreWithLanes(laneDomains) {
     masterCalendarsById: {},
     strategicClustersById: {},
     constraintRelations: [],
+    matrix: {
+      verificationSourcesById: {},
+      entitiesById: CANONICAL_ENTITY_FIXTURE.reduce((acc, e) => {
+        acc[e.id] = { ...e, declaredAtISO: '2026-01-01T00:00:00.000Z', source: 'test_fixture' };
+        return acc;
+      }, {}),
+      initiativesById: {},
+      systemsById: {},
+      projectsById: {},
+      artifactsById: {},
+      dependenciesById: {},
+      convergenceEdgesById: {},
+      resources: { available: {}, needed: {}, gap: {} },
+      bootstrap: { candidates: [], selectedNodeId: null },
+    },
   };
 }
 

@@ -1861,17 +1861,35 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
       }
     }
 
-    // The admission audit is an enterprise-identity check: it only produces
-    // meaningful signal for blocks that carry lane/entity labels (master-plan
-    // blocks enriched by buildCanonicalScheduleIdentityMetadata). For blocks
-    // without that context (direct-goal, unit-test fixtures, first-cycle sprint
-    // blocks not yet enriched) the audit would emit ACTIVE_BLOCK_UNKNOWN_LANE /
-    // ACTIVE_BLOCK_UNKNOWN_ENTITY / PROJECT_CONTEXT_MISSING as false positives.
-    // Additionally, detailFailureCodes come from resolveBlockPlainLanguage
-    // (content-quality); those are already surfaced by the substrate checks above,
-    // so we skip them to avoid double-counting.
+    // The admission audit runs for any block that has enterprise identity context
+    // (lane/entity labels, laneId, or executionContext.laneFamily). Blocks with
+    // none of these are direct-goal or plain unit-test fixtures that have never
+    // been enriched and would produce false-positive identity codes.
+    //
+    // Content-quality codes produced by resolveBlockPlainLanguage
+    // (TITLE_REPEATED_IN_PRODUCES, OUTPUT_ARTIFACT_TOO_VAGUE) that overlap with
+    // first-cycle Sprint generation limits are excluded. MISSING_COMPLETED_ARTIFACT
+    // is excluded because the gate already enforces MISSING_EXECUTION_ARTIFACT.
+    // All structural codes (UNKNOWN_WORK_TYPE, ABSTRACT_BLOCK_MEANING, etc.) and
+    // all identity codes (ACTIVE_BLOCK_UNKNOWN_LANE, etc.) propagate as-is.
+    // TITLE_REPEATED_IN_PRODUCES and OUTPUT_ARTIFACT_TOO_VAGUE are content-style
+    // issues excluded from gate admission. MISSING_COMPLETED_ARTIFACT is
+    // additionally excluded for first-cycle master-plan blocks (isForecastBlock),
+    // which haven't yet gone through artifact-shape refinement; for direct-goal
+    // blocks it is propagated so the gate and the block-detail resolver stay aligned.
+    const isForecastBlock = Boolean(
+      (block as any)?.masterPlanId || (block as any)?.masterPlanLaneId || (block as any)?.derivationReason
+    );
+    const DETAIL_CONTENT_QUALITY_ONLY_CODES = new Set<string>([
+      'TITLE_REPEATED_IN_PRODUCES',
+      'OUTPUT_ARTIFACT_TOO_VAGUE',
+      ...(isForecastBlock ? ['MISSING_COMPLETED_ARTIFACT'] : []),
+    ]);
     const blockHasEntityContext = Boolean(
-      normalizeText((block as any)?.entityLabel) || normalizeText((block as any)?.laneLabel)
+      normalizeText((block as any)?.entityLabel) ||
+      normalizeText((block as any)?.laneLabel) ||
+      normalizeText((block as any)?.laneId) ||
+      normalizeText((block as any)?.executionContext?.laneFamily)
     );
     let laneStatus = '';
     let laneFamily = '';
@@ -1883,13 +1901,9 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
       const admissionAudit = auditExecutionBlockAdmission(block as Record<string, unknown>, {
         hierarchy: buildDetailHierarchyContext(block),
       });
-      const detailContract = admissionAudit.detailContract;
       phaseJustification = admissionAudit.phaseJustification;
-      const detailFailureCodeSet = new Set(
-        Array.isArray(detailContract?.quality?.failureCodes) ? detailContract.quality.failureCodes : []
-      );
       admissionAudit.failureCodes.forEach((code) => {
-        if (detailFailureCodeSet.has(code as any)) return;
+        if (DETAIL_CONTENT_QUALITY_ONLY_CODES.has(code)) return;
         failureCodes.add(code as PlanQualityFailureCode);
         reasonCodes.add(String(code));
         const existing = detailQualityFailureBlockIds.get(code as PlanQualityFailureCode) || new Set<string>();
