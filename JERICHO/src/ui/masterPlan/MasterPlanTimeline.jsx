@@ -1058,7 +1058,9 @@ function MasterPlanTimelineView({ plan, store }) {
           </div>
         </div>
       ) : null}
-      <MatrixInstrument matrix={store.matrix} />
+      {store?.cyclesById?.[store?.activeCycleId]?.matrixIntakeComplete === true && (
+        <MatrixInstrument matrix={store.matrix} />
+      )}
       <StrategicCoveragePanel
         plan={plan}
         lanes={lanes}
