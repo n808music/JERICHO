@@ -24,6 +24,7 @@ import { deriveMasterPlanPhaseModel } from '../../domain/masterPlan/masterPlanPh
 import { clampDayKeyToRange, normalizeStrategicDayKey, resolveStrategicAgendaHorizon } from '../../domain/masterPlan/strategicHorizon.js';
 import TimelineGrid from './TimelineGrid.jsx';
 import MasterPlanLaneCard from './MasterPlanLaneCard.jsx';
+import MatrixInstrument from './MatrixInstrument.jsx';
 
 function titleCaseWords(value) {
   return String(value || '')
@@ -1057,6 +1058,7 @@ function MasterPlanTimelineView({ plan, store }) {
           </div>
         </div>
       ) : null}
+      <MatrixInstrument matrix={store.matrix} />
       <StrategicCoveragePanel
         plan={plan}
         lanes={lanes}

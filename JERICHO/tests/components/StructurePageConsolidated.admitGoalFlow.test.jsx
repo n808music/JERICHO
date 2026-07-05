@@ -38,7 +38,7 @@ describe('StructurePageConsolidated admit goal flow', () => {
   it('uses the structured intake as the only pre-admission entry path', () => {
     render(<StructurePageConsolidated />);
 
-    expect(screen.getByText(/describe your goal in one or two sentences/i)).toBeInTheDocument();
+    expect(screen.getByText(/describe your goal/i)).toBeInTheDocument();
     expect(screen.queryByText(/initial goal input/i)).not.toBeInTheDocument();
   });
 });

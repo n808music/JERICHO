@@ -29,7 +29,7 @@ describe('StructurePageConsolidated pre-admission UI', () => {
 
     expect(screen.getByText('Structure')).toBeInTheDocument();
     expect(screen.getByText('Contract Admission')).toBeInTheDocument();
-    expect(screen.getByText(/what are you trying to do\?/i)).toBeInTheDocument();
+    expect(screen.getByText(/describe your goal/i)).toBeInTheDocument();
     expect(screen.queryByText(/initial goal input/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/create your first goal/i)).not.toBeInTheDocument();
   });

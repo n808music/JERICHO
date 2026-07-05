@@ -1,3 +1,12 @@
+import { ENTITY_REPROBES } from './entityReprobes';
+import { INITIATIVE_REPROBES } from './initiativeReprobes';
+import { SYSTEM_REPROBES } from './systemReprobes';
+import { ARTIFACT_REPROBES } from './artifactReprobes';
+import { DEPENDENCY_REPROBES } from './dependencyReprobes';
+import { CONVERGENCE_REPROBES } from './convergenceReprobes';
+import { RESOURCE_REPROBES } from './resourceReprobes';
+import { BOOTSTRAP_REPROBES } from './bootstrapReprobes';
+
 // Reprobe authoring contract (Spec §5).
 //
 // Every gate-failure CODE maps to one CONSTANT spine string. The spine is
@@ -65,6 +74,26 @@ export const REPROBES = {
       generic: 'e.g. Google Analytics, your CRM, your bank account',
     },
   },
+  VERIFICATION_SOURCE_SOURCE_MISSING: {
+    spine:
+      "Name the place you'll actually open to check this — the tool, app, screen, or record.",
+    examples: {
+      musician: 'e.g. Spotify for Artists, DistroKid, your bank app',
+      founder: 'e.g. Stripe, QuickBooks, your bank dashboard',
+      writer: 'e.g. QueryTracker, your KDP reports, your agent portal',
+      generic: 'e.g. Google Analytics, your CRM, the county records site',
+    },
+  },
+  VERIFICATION_SOURCE_SOURCE_NOT_HOLDABLE: {
+    spine:
+      "That's an action, not a place — name the actual tool or record you open, not what you do with it.",
+    examples: {
+      musician: "e.g. 'Spotify for Artists', not 'check the streams'",
+      founder: "e.g. 'Stripe', not 'look at revenue'",
+      writer: "e.g. 'QueryTracker', not 'track responses'",
+      generic: "e.g. 'the bank statement', not 'verify the balance'",
+    },
+  },
   VERIFICATION_SOURCE_DOMAIN_MISSING: {
     spine:
       'What kind of measurement does this source report? Name the domain so future projects can reuse it.',
@@ -75,10 +104,18 @@ export const REPROBES = {
       generic: 'e.g. Audience metrics, Bank balance, Application status',
     },
   },
+  ...ENTITY_REPROBES,
+  ...INITIATIVE_REPROBES,
+  ...SYSTEM_REPROBES,
+  ...ARTIFACT_REPROBES,
+  ...DEPENDENCY_REPROBES,
+  ...CONVERGENCE_REPROBES,
+  ...RESOURCE_REPROBES,
+  ...BOOTSTRAP_REPROBES,
 };
 
 export const PROJECT_OPENING_PROBE = REPROBES.PROJECT_NAME_MISSING;
-export const VS_OPENING_PROBE = REPROBES.VERIFICATION_SOURCE_DOMAIN_MISSING;
+export const VS_OPENING_PROBE = REPROBES.VERIFICATION_SOURCE_SOURCE_MISSING;
 
 export function probeFor(code, goalType) {
   const entry = REPROBES[code];

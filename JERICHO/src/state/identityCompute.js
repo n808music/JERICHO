@@ -856,6 +856,15 @@ export function computeDerivedState(state, action) {
     case 'SEED_CANONICAL_ENTITIES':
       seedCanonicalEntities(next, action.payload || {});
       break;
+    case 'DECLARE_ENTITY':
+      declareEntity(next, action.payload || {});
+      break;
+    case 'DECLARE_INITIATIVE':
+      declareInitiative(next, action.payload || {});
+      break;
+    case 'DECLARE_SYSTEM':
+      declareSystem(next, action.payload || {});
+      break;
     case 'DECLARE_PROJECT':
       declareProject(next, action.payload || {});
       break;
@@ -873,6 +882,21 @@ export function computeDerivedState(state, action) {
       break;
     case 'REMOVE_ARTIFACT':
       removeArtifact(next, action.payload || {});
+      break;
+    case 'DECLARE_DEPENDENCY':
+      declareDependency(next, action.payload || {});
+      break;
+    case 'DECLARE_CONVERGENCE':
+      declareConvergence(next, action.payload || {});
+      break;
+    case 'DECLARE_RESOURCE_PROFILE':
+      declareResourceProfile(next, action.payload || {});
+      break;
+    case 'DECLARE_BINDING_CONSTRAINT':
+      declareBindingConstraint(next, action.payload || {});
+      break;
+    case 'DECLARE_BOOTSTRAP':
+      declareBootstrap(next, action.payload || {});
       break;
     case 'SET_SCHEDULING_CONSTRAINTS': {
       const payload = action.payload || {};
@@ -3976,8 +4000,8 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
       // Update strategy with workspace deliverables
       cycle.strategy.deliverables = deliverables;
       cycle.strategy.assumptionsHash = buildAssumptionsHash(cycle.strategy);
-    } else if (cycle.goalContract && deadlineKey && deadlineKey.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      // Only auto-seed if no workspace exists (shouldn't happen post-admission, but safe fallback)
+    } else if (cycle.goalContract && cycle.matrixIntakeComplete !== false && deadlineKey && deadlineKey.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      // Only auto-seed if intake is complete (matrixIntakeComplete !== false) and no workspace exists
       let autoStrategy = null;
       try {
         deliverables = generateAutoDeliverables(cycle.goalContract) || [];
@@ -14111,10 +14135,10 @@ function compileGoalEquation(state, payload = {}) {
     deadlineDayKey: equation.deadlineDayKey,
   };
 
-  // AUTO-SEED DELIVERABLES AT ADMISSION TIME
-  // This ensures generateColdPlanForCycle can find them in the workspace
+  // AUTO-SEED DELIVERABLES — only when matrix intake is already complete
+  // During intake (matrixIntakeComplete === false), the matrix drives deliverables; assumed state is blocked.
   const workspace = getDeliverableWorkspace(state, cycle.id);
-  if (workspace && (!workspace.deliverables || workspace.deliverables.length === 0)) {
+  if (cycle.matrixIntakeComplete !== false && workspace && (!workspace.deliverables || workspace.deliverables.length === 0)) {
     let autoDeliverables = [];
     let autoStrategy = null;
 
@@ -15294,7 +15318,8 @@ function ensureMatrixSlot(state) {
       artifactsById: {},
       dependenciesById: {},
       convergenceEdgesById: {},
-      resources: { available: {}, needed: {}, gap: {} },
+      resourceProfilesById: {},
+      bindingConstraint: null,
       bootstrap: { candidates: [], selectedNodeId: null },
     };
     return;
@@ -15307,7 +15332,8 @@ function ensureMatrixSlot(state) {
   if (!state.matrix.artifactsById) state.matrix.artifactsById = {};
   if (!state.matrix.dependenciesById) state.matrix.dependenciesById = {};
   if (!state.matrix.convergenceEdgesById) state.matrix.convergenceEdgesById = {};
-  if (!state.matrix.resources) state.matrix.resources = { available: {}, needed: {}, gap: {} };
+  if (!state.matrix.resourceProfilesById) state.matrix.resourceProfilesById = {};
+  if (!('bindingConstraint' in state.matrix)) state.matrix.bindingConstraint = null;
   if (!state.matrix.bootstrap) state.matrix.bootstrap = { candidates: [], selectedNodeId: null };
 }
 
@@ -15472,6 +15498,108 @@ function seedCanonicalEntities(state, payload = {}) {
       phaseScope: entity.phaseScope,
     };
   });
+}
+
+// Section 2 entity declared through the elicitation engine (DECLARE_ENTITY).
+// Uses the slot schema: formationState + statusEvidence instead of the legacy
+// currentStatus field, and carries optional doneWhen from the gate ladder.
+function declareEntity(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const name = String(payload?.name || '').trim();
+  const roleTags = Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [];
+  const purpose = String(payload?.purpose || '').trim();
+  const formationState = String(payload?.formationState || '').trim();
+  const statusEvidence = String(payload?.statusEvidence || '').trim();
+  if (!id || !name || roleTags.length === 0 || !purpose || !formationState || !statusEvidence) {
+    state.lastPlanError = {
+      code: 'ENTITY_INVALID',
+      reason: 'Entity requires id, name, roleTags, purpose, formationState, and statusEvidence.',
+      meta: { id, name, roleTagCount: roleTags.length, purpose, formationState, statusEvidence },
+    };
+    return;
+  }
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  const entry = {
+    id,
+    name,
+    roleTags,
+    purpose,
+    formationState,
+    statusEvidence,
+    declaredAtISO: nowISO,
+    source: 'operator_declared',
+  };
+  if (payload?.doneWhen) entry.doneWhen = String(payload.doneWhen).trim();
+  state.matrix.entitiesById[id] = entry;
+}
+
+// Section 3 initiative declared through the elicitation engine (DECLARE_INITIATIVE).
+// owningEntityId is nullable (null = entity-less / cross-cutting). The slot
+// normalizes the entity-less sentinel to null before dispatch, so the reducer
+// accepts null as a valid value (not an error).
+function declareInitiative(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const name = String(payload?.name || '').trim();
+  const purpose = String(payload?.purpose || '').trim();
+  const classification = String(payload?.classification || '').trim().toLowerCase();
+  const doneWhen = String(payload?.doneWhen || '').trim();
+  // owningEntityId is explicitly nullable — null means entity-less, not missing.
+  const owningEntityId = payload?.owningEntityId === null ? null : String(payload?.owningEntityId || '').trim() || null;
+  const VALID_CLASSIFICATIONS = ['objective', 'constraint'];
+  if (!id || !name || !purpose || !VALID_CLASSIFICATIONS.includes(classification) || !doneWhen) {
+    state.lastPlanError = {
+      code: 'INITIATIVE_INVALID',
+      reason: 'Initiative requires id, name, purpose, classification (objective|constraint), and doneWhen.',
+      meta: { id, name, purpose, classification, doneWhen },
+    };
+    return;
+  }
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  state.matrix.initiativesById[id] = {
+    id,
+    name,
+    owningEntityId,
+    purpose,
+    classification,
+    doneWhen,
+    declaredAtISO: nowISO,
+    source: 'operator_declared',
+  };
+}
+
+// Section 4 system declared through the elicitation engine (DECLARE_SYSTEM).
+// owningEntityId nullable (null = entity-less). activationCondition is optional
+// — included in the stored record only when the payload carries it.
+function declareSystem(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const name = String(payload?.name || '').trim();
+  const cycle = String(payload?.cycle || '').trim();
+  const activationState = String(payload?.activationState || '').trim().toLowerCase();
+  const owningEntityId = payload?.owningEntityId === null ? null : String(payload?.owningEntityId || '').trim() || null;
+  const VALID_STATES = ['running', 'missing', 'planned'];
+  if (!id || !name || !cycle || !VALID_STATES.includes(activationState)) {
+    state.lastPlanError = {
+      code: 'SYSTEM_INVALID',
+      reason: 'System requires id, name, cycle, and activationState (running|missing|planned).',
+      meta: { id, name, cycle, activationState },
+    };
+    return;
+  }
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  const entry = {
+    id,
+    name,
+    owningEntityId,
+    cycle,
+    activationState,
+    declaredAtISO: nowISO,
+    source: 'operator_declared',
+  };
+  if (payload?.activationCondition) entry.activationCondition = String(payload.activationCondition).trim();
+  state.matrix.systemsById[id] = entry;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -15724,4 +15852,248 @@ function removeArtifact(state, payload = {}) {
   const id = String(payload?.id || '').trim();
   if (!id) return;
   delete state.matrix.artifactsById[id];
+}
+
+// BFS transitive reachability over dependency edges (Section 7).
+// Mirrors the `reaches` export in dependencySlot.ts — must stay in sync.
+function reachesDependency(from, to, edges) {
+  const visited = new Set();
+  const queue = [from];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (current === to) return true;
+    if (visited.has(current)) continue;
+    visited.add(current);
+    for (const edge of edges) {
+      if (edge.downstreamId === current) {
+        queue.push(edge.upstreamId);
+      }
+    }
+  }
+  return false;
+}
+
+function declareDependency(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const downstreamId = String(payload?.downstreamId || '').trim();
+  const upstreamId = String(payload?.upstreamId || '').trim();
+  const type = String(payload?.type || '').trim();
+  if (!id || !downstreamId || !upstreamId || !type) {
+    state.lastPlanError = {
+      code: 'DEPENDENCY_INVALID',
+      reason: 'Dependency requires id, downstreamId, upstreamId, and type.',
+      meta: { id, downstreamId, upstreamId, type },
+    };
+    return;
+  }
+  if (!state.matrix.artifactsById[downstreamId]) {
+    state.lastPlanError = {
+      code: 'DEPENDENCY_DOWNSTREAM_UNKNOWN',
+      reason: `Dependency downstreamId "${downstreamId}" is not in matrix.artifactsById.`,
+      meta: { id, downstreamId },
+    };
+    return;
+  }
+  if (!state.matrix.artifactsById[upstreamId]) {
+    state.lastPlanError = {
+      code: 'DEPENDENCY_UPSTREAM_UNKNOWN',
+      reason: `Dependency upstreamId "${upstreamId}" is not in matrix.artifactsById.`,
+      meta: { id, upstreamId },
+    };
+    return;
+  }
+  if (downstreamId === upstreamId) {
+    state.lastPlanError = {
+      code: 'DEPENDENCY_SELF_EDGE',
+      reason: `Dependency cannot have downstreamId === upstreamId: "${downstreamId}".`,
+      meta: { id, downstreamId },
+    };
+    return;
+  }
+  const existingEdges = Object.values(state.matrix.dependenciesById);
+  if (reachesDependency(upstreamId, downstreamId, existingEdges)) {
+    state.lastPlanError = {
+      code: 'DEPENDENCY_CYCLE',
+      reason: `Dependency would create a cycle: "${upstreamId}" already transitively requires "${downstreamId}".`,
+      meta: { id, downstreamId, upstreamId },
+    };
+    return;
+  }
+  const VALID_TYPES = ['hard_gate', 'directional', 'informational'];
+  if (!VALID_TYPES.includes(type)) {
+    state.lastPlanError = {
+      code: 'DEPENDENCY_TYPE_INVALID',
+      reason: `Dependency type "${type}" must be one of: ${VALID_TYPES.join(', ')}.`,
+      meta: { id, type },
+    };
+    return;
+  }
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  state.matrix.dependenciesById[id] = {
+    id,
+    downstreamId,
+    upstreamId,
+    type,
+    label: String(payload?.label || '').trim() || null,
+    declaredAtISO: nowISO,
+  };
+}
+
+function declareConvergence(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const fromNodeId = String(payload?.fromNodeId || '').trim();
+  const toNodeId = String(payload?.toNodeId || '').trim();
+  const gives = String(payload?.gives || '').trim();
+  if (!id || !fromNodeId || !toNodeId || !gives) {
+    state.lastPlanError = {
+      code: 'CONVERGENCE_INVALID',
+      reason: 'Convergence edge requires id, fromNodeId, toNodeId, and gives.',
+      meta: { id, fromNodeId, toNodeId, gives },
+    };
+    return;
+  }
+  const REGISTRIES = ['entitiesById', 'initiativesById', 'systemsById', 'projectsById', 'artifactsById'];
+  const allIds = new Set();
+  for (const reg of REGISTRIES) {
+    for (const nodeId of Object.keys(state.matrix[reg] || {})) {
+      allIds.add(nodeId);
+    }
+  }
+  if (!allIds.has(fromNodeId)) {
+    state.lastPlanError = {
+      code: 'CONVERGENCE_FROM_UNKNOWN',
+      reason: `Convergence fromNodeId "${fromNodeId}" is not in any declared-node registry.`,
+      meta: { id, fromNodeId },
+    };
+    return;
+  }
+  if (!allIds.has(toNodeId)) {
+    state.lastPlanError = {
+      code: 'CONVERGENCE_TO_UNKNOWN',
+      reason: `Convergence toNodeId "${toNodeId}" is not in any declared-node registry.`,
+      meta: { id, toNodeId },
+    };
+    return;
+  }
+  if (fromNodeId === toNodeId) {
+    state.lastPlanError = {
+      code: 'CONVERGENCE_SELF_EDGE',
+      reason: `Convergence cannot have fromNodeId === toNodeId: "${fromNodeId}".`,
+      meta: { id, fromNodeId },
+    };
+    return;
+  }
+  // NOTE: No cycle guard. Loops are valid in Section 8 (convergence).
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  state.matrix.convergenceEdgesById[id] = {
+    id,
+    fromNodeId,
+    toNodeId,
+    gives,
+    broken: Boolean(payload?.broken) || false,
+    label: String(payload?.label || '').trim() || null,
+    declaredAtISO: nowISO,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  MATRIX — Section 9 (Resource Profiles + Binding Constraint)
+//  Per-initiative gap grid: one profile per initiative, four dimensions each.
+//  bindingConstraint is the section-level synthesis once all profiles exist.
+// ─────────────────────────────────────────────────────────────────────────
+
+const RESOURCE_PROFILE_VALID_DIMENSIONS = ['money', 'time', 'skills', 'tech'];
+
+function declareResourceProfile(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const initiativeId = String(payload?.initiativeId || '').trim();
+  if (!id || !initiativeId) {
+    state.lastPlanError = {
+      code: 'RESOURCE_PROFILE_INVALID',
+      reason: 'Resource profile requires id and initiativeId.',
+      meta: { id, initiativeId },
+    };
+    return;
+  }
+  if (!state.matrix.initiativesById[initiativeId]) {
+    state.lastPlanError = {
+      code: 'RESOURCE_PROFILE_INITIATIVE_UNKNOWN',
+      reason: `Resource profile initiativeId "${initiativeId}" is not in matrix.initiativesById.`,
+      meta: { id, initiativeId },
+    };
+    return;
+  }
+  const dimensions = payload?.dimensions || {};
+  const builtDimensions = {};
+  for (const dim of RESOURCE_PROFILE_VALID_DIMENSIONS) {
+    const raw = dimensions[dim] || {};
+    builtDimensions[dim] = {
+      need: String(raw.need || '').trim(),
+      gap: raw.gap === null || raw.gap === undefined ? null : String(raw.gap).trim() || null,
+    };
+  }
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  state.matrix.resourceProfilesById[initiativeId] = {
+    id,
+    initiativeId,
+    dimensions: builtDimensions,
+    declaredAtISO: nowISO,
+  };
+}
+
+function declareBindingConstraint(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const bindingDimension = String(payload?.bindingDimension || '').trim();
+  const rationale = String(payload?.rationale || '').trim();
+  if (!bindingDimension || !rationale) {
+    state.lastPlanError = {
+      code: 'BINDING_CONSTRAINT_INVALID',
+      reason: 'Binding constraint requires bindingDimension and rationale.',
+      meta: { bindingDimension, rationale },
+    };
+    return;
+  }
+  if (!RESOURCE_PROFILE_VALID_DIMENSIONS.includes(bindingDimension)) {
+    state.lastPlanError = {
+      code: 'BINDING_CONSTRAINT_DIMENSION_INVALID',
+      reason: `Binding dimension "${bindingDimension}" must be one of: ${RESOURCE_PROFILE_VALID_DIMENSIONS.join(', ')}.`,
+      meta: { bindingDimension },
+    };
+    return;
+  }
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  state.matrix.bindingConstraint = {
+    bindingDimension,
+    rationale,
+    declaredAtISO: nowISO,
+  };
+}
+
+function declareBootstrap(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const selectedNodeId = String(payload?.selectedNodeId || '').trim();
+  const candidates = Array.isArray(payload?.candidates) ? payload.candidates : [];
+  if (!selectedNodeId) {
+    state.lastPlanError = {
+      code: 'BOOTSTRAP_INVALID',
+      reason: 'Bootstrap requires selectedNodeId.',
+      meta: { selectedNodeId },
+    };
+    return;
+  }
+  if (!candidates.includes(selectedNodeId)) {
+    state.lastPlanError = {
+      code: 'BOOTSTRAP_SELECTION_NOT_CANDIDATE',
+      reason: `Selected node "${selectedNodeId}" is not in the computed candidate set.`,
+      meta: { selectedNodeId, candidates },
+    };
+    return;
+  }
+  state.matrix.bootstrap = {
+    candidates,
+    selectedNodeId,
+  };
 }

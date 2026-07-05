@@ -33,7 +33,8 @@ describe('MATRIX — state.matrix shape (skeleton, all 10 sections)', () => {
     expect(state.matrix.artifactsById).toEqual({});
     expect(state.matrix.dependenciesById).toEqual({});
     expect(state.matrix.convergenceEdgesById).toEqual({});
-    expect(state.matrix.resources).toEqual({ available: {}, needed: {}, gap: {} });
+    expect(state.matrix.resourceProfilesById).toEqual({});
+    expect(state.matrix.bindingConstraint).toBeNull();
     expect(state.matrix.bootstrap).toEqual({ candidates: [], selectedNodeId: null });
   });
 });

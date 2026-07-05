@@ -13,9 +13,9 @@ import {
 import { appendFrictionEvent, buildFrictionEvent } from './engine/profileExecutionContainment.ts';
 import { APP_TIME_ZONE, addDays, dayKeyFromDate, dayKeyFromISO, nowDayKey } from './time/time.ts';
 import { assertEngineAuthority } from './invariants/engineAuthority.ts';
-import { validateGoalAdmission } from '../domain/goal/GoalAdmissionPolicy.ts';
 import { GoalRejectionCode } from '../domain/goal/GoalRejectionCode.ts';
-import { buildAutoDeliverablesFromGoalContract, detectCompoundGoal } from '../domain/autoStrategy.ts';
+import { buildAutoDeliverablesFromGoalContract } from '../domain/autoStrategy.ts';
+import { hasDefiniteEndState } from '../domain/planQuality/hasDefiniteEndState.ts';
 import { buildGoalIntakeContract, getIntakeGateCode } from '../domain/goal/GoalIntakeContract.ts';
 import { createGeneratePlanWithLLM } from './storeLLMActions.ts';
 import { getCanonicalCycleActions } from './cycleSelectors.js';
@@ -169,6 +169,21 @@ function normalizeProfileIdentity(profile = {}, options = {}) {
     label: String(profile?.label || fallbackDisplayName).trim() || fallbackDisplayName,
     roleLabel: roleLabel || null,
   };
+}
+
+// The old MissionSetupFlow wrote "Name / PlanTitle" into profile.displayName.
+// Strip the plan-title suffix on goal-clear so only the user's name survives.
+function stripEmbeddedPlanTitle(displayName, masterPlansById) {
+  const str = String(displayName || '').trim();
+  const sepIdx = str.lastIndexOf(' / ');
+  if (sepIdx <= 0) return str;
+  const candidateSuffix = str.slice(sepIdx + 3).trim();
+  if (!candidateSuffix) return str;
+  const matchesPlan = Object.values(masterPlansById || {}).some((p) => {
+    const t = String(p?.title || p?.coreMission || '').trim();
+    return t && t === candidateSuffix;
+  });
+  return matchesPlan ? str.slice(0, sepIdx).trim() : str;
 }
 
 function buildProfileAccessState({ profilesById = {}, activeProfileId = null, status = null, nowISO = null } = {}) {
@@ -455,7 +470,7 @@ export function buildBlankIdentityState(options = {}) {
     //   Section 6  — artifactsById              (physical outputs)
     //   Section 7  — dependenciesById           (upstream/downstream edges)
     //   Section 8  — convergenceEdgesById       (cross-lane convergence)
-    //   Section 9  — resources                  (available / needed / gap)
+    //   Section 9  — resourceProfilesById       (per-initiative gap grid), bindingConstraint
     //   Section 10 — bootstrap                  (where execution can begin)
     matrix: {
       verificationSourcesById: {},
@@ -466,7 +481,8 @@ export function buildBlankIdentityState(options = {}) {
       artifactsById: {},
       dependenciesById: {},
       convergenceEdgesById: {},
-      resources: { available: {}, needed: {}, gap: {} },
+      resourceProfilesById: {},
+      bindingConstraint: null,
       bootstrap: { candidates: [], selectedNodeId: null },
     },
     goalPolicyByGoalId: {},
@@ -1183,7 +1199,10 @@ function identityReducer(state, action) {
     const activeProfileId = String(state?.activeProfileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
     const currentProfile = state?.profilesById?.[activeProfileId] || {};
     const profileLabel = currentProfile?.label || DEFAULT_PROFILE_LABEL;
-    const profileDisplayName = currentProfile?.displayName || profileLabel || DEFAULT_PROFILE_DISPLAY_NAME;
+    const profileDisplayName = stripEmbeddedPlanTitle(
+      currentProfile?.displayName || profileLabel || DEFAULT_PROFILE_DISPLAY_NAME,
+      state?.masterPlansById
+    );
     const roleLabel = currentProfile?.roleLabel || null;
     const sanitizedProfiles = {
       [activeProfileId]: {
@@ -1817,7 +1836,10 @@ export function IdentityProvider({ children, initialState }) {
     const activeProfileId = String(current?.activeProfileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
     const currentProfile = current?.profilesById?.[activeProfileId] || {};
     const profileLabel = currentProfile?.label || DEFAULT_PROFILE_LABEL;
-    const profileDisplayName = currentProfile?.displayName || profileLabel || DEFAULT_PROFILE_DISPLAY_NAME;
+    const profileDisplayName = stripEmbeddedPlanTitle(
+      currentProfile?.displayName || profileLabel || DEFAULT_PROFILE_DISPLAY_NAME,
+      current?.masterPlansById
+    );
     const roleLabel = currentProfile?.roleLabel || null;
     const sanitizedProfiles = {
       [activeProfileId]: {
@@ -1887,6 +1909,16 @@ export function IdentityProvider({ children, initialState }) {
     },
     [state]
   );
+  const markMatrixIntakeComplete = useCallback(() => {
+    const cycleId = state.activeCycleId;
+    if (!cycleId || !state.cyclesById?.[cycleId]) return;
+    const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
+    draft.cyclesById[cycleId].matrixIntakeComplete = true;
+    const nextState = computeDerivedState(draft, { type: 'NO_OP' });
+    dispatch({ type: 'APPLY_NEXT_STATE', nextState });
+  }, [state]);
+
+  const matrixDispatch = useCallback((action) => dispatch(action), []);
 
   React.useEffect(() => {
     persistState(state);
@@ -1998,6 +2030,8 @@ export function IdentityProvider({ children, initialState }) {
     setAim,
     setPatternTargets,
     attemptGoalAdmission,
+    markMatrixIntakeComplete,
+    matrixDispatch,
     archiveAndCloneCycle,
     ...coreMissionContractActions,
   };
@@ -2521,80 +2555,96 @@ export function attemptGoalAdmissionPure(state, admissionInput) {
     };
   }
 
-  const activeCycles = Object.values(draft.cyclesById || {}).filter((cycle) => cycle?.status === 'Active');
-  const existingOutcomes = activeCycles
-    .map((c) => c?.goalContract?.terminalOutcome?.text || c?.definiteGoal?.outcome || '')
-    .filter(Boolean);
-  const activeGoalSignatures = activeCycles
-    .map((c) => c?.goalHash || c?.goalContract?.inscription?.contractHash)
-    .filter(Boolean);
-
-  // Check for compound goal (multiple outcomes) - POLICY ENFORCEMENT
-  const compoundCheck = detectCompoundGoal(contract);
-  if (compoundCheck.isCompound) {
-    // Reject compound goals with specific code
-    const validation = {
-      status: 'REJECTED',
-      rejectionCodes: ['MULTIPLE_OUTCOMES_DETECTED'],
-    };
-
+  // Duplicate detection: reject if identical contract hash OR identical outcome text already active.
+  // Structural check only — prevents double-admission, not a quality judgement.
+  const activeCyclesForDupe = Object.values(draft.cyclesById || {}).filter(c => c?.status === 'Active');
+  const activeGoalHashes = activeCyclesForDupe.map(c => c?.goalHash || c?.goalContract?.inscription?.contractHash).filter(Boolean);
+  const activeOutcomeTexts = activeCyclesForDupe.map(c => (c?.goalContract?.terminalOutcome?.text || '').trim().toLowerCase()).filter(Boolean);
+  const incomingHash = contract?.inscription?.contractHash;
+  const incomingOutcomeText = (contract?.terminalOutcome?.text || '').trim().toLowerCase();
+  const isDuplicate = (incomingHash && activeGoalHashes.includes(incomingHash)) ||
+    (incomingOutcomeText && activeOutcomeTexts.includes(incomingOutcomeText));
+  if (isDuplicate) {
     const aspirationId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
     const aspiration = {
       id: aspirationId,
       createdAtISO: nowISO,
       contractDraft: structuredClone ? structuredClone(contract) : JSON.parse(JSON.stringify(contract)),
-      rejectionCodes: validation.rejectionCodes || [],
-      rejectionReason: `Goal contains multiple outcomes: ${compoundCheck.outcomes.join('; ')}. Please choose one primary objective for this cycle.`,
+      rejectionCodes: ['DUPLICATE_ACTIVE'],
+      rejectionReason: 'This goal is already active. Archive or complete the existing cycle first.',
     };
-
     draft.aspirations = draft.aspirations || [];
     draft.aspirations.push(aspiration);
-
-    if (!draft.aspirationsByCycleId) {
-      draft.aspirationsByCycleId = {};
-    }
-    const forCycle = draft.activeCycleId || 'global';
-    draft.aspirationsByCycleId[forCycle] = draft.aspirationsByCycleId[forCycle] || [];
-    draft.aspirationsByCycleId[forCycle].push(aspiration);
-
-    const nextState = computeDerivedState(draft, { type: 'NO_OP' });
+    if (!draft.aspirationsByCycleId) draft.aspirationsByCycleId = {};
+    const forCycleDupe = draft.activeCycleId || 'global';
+    draft.aspirationsByCycleId[forCycleDupe] = draft.aspirationsByCycleId[forCycleDupe] || [];
+    draft.aspirationsByCycleId[forCycleDupe].push(aspiration);
+    const nextStateDupe = computeDerivedState(draft, { type: 'NO_OP' });
     return {
-      nextState,
-      result: {
-        status: 'REJECTED',
-        aspirationId: aspiration.id,
-        rejectionCodes: validation.rejectionCodes,
-        rejectionReason: aspiration.rejectionReason,
-      },
+      nextState: nextStateDupe,
+      result: { status: 'REJECTED', aspirationId: aspiration.id, rejectionCodes: aspiration.rejectionCodes, rejectionReason: aspiration.rejectionReason },
     };
   }
 
-  const validation = validateGoalAdmission(contract, nowISO, existingOutcomes, activeGoalSignatures);
+  // Admission doctrine: presence of (1) a discernible objective and (2) a deadline.
+  // Gate is blind to scope, multiplicity, and ambition — those are the elicitation
+  // engine's domain. Multiplicity IS the matrix: decompose downstream, never block at the door.
+  const rawObjectiveText = String(
+    goalDraftV2?.goalText ||
+      goalDraftV2?.goalLabel ||
+      contract?.goalText ||
+      contract?.goalLabel ||
+      contract?.terminalOutcome?.text ||
+      ''
+  ).trim();
 
-  if (validation.status === 'REJECTED') {
+  if (!hasDefiniteEndState(rawObjectiveText)) {
     const aspirationId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
     const aspiration = {
       id: aspirationId,
       createdAtISO: nowISO,
       contractDraft: structuredClone ? structuredClone(contract) : JSON.parse(JSON.stringify(contract)),
-      rejectionCodes: validation.rejectionCodes || [],
+      rejectionCodes: ['NO_DEFINITE_END_STATE'],
+      rejectionReason: 'What specifically would be true if you achieved this? Name the recognizable outcome — the thing you\'d point to and say "done."',
     };
-
     draft.aspirations = draft.aspirations || [];
     draft.aspirations.push(aspiration);
-
-    // Maintain per-cycle aspirations mapping if available
-    if (!draft.aspirationsByCycleId) {
-      draft.aspirationsByCycleId = {};
-    }
-    const forCycle = draft.activeCycleId || 'global';
-    draft.aspirationsByCycleId[forCycle] = draft.aspirationsByCycleId[forCycle] || [];
-    draft.aspirationsByCycleId[forCycle].push(aspiration);
-
-    const nextState = computeDerivedState(draft, { type: 'NO_OP' });
+    if (!draft.aspirationsByCycleId) draft.aspirationsByCycleId = {};
+    const forCycle0 = draft.activeCycleId || 'global';
+    draft.aspirationsByCycleId[forCycle0] = draft.aspirationsByCycleId[forCycle0] || [];
+    draft.aspirationsByCycleId[forCycle0].push(aspiration);
+    const nextState0 = computeDerivedState(draft, { type: 'NO_OP' });
     return {
-      nextState,
-      result: { status: 'REJECTED', aspirationId: aspiration.id, rejectionCodes: validation.rejectionCodes },
+      nextState: nextState0,
+      result: { status: 'REJECTED', aspirationId: aspiration.id, rejectionCodes: aspiration.rejectionCodes, rejectionReason: aspiration.rejectionReason },
+    };
+  }
+
+  const deadlineDayKeyForGate =
+    contract?.deadline?.dayKey ||
+    contract?.endDayKey ||
+    contract?.deadlineISO ||
+    (typeof contract?.deadline === 'string' ? contract.deadline : null);
+
+  if (!deadlineDayKeyForGate) {
+    const aspirationId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    const aspiration = {
+      id: aspirationId,
+      createdAtISO: nowISO,
+      contractDraft: structuredClone ? structuredClone(contract) : JSON.parse(JSON.stringify(contract)),
+      rejectionCodes: ['INTAKE_DEADLINE_MISSING'],
+      rejectionReason: 'Provide a target deadline — by when do you want to achieve this?',
+    };
+    draft.aspirations = draft.aspirations || [];
+    draft.aspirations.push(aspiration);
+    if (!draft.aspirationsByCycleId) draft.aspirationsByCycleId = {};
+    const forCycle1 = draft.activeCycleId || 'global';
+    draft.aspirationsByCycleId[forCycle1] = draft.aspirationsByCycleId[forCycle1] || [];
+    draft.aspirationsByCycleId[forCycle1].push(aspiration);
+    const nextState1 = computeDerivedState(draft, { type: 'NO_OP' });
+    return {
+      nextState: nextState1,
+      result: { status: 'REJECTED', aspirationId: aspiration.id, rejectionCodes: aspiration.rejectionCodes, rejectionReason: aspiration.rejectionReason },
     };
   }
 
@@ -2723,6 +2773,7 @@ export function attemptGoalAdmissionPure(state, admissionInput) {
   newCycle.goalId = normalizedGoalContract?.goalId || newCycle.goalId || null;
   newCycle.goalContract = normalizedGoalContract;
   newCycle.goalDraftV2 = goalDraftV2 || null;
+  newCycle.matrixIntakeComplete = false;
   newCycle.goalHash = contract?.inscription?.contractHash || null;
   const deadlineDayKey =
     normalizedGoalContract?.deadline?.dayKey ||

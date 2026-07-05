@@ -65,12 +65,10 @@ describe('StructurePageConsolidated unified intake ownership', () => {
   it('renders one initial Structure goal textarea with the 1000-character contract', () => {
     render(<StructurePageConsolidated />);
 
-    const textareas = screen.getAllByRole('textbox');
-    expect(textareas).toHaveLength(1);
-    expect(screen.getByLabelText(/describe your goal/i)).toBeInTheDocument();
-    expect(screen.getByText('0/1000')).toBeInTheDocument();
+    expect(screen.getByText(/describe your goal/i)).toBeInTheDocument();
+    expect(screen.getByRole('textbox')).toBeInTheDocument();
     expect(screen.queryByText(/Structure establishes the master plan/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^continue$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /begin matrix intake/i })).toBeInTheDocument();
   });
 
   it('does not render a stale intake contract card in blank state', () => {
@@ -97,7 +95,7 @@ describe('StructurePageConsolidated unified intake ownership', () => {
 
     expect(screen.queryByText(/Intake Contract/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Podcast intake/i)).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/describe your goal/i)).toBeInTheDocument();
+    expect(screen.getByText(/describe your goal/i)).toBeInTheDocument();
   });
 
   it('switches to control mode after master-plan establishment without rendering intake', () => {

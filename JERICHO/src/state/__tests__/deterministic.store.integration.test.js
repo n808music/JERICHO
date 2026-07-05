@@ -304,15 +304,14 @@ describe('Deterministic Plan Generator - Store Integration', () => {
       expect(admittedCycle.coldPlan).toBeDefined();
     });
 
-    it('should handle missing mechanism class (rejection)', () => {
+    it('admits contract without planGenerationMechanismClass (gate is mechanism-class-blind)', () => {
       const state = buildMinimalState();
       const contract = createValidContract();
       delete contract.planGenerationMechanismClass;
-      const { nextState, result } = attemptGoalAdmissionPure(state, contract);
+      const { result } = attemptGoalAdmissionPure(state, contract);
 
-      // Should be rejected per Phase 3 policy
-      expect(result.status).toBe('REJECTED');
-      expect(result.rejectionCodes).toContain('PLAN_GENERATION_MECHANISM_MISSING');
+      // Gate only checks presence of objective + deadline — mechanism class is downstream concern
+      expect(result.status).toBe('ADMITTED');
     });
   });
 
@@ -348,28 +347,26 @@ describe('Deterministic Plan Generator - Store Integration', () => {
   });
 
   describe('Mechanism Class Requirements', () => {
-    it('should require planGenerationMechanismClass (Phase 3 requirement)', () => {
+    it('admits contract without planGenerationMechanismClass — gate is mechanism-class-blind', () => {
       const state = buildMinimalState();
       const contract = createValidContract();
       delete contract.planGenerationMechanismClass;
 
-      const { nextState, result } = attemptGoalAdmissionPure(state, contract);
+      const { result } = attemptGoalAdmissionPure(state, contract);
 
-      // Should be rejected per Phase 3 policy
-      expect(result.status).toBe('REJECTED');
-      expect(result.rejectionCodes).toContain('PLAN_GENERATION_MECHANISM_MISSING');
+      // Gate checks presence of objective + deadline only; mechanism class is a downstream concern
+      expect(result.status).toBe('ADMITTED');
     });
 
-    it('should reject non-GENERIC_DETERMINISTIC mechanism classes in Phase 3', () => {
+    it('admits contract with unsupported mechanism class — gate does not validate mechanism', () => {
       const state = buildMinimalState();
       const contract = createValidContract();
-      contract.planGenerationMechanismClass = 'TEMPLATE_PIPELINE'; // Not implemented in v1
+      contract.planGenerationMechanismClass = 'TEMPLATE_PIPELINE';
 
-      const { nextState, result } = attemptGoalAdmissionPure(state, contract);
+      const { result } = attemptGoalAdmissionPure(state, contract);
 
-      // Should be rejected (only GENERIC_DETERMINISTIC is v1)
-      expect(result.status).toBe('REJECTED');
-      expect(result.rejectionCodes).toContain('PLAN_GENERATION_MECHANISM_UNSUPPORTED');
+      // Gate is blind to mechanism class; unsupported values fall through to plan generation
+      expect(result.status).toBe('ADMITTED');
     });
   });
 });
