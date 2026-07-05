@@ -173,7 +173,7 @@ function normalizeProfileIdentity(profile = {}, options = {}) {
 
 // The old MissionSetupFlow wrote "Name / PlanTitle" into profile.displayName.
 // Strip the plan-title suffix on goal-clear so only the user's name survives.
-function stripEmbeddedPlanTitle(displayName, masterPlansById) {
+export function stripEmbeddedPlanTitle(displayName, masterPlansById) {
   const str = String(displayName || '').trim();
   const sepIdx = str.lastIndexOf(' / ');
   if (sepIdx <= 0) return str;
