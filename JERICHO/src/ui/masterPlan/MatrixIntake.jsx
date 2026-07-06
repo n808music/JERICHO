@@ -30,28 +30,33 @@ const SLOT_META = {
 };
 
 // Brief context shown above each probe (PART C)
+// One ask per line. Compound framings (Defect C) rewritten to a single concept;
+// the five already-single-ask framings are left unchanged.
 const SECTION_FRAMING = {
-  [ENTITY_SLOT_ID]:             'Who or what are the main actors, organizations, or stakeholders involved?',
-  [INITIATIVE_SLOT_ID]:         'What distinct campaigns, programs, or work streams will drive this goal?',
-  [SYSTEM_SLOT_ID]:             'What tools, platforms, or systems need to be built, configured, or integrated?',
+  [ENTITY_SLOT_ID]:             'The parts of your operation',
+  [INITIATIVE_SLOT_ID]:         'The work streams driving this goal',
+  [SYSTEM_SLOT_ID]:             'The systems involved',
   [PROJECT_SLOT_ID]:            'What specific projects or deliverable streams need to happen?',
-  [ARTIFACT_SLOT_ID]:           'What tangible outputs, documents, or products will be produced?',
+  [ARTIFACT_SLOT_ID]:           "What you'll produce",
   [DEPENDENCY_SLOT_ID]:         'What depends on what? Map the work sequencing.',
-  [CONVERGENCE_SLOT_ID]:        'Where do separate work streams merge, hand off, or combine?',
+  [CONVERGENCE_SLOT_ID]:        'Where work streams meet',
   [RESOURCE_PROFILE_SLOT_ID]:   'Who is doing the work and what resources are they working with?',
   [BINDING_CONSTRAINT_SLOT_ID]: 'What single resource or capacity is the bottleneck for the entire plan?',
   [BOOTSTRAP_SLOT_ID]:          'How does the work get started — what needs to happen first?',
 };
 
 // Relevance question before entering optional sections (Rule 5)
+// Affirmative relevance gate (Rule 5): "Yes" enters the section, "Skip" bypasses
+// it — branch polarity lives in the buttons, not the wording. Compound questions
+// (Defect C) rewritten to a single ask while preserving that affirmative polarity.
 const SCOPE_QUESTIONS = {
-  [INITIATIVE_SLOT_ID]:         'Will this goal involve multiple distinct initiatives, campaigns, or work programs running in parallel?',
-  [SYSTEM_SLOT_ID]:             'Are there software systems, platforms, or tools that need to be built, configured, or integrated?',
-  [ARTIFACT_SLOT_ID]:           'Will specific deliverables, products, documents, or artifacts be produced?',
+  [INITIATIVE_SLOT_ID]:         'Will this goal run several work streams in parallel?',
+  [SYSTEM_SLOT_ID]:             'Are there software systems to set up?',
+  [ARTIFACT_SLOT_ID]:           'Will this produce specific deliverables?',
   [DEPENDENCY_SLOT_ID]:         'Are there work items where one must be completed before another can start?',
   [CONVERGENCE_SLOT_ID]:        'Are there points where separate work streams merge or hand off to a shared outcome?',
   [RESOURCE_PROFILE_SLOT_ID]:   'Do you have team members with specific roles and resource allocations to map?',
-  [BINDING_CONSTRAINT_SLOT_ID]: 'Is there a single resource — budget, a specific person, or capacity — that is the bottleneck for your timeline?',
+  [BINDING_CONSTRAINT_SLOT_ID]: 'Is one resource the bottleneck for your timeline?',
 };
 
 // Natural language overrides for schema-heavy probe text (Rule 2 — copy only, no gate logic changed)
@@ -327,7 +332,7 @@ function ScopeScreen({ slotId, onYes, onSkip }) {
   return (
     <div style={{ padding: '20px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <SectionPill slotId={slotId} />
-      <p style={{ fontSize: 15, fontWeight: 500, color: '#f4f4f5', lineHeight: 1.6, margin: 0 }}>
+      <p style={{ fontSize: 18, fontWeight: 700, color: '#18181b', lineHeight: 1.5, margin: 0 }}>
         {question}
       </p>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -361,7 +366,7 @@ function LoopCheckScreen({ slotId, onAddMore, onContinue }) {
   return (
     <div style={{ padding: '20px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <SectionPill slotId={slotId} />
-      <p style={{ fontSize: 15, fontWeight: 500, color: '#f4f4f5', lineHeight: 1.6, margin: 0 }}>
+      <p style={{ fontSize: 18, fontWeight: 700, color: '#18181b', lineHeight: 1.5, margin: 0 }}>
         Is there another {meta.label.toLowerCase()} to capture?
       </p>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -394,7 +399,7 @@ function DoneScreen({ onAddMore }) {
   return (
     <div style={{ padding: '24px 0', textAlign: 'center' }}>
       <div style={{ fontSize: 28, marginBottom: 12 }}>✓</div>
-      <p style={{ fontSize: 15, fontWeight: 600, color: '#f4f4f5', marginBottom: 4 }}>
+      <p style={{ fontSize: 15, fontWeight: 600, color: '#18181b', marginBottom: 4 }}>
         Intake complete
       </p>
       <p style={{ fontSize: 12, color: '#71717a', marginBottom: 20 }}>
