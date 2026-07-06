@@ -99,11 +99,12 @@ const FULL_SLOT_ORDER = [
   BOOTSTRAP_SLOT_ID,
 ];
 
-function makeSlotEngine(matrix, slotId) {
+function makeSlotEngine(matrix, slotId, restoreState = null) {
   return createElicitationEngine({
     goalType: 'generic',
     matrixSnapshot: matrix || {},
     scope: [slotId],
+    restoreState,
   });
 }
 
@@ -427,7 +428,8 @@ function DoneScreen({ onAddMore }) {
 
 export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
   const store = useIdentityStore();
-  const activeCycle = store.activeCycleId ? store.cyclesById?.[store.activeCycleId] : null;
+  const activeCycleId = store.activeCycleId;
+  const activeCycle = activeCycleId ? store.cyclesById?.[activeCycleId] : null;
   const hasAdmittedGoal = Boolean(activeCycle?.goalContract);
 
   // INSTRUMENTATION — mount/unmount lifecycle
@@ -455,6 +457,31 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
 
   // Goal admission error (shown in Phase 0)
   const [admissionError, setAdmissionError] = useState(null);
+
+  // Resume (Defect B): true when this mount rehydrated a persisted in-flight
+  // session rather than starting fresh — drives the "Resume intake" affordance.
+  const [resumedFromSession, setResumedFromSession] = useState(false);
+
+  // Latest inputValue held in a ref so we can persist the in-flight text on
+  // unmount (back-gesture) WITHOUT persisting on every keystroke.
+  const inputValueRef = useRef('');
+  inputValueRef.current = inputValue;
+
+  // Live snapshot writer, reassigned each render over current state. Called on
+  // step transitions and on unmount — never per keystroke — so captured answers
+  // are never lost while in-flight typed text is best-effort.
+  const persistSessionRef = useRef(() => {});
+  persistSessionRef.current = () => {
+    if (!hasAdmittedGoal || !activeCycleId) return;
+    if (phase !== 'engine' || !engine) return;
+    store.setIntakeSession?.(activeCycleId, {
+      phase,
+      slotQueue,
+      currentSlotId: slotQueue[0] || null,
+      engineSnapshot: engine.snapshotState(),
+      inputValue: inputValueRef.current,
+    });
+  };
 
   // ── Slot advancement helper ──────────────────────────────────────────────────
   // Walks forward through queue, skipping empty slots, until it finds work to do.
@@ -520,12 +547,42 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
     enterQueue(nextQueue, store.matrix);
   }, [slotQueue, store.matrix, enterQueue]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // On mount with admitted goal (remount after Phase 0 completes and store updates)
+  // On mount with admitted goal (remount after Phase 0 completes and store
+  // updates) — OR resume a persisted in-flight session after a back-gesture /
+  // refresh / route change (Defect B). A saved session wins over a fresh start.
   useEffect(() => {
+    const saved =
+      hasAdmittedGoal && activeCycleId ? store.intakeSessionByCycleId?.[activeCycleId] : null;
+    if (saved?.engineSnapshot && saved?.currentSlotId) {
+      const eng = makeSlotEngine(store.matrix, saved.currentSlotId, saved.engineSnapshot);
+      const s = eng.nextStep();
+      if (!s.done) {
+        onSurveyStarted?.(); // keep the intake mounted through resume
+        setSlotQueue(
+          Array.isArray(saved.slotQueue) && saved.slotQueue.length
+            ? saved.slotQueue
+            : [saved.currentSlotId]
+        );
+        setEngine(eng);
+        setStep(s);
+        setInputValue(saved.inputValue || '');
+        setResumedFromSession(true);
+        setPhase('engine');
+        return;
+      }
+    }
     if (phase === 'entering') {
       enterQueue([...FULL_SLOT_ORDER], store.matrix);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist the in-flight session on every step transition (engine/queue/phase
+  // change) and on unmount — captured answers are never lost. inputValue is
+  // read from a ref, so this does NOT fire per keystroke.
+  useEffect(() => {
+    persistSessionRef.current();
+  }, [engine, phase, slotQueue]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => persistSessionRef.current(), []); // persist on unmount
 
   // Transition: when the store admits the goal (Phase 0 → scope/engine)
   const prevAdmittedRef = useRef(hasAdmittedGoal);
@@ -598,6 +655,7 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
 
   const handleSubmit = useCallback(() => {
     if (!engine || !step?.probe) return;
+    setResumedFromSession(false); // first interaction retires the resume banner
     const { probe } = step;
     const fieldName = probe.fieldName;
     if (!fieldName) return;
@@ -781,6 +839,23 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
   return (
     <div style={{ padding: '20px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <SectionPill slotId={probe.slotId} />
+
+      {/* Resume affordance (Defect B): shown when this session was rehydrated
+          after a route change / back-gesture, so the user knows their place and
+          answers were kept. */}
+      {resumedFromSession && (
+        <div
+          data-testid="intake-resume-banner"
+          style={{
+            fontSize: 12, color: '#3f3f46', background: '#eef2ff',
+            border: '1px solid #c7d2fe', borderRadius: 6, padding: '8px 12px',
+            display: 'flex', gap: 8, alignItems: 'center',
+          }}
+        >
+          <span style={{ fontWeight: 700, color: '#4f46e5' }}>↩ Resumed intake</span>
+          <span>— picked up right where you left off; your answers were kept.</span>
+        </div>
+      )}
 
       {/* Section intent framing — eyebrow, first probe of slot only (PART C).
           Muted but readable on the light card. */}

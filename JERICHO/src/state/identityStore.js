@@ -491,6 +491,11 @@ export function buildBlankIdentityState(options = {}) {
     systemShotClockByGoal: {},
     executionCorrectionByGoal: {},
     cycleDynamicsByCycleId: {},
+    // In-flight matrix-intake session, persisted per cycle so the survey can
+    // resume at the exact slot with all captured answers after a route change,
+    // refresh, or accidental back-gesture (Defect B). Cleared on completion and
+    // on goal clear (a resumable session for a dead goal is the Gap 4 class).
+    intakeSessionByCycleId: {},
     viewDate: todayDate,
     selectedHorizonMode: 'current_cycle',
     calendarDisplayBlocks: [],
@@ -772,6 +777,14 @@ export function buildPersistableIdentityState(state) {
   if (!snapshot.activeCycleId || !retainedCyclesById[snapshot.activeCycleId]) {
     snapshot.activeCycleId = null;
   }
+
+  // Never persist an in-flight intake session for a cycle that is no longer
+  // retained (Defect B / Gap 4 class: no resumable survey for a dead goal).
+  snapshot.intakeSessionByCycleId = Object.fromEntries(
+    Object.entries(snapshot?.intakeSessionByCycleId || {}).filter(
+      ([cycleId]) => Boolean(retainedCyclesById[cycleId])
+    )
+  );
 
   Object.values(snapshot?.goalsById || {}).forEach((goal) => {
     if (!goal) {
@@ -1914,9 +1927,22 @@ export function IdentityProvider({ children, initialState }) {
     if (!cycleId || !state.cyclesById?.[cycleId]) return;
     const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
     draft.cyclesById[cycleId].matrixIntakeComplete = true;
+    // Completing the intake retires its resumable session.
+    if (draft.intakeSessionByCycleId) delete draft.intakeSessionByCycleId[cycleId];
     const nextState = computeDerivedState(draft, { type: 'NO_OP' });
     dispatch({ type: 'APPLY_NEXT_STATE', nextState });
   }, [state]);
+
+  // Persist / retire the in-flight matrix-intake session so it survives a route
+  // change, refresh, or back-gesture and can resume at the exact slot (Defect B).
+  const setIntakeSession = useCallback((cycleId, session) => {
+    if (!cycleId || !session) return;
+    dispatch({ type: 'SET_INTAKE_SESSION', payload: { cycleId, session } });
+  }, []);
+  const clearIntakeSession = useCallback((cycleId) => {
+    if (!cycleId) return;
+    dispatch({ type: 'CLEAR_INTAKE_SESSION', payload: { cycleId } });
+  }, []);
 
   const matrixDispatch = useCallback((action) => dispatch(action), []);
 
@@ -2031,6 +2057,8 @@ export function IdentityProvider({ children, initialState }) {
     setPatternTargets,
     attemptGoalAdmission,
     markMatrixIntakeComplete,
+    setIntakeSession,
+    clearIntakeSession,
     matrixDispatch,
     archiveAndCloneCycle,
     ...coreMissionContractActions,

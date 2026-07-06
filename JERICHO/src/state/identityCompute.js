@@ -272,6 +272,9 @@ export function computeDerivedState(state, action) {
   if (!Array.isArray(next.calendarDisplayBlocks)) {
     next.calendarDisplayBlocks = [];
   }
+  if (!next.intakeSessionByCycleId || typeof next.intakeSessionByCycleId !== 'object') {
+    next.intakeSessionByCycleId = {};
+  }
   ensureCycleStructures(next);
   ensureAdmissionStores(next);
   ensureDeliverablesStore(next);
@@ -298,6 +301,22 @@ export function computeDerivedState(state, action) {
   const perfActionStart = debugPerfActions ? Date.now() : 0;
 
   switch (action.type) {
+    case 'SET_INTAKE_SESSION': {
+      // Persist the in-flight matrix-intake session so it can resume at the
+      // exact slot after a route change/refresh/back-gesture (Defect B).
+      const { cycleId, session } = action.payload || {};
+      if (cycleId && session) {
+        next.intakeSessionByCycleId[cycleId] = session;
+      }
+      break;
+    }
+    case 'CLEAR_INTAKE_SESSION': {
+      const { cycleId } = action.payload || {};
+      if (cycleId) {
+        delete next.intakeSessionByCycleId[cycleId];
+      }
+      break;
+    }
     case 'BEGIN_BLOCK':
       updateBlockStatus(next, action.id, 'in_progress');
       break;

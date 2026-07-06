@@ -532,8 +532,21 @@ function finalizeCompletedSlots(state) {
   return { state: nextState, dispatches };
 }
 
-export function createElicitationEngine({ goalType, matrixSnapshot, scope = [PROJECT_SLOT_ID] }) {
-  const initialStack = scope.map((slotId) => freshSlotState(slotId)).reverse();
+export function createElicitationEngine({ goalType, matrixSnapshot, scope = [PROJECT_SLOT_ID], restoreState = null }) {
+  // Restore path (Defect B — resume an in-flight intake). When a prior
+  // snapshotState() is supplied, rebuild the slot stack (with each slot's
+  // captured answers) and completed set from it instead of starting fresh.
+  // Additive: absent restoreState, behavior is identical to before.
+  const initialStack = restoreState
+    ? (restoreState.slotStack || []).map((s) => ({
+        slotId: s.slotId,
+        captured: { ...(s.captured || {}) },
+        completed: Boolean(s.completed),
+        lastFailureCode: s.lastFailureCode ?? null,
+      }))
+    : scope.map((slotId) => freshSlotState(slotId)).reverse();
+  const initialGoalType = restoreState?.goalType ?? goalType;
+  const initialCompleted = new Set(restoreState?.completedSlotIds || []);
   // Engine state is captured in closure; methods return *new* engine
   // instances. Determinism property: same goalType + same answer sequence →
   // identical probe sequence and dispatch set.
@@ -613,10 +626,10 @@ export function createElicitationEngine({ goalType, matrixSnapshot, scope = [PRO
     };
   }
   return wrap({
-    goalType,
+    goalType: initialGoalType,
     matrixSnapshot: matrixSnapshot || {},
     slotStack: initialStack,
-    completedSlotIds: new Set(),
+    completedSlotIds: initialCompleted,
     readbackPending: null,
   });
 }
