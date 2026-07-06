@@ -39,7 +39,8 @@ describe('elicitation engine — snapshot/restore round-trip', () => {
 
     // 3. Captured answers survived — the resumed probe is referent-bound to the
     //    name the user already gave.
-    expect(step.probe.spine).toContain('**Acme Robotics**');
+    expect(step.probe.spine).toContain('Acme Robotics');
+    expect(step.probe.spine).not.toContain('**');
   });
 
   it('without restoreState the engine still starts fresh (additive, no behavior change)', () => {

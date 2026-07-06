@@ -67,7 +67,7 @@ function driveEntities(entities) {
       if (!probe) break;
       // A follow-up (any probe after the name is captured) that references THIS
       // entity's own name in bold is a correctly-bound referent.
-      if (probe.fieldName !== 'name' && probe.spine.includes(`**${entity.name}**`)) {
+      if (probe.fieldName !== 'name' && probe.spine.includes(entity.name)) {
         boundCount += 1;
       }
       const res = engine.consumeAnswer({ [probe.fieldName]: answerFor(probe.fieldName, entity) });
@@ -144,9 +144,10 @@ describe('entity fan-out (N > 1) — end-to-end referent binding + keyed capture
       const step = engine.nextStep();
       spines.push(step.probe.spine);
     }
-    expect(spines[0]).toContain('**Acme Robotics**');
-    expect(spines[1]).toContain('**Northwind Logistics**');
+    expect(spines[0]).toContain('Acme Robotics');
+    expect(spines[1]).toContain('Northwind Logistics');
+    expect(spines[0]).not.toContain('**'); // plain text, no markdown markers
     // Entity 2's probe must NOT carry entity 1's name.
-    expect(spines[1]).not.toContain('**Acme Robotics**');
+    expect(spines[1]).not.toContain('Acme Robotics');
   });
 });

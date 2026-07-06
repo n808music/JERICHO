@@ -1,20 +1,18 @@
 import React from 'react';
 import '@testing-library/jest-dom';
-import { render, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, waitFor, cleanup } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, afterEach } from 'vitest';
 import MatrixIntake from '../../src/ui/masterPlan/MatrixIntake.jsx';
 import { IdentityProvider, buildBlankIdentityState } from '../../src/state/identityStore.js';
 
 // ACCEPTANCE (user's words): on the intake card, NOTHING is light grey. The
 // live question is the largest, full-contrast (near-black), unmistakably-primary
-// text. Example text is smaller but fully legible near-black. The framing
-// eyebrow may be muted, but readable. This test asserts that VISUAL HIERARCHY
-// (computed color/size/weight of the rendered nodes) — not the isFirstField
-// mechanism. Gap 1 shipped with 6 green tests and the defect on screen because
-// the tests asserted the mechanism, not this contrast property.
+// text; supporting text is smaller but fully legible near-black. Asserts the
+// computed color/size/weight of the RENDERED nodes — the visual hierarchy —
+// across both the roster screen (Defect E) and a detail probe.
 
 const CYCLE_ID = 'cycle-intake-contrast-1';
-
 function admittedGoalState() {
   const base = buildBlankIdentityState();
   return {
@@ -26,19 +24,12 @@ function admittedGoalState() {
         id: CYCLE_ID,
         status: 'active',
         goalDraftV2: { goalText: 'raise 25k', goalLabel: 'raise 25k' },
-        goalContract: {
-          goalId: 'goal-contrast-1',
-          goalText: 'Secure $25k sponsorship commitments',
-          startDayKey: '2026-03-12',
-          deadline: { dayKey: '2026-06-30' },
-        },
+        goalContract: { goalId: 'goal-contrast-1', goalText: 'Secure $25k', startDayKey: '2026-03-12', deadline: { dayKey: '2026-06-30' } },
       },
     },
   };
 }
 
-// Parse a CSS color (jsdom normalizes inline hex to `rgb(r, g, b)`, but accept
-// hex too) and return perceptual luminance 0..255 (higher = lighter).
 function luminance(cssColor) {
   const s = String(cssColor || '').trim();
   let r, g, b;
@@ -54,64 +45,50 @@ function luminance(cssColor) {
   }
   return 0.299 * r + 0.587 * g + 0.114 * b;
 }
-
 const px = (v) => parseInt(String(v || '0'), 10) || 0;
 const weight = (v) => parseInt(String(v || '400'), 10) || 400;
 
 afterEach(() => cleanup());
 
 describe('MatrixIntake — live question visual hierarchy (Gap 1 acceptance)', () => {
-  it('renders the live question as the largest, boldest, near-black element; nothing light grey', async () => {
-    render(
-      <IdentityProvider initialState={admittedGoalState()}>
-        <MatrixIntake />
-      </IdentityProvider>
-    );
+  it('the roster question is the largest, boldest, near-black element; supporting text legible; nothing light grey', async () => {
+    render(<IdentityProvider initialState={admittedGoalState()}><MatrixIntake /></IdentityProvider>);
 
     const question = await waitFor(() => {
-      const el = document.querySelector('[data-testid="intake-question"]');
+      const el = document.querySelector('[data-testid="roster-question"]');
       expect(el).toBeTruthy();
-      expect(el.textContent.trim().length).toBeGreaterThan(0);
       return el;
     });
-
-    const examples = document.querySelector('[data-testid="intake-examples"]');
+    const subtext = document.querySelector('[data-testid="roster-subtext"]');
     const framing = document.querySelector('[data-testid="intake-framing"]');
-    expect(examples, 'entity-name probe should render example text to compare against').toBeTruthy();
+    expect(subtext).toBeTruthy();
 
     const qLum = luminance(question.style.color);
-    const qSize = px(question.style.fontSize);
-    const qWeight = weight(question.style.fontWeight);
-    const eLum = luminance(examples.style.color);
-    const eSize = px(examples.style.fontSize);
-    const eWeight = weight(examples.style.fontWeight);
+    expect(qLum).toBeLessThanOrEqual(70); // near-black, not the near-white it shipped as
+    expect(px(question.style.fontSize)).toBeGreaterThanOrEqual(16);
+    expect(px(question.style.fontSize)).toBeGreaterThan(px(subtext.style.fontSize));
+    expect(weight(question.style.fontWeight)).toBeGreaterThanOrEqual(700);
+    expect(luminance(subtext.style.color)).toBeLessThanOrEqual(110); // legible dark
 
-    // 1. The question must be near-black (full contrast on a light card),
-    //    NOT the near-white/light-grey it ships as today.
-    expect(qLum).not.toBeNull();
-    expect(qLum).toBeLessThanOrEqual(70);
-
-    // 2. Largest and boldest text on the card, strictly above the example text.
-    expect(qSize).toBeGreaterThanOrEqual(16);
-    expect(qSize).toBeGreaterThan(eSize);
-    expect(qWeight).toBeGreaterThanOrEqual(700);
-    expect(qWeight).toBeGreaterThan(eWeight);
-
-    // 3. Example text is smaller but fully legible (dark, not light grey).
-    expect(eLum).not.toBeNull();
-    expect(eLum).toBeLessThanOrEqual(110);
-
-    // 4. Framing eyebrow may be muted but must be readable (not near-white).
-    if (framing) {
-      const fLum = luminance(framing.style.color);
-      expect(fLum).not.toBeNull();
-      expect(fLum).toBeLessThanOrEqual(160);
+    for (const node of [question, subtext, framing].filter(Boolean)) {
+      expect(luminance(node.style.color), `${node.getAttribute('data-testid')} too light: ${node.style.color}`).toBeLessThan(170);
     }
+  });
 
-    // 5. Blanket "nothing light grey": none of the three card texts is near-white.
-    for (const node of [question, examples, framing].filter(Boolean)) {
-      const lum = luminance(node.style.color);
-      expect(lum, `${node.getAttribute('data-testid')} is too light: ${node.style.color}`).toBeLessThan(170);
-    }
+  it('a detail probe (after entering a name) is also near-black and carries no markdown markers', async () => {
+    const user = userEvent.setup();
+    render(<IdentityProvider initialState={admittedGoalState()}><MatrixIntake /></IdentityProvider>);
+    const input = await screen.findByTestId('roster-input');
+    await user.type(input, 'Acme Robotics{Enter}');
+    await user.click(screen.getByRole('button', { name: /Continue/i }));
+
+    const probe = await waitFor(() => {
+      const el = document.querySelector('[data-testid="intake-question"]');
+      expect(el).toBeTruthy();
+      return el;
+    });
+    expect(probe.textContent).toContain('Acme Robotics');
+    expect(probe.textContent).not.toContain('**');
+    expect(luminance(probe.style.color)).toBeLessThanOrEqual(70);
   });
 });

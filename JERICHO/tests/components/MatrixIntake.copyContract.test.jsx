@@ -54,7 +54,7 @@ describe('MatrixIntake copy — one ask per probe (Defect C)', () => {
   it('scope question is single-ask AND "Yes" enters the section (affirmative polarity preserved)', async () => {
     const user = userEvent.setup();
     render(<IdentityProvider initialState={admittedGoalState()}><MatrixIntake /></IdentityProvider>);
-    await waitFor(() => expect(document.querySelector('[data-testid="intake-question"]')).toBeTruthy());
+    await screen.findByTestId('roster-input');
 
     // Skip the mandatory entity slot to reach the first optional section's scope gate.
     await user.click(screen.getByRole('button', { name: /skip this section/i }));
@@ -64,9 +64,9 @@ describe('MatrixIntake copy — one ask per probe (Defect C)', () => {
     const scopeQuestion = yesBtn.closest('div').parentElement.querySelector('p');
     expect(isCompoundAsk(scopeQuestion?.textContent), `scope question compound: "${scopeQuestion?.textContent}"`).toBe(false);
 
-    // "Yes" enters the section — an engine probe now renders.
+    // "Yes" enters the section — its roster screen now renders (Defect E).
     await user.click(yesBtn);
-    await waitFor(() => expect(document.querySelector('[data-testid="intake-question"]')).toBeTruthy());
+    await waitFor(() => expect(document.querySelector('[data-testid="roster-input"]')).toBeTruthy());
     // The scope screen's Yes button is gone (we left the gate, entered the section).
     expect(screen.queryByRole('button', { name: /yes, include this/i })).not.toBeInTheDocument();
   });
@@ -74,7 +74,7 @@ describe('MatrixIntake copy — one ask per probe (Defect C)', () => {
   it('"Skip" on a scope gate advances past the section without entering it', async () => {
     const user = userEvent.setup();
     render(<IdentityProvider initialState={admittedGoalState()}><MatrixIntake /></IdentityProvider>);
-    await waitFor(() => expect(document.querySelector('[data-testid="intake-question"]')).toBeTruthy());
+    await screen.findByTestId('roster-input');
     await user.click(screen.getByRole('button', { name: /skip this section/i }));
     await screen.findByRole('button', { name: /not for this goal — skip/i });
 

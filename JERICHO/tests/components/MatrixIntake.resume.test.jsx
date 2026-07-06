@@ -51,14 +51,15 @@ function Harness() {
 afterEach(() => { cleanup(); capturedStore = null; });
 
 async function answerName(user, name) {
-  const q = await waitFor(() => {
+  // Roster flow (Defect E): add the name as a chip, continue to its detail pass.
+  const input = await screen.findByTestId('roster-input');
+  await user.type(input, `${name}{Enter}`);
+  await user.click(screen.getByRole('button', { name: /Continue/i }));
+  await waitFor(() => {
     const el = document.querySelector('[data-testid="intake-question"]');
     expect(el).toBeTruthy();
-    return el;
+    expect(el.textContent).toContain(name);
   });
-  expect(q.textContent).toMatch(/name/i);
-  await user.type(document.querySelector('textarea'), name);
-  await user.click(screen.getByRole('button', { name: /Next/i }));
 }
 
 describe('MatrixIntake resume across route-away / remount (Defect B)', () => {

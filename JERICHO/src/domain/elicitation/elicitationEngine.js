@@ -296,8 +296,9 @@ function applyReferentBinding(spine, slotId, captured) {
   if (!placeholder) return spine;
   const capturedName = String(captured?.name || '').trim();
   if (!capturedName) return spine;
-  // Replace all occurrences so multi-sentence spines bind fully.
-  return spine.split(placeholder).join(`**${capturedName}**`);
+  // Replace all occurrences so multi-sentence spines bind fully. Plain text —
+  // the UI renders the spine verbatim, so no markdown markers (Defect E).
+  return spine.split(placeholder).join(capturedName);
 }
 
 function buildProbe({ slotId, goalType, code, matrixSnapshot, captured }) {

@@ -7,7 +7,9 @@ import {
 } from '../../../src/domain/elicitation/elicitationEngine.js';
 
 // Referent binding: after the name field is captured, follow-up probe spines
-// should name the specific item rather than using a generic "this entity" placeholder.
+// should name the specific item rather than using a generic "this entity"
+// placeholder — in PLAIN TEXT (Defect E: no markdown ** markers leak to the UI,
+// which renders the spine verbatim).
 
 function makeEngine(slotId, goalType = 'founder') {
   return createElicitationEngine({ goalType, matrixSnapshot: {}, scope: [slotId] });
@@ -18,24 +20,23 @@ describe('referent binding — entity slot', () => {
     const engine = makeEngine(ENTITY_SLOT_ID);
     const step = engine.openingStep();
     expect(step.probe.fieldName).toBe('name');
-    // No name captured yet — spine should NOT contain "**"
     expect(step.probe.spine).not.toContain('**');
   });
 
-  it('role probe after name captured names the entity', () => {
+  it('role probe after name captured names the entity in plain text', () => {
     let engine = makeEngine(ENTITY_SLOT_ID);
-    engine.openingStep(); // prime
+    engine.openingStep();
     const r1 = engine.consumeAnswer({ name: 'Global State Corp.' });
     engine = r1.engine;
     const step = engine.nextStep();
     expect(step.probe?.fieldName).toBe('roleTags');
-    // Spine must reference the captured name
-    expect(step.probe.spine).toContain('**Global State Corp.**');
-    // Must NOT still use the generic placeholder
+    expect(step.probe.spine).toContain('Global State Corp.');
     expect(step.probe.spine).not.toContain('this entity');
+    // Plain text — no markdown emphasis markers leak into the rendered spine.
+    expect(step.probe.spine).not.toContain('**');
   });
 
-  it('purpose probe after name captured names the entity', () => {
+  it('purpose probe after name captured names the entity in plain text', () => {
     let engine = makeEngine(ENTITY_SLOT_ID);
     engine.openingStep();
     let r = engine.consumeAnswer({ name: 'F8 Energy Co.' });
@@ -44,11 +45,12 @@ describe('referent binding — entity slot', () => {
     engine = r.engine;
     const step = engine.nextStep();
     expect(step.probe?.fieldName).toBe('purpose');
-    expect(step.probe.spine).toContain('**F8 Energy Co.**');
+    expect(step.probe.spine).toContain('F8 Energy Co.');
     expect(step.probe.spine).not.toContain('this entity');
+    expect(step.probe.spine).not.toContain('**');
   });
 
-  it('formationState probe after name captured names the entity', () => {
+  it('formationState probe after name captured names the entity in plain text', () => {
     let engine = makeEngine(ENTITY_SLOT_ID);
     engine.openingStep();
     let r = engine.consumeAnswer({ name: 'Global State Corp.' });
@@ -59,40 +61,35 @@ describe('referent binding — entity slot', () => {
     engine = r.engine;
     const step = engine.nextStep();
     expect(step.probe?.fieldName).toBe('formationState');
-    expect(step.probe.spine).toContain('**Global State Corp.**');
+    expect(step.probe.spine).toContain('Global State Corp.');
+    expect(step.probe.spine).not.toContain('**');
   });
 
   it('different entity names produce different spines (isolated engine instances)', () => {
-    // First entity
     let e1 = makeEngine(ENTITY_SLOT_ID);
     e1.openingStep();
     const r1 = e1.consumeAnswer({ name: 'Global State Corp.' });
     const step1 = r1.engine.nextStep();
 
-    // Second entity (new engine)
     let e2 = makeEngine(ENTITY_SLOT_ID);
     e2.openingStep();
     const r2 = e2.consumeAnswer({ name: 'F8 Energy Co.' });
     const step2 = r2.engine.nextStep();
 
-    expect(step1.probe.spine).toContain('**Global State Corp.**');
-    expect(step2.probe.spine).toContain('**F8 Energy Co.**');
+    expect(step1.probe.spine).toContain('Global State Corp.');
+    expect(step2.probe.spine).toContain('F8 Energy Co.');
     expect(step1.probe.spine).not.toEqual(step2.probe.spine);
   });
 
   it('entity with empty name: no substitution applied', () => {
-    // Simulate state where captured has an empty name (shouldn't reach follow-up, but guard)
     let engine = makeEngine(ENTITY_SLOT_ID);
     const step = engine.openingStep();
-    // The first probe is name-missing — spine has no "**"
     expect(step.probe.spine).not.toContain('**');
   });
 });
 
 describe('referent binding — initiative slot', () => {
-  it('any probe that uses "this initiative" placeholder binds the captured name', () => {
-    // Walk through the initiative slot answering fields until we hit a spine that
-    // uses "this initiative" — then verify it gets substituted.
+  it('any probe that uses "this initiative" placeholder binds the captured name in plain text', () => {
     const answers = [
       { name: 'OFL Release Campaign' },
       { ownerEntityId: 'INITIATIVE_OWNER_ENTITY_LESS' },
@@ -100,41 +97,33 @@ describe('referent binding — initiative slot', () => {
     ];
     let engine = makeEngine(INITIATIVE_SLOT_ID);
     let step = engine.openingStep();
-    let foundPlaceholderBound = false;
     for (const answer of answers) {
       if (!step || step.done) break;
       if (step.probe?.spine?.includes('this initiative')) {
-        // This probe SHOULD have been substituted
-        expect(step.probe.spine).toContain('**OFL Release Campaign**');
-        foundPlaceholderBound = true;
+        expect(step.probe.spine).toContain('OFL Release Campaign');
+        expect(step.probe.spine).not.toContain('**');
       }
       const r = engine.consumeAnswer(answer);
       engine = r.engine;
       step = engine.nextStep();
     }
-    // If no "this initiative" placeholder was found in these fields, the test
-    // is a canary — it passes vacuously but records the investigation finding.
-    // The important assertions are in the entity slot tests above.
-    if (!foundPlaceholderBound) {
-      // Record the finding: initiative probes up to classification don't use "this initiative"
-      expect(true).toBe(true);
-    }
+    expect(true).toBe(true);
   });
 });
 
 describe('referent binding — project slot', () => {
-  it('follow-up probe after project name captured names the project', () => {
+  it('follow-up probe after project name captured names the project in plain text', () => {
     let engine = makeEngine(PROJECT_SLOT_ID);
-    engine.openingStep(); // name probe
+    engine.openingStep();
     const r = engine.consumeAnswer({ name: 'Album Production' });
     engine = r.engine;
     const step = engine.nextStep();
     if (step.probe?.spine?.includes('this project')) {
-      // placeholder still there — spine for this field doesn't use it
       return;
     }
-    if (step.probe?.spine && step.probe.spine.includes('**')) {
-      expect(step.probe.spine).toContain('**Album Production**');
+    if (step.probe?.spine && step.probe.spine.includes('Album Production')) {
+      expect(step.probe.spine).toContain('Album Production');
+      expect(step.probe.spine).not.toContain('**');
     }
   });
 });

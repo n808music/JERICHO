@@ -113,6 +113,37 @@ function makeSlotEngine(matrix, slotId, restoreState = null) {
   });
 }
 
+// Node-declaring slots whose first field is a free-text NAME. These are
+// list-capture: the operator declares several. Instead of a free-text name box
+// (which stored an entire pasted list as one item — Defect E), these use a chip
+// roster (names as an array by construction), then fan out one detail pass per
+// name. Relational slots (dependency/convergence/resource) and the singletons
+// (binding constraint, bootstrap) are NOT rostered — they pick from declared
+// nodes or capture exactly one.
+const NODE_ROSTER_SLOTS = new Set([
+  ENTITY_SLOT_ID,
+  INITIATIVE_SLOT_ID,
+  SYSTEM_SLOT_ID,
+  PROJECT_SLOT_ID,
+  ARTIFACT_SLOT_ID,
+]);
+
+// Seed a single-slot engine with the item name already captured, so the fan-out
+// drives only the remaining fields (referent-bound to that name). Reuses the
+// Defect-B restore path — no freeform parsing anywhere.
+function seedNodeEngine(matrix, slotId, name) {
+  return createElicitationEngine({
+    goalType: 'generic',
+    matrixSnapshot: matrix || {},
+    scope: [slotId],
+    restoreState: {
+      goalType: 'generic',
+      slotStack: [{ slotId, captured: { name: String(name).trim() } }],
+      completedSlotIds: [],
+    },
+  });
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function SectionPill({ slotId }) {
@@ -150,6 +181,7 @@ function PickSetInput({ pickSet, selected, onChange }) {
           <button
             key={item.id}
             type="button"
+            data-testid="pickset-option"
             onClick={() => toggle(item.id)}
             style={{
               padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: active ? 600 : 400,
@@ -395,6 +427,84 @@ function LoopCheckScreen({ slotId, onAddMore, onContinue }) {
   );
 }
 
+// Roster chip entry for list-capture node slots (Defect E). Names are added one
+// at a time as removable chips → an array by construction. No freeform prose
+// parsing; the fan-out then describes each named item in turn.
+function RosterScreen({ slotId, onSubmit, onSkip }) {
+  const meta = SLOT_META[slotId] || { label: slotId, plural: 'items', color: '#71717a' };
+  const framingText = SECTION_FRAMING[slotId];
+  const [chips, setChips] = React.useState([]);
+  const [draft, setDraft] = React.useState('');
+
+  const finalNames = () => {
+    const v = draft.trim();
+    if (v && !chips.some((c) => c.toLowerCase() === v.toLowerCase())) return [...chips, v];
+    return chips;
+  };
+  const addChip = () => {
+    const v = draft.trim();
+    if (!v) return;
+    if (!chips.some((c) => c.toLowerCase() === v.toLowerCase())) setChips([...chips, v]);
+    setDraft('');
+  };
+  const removeChip = (i) => setChips(chips.filter((_, idx) => idx !== i));
+  const canContinue = finalNames().length > 0;
+
+  return (
+    <div style={{ padding: '20px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <SectionPill slotId={slotId} />
+      {framingText && (
+        <div data-testid="intake-framing" style={{ fontSize: 11, color: '#6b7280', letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1.4 }}>
+          {framingText}
+        </div>
+      )}
+      <div data-testid="roster-question" style={{ fontSize: 18, fontWeight: 700, color: '#18181b', lineHeight: 1.45 }}>
+        Add each {meta.label.toLowerCase()} by name.
+      </div>
+      <div data-testid="roster-subtext" style={{ fontSize: 13, color: '#3f3f46', lineHeight: 1.6 }}>
+        Type a name and press Enter to add it. You'll describe each one next.
+      </div>
+      {chips.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {chips.map((c, i) => (
+            <span key={`${c}-${i}`} data-testid="roster-chip" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 999, background: '#eef2ff', border: '1px solid #c7d2fe', color: '#3730a3', fontSize: 13 }}>
+              {c}
+              <button type="button" aria-label={`Remove ${c}`} onClick={() => removeChip(i)} style={{ border: 'none', background: 'transparent', color: '#6366f1', cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: 0 }}>×</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        data-testid="roster-input"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addChip(); } }}
+        placeholder={`Name a ${meta.label.toLowerCase()}, then press Enter`}
+        style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', background: '#ffffff', border: '1px solid #d4d4d8', borderRadius: 8, color: '#18181b', fontSize: 14, outline: 'none' }}
+      />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={() => onSubmit(finalNames())}
+          disabled={!canContinue}
+          style={{
+            padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+            background: canContinue ? '#1e3a5f' : '#e4e4e7',
+            border: `1px solid ${canContinue ? '#3b82f6' : '#d4d4d8'}`,
+            color: canContinue ? '#93c5fd' : '#a1a1aa',
+            cursor: canContinue ? 'pointer' : 'not-allowed',
+          }}
+        >
+          Continue — describe each →
+        </button>
+        <button type="button" onClick={onSkip} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer' }}>
+          Skip this section →
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function DoneScreen({ onAddMore }) {
   return (
     <div style={{ padding: '24px 0', textAlign: 'center' }}>
@@ -467,6 +577,13 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
   // session rather than starting fresh — drives the "Resume intake" affordance.
   const [resumedFromSession, setResumedFromSession] = useState(false);
 
+  // Roster fan-out (Defect E): while a node slot is being detailed, rosterNames
+  // is the array of chip names, rosterIndex is the one currently being described,
+  // and rosterSlotId marks that we're mid fan-out (vs the singular/loop flow).
+  const [rosterNames, setRosterNames] = useState([]);
+  const [rosterIndex, setRosterIndex] = useState(0);
+  const [rosterSlotId, setRosterSlotId] = useState(null);
+
   // Latest inputValue held in a ref so we can persist the in-flight text on
   // unmount (back-gesture) WITHOUT persisting on every keystroke.
   const inputValueRef = useRef('');
@@ -485,6 +602,9 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
       currentSlotId: slotQueue[0] || null,
       engineSnapshot: engine.snapshotState(),
       inputValue: inputValueRef.current,
+      rosterNames,
+      rosterIndex,
+      rosterSlotId,
     });
   };
 
@@ -498,6 +618,22 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
       if (OPTIONAL_SECTIONS.has(slotId)) {
         setSlotQueue(remaining);
         setPhase('scope');
+        return;
+      }
+      if (NODE_ROSTER_SLOTS.has(slotId)) {
+        // List-capture node slot → collect names as chips first (Defect E).
+        setSlotQueue(remaining);
+        setRosterSlotId(slotId);
+        setRosterNames([]);
+        setRosterIndex(0);
+        setEngine(null);
+        setStep(null);
+        setInputValue('');
+        setSelected([]);
+        setIsReprobe(false);
+        prevFieldRef.current = null;
+        setPendingRefresh(false);
+        setPhase('roster');
         return;
       }
       const eng = makeSlotEngine(matrix, slotId);
@@ -524,6 +660,20 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
   const enterCurrentSlot = useCallback((matrix) => {
     const slotId = slotQueue[0];
     if (!slotId) { setPhase('done'); return; }
+    if (NODE_ROSTER_SLOTS.has(slotId)) {
+      setRosterSlotId(slotId);
+      setRosterNames([]);
+      setRosterIndex(0);
+      setEngine(null);
+      setStep(null);
+      setInputValue('');
+      setSelected([]);
+      setIsReprobe(false);
+      prevFieldRef.current = null;
+      setPendingRefresh(false);
+      setPhase('roster');
+      return;
+    }
     const eng = makeSlotEngine(matrix || store.matrix, slotId);
     const s = eng.nextStep();
     if (s.done) {
@@ -552,6 +702,30 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
     enterQueue(nextQueue, store.matrix);
   }, [slotQueue, store.matrix, enterQueue]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Roster → fan-out: begin describing the first named item. Each name is seeded
+  // into a single-slot engine; on completion the pendingRefresh effect advances
+  // to the next name (Defect E). Empty roster → skip the section.
+  const beginFanOut = useCallback((names) => {
+    const clean = (Array.isArray(names) ? names : []).map((n) => String(n).trim()).filter(Boolean);
+    const slotId = rosterSlotId || slotQueue[0];
+    if (clean.length === 0 || !slotId) { advanceSlot(); return; }
+    onSurveyStarted?.();
+    const eng = seedNodeEngine(store.matrix, slotId, clean[0]);
+    const s = eng.nextStep();
+    setRosterSlotId(slotId);
+    setRosterNames(clean);
+    setRosterIndex(0);
+    setEngine(eng);
+    setStep(s);
+    setInputValue('');
+    setSelected([]);
+    setIsReprobe(false);
+    prevFieldRef.current = null;
+    setPendingRefresh(false);
+    setResumedFromSession(false);
+    setPhase('engine');
+  }, [rosterSlotId, slotQueue, store.matrix, advanceSlot, onSurveyStarted]);
+
   // On mount with admitted goal (remount after Phase 0 completes and store
   // updates) — OR resume a persisted in-flight session after a back-gesture /
   // refresh / route change (Defect B). A saved session wins over a fresh start.
@@ -571,6 +745,12 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
         setEngine(eng);
         setStep(s);
         setInputValue(saved.inputValue || '');
+        // Restore the fan-out position so remaining names still get described.
+        if (saved.rosterSlotId && Array.isArray(saved.rosterNames) && saved.rosterNames.length) {
+          setRosterSlotId(saved.rosterSlotId);
+          setRosterNames(saved.rosterNames);
+          setRosterIndex(saved.rosterIndex || 0);
+        }
         setResumedFromSession(true);
         setPhase('engine');
         return;
@@ -611,9 +791,28 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
     setIsReprobe(false);
     prevFieldRef.current = null;
     if (s.done) {
-      setEngine(null);
-      setStep(null);
-      setPhase('loop');
+      if (rosterSlotId) {
+        // Fan-out (Defect E): move to the next named item, or finish the section.
+        const nextIndex = rosterIndex + 1;
+        if (nextIndex < rosterNames.length) {
+          const eng = seedNodeEngine(store.matrix, rosterSlotId, rosterNames[nextIndex]);
+          setRosterIndex(nextIndex);
+          setEngine(eng);
+          setStep(eng.nextStep());
+          setPhase('engine');
+        } else {
+          setRosterSlotId(null);
+          setRosterNames([]);
+          setRosterIndex(0);
+          setEngine(null);
+          setStep(null);
+          enterQueue(slotQueue.slice(1), store.matrix);
+        }
+      } else {
+        setEngine(null);
+        setStep(null);
+        setPhase('loop');
+      }
     } else {
       setEngine(refreshed);
       setStep(s);
@@ -764,6 +963,16 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
       <ScopeScreen
         slotId={currentSlotId}
         onYes={() => enterCurrentSlot(store.matrix)}
+        onSkip={advanceSlot}
+      />
+    );
+  }
+
+  if (phase === 'roster' && rosterSlotId) {
+    return (
+      <RosterScreen
+        slotId={rosterSlotId}
+        onSubmit={beginFanOut}
         onSkip={advanceSlot}
       />
     );
