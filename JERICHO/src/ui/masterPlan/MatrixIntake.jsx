@@ -738,11 +738,11 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
     return (
       <div style={{ padding: '20px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <SectionPill slotId={probe.slotId} />
-        <div style={{ fontSize: 15, fontWeight: 500, color: '#f4f4f5', lineHeight: 1.5 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: '#18181b', lineHeight: 1.45 }}>
           {probe.spine}
         </div>
         {remaining.length > 0 && (
-          <div style={{ fontSize: 12, color: '#71717a' }}>
+          <div style={{ fontSize: 12, color: '#52525b' }}>
             Still needs profiling:{' '}
             <span style={{ color: '#fbbf24' }}>{remaining.map(i => i.label).join(', ')}</span>
           </div>
@@ -782,22 +782,24 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
     <div style={{ padding: '20px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <SectionPill slotId={probe.slotId} />
 
-      {/* Section intent framing — eyebrow, first probe of slot only (PART C) */}
+      {/* Section intent framing — eyebrow, first probe of slot only (PART C).
+          Muted but readable on the light card. */}
       {framingText && probe.isFirstField && (
-        <div style={{ fontSize: 10, color: '#71717a', letterSpacing: '0.06em', textTransform: 'uppercase', lineHeight: 1.4 }}>
+        <div data-testid="intake-framing" style={{ fontSize: 11, color: '#6b7280', letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1.4 }}>
           {framingText}
         </div>
       )}
 
-      {/* Question — natural phrasing override applied (Rule 2) */}
-      <div style={{ fontSize: 15, fontWeight: 500, color: '#f4f4f5', lineHeight: 1.5 }}>
+      {/* Question — the primary text: largest, boldest, near-black full-contrast
+          on the light card. (Gap 1: was near-white #f4f4f5 → invisible on white.) */}
+      <div data-testid="intake-question" style={{ fontSize: 18, fontWeight: 700, color: '#18181b', lineHeight: 1.45 }}>
         {displaySpine}
       </div>
 
-      {/* Examples */}
+      {/* Examples — smaller than the question but fully legible near-black. */}
       {probe.examples && (
-        <div style={{
-          fontSize: 12, color: '#71717a', lineHeight: 1.6, borderLeft: '2px solid #3f3f46', paddingLeft: 10,
+        <div data-testid="intake-examples" style={{
+          fontSize: 13, color: '#3f3f46', lineHeight: 1.6, borderLeft: '2px solid #d4d4d8', paddingLeft: 10,
         }}>
           {probe.examples}
         </div>
