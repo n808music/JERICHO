@@ -1924,14 +1924,13 @@ export function IdentityProvider({ children, initialState }) {
   );
   const markMatrixIntakeComplete = useCallback(() => {
     const cycleId = state.activeCycleId;
-    if (!cycleId || !state.cyclesById?.[cycleId]) return;
-    const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
-    draft.cyclesById[cycleId].matrixIntakeComplete = true;
-    // Completing the intake retires its resumable session.
-    if (draft.intakeSessionByCycleId) delete draft.intakeSessionByCycleId[cycleId];
-    const nextState = computeDerivedState(draft, { type: 'NO_OP' });
-    dispatch({ type: 'APPLY_NEXT_STATE', nextState });
-  }, [state]);
+    if (!cycleId) return;
+    // Pure reducer action (not a stale-closure APPLY_NEXT_STATE full-replace,
+    // which could roll back records committed after this callback's snapshot).
+    // The reducer applies to CURRENT state and guards session retirement so
+    // uncommitted answers are never silently discarded.
+    dispatch({ type: 'MARK_MATRIX_INTAKE_COMPLETE', payload: { cycleId } });
+  }, [state.activeCycleId]);
 
   // Persist / retire the in-flight matrix-intake session so it survives a route
   // change, refresh, or back-gesture and can resume at the exact slot (Defect B).

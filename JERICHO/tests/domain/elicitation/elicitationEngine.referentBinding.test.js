@@ -89,25 +89,36 @@ describe('referent binding — entity slot', () => {
 });
 
 describe('referent binding — initiative slot', () => {
-  it('any probe that uses "this initiative" placeholder binds the captured name in plain text', () => {
-    const answers = [
-      { name: 'OFL Release Campaign' },
-      { ownerEntityId: 'INITIATIVE_OWNER_ENTITY_LESS' },
-      { classification: 'launch' },
-    ];
+  // Regression for the 2026-07-06 subject-binding defect: the referent-binding
+  // table searched for the token "this initiative", but the authored initiative
+  // spines say "this undertaking" — so the name never bound and every §3 probe
+  // rendered with no subject. This asserts the OWNER probe (first follow-up after
+  // name) names the captured initiative in plain text.
+  it('owner probe after name captured names the initiative (subject bound, not generic)', () => {
     let engine = makeEngine(INITIATIVE_SLOT_ID);
-    let step = engine.openingStep();
-    for (const answer of answers) {
-      if (!step || step.done) break;
-      if (step.probe?.spine?.includes('this initiative')) {
-        expect(step.probe.spine).toContain('OFL Release Campaign');
-        expect(step.probe.spine).not.toContain('**');
-      }
-      const r = engine.consumeAnswer(answer);
-      engine = r.engine;
-      step = engine.nextStep();
-    }
-    expect(true).toBe(true);
+    engine.openingStep();
+    const r = engine.consumeAnswer({ name: 'OFL Release Campaign' });
+    engine = r.engine;
+    const step = engine.nextStep();
+    expect(step.probe?.fieldName).toBe('owningEntityId');
+    // The subject must appear; the generic placeholder must be gone.
+    expect(step.probe.spine).toContain('OFL Release Campaign');
+    expect(step.probe.spine).not.toContain('this undertaking');
+    expect(step.probe.spine).not.toContain('this initiative');
+    expect(step.probe.spine).not.toContain('**');
+  });
+
+  it('different initiative names produce different subject-bound spines', () => {
+    const spineAfter = (name) => {
+      let e = makeEngine(INITIATIVE_SLOT_ID);
+      e.openingStep();
+      return e.consumeAnswer({ name }).engine.nextStep().probe.spine;
+    };
+    const s1 = spineAfter('OFL Release Campaign');
+    const s2 = spineAfter('Romance Novel Trilogy');
+    expect(s1).toContain('OFL Release Campaign');
+    expect(s2).toContain('Romance Novel Trilogy');
+    expect(s1).not.toEqual(s2);
   });
 });
 

@@ -317,6 +317,40 @@ export function computeDerivedState(state, action) {
       }
       break;
     }
+    case 'MARK_MATRIX_INTAKE_COMPLETE': {
+      // Completing the intake retires its resumable session — but NEVER silently
+      // when the session still holds uncommitted operator answers (captured
+      // fields beyond a bare name that never produced a DECLARE_*). That is the
+      // 2026-07-06 data-loss defect: an abandoned §3 fan-out was discarded on
+      // completion. Fail-safe (preserve the session so it stays resumable) and
+      // fail-loud (record a warning) instead of deleting.
+      const { cycleId } = action.payload || {};
+      if (cycleId && next.cyclesById?.[cycleId]) {
+        next.cyclesById[cycleId].matrixIntakeComplete = true;
+        const session = next.intakeSessionByCycleId?.[cycleId];
+        const stack = session?.engineSnapshot?.slotStack;
+        const hasUncommittedAnswers =
+          Array.isArray(stack) &&
+          stack.some((s) => {
+            const captured = (s && s.captured) || {};
+            return Object.keys(captured).some(
+              (k) => k !== 'name' && captured[k] != null && captured[k] !== '',
+            );
+          });
+        if (session && hasUncommittedAnswers) {
+          next.intakeCommitWarning = {
+            cycleId,
+            code: 'UNCOMMITTED_SESSION_RETAINED',
+            reason:
+              'Intake marked complete while its in-flight session still held uncommitted answers; the session was preserved for resume rather than discarded.',
+          };
+        } else {
+          if (session) delete next.intakeSessionByCycleId[cycleId];
+          next.intakeCommitWarning = null;
+        }
+      }
+      break;
+    }
     case 'BEGIN_BLOCK':
       updateBlockStatus(next, action.id, 'in_progress');
       break;

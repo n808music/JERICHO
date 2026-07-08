@@ -285,7 +285,10 @@ function buildPickSet(kind, matrixSnapshot) {
 // When the name field is already captured, probe text binds to the specific item.
 const REFERENT_PLACEHOLDER = {
   [ENTITY_SLOT_ID]:    'this entity',
-  [INITIATIVE_SLOT_ID]: 'this initiative',
+  // Authored initiative spines say "this undertaking" (not "this initiative") —
+  // the binder token must match the spine text or the subject never binds
+  // (2026-07-06 §3 subject-binding defect).
+  [INITIATIVE_SLOT_ID]: 'this undertaking',
   [SYSTEM_SLOT_ID]:    'this system',
   [PROJECT_SLOT_ID]:   'this project',
   [ARTIFACT_SLOT_ID]:  'this artifact',

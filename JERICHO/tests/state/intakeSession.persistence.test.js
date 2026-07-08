@@ -69,3 +69,73 @@ describe('intake session persistence (Defect B)', () => {
     expect(persist.intakeSessionByCycleId['cycle-dead']).toBeUndefined();
   });
 });
+
+// Commit-boundary guard (primary defect, 2026-07-06 failure run): completing the
+// intake must NOT silently delete an in-flight session that still holds
+// uncommitted operator answers (captured fields beyond a bare name that never
+// produced a DECLARE_*). Such a session is preserved (resumable) and flagged
+// loudly; a clean/exhausted session is retired as before.
+describe('matrix intake completion — commit boundary guard', () => {
+  // A slot the operator answered follow-ups on but that never dispatched: its
+  // captured bag carries fields beyond `name`. This is the data that was lost.
+  const DIRTY_SESSION = {
+    phase: 'engine',
+    slotQueue: ['slot:initiative'],
+    currentSlotId: 'slot:initiative',
+    engineSnapshot: {
+      goalType: 'generic',
+      slotStack: [
+        { slotId: 'slot:initiative', captured: { name: 'OFL Release Campaign', purpose: 'ship the release arc', classification: 'objective' } },
+      ],
+      completedSlotIds: [],
+    },
+    rosterNames: ['OFL Release Campaign'],
+    rosterIndex: 0,
+    rosterSlotId: 'slot:initiative',
+    inputValue: '',
+  };
+
+  // A name-only / exhausted session carries no answered follow-ups — safe to retire.
+  const CLEAN_SESSION = {
+    phase: 'engine',
+    slotQueue: ['slot:initiative'],
+    currentSlotId: 'slot:initiative',
+    engineSnapshot: {
+      goalType: 'generic',
+      slotStack: [{ slotId: 'slot:initiative', captured: { name: 'OFL Release Campaign' } }],
+      completedSlotIds: [],
+    },
+    inputValue: '',
+  };
+
+  it('preserves a session with uncommitted answers and flags it (never silent-deletes)', () => {
+    let next = computeDerivedState(stateWithActiveCycle(), {
+      type: 'SET_INTAKE_SESSION',
+      payload: { cycleId: CYCLE, session: DIRTY_SESSION },
+    });
+    next = computeDerivedState(next, {
+      type: 'MARK_MATRIX_INTAKE_COMPLETE',
+      payload: { cycleId: CYCLE },
+    });
+    expect(next.cyclesById[CYCLE].matrixIntakeComplete).toBe(true);
+    // The uncommitted session survives — this is the guard against silent loss.
+    expect(next.intakeSessionByCycleId[CYCLE]).toBeDefined();
+    // And the failure is loud, not silent.
+    expect(next.intakeCommitWarning).toBeTruthy();
+    expect(next.intakeCommitWarning.cycleId).toBe(CYCLE);
+  });
+
+  it('retires a clean (name-only) session on completion', () => {
+    let next = computeDerivedState(stateWithActiveCycle(), {
+      type: 'SET_INTAKE_SESSION',
+      payload: { cycleId: CYCLE, session: CLEAN_SESSION },
+    });
+    next = computeDerivedState(next, {
+      type: 'MARK_MATRIX_INTAKE_COMPLETE',
+      payload: { cycleId: CYCLE },
+    });
+    expect(next.cyclesById[CYCLE].matrixIntakeComplete).toBe(true);
+    expect(next.intakeSessionByCycleId[CYCLE]).toBeUndefined();
+    expect(next.intakeCommitWarning).toBeFalsy();
+  });
+});
