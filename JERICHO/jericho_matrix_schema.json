@@ -38,6 +38,7 @@
         "name": { "type": "string", "required": true, "verbatim": true },
         "owningEntityId": { "type": "string", "required": true },
         "owningInitiativeId": { "type": "string|null" },
+        "status": { "type": "string|null" },
         "successMetric": { "type": "string", "required": true },
         "verificationSourceId": { "type": "string", "required": true },
         "targetDate": { "type": "string|null" },
@@ -68,6 +69,7 @@
       "fields": {
         "id": { "type": "string", "required": true },
         "name": { "type": "string", "required": true, "verbatim": true },
+        "owningEntityId": { "type": "string|null" },
         "cycle": { "type": "string", "required": true },
         "activationState": { "type": "enum", "enum": ["running", "missing", "planned"], "required": true },
         "roleTags": { "type": "string[]", "default": [] },

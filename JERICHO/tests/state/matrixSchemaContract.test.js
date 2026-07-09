@@ -21,4 +21,12 @@ describe('jericho_matrix_schema.json contract', () => {
     expect(d.producedByEntityId).toBeDefined();
     expect(d.work_state).toBeDefined();
   });
+
+  it('System carries owningEntityId (declareSystem sets it)', () => {
+    expect(contract.nodeClasses.System.fields.owningEntityId).toBeDefined();
+  });
+
+  it('Project carries status (declareProject sets it)', () => {
+    expect(contract.nodeClasses.Project.fields.status).toBeDefined();
+  });
 });
