@@ -1,0 +1,789 @@
+{
+ "enterprise": "GLOBAL STATE — OPERATION ENDGAME",
+ "reference_version": "v1.4 — 2026-07-08",
+ "counts": {
+  "Entity": 7,
+  "Initiative": 11,
+  "Project": 17,
+  "Deliverable": 12,
+  "System": 6,
+  "total": 53
+ },
+ "nodes": [
+  {
+   "name": "Global State Solutions",
+   "class": "Entity",
+   "legal_status": "Registered (only legal entity)",
+   "role_tags": [
+    "business",
+    "initiative",
+    "project",
+    "system",
+    "function"
+   ],
+   "purpose": "Parent project-management company; organizes and executes business operations across the enterprise.",
+   "status": "CONFIRMED",
+   "notes": "Parent of all. Dogfoods Jericho."
+  },
+  {
+   "name": "Global State Corporation",
+   "class": "Entity",
+   "legal_status": "Conceptual",
+   "role_tags": [
+    "business",
+    "initiative",
+    "function",
+    "project"
+   ],
+   "purpose": "Independent record label (Global State Corp.).",
+   "status": "CONFIRMED",
+   "notes": "Owns the music catalog output."
+  },
+  {
+   "name": "Global State Productions",
+   "class": "Entity",
+   "legal_status": "Conceptual",
+   "role_tags": [
+    "business",
+    "project",
+    "function"
+   ],
+   "purpose": "Production company.",
+   "status": "CONFIRMED",
+   "notes": "Produces all visual content for the enterprise."
+  },
+  {
+   "name": "Global State Systems",
+   "class": "Entity",
+   "legal_status": "Conceptual",
+   "role_tags": [
+    "business",
+    "initiative",
+    "project",
+    "function"
+   ],
+   "purpose": "Technology company.",
+   "status": "CONFIRMED",
+   "notes": "Owns Jericho system development."
+  },
+  {
+   "name": "Global State Holdings",
+   "class": "Entity",
+   "legal_status": "Conceptual",
+   "role_tags": [
+    "business",
+    "initiative",
+    "project",
+    "function",
+    "system"
+   ],
+   "purpose": "Real estate: property and land acquisition for the enterprise.",
+   "status": "CONFIRMED",
+   "notes": "Ties to first Academy building (physical convergence)."
+  },
+  {
+   "name": "Global State Academy",
+   "class": "Entity",
+   "legal_status": "Conceptual",
+   "role_tags": [
+    "business",
+    "initiative",
+    "system",
+    "function"
+   ],
+   "purpose": "Private school franchise; children's education initiative.",
+   "status": "CONFIRMED",
+   "notes": "Affordable luxury private school for underprivileged neighborhoods, ages 6-12."
+  },
+  {
+   "name": "F8 ENERGY Company",
+   "class": "Entity",
+   "legal_status": "Conceptual",
+   "role_tags": [
+    "business",
+    "initiative",
+    "system",
+    "function",
+    "project"
+   ],
+   "purpose": "Consumer energy products company.",
+   "status": "CONFIRMED",
+   "notes": "Never 'E8'. Consumable energy gum company; Energy Gum converges with Max Clout trilogy for promotion."
+  },
+  {
+   "name": "The Jericho System",
+   "class": "Initiative",
+   "owner": "Global State Systems",
+   "objective": "Ship Jericho 1.0 — the multi-lane master-plan orchestration system — and run the enterprise on it",
+   "deadline": "2026-10-17",
+   "role_tags": [
+    "system",
+    "project"
+   ],
+   "phase": "1",
+   "work_state": "in development",
+   "status": "CONFIRMED",
+   "notes": "App 10/17, patent 9/11 are its deliverables (via Jericho 1.0 build project)."
+  },
+  {
+   "name": "Our Fearless Leader: 7 Seals",
+   "class": "Initiative",
+   "owner": "Global State Corp.",
+   "objective": "Complete the OFL spine (tapes 3–7), each carrying a State of Control film chapter — establish the label and build the core audience",
+   "deadline": "2027-12-31",
+   "role_tags": [
+    "project"
+   ],
+   "phase": "1",
+   "work_state": "in progress 3/7",
+   "status": "CONFIRMED",
+   "notes": "Productions appears via Produced By on sheet 4."
+  },
+  {
+   "name": "Seeds of Destruction",
+   "class": "Initiative",
+   "owner": "Global State Corp.",
+   "objective": "Ship the Seeds of Destruction album trilogy with the Max Clout short-film trilogy riding alongside",
+   "deadline": "2030-12-31",
+   "role_tags": [
+    "project"
+   ],
+   "phase": "2",
+   "work_state": "conceptual",
+   "status": "CONFIRMED",
+   "notes": "Era 2 of the spine."
+  },
+  {
+   "name": "I Am The State",
+   "class": "Initiative",
+   "owner": "Global State Corp.",
+   "objective": "Land the ten-year arc: terminal album + Desiree feature film",
+   "deadline": "2031-12-31",
+   "role_tags": [
+    "project"
+   ],
+   "phase": "3",
+   "work_state": "conceptual",
+   "status": "CONFIRMED",
+   "notes": "Final album."
+  },
+  {
+   "name": "Help Your Self Broadcast",
+   "class": "Initiative",
+   "owner": "Global State Productions",
+   "objective": "Launch the broadcast: first 5 episodes live, recurring audience feeding the marketing flywheel",
+   "deadline": "2026-08-08",
+   "role_tags": [
+    "system"
+   ],
+   "phase": "1",
+   "work_state": "needs script and equipment",
+   "status": "CONFIRMED",
+   "notes": "Podcast promotes Global State Solutions."
+  },
+  {
+   "name": "The Imaginary CEO",
+   "class": "Initiative",
+   "owner": "Global State Productions",
+   "objective": "Scripted reality series following the execution of Operation Endgame",
+   "deadline": "2026-2031",
+   "role_tags": [
+    "system"
+   ],
+   "phase": "1",
+   "work_state": "needs script and cast",
+   "status": "CONFIRMED",
+   "notes": "Series engineered to promote the system by advertising the service through executing the initiatives."
+  },
+  {
+   "name": "F8 market entry",
+   "class": "Initiative",
+   "owner": "F8 ENERGY Company",
+   "objective": "Take F8 to market: Energy Gum first (Phase 2), Alternative Smoke Pens second (Phase 3)",
+   "deadline": "2028-12-31",
+   "role_tags": [
+    "project"
+   ],
+   "phase": "2",
+   "work_state": "needs formula and business plan",
+   "status": "CONFIRMED",
+   "notes": "Gum + pens are Projects under this. Gum promoted via Max Clout trilogy convergence."
+  },
+  {
+   "name": "Global State Solutions Branding",
+   "class": "Initiative",
+   "owner": "Global State Solutions",
+   "objective": "Establish GSS's public brand and web presence — including the email-capture container that closes the flywheel's broken edge",
+   "deadline": "2026-10-17",
+   "role_tags": [
+    "system"
+   ],
+   "phase": "1",
+   "work_state": "needs strategy",
+   "status": "CONFIRMED",
+   "notes": ""
+  },
+  {
+   "name": "First Academy Building",
+   "class": "Initiative",
+   "owner": "Global State Academy",
+   "objective": "Open the first Academy — the school occupies the enterprise's first building on 79th Street",
+   "deadline": "2028",
+   "role_tags": [
+    "system"
+   ],
+   "phase": "3",
+   "work_state": "needs business plan",
+   "status": "CONFIRMED",
+   "notes": "Depends on Holdings acquiring the First Building (see 3. PROJECTS). Resolved 2026-07-08."
+  },
+  {
+   "name": "79th Street Renovation",
+   "class": "Initiative",
+   "owner": "Global State Holdings",
+   "objective": "Restore 79th Street through property acquisition from 79th & Stony Island to 79th & Exchange — beginning with the First Building (HQ + Academy)",
+   "deadline": "2028",
+   "role_tags": [
+    "system"
+   ],
+   "phase": "3",
+   "work_state": "needs business plan and property",
+   "status": "CONFIRMED",
+   "notes": "The First Building is this initiative's first acquisition AND the enterprise HQ AND the Academy — one node, three roles. Phase 3 lane opens 2028 (overlaps Phase 2 era) — intentional."
+  },
+  {
+   "name": "Oct 17 2026 Convergence",
+   "class": "Initiative",
+   "owner": "Cross-cutting",
+   "objective": "Prove the lanes converge: OFL 3, Jericho 1.0 App, HYS Broadcast, and patent-pending status land together",
+   "deadline": "2026-10-17",
+   "role_tags": [
+    "initiative"
+   ],
+   "phase": "1",
+   "work_state": "needs mvp + album + podcast + patent pending",
+   "status": "CONFIRMED",
+   "notes": "Combined execution converges into followers, streams/sales, app subscriptions, funding, and an established podcast platform — the revenue flow that funds the core systems; other systems integrate in later phases."
+  },
+  {
+   "name": "OUR FEARLESS LEADER 3: Romance Riot",
+   "class": "Project",
+   "owner": "Global State Corp.",
+   "parent_initiative": "Our Fearless Leader: 7 Seals",
+   "deliverable_summary": "Tape/album (12 songs) + 3 promo short films — see 4. DELIVERABLES",
+   "phase": "1",
+   "target_date": "2026-10-17",
+   "work_state": "in progress",
+   "status": "CONFIRMED",
+   "notes": "Owner ≠ producer: GS Corp owns; GS Productions produces the films."
+  },
+  {
+   "name": "OUR FEARLESS LEADER 4: PAINKILLERS",
+   "class": "Project",
+   "owner": "Global State Corp.",
+   "parent_initiative": "Our Fearless Leader: 7 Seals",
+   "deliverable_summary": "8 songs; ships with State of Control pt. 2",
+   "phase": "1",
+   "target_date": "2026",
+   "work_state": "concept",
+   "status": "CONFIRMED",
+   "notes": "All adrenaline bangers, no brakes."
+  },
+  {
+   "name": "OUR FEARLESS LEADER 5: CORONATION",
+   "class": "Project",
+   "owner": "Global State Corp.",
+   "parent_initiative": "Our Fearless Leader: 7 Seals",
+   "deliverable_summary": "8 songs; ships with State of Control pt. 3",
+   "phase": "1",
+   "target_date": "2027",
+   "work_state": "concept",
+   "status": "CONFIRMED",
+   "notes": "Boom bap samples and heavy bass."
+  },
+  {
+   "name": "OUR FEARLESS LEADER 6: SAVIOR",
+   "class": "Project",
+   "owner": "Global State Corp.",
+   "parent_initiative": "Our Fearless Leader: 7 Seals",
+   "deliverable_summary": "8 songs; ships with State of Control pt. 4",
+   "phase": "1",
+   "target_date": "2027",
+   "work_state": "concept",
+   "status": "CONFIRMED",
+   "notes": "Love songs."
+  },
+  {
+   "name": "OUR FEARLESS LEADER 7: SACRIFICE",
+   "class": "Project",
+   "owner": "Global State Corp.",
+   "parent_initiative": "Our Fearless Leader: 7 Seals",
+   "deliverable_summary": "8 songs; ships with State of Control pt. 5 (finale)",
+   "phase": "1",
+   "target_date": "2027",
+   "work_state": "concept",
+   "status": "CONFIRMED",
+   "notes": "Heavy metal hip hop, melodic 80s."
+  },
+  {
+   "name": "State of Control pts. 1–5",
+   "class": "Project",
+   "owner": "Global State Productions",
+   "parent_initiative": "Our Fearless Leader: 7 Seals",
+   "deliverable_summary": "5-part short film series (one chapter per OFL release)",
+   "phase": "1",
+   "target_date": "2026-2027 (pt. 1 by 2026-10-17)",
+   "work_state": "storyline in development",
+   "status": "CONFIRMED",
+   "notes": "Mad scientist serial killer storyline. Parts are deliverables on sheet 4."
+  },
+  {
+   "name": "MAX CLOUT trilogy",
+   "class": "Project",
+   "owner": "Global State Productions",
+   "parent_initiative": "Seeds of Destruction",
+   "deliverable_summary": "3 short films",
+   "phase": "2",
+   "target_date": "2028-2030",
+   "work_state": "needs script",
+   "status": "CONFIRMED",
+   "notes": "Action thriller; conceptual soundtrack. Promotes F8 Energy Gum."
+  },
+  {
+   "name": "SEEDS OF DESTRUCTION TRILOGY",
+   "class": "Project",
+   "owner": "Global State Corp.",
+   "parent_initiative": "Seeds of Destruction",
+   "deliverable_summary": "3 albums",
+   "phase": "2",
+   "target_date": "2028-2030",
+   "work_state": "concept",
+   "status": "CONFIRMED",
+   "notes": "Conceptual soundtrack to Max Clout."
+  },
+  {
+   "name": "Desiree",
+   "class": "Project",
+   "owner": "Global State Productions",
+   "parent_initiative": "I Am The State",
+   "deliverable_summary": "One full-length film",
+   "phase": "3",
+   "target_date": "2031",
+   "work_state": "needs script",
+   "status": "CONFIRMED",
+   "notes": "Action thriller, Napoleon times; conceptual soundtrack."
+  },
+  {
+   "name": "I AM THE STATE (album)",
+   "class": "Project",
+   "owner": "Global State Corp.",
+   "parent_initiative": "I Am The State",
+   "deliverable_summary": "1 album",
+   "phase": "3",
+   "target_date": "2031",
+   "work_state": "concept",
+   "status": "CONFIRMED",
+   "notes": "Terminal album of the spine."
+  },
+  {
+   "name": "Jericho 1.0 build",
+   "class": "Project",
+   "owner": "Global State Systems",
+   "parent_initiative": "The Jericho System",
+   "deliverable_summary": "1.0 App + Behavioral Execution Engine patent",
+   "phase": "1",
+   "target_date": "2026-10-17",
+   "work_state": "needs mvp",
+   "status": "CONFIRMED",
+   "notes": ""
+  },
+  {
+   "name": "HYS Broadcast — Season 1",
+   "class": "Project",
+   "owner": "Global State Productions",
+   "parent_initiative": "Help Your Self Broadcast",
+   "deliverable_summary": "First 5 episodes",
+   "phase": "1",
+   "target_date": "2026-08-08",
+   "work_state": "needs script",
+   "status": "CONFIRMED",
+   "notes": "5 podcast episodes to promote Global State Solutions."
+  },
+  {
+   "name": "Energy Gum",
+   "class": "Project",
+   "owner": "F8 ENERGY Company",
+   "parent_initiative": "F8 market entry",
+   "deliverable_summary": "Gum product line to market",
+   "phase": "2",
+   "target_date": "TBD",
+   "work_state": "needs formula",
+   "status": "CONFIRMED",
+   "notes": ""
+  },
+  {
+   "name": "Alternative Smoke Pens",
+   "class": "Project",
+   "owner": "F8 ENERGY Company",
+   "parent_initiative": "F8 market entry",
+   "deliverable_summary": "Pens product line to market",
+   "phase": "3",
+   "target_date": "TBD",
+   "work_state": "needs product sample",
+   "status": "CONFIRMED",
+   "notes": ""
+  },
+  {
+   "name": "email-capture container",
+   "class": "Project",
+   "owner": "Global State Solutions",
+   "parent_initiative": "Global State Solutions Branding",
+   "deliverable_summary": "Working email capture on GSS web presence",
+   "phase": "1",
+   "target_date": "2026-08-08",
+   "work_state": "needs strategy",
+   "status": "CONFIRMED",
+   "notes": "Closes the marketing flywheel's broken edge. Timed with HYS launch — catch the podcast audience."
+  },
+  {
+   "name": "First Building (79th Street) — HQ + Academy",
+   "class": "Project",
+   "owner": "Global State Holdings",
+   "parent_initiative": "79th Street Renovation",
+   "deliverable_summary": "Acquired + renovated building housing enterprise HQ and Academy #1",
+   "phase": "3",
+   "target_date": "2028",
+   "work_state": "needs business plan and property",
+   "status": "CONFIRMED",
+   "notes": "THE physical convergence node: first acquisition of 79th Street, headquarters, and the school — one building, three roles."
+  },
+  {
+   "name": "Academy #1 launch",
+   "class": "Project",
+   "owner": "Global State Academy",
+   "parent_initiative": "First Academy Building",
+   "deliverable_summary": "First operating Academy school (ages 6-12)",
+   "phase": "3",
+   "target_date": "TBD (post-2028 acquisition)",
+   "work_state": "needs business plan",
+   "status": "CONFIRMED",
+   "notes": "School opens inside the First Building."
+  },
+  {
+   "name": "OFL 3: Romance Riot — tape/album",
+   "class": "Deliverable",
+   "parent_project": "OUR FEARLESS LEADER 3: Romance Riot",
+   "produced_by": "Global State Corp.",
+   "what_ships": "The release itself — 12 songs",
+   "phase": "1",
+   "target_date": "2026-10-17",
+   "work_state": "in progress",
+   "status": "CONFIRMED",
+   "notes": "3 short films promote it."
+  },
+  {
+   "name": "D8 N8",
+   "class": "Deliverable",
+   "parent_project": "OUR FEARLESS LEADER 3: Romance Riot",
+   "produced_by": "Global State Productions",
+   "what_ships": "Short film — dating audition tape reel",
+   "phase": "1",
+   "target_date": "2026-10-17",
+   "work_state": "needs script",
+   "status": "CONFIRMED",
+   "notes": "Promotes OFL 3."
+  },
+  {
+   "name": "BLACKMAN",
+   "class": "Deliverable",
+   "parent_project": "OUR FEARLESS LEADER 3: Romance Riot",
+   "produced_by": "Global State Productions",
+   "what_ships": "Short film — hood superhero",
+   "phase": "1",
+   "target_date": "2026-10-17",
+   "work_state": "needs script",
+   "status": "CONFIRMED",
+   "notes": "Promotes OFL 3."
+  },
+  {
+   "name": "State of Control pt. 1",
+   "class": "Deliverable",
+   "parent_project": "State of Control pts. 1–5",
+   "produced_by": "Global State Productions",
+   "what_ships": "Short film — mad scientist serial killer, chapter 1",
+   "phase": "1",
+   "target_date": "2026-10-17",
+   "work_state": "needs script",
+   "status": "CONFIRMED",
+   "notes": "Ships with OFL 3 (promo). Home moved from OFL 3 to the SOC project."
+  },
+  {
+   "name": "State of Control pt. 2",
+   "class": "Deliverable",
+   "parent_project": "State of Control pts. 1–5",
+   "produced_by": "Global State Productions",
+   "what_ships": "Chapter 2 — ships with OFL 4",
+   "phase": "1",
+   "target_date": "2026",
+   "work_state": "needs script",
+   "status": "DRAFT",
+   "notes": "promotes ofl 4"
+  },
+  {
+   "name": "State of Control pt. 3",
+   "class": "Deliverable",
+   "parent_project": "State of Control pts. 1–5",
+   "produced_by": "Global State Productions",
+   "what_ships": "Chapter 3 — ships with OFL 5",
+   "phase": "1",
+   "target_date": "2027",
+   "work_state": "needs script",
+   "status": "DRAFT",
+   "notes": "promotes ofl 5"
+  },
+  {
+   "name": "State of Control pt. 4",
+   "class": "Deliverable",
+   "parent_project": "State of Control pts. 1–5",
+   "produced_by": "Global State Productions",
+   "what_ships": "Chapter 4 — ships with OFL 6",
+   "phase": "1",
+   "target_date": "2027",
+   "work_state": "needs script",
+   "status": "DRAFT",
+   "notes": "promotes ofl 6"
+  },
+  {
+   "name": "State of Control pt. 5 (finale)",
+   "class": "Deliverable",
+   "parent_project": "State of Control pts. 1–5",
+   "produced_by": "Global State Productions",
+   "what_ships": "Finale — ships with OFL 7",
+   "phase": "1",
+   "target_date": "2027",
+   "work_state": "needs script",
+   "status": "DRAFT",
+   "notes": "promotes ofl 7"
+  },
+  {
+   "name": "Help Yourself Broadcast — first 5 episodes",
+   "class": "Deliverable",
+   "parent_project": "HYS Broadcast — Season 1",
+   "produced_by": "Global State Productions",
+   "what_ships": "First 5 episodes",
+   "phase": "1",
+   "target_date": "2026-08-08",
+   "work_state": "needs script",
+   "status": "CONFIRMED",
+   "notes": "Promotes Global State Solutions."
+  },
+  {
+   "name": "The Jericho System APP",
+   "class": "Deliverable",
+   "parent_project": "Jericho 1.0 build",
+   "produced_by": "Global State Systems",
+   "what_ships": "1.0 app shipped live on App Store",
+   "phase": "1",
+   "target_date": "2026-10-17",
+   "work_state": "needs mvp",
+   "status": "CONFIRMED",
+   "notes": "promotes the jericho system."
+  },
+  {
+   "name": "Behavioral Execution Engine Patent",
+   "class": "Deliverable",
+   "parent_project": "Jericho 1.0 build",
+   "produced_by": "Global State Systems",
+   "what_ships": "Non-provisional patent submission",
+   "phase": "1",
+   "target_date": "2026-09-11",
+   "work_state": "needs mvp",
+   "status": "CONFIRMED",
+   "notes": "protects the jericho system. provisonal patent expires in november 2026"
+  },
+  {
+   "name": "First Building — 79th Street",
+   "class": "Deliverable",
+   "parent_project": "First Building (79th Street) — HQ + Academy",
+   "produced_by": "Global State Holdings",
+   "what_ships": "Acquired, renovated, occupied building",
+   "phase": "3",
+   "target_date": "2028",
+   "work_state": "needs property",
+   "status": "DRAFT",
+   "notes": "Address TBD within Stony Island → Exchange corridor."
+  },
+  {
+   "name": "music system",
+   "class": "System",
+   "owner": "Global State Corp.",
+   "mechanism": "Writing/recording → mix/master → tape release on the OFL cadence",
+   "feeds": "marketing flywheel; financial funnel system",
+   "work_state": "running",
+   "status": "CONFIRMED",
+   "notes": "GS Corp's core operating engine. Blob-persisted."
+  },
+  {
+   "name": "production system",
+   "class": "System",
+   "owner": "Global State Productions",
+   "mechanism": "Concept/script → shoot/edit → shipped visual deliverable (short films, episodes, features)",
+   "feeds": "music system releases; marketing flywheel",
+   "work_state": "running",
+   "status": "CONFIRMED",
+   "notes": "GS Productions' core engine."
+  },
+  {
+   "name": "software system",
+   "class": "System",
+   "owner": "Global State Systems",
+   "mechanism": "Build → ship → iterate on Jericho and apps",
+   "feeds": "financial funnel system (software sales → GSS); GSS-dogfoods-Jericho loop",
+   "work_state": "building",
+   "status": "CONFIRMED",
+   "notes": "Renamed from 'software systems' (blob). Outputs: Jericho, 1.0 App, patent."
+  },
+  {
+   "name": "financial funnel system",
+   "class": "System",
+   "owner": "Global State Solutions",
+   "mechanism": "Revenue from every venture → collected → allocated by GSS to entities and projects",
+   "feeds": "Global State Solutions — 'Funds from software sales flow to the PM company' (the persisted edge)",
+   "work_state": "pending first revenue",
+   "status": "CONFIRMED",
+   "notes": "Owner locked: GSS."
+  },
+  {
+   "name": "GSS-dogfoods-Jericho loop",
+   "class": "System",
+   "owner": "Global State Solutions",
+   "mechanism": "GSS operates on Jericho; Jericho improves from GSS use",
+   "feeds": "The Jericho System",
+   "work_state": "active (this workbook is the loop)",
+   "status": "CONFIRMED",
+   "notes": "From v1.1."
+  },
+  {
+   "name": "Marketing flywheel",
+   "class": "System",
+   "owner": "Cross-cutting",
+   "mechanism": "Content (music/video/broadcast/TV show/app use) → audience attention → email capture → product/software sales → funds → more content",
+   "feeds": "financial funnel system",
+   "work_state": "broken edge: email capture pending",
+   "status": "CONFIRMED",
+   "notes": "Mechanism settled on paper; edge closes when email-capture container ships (see 3. PROJECTS)."
+  }
+ ],
+ "canonical_edges": [
+  {
+   "type": "ships_with",
+   "from": "State of Control pt. 1",
+   "to": "OUR FEARLESS LEADER 3: Romance Riot",
+   "note": "promo"
+  },
+  {
+   "type": "ships_with",
+   "from": "State of Control pt. 2",
+   "to": "OUR FEARLESS LEADER 4: PAINKILLERS",
+   "note": "promo"
+  },
+  {
+   "type": "ships_with",
+   "from": "State of Control pt. 3",
+   "to": "OUR FEARLESS LEADER 5: CORONATION",
+   "note": "promo"
+  },
+  {
+   "type": "ships_with",
+   "from": "State of Control pt. 4",
+   "to": "OUR FEARLESS LEADER 6: SAVIOR",
+   "note": "promo"
+  },
+  {
+   "type": "ships_with",
+   "from": "State of Control pt. 5 (finale)",
+   "to": "OUR FEARLESS LEADER 7: SACRIFICE",
+   "note": "promo"
+  },
+  {
+   "type": "promotes",
+   "from": "D8 N8",
+   "to": "OUR FEARLESS LEADER 3: Romance Riot"
+  },
+  {
+   "type": "promotes",
+   "from": "BLACKMAN",
+   "to": "OUR FEARLESS LEADER 3: Romance Riot"
+  },
+  {
+   "type": "promotes",
+   "from": "MAX CLOUT trilogy",
+   "to": "Energy Gum",
+   "note": "promo convergence"
+  },
+  {
+   "type": "soundtrack_of",
+   "from": "SEEDS OF DESTRUCTION TRILOGY",
+   "to": "MAX CLOUT trilogy"
+  },
+  {
+   "type": "soundtrack_of",
+   "from": "I AM THE STATE (album)",
+   "to": "Desiree"
+  },
+  {
+   "type": "promotes",
+   "from": "Help Yourself Broadcast — first 5 episodes",
+   "to": "Global State Solutions"
+  },
+  {
+   "type": "promotes",
+   "from": "The Imaginary CEO",
+   "to": "The Jericho System",
+   "note": "series advertises the system by documenting execution"
+  },
+  {
+   "type": "feeds",
+   "from": "software system",
+   "to": "financial funnel system",
+   "note": "the persisted edge: software sales → GSS"
+  },
+  {
+   "type": "feeds",
+   "from": "music system",
+   "to": "marketing flywheel"
+  },
+  {
+   "type": "feeds",
+   "from": "production system",
+   "to": "marketing flywheel"
+  },
+  {
+   "type": "feeds",
+   "from": "Marketing flywheel",
+   "to": "financial funnel system"
+  },
+  {
+   "type": "loop",
+   "from": "GSS-dogfoods-Jericho loop",
+   "to": "The Jericho System"
+  },
+  {
+   "type": "depends_on",
+   "from": "Academy #1 launch",
+   "to": "First Building (79th Street) — HQ + Academy"
+  },
+  {
+   "type": "converges",
+   "from": "Oct 17 2026 Convergence",
+   "to": "OFL 3: Romance Riot — tape/album; The Jericho System APP; Help Yourself Broadcast — first 5 episodes; Behavioral Execution Engine Patent",
+   "note": "four lanes, one date"
+  },
+  {
+   "type": "legal_cliff",
+   "from": "Behavioral Execution Engine Patent",
+   "to": "2026-11 provisional expiry",
+   "note": "non-provisional must file before provisional expires Nov 2026"
+  }
+ ]
+}
