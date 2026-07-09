@@ -47,6 +47,25 @@ describe('selectMasterGridRows', () => {
     expect(rows.find((r) => r.id === 'e1').ownerParentLabel).toBe('—');
   });
 
+  it('Initiative and System ownerParentLabel is the plain owner name (no " / " suffix)', () => {
+    const ownerMatrix = {
+      entitiesById: {
+        e1: { id: 'e1', name: 'Global State Holdings', roleTags: [], reviewStatus: 'CONFIRMED', phase: null },
+      },
+      initiativesById: {
+        i1: { id: 'i1', name: 'Expand Footprint', owningEntityId: 'e1', roleTags: [], reviewStatus: 'DRAFT', phase: null },
+      },
+      projectsById: {},
+      artifactsById: {},
+      systemsById: {
+        s1: { id: 's1', name: 'Billing Pipeline', owningEntityId: 'e1', roleTags: [], reviewStatus: 'DRAFT', phase: null },
+      },
+    };
+    const rows = selectMasterGridRows(ownerMatrix);
+    expect(rows.find((r) => r.id === 'i1').ownerParentLabel).toBe('Global State Holdings');
+    expect(rows.find((r) => r.id === 's1').ownerParentLabel).toBe('Global State Holdings');
+  });
+
   it('readyForIntake = reviewStatus CONFIRMED', () => {
     const rows = selectMasterGridRows(matrix);
     expect(rows.find((r) => r.id === 'i1').readyForIntake).toBe(true);

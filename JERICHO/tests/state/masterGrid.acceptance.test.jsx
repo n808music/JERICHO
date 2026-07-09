@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { loadReferenceMatrix } from '../../src/domain/masterGrid/loadReferenceMatrix.js';
 import { selectMasterGridRows, countByClass } from '../../src/domain/masterGrid/masterGridSelectors.js';
+import { buildPersistableIdentityState, rehydratePersistedState } from '../../src/state/identityStore.js';
 
 const fixture = JSON.parse(fs.readFileSync(path.resolve('tests/fixtures/reference_matrix_v1_4.json'), 'utf8'));
 
@@ -23,10 +24,10 @@ describe('Master Grid acceptance', () => {
 
   it('AC6: kill/relaunch — 53 survive a localStorage round-trip', () => {
     const seeded = loadReferenceMatrix(fixture, { nowISO: '2026-07-08T00:00:00Z' });
-    // Simulate persist: the identity store serializes whole state under 'jericho-identity'.
-    const blob = JSON.stringify(seeded);
-    // Simulate relaunch: re-hydrate from the persisted blob.
-    const rehydrated = JSON.parse(blob);
+    // Persist: route through the real projection written to localStorage['jericho-identity'].
+    const blob = JSON.stringify(buildPersistableIdentityState(seeded));
+    // Relaunch: route through the real version-gated rehydrate on reload.
+    const rehydrated = rehydratePersistedState(JSON.parse(blob));
     const counts = countByClass(selectMasterGridRows(rehydrated.matrix));
     expect(counts.total).toBe(53);
   });

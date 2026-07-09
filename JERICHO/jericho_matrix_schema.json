@@ -79,6 +79,9 @@
       }
     }
   },
+  "notes": {
+    "work_state": "Source/lifecycle column carried in the reference fixture; retained in the contract by design but not materialized by the store reducers or displayed by the grid."
+  },
   "edgeTypes": {
     "owns": { "store": "n/a", "note": "entity owns initiative (owningEntityId)" },
     "parents": { "store": "n/a", "note": "initiative parents project (owningInitiativeId)" },
