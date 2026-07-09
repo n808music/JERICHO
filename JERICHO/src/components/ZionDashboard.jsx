@@ -10,6 +10,7 @@ import MissionSetupFlow from './zion/MissionSetupFlow.jsx';
 import HorizonResolutionPanel from './zion/HorizonResolutionPanel.jsx';
 import DailyCheckInPanel from './zion/DailyCheckInPanel.jsx';
 import { StructurePageConsolidated } from './zion/StructurePageConsolidated.jsx';
+import { MasterGridTab } from './zion/MasterGridTab.jsx';
 import CycleTransitionModal from './zion/CycleTransitionModal.jsx';
 import ProfileHistoryMenu from './zion/ProfileHistoryMenu.jsx';
 import ProductStateBanner from './product/ProductStateBanner.jsx';
@@ -63,6 +64,7 @@ const TAB_CONFIG = [
   { key: 'today', label: 'Today', tagline: 'Execution' },
   { key: 'stability', label: 'Stability', tagline: 'Signals' },
   { key: 'plan', label: 'Master Plan', tagline: 'Horizon' },
+  { key: 'mastergrid', label: 'Master Grid', tagline: 'Rollup' },
 ];
 const ZION_VIEW_TABS = [
   { key: 'today', label: 'Today' },
@@ -134,6 +136,9 @@ function resolveDashboardViewFromHash(hashValue) {
   if (currentHash.startsWith('#/plan')) {
     return 'plan';
   }
+  if (currentHash.startsWith('#/mastergrid')) {
+    return 'mastergrid';
+  }
   return null;
 }
 
@@ -146,6 +151,9 @@ function resolveHashForDashboardView(view) {
   }
   if (view === 'plan') {
     return '#/plan';
+  }
+  if (view === 'mastergrid') {
+    return '#/mastergrid';
   }
   return '#/today';
 }
@@ -4372,6 +4380,8 @@ export default function ZionDashboard({
               }}
             />
           )}
+
+          {view === 'mastergrid' && <MasterGridTab onOpenNode={() => changeView('structure')} />}
 
           {view === 'stability' ? (
             <div className="space-y-4">
