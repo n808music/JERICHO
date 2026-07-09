@@ -15580,6 +15580,8 @@ function declareEntity(state, payload = {}) {
     purpose,
     formationState,
     statusEvidence,
+    phase: String(payload?.phase || '').trim() || null,
+    reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
     source: 'operator_declared',
   };
@@ -15617,6 +15619,9 @@ function declareInitiative(state, payload = {}) {
     purpose,
     classification,
     doneWhen,
+    phase: String(payload?.phase || '').trim() || null,
+    roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],
+    reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
     source: 'operator_declared',
   };
@@ -15648,6 +15653,9 @@ function declareSystem(state, payload = {}) {
     owningEntityId,
     cycle,
     activationState,
+    phase: String(payload?.phase || '').trim() || null,
+    roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],
+    reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
     source: 'operator_declared',
   };
@@ -15713,6 +15721,9 @@ function declareProject(state, payload = {}) {
     verificationSourceId,
     evidenceProduced: String(payload?.evidenceProduced || '').trim() || null,
     notes: String(payload?.notes || '').trim() || null,
+    phase: String(payload?.phase || '').trim() || null,
+    roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],
+    reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
   };
 }
@@ -15784,6 +15795,9 @@ function declareArtifact(state, payload = {}) {
   const id = String(payload?.id || '').trim();
   const name = String(payload?.name || '').trim();
   const producingProjectId = String(payload?.producingProjectId || '').trim();
+  const producedByEntityId = payload?.producedByEntityId === null
+    ? null
+    : String(payload?.producedByEntityId || '').trim() || null;
   const completionEvidence = String(payload?.completionEvidence || '').trim();
   const verificationSourceId = String(payload?.verificationSourceId || '').trim();
   const operatorAttestationMethod = String(payload?.operatorAttestationMethod || '').trim();
@@ -15808,6 +15822,14 @@ function declareArtifact(state, payload = {}) {
       code: 'ARTIFACT_PRODUCING_PROJECT_UNKNOWN',
       reason: `Artifact producingProjectId "${producingProjectId}" is not in matrix.projectsById.`,
       meta: { id, producingProjectId },
+    };
+    return;
+  }
+  if (producedByEntityId && !state.matrix.entitiesById[producedByEntityId]) {
+    state.lastPlanError = {
+      code: 'ARTIFACT_PRODUCED_BY_ENTITY_UNKNOWN',
+      reason: `Artifact producedByEntityId "${producedByEntityId}" is not in matrix.entitiesById.`,
+      meta: { id, producedByEntityId },
     };
     return;
   }
@@ -15838,11 +15860,15 @@ function declareArtifact(state, payload = {}) {
     id,
     name,
     producingProjectId,
+    producedByEntityId,
     consumingProjectIds,
     completionEvidence,
     verificationSourceId,
     operatorAttestationMethod,
     notes: String(payload?.notes || '').trim() || null,
+    phase: String(payload?.phase || '').trim() || null,
+    roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],
+    reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
   };
 }
