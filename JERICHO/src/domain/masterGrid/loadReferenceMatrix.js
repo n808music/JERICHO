@@ -9,23 +9,14 @@ const CLASS_SEQUENCE = ['Entity', 'Initiative', 'Project', 'Deliverable', 'Syste
 const VERIFICATION_SOURCE_ID = 'vs-reference';
 
 // Some reference-matrix rows carry an abbreviated owner/produced_by string
-// (e.g. "Global State Corp.") rather than the declared entity's full name
-// ("Global State Corporation"). Resolution must not rewrite any node's own
-// `name` field — it only widens how an owner/produced_by reference finds
-// the entity id it means. Exact match is tried first; a case-insensitive
-// prefix match is the fallback for abbreviated references.
-function resolveEntityId(rawName, entityNameToId) {
-  if (!rawName) return null;
-  const name = String(rawName).trim();
-  if (!name) return null;
-  if (entityNameToId.has(name)) return entityNameToId.get(name);
-  const norm = name.replace(/\.+$/, '').toLowerCase();
-  if (!norm) return null;
-  for (const [entName, id] of entityNameToId) {
-    if (entName.toLowerCase().startsWith(norm)) return id;
-  }
-  return null;
-}
+// (e.g. "Global State Corp.") that names the same entity declared under its
+// full name ("Global State Corporation"). This is a deterministic, exact
+// alias — NOT fuzzy matching. Prefix matching is unsafe here because all 7
+// entities share the "Global State" prefix. Resolution applies the alias,
+// then requires an EXACT match against a declared entity; anything else
+// (including sentinels like "Cross-cutting") resolves to null. No node's own
+// `name` field is ever rewritten.
+const ENTITY_ALIASES = { 'Global State Corp.': 'Global State Corporation' };
 
 /**
  * Loads the reference-matrix fixture through the real DECLARE_* reducer
@@ -44,18 +35,22 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
   for (const n of nodes) idByName.set(n.name, slugId(n.name));
   const resolve = (nm) => (nm && idByName.has(nm) ? idByName.get(nm) : null);
 
-  // Entity-only name -> id map for owner / produced_by references, which
-  // resolveEntityId matches exactly or via abbreviation prefix.
-  const entityNameToId = new Map();
-  for (const n of nodes) {
-    if (n.class === 'Entity') entityNameToId.set(n.name, slugId(n.name));
-  }
-  const resolveEntity = (nm) => resolveEntityId(nm, entityNameToId);
-
   let state = buildBlankIdentityState({ nowISO });
   state.appTime = { ...(state.appTime || {}), nowISO };
   const dispatch = (action) => {
     state = computeDerivedState(state, action);
+  };
+
+  // Owner / produced_by resolution: apply the exact alias, then require an
+  // EXACT match against an already-declared entity. Nothing fuzzy — a name
+  // that is not an alias and not a declared entity (e.g. "Cross-cutting")
+  // resolves to null. Entities are declared before any referencing class, so
+  // state.matrix.entitiesById is populated by the time this runs for owners.
+  const resolveEntity = (nm) => {
+    if (!nm) return null;
+    const canonical = ENTITY_ALIASES[nm] || nm;
+    const id = idByName.get(canonical);
+    return id && state.matrix?.entitiesById?.[id] ? id : null;
   };
 
   // Single shared verification source so Project/Deliverable required refs resolve.
