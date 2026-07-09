@@ -51,9 +51,14 @@ export function selectMasterGridRows(matrix = {}) {
   rows.sort((a, b) => {
     const c = CLASS_ORDER.indexOf(a.primaryClass) - CLASS_ORDER.indexOf(b.primaryClass);
     if (c !== 0) return c;
-    const pa = a.phase ?? '';
-    const pb = b.phase ?? '';
-    if (pa !== pb) return String(pa).localeCompare(String(pb));
+    const pa = a.phase, pb = b.phase;
+    if (pa !== pb) {
+      if (pa == null) return 1;
+      if (pb == null) return -1;
+      const na = Number(pa), nb = Number(pb);
+      if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
+      return String(pa).localeCompare(String(pb));
+    }
     return String(a.name).localeCompare(String(b.name));
   });
   return rows;

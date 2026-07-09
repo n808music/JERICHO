@@ -62,4 +62,20 @@ describe('selectMasterGridRows', () => {
     expect(countByClass(selectMasterGridRows(matrix)))
       .toEqual({ total: 5, Entity: 2, Initiative: 1, Project: 1, Deliverable: 1, System: 0 });
   });
+
+  it('sorts phases numerically within a class (10 after 2, not before)', () => {
+    const phaseMatrix = {
+      entitiesById: {},
+      initiativesById: {},
+      projectsById: {
+        p2: { id: 'p2', name: 'Phase Two', reviewStatus: 'DRAFT', phase: '2', roleTags: [] },
+        p10: { id: 'p10', name: 'Phase Ten', reviewStatus: 'DRAFT', phase: '10', roleTags: [] },
+        p1: { id: 'p1', name: 'Phase One', reviewStatus: 'DRAFT', phase: '1', roleTags: [] },
+      },
+      artifactsById: {},
+      systemsById: {},
+    };
+    const rows = selectMasterGridRows(phaseMatrix);
+    expect(rows.map((r) => r.phase)).toEqual(['1', '2', '10']);
+  });
 });
