@@ -1,0 +1,101 @@
+{
+  "contract": "jericho_matrix_schema",
+  "version": "1.4",
+  "nodeClasses": {
+    "Entity": {
+      "storeSlice": "entitiesById",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "name": { "type": "string", "required": true, "verbatim": true },
+        "roleTags": { "type": "string[]", "required": true },
+        "purpose": { "type": "string", "required": true },
+        "formationState": { "type": "string", "required": true },
+        "statusEvidence": { "type": "string", "required": true },
+        "phase": { "type": "string|null", "default": null },
+        "reviewStatus": { "type": "enum", "enum": ["CONFIRMED", "NEEDS_REVIEW", "DRAFT"], "default": "DRAFT" },
+        "work_state": { "type": "string|null", "default": null }
+      }
+    },
+    "Initiative": {
+      "storeSlice": "initiativesById",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "name": { "type": "string", "required": true, "verbatim": true },
+        "owningEntityId": { "type": "string|null" },
+        "purpose": { "type": "string", "required": true },
+        "classification": { "type": "enum", "enum": ["objective", "constraint"], "required": true },
+        "doneWhen": { "type": "string", "required": true },
+        "roleTags": { "type": "string[]", "default": [] },
+        "phase": { "type": "string|null", "default": null },
+        "reviewStatus": { "type": "enum", "enum": ["CONFIRMED", "NEEDS_REVIEW", "DRAFT"], "default": "DRAFT" },
+        "work_state": { "type": "string|null", "default": null }
+      }
+    },
+    "Project": {
+      "storeSlice": "projectsById",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "name": { "type": "string", "required": true, "verbatim": true },
+        "owningEntityId": { "type": "string", "required": true },
+        "owningInitiativeId": { "type": "string|null" },
+        "successMetric": { "type": "string", "required": true },
+        "verificationSourceId": { "type": "string", "required": true },
+        "targetDate": { "type": "string|null" },
+        "roleTags": { "type": "string[]", "default": [] },
+        "phase": { "type": "string|null", "default": null },
+        "reviewStatus": { "type": "enum", "enum": ["CONFIRMED", "NEEDS_REVIEW", "DRAFT"], "default": "DRAFT" },
+        "work_state": { "type": "string|null", "default": null }
+      }
+    },
+    "Deliverable": {
+      "storeSlice": "artifactsById",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "name": { "type": "string", "required": true, "verbatim": true },
+        "producingProjectId": { "type": "string", "required": true },
+        "producedByEntityId": { "type": "string|null" },
+        "completionEvidence": { "type": "string", "required": true },
+        "verificationSourceId": { "type": "string", "required": true },
+        "operatorAttestationMethod": { "type": "string", "required": true },
+        "roleTags": { "type": "string[]", "default": [] },
+        "phase": { "type": "string|null", "default": null },
+        "reviewStatus": { "type": "enum", "enum": ["CONFIRMED", "NEEDS_REVIEW", "DRAFT"], "default": "DRAFT" },
+        "work_state": { "type": "string|null", "default": null }
+      }
+    },
+    "System": {
+      "storeSlice": "systemsById",
+      "fields": {
+        "id": { "type": "string", "required": true },
+        "name": { "type": "string", "required": true, "verbatim": true },
+        "cycle": { "type": "string", "required": true },
+        "activationState": { "type": "enum", "enum": ["running", "missing", "planned"], "required": true },
+        "roleTags": { "type": "string[]", "default": [] },
+        "phase": { "type": "string|null", "default": null },
+        "reviewStatus": { "type": "enum", "enum": ["CONFIRMED", "NEEDS_REVIEW", "DRAFT"], "default": "DRAFT" },
+        "work_state": { "type": "string|null", "default": null }
+      }
+    }
+  },
+  "edgeTypes": {
+    "owns": { "store": "n/a", "note": "entity owns initiative (owningEntityId)" },
+    "parents": { "store": "n/a", "note": "initiative parents project (owningInitiativeId)" },
+    "producedBy": { "store": "n/a", "note": "deliverable produced by entity (producedByEntityId)" },
+    "producingProject": { "store": "n/a", "note": "deliverable from project (producingProjectId)" },
+    "dependsOn": { "store": "dependenciesById" },
+    "feedsInto": { "store": "convergenceEdgesById" },
+    "verifiedBy": { "store": "n/a", "note": "verificationSourceId" },
+    "consumedBy": { "store": "n/a", "note": "artifact consumingProjectIds" }
+  },
+  "validationRules": {
+    "V1": "Node name is write-once verbatim; intake may classify, never rewrite.",
+    "V2": "Initiative rejected without purpose + classification + doneWhen.",
+    "V3": "Deliverable rejected without producingProjectId + completionEvidence + verificationSourceId + operatorAttestationMethod.",
+    "V4": "producedByEntityId, when present, must exist in entitiesById.",
+    "V5": "Project owningEntityId must exist in entitiesById.",
+    "V6": "reviewStatus is one of CONFIRMED|NEEDS_REVIEW|DRAFT; default DRAFT.",
+    "V7": "Owner is single-select from the entity list (no dual owners).",
+    "V8": "System activationState is one of running|missing|planned.",
+    "V9": "Entity requires roleTags, purpose, formationState, statusEvidence."
+  }
+}
