@@ -327,6 +327,19 @@ export function computeDerivedState(state, action) {
       const { cycleId } = action.payload || {};
       if (cycleId && next.cyclesById?.[cycleId]) {
         next.cyclesById[cycleId].matrixIntakeComplete = true;
+        // The confirmed readback is the producer of CONFIRMED (V8): every DRAFT
+        // node the operator just verified advances to CONFIRMED (Ready flips YES).
+        // NEEDS_REVIEW stays operator-set; already-CONFIRMED is untouched.
+        const matrix = next.matrix || {};
+        for (const slice of ['entitiesById', 'initiativesById', 'projectsById', 'artifactsById', 'systemsById']) {
+          const map = matrix[slice];
+          if (!map) continue;
+          for (const id of Object.keys(map)) {
+            if (map[id] && map[id].reviewStatus === 'DRAFT') {
+              map[id] = { ...map[id], reviewStatus: 'CONFIRMED' };
+            }
+          }
+        }
         const session = next.intakeSessionByCycleId?.[cycleId];
         const stack = session?.engineSnapshot?.slotStack;
         const hasUncommittedAnswers =
