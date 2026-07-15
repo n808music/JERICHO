@@ -97,4 +97,23 @@ describe('selectMasterGridRows', () => {
     const rows = selectMasterGridRows(phaseMatrix);
     expect(rows.map((r) => r.phase)).toEqual(['1', '2', '10']);
   });
+
+  it('does NOT render capacityById as a grid class (Capacity relocated to a data namespace)', () => {
+    const capacityMatrix = {
+      entitiesById: {
+        e1: { id: 'e1', name: 'Global State Corp.', roleTags: [], reviewStatus: 'CONFIRMED', phase: null },
+      },
+      initiativesById: {},
+      projectsById: {},
+      artifactsById: {},
+      systemsById: {},
+      capacityById: {
+        c1: { id: 'c1', name: 'Global State Corp. Capacity', owningEntityId: 'e1', reviewStatus: 'DRAFT' },
+      },
+    };
+    const rows = selectMasterGridRows(capacityMatrix);
+    expect(rows.map((r) => r.primaryClass)).toEqual(['Entity']);
+    expect(rows.find((r) => r.id === 'c1')).toBeUndefined();
+    expect('Capacity' in countByClass(rows)).toBe(false);
+  });
 });

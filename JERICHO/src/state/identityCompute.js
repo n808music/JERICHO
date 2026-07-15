@@ -46,6 +46,11 @@ import { generateAutoDeliverables, debugAutoDeliverablesGeneration } from '../co
 import { getDeadlineDayKey } from '../core/deadline.ts';
 
 import { generateDeterministicPlan } from '../core/deterministicPlanGenerator.ts';
+import { buildCausalChainStepsFromMatrix } from '../domain/masterGrid/causalChainFromMatrix.js';
+import { seedCapacityFromLegacyConstraints } from '../domain/masterGrid/capacityFromLegacy.js';
+import { buildConstraintsFromMatrix } from '../domain/masterGrid/constraintsFromMatrix.js';
+import { buildScheduledBlocksFromDeterministicResult } from '../domain/masterGrid/scheduledBlocksFromDeterministicResult.js';
+import { buildProposedBlocksFromSchedule } from '../domain/masterGrid/proposedBlocksFromSchedule.js';
 import { canEmitExecutionEvent } from './engine/executionContract.ts';
 import {
   appendExternalEvidenceEvent,
@@ -283,6 +288,7 @@ export function computeDerivedState(state, action) {
   quarantineOrphanedActiveExecution(next);
   deriveProfileExecutionContainment(next);
   hydrateActiveCycleState(next);
+  ensureCapacitySeed(next);
   const hadCycleRecords = Boolean(next.cyclesById && Object.keys(next.cyclesById).length);
   if (!next.executionEvents) {
     next.executionEvents = [];
@@ -881,6 +887,14 @@ export function computeDerivedState(state, action) {
     case 'REBUILD_SCHEDULE':
       generatePlan(next, action.payload || {});
       break;
+    // Unified entry point (2026-07-13 design, §6.2): routes to generatePlan first, falling
+    // back to the matrix-driven generateColdPlanForCycle only when generatePlan itself
+    // reports NO_ACTION_GRAPH (no admitted goal/action graph yet). Neither engine's
+    // internals are touched — see routeGenerateSchedule's docblock. GENERATE_PLAN/
+    // REBUILD_SCHEDULE above are unchanged and still work exactly as before.
+    case 'GENERATE_SCHEDULE':
+      routeGenerateSchedule(next, action.payload || {});
+      break;
     case 'APPLY_PLAN':
       // The user-facing "Apply schedule" action must commit the reviewed draft
       // proposal, not bypass preview by replaying the legacy auto-plan branch.
@@ -922,11 +936,17 @@ export function computeDerivedState(state, action) {
     case 'SEED_CANONICAL_ENTITIES':
       seedCanonicalEntities(next, action.payload || {});
       break;
+    case 'RESTORE_MATRIX_SNAPSHOT':
+      restoreMatrixSnapshot(next, action.payload || {});
+      break;
     case 'DECLARE_ENTITY':
       declareEntity(next, action.payload || {});
       break;
     case 'DECLARE_INITIATIVE':
       declareInitiative(next, action.payload || {});
+      break;
+    case 'SET_INITIATIVE_PHASE':
+      setInitiativePhase(next, action.payload || {});
       break;
     case 'DECLARE_SYSTEM':
       declareSystem(next, action.payload || {});
@@ -936,6 +956,9 @@ export function computeDerivedState(state, action) {
       break;
     case 'UPDATE_PROJECT':
       updateProject(next, action.payload || {});
+      break;
+    case 'CONFIRM_CAPACITY':
+      confirmCapacity(next, action.payload || {});
       break;
     case 'REMOVE_PROJECT':
       removeProject(next, action.payload || {});
@@ -2664,6 +2687,40 @@ function ensureDeliverablesStore(state) {
   }
 }
 
+// Carries forward whatever time-constraint data already exists (goalContract.workWindows,
+// the global availabilityPolicy fallback, or strategy.constraints) into a DRAFT
+// matrix.capacityById row — once, idempotently — so the operator never has to retype
+// something they already entered just because it's moving into the matrix's CONFIRMED
+// pattern. See src/domain/masterGrid/capacityFromLegacy.js for the pure seeding logic and
+// docs/superpowers/specs/2026-07-13-unified-schedule-generation-design.md §7.3.
+function ensureCapacitySeed(state) {
+  if (!state.matrix) return;
+  const cycle = getActiveCycle(state);
+  const seeded = seedCapacityFromLegacyConstraints({
+    matrix: state.matrix,
+    goalContractWorkWindows: cycle?.goalContract?.workWindows || null,
+    availabilityPolicyWorkWindows: state.availabilityPolicy?.workWindows || null,
+    strategyConstraints: cycle?.strategy?.constraints || null,
+  });
+  if (!seeded) return;
+  if (!state.matrix.capacityById) {
+    state.matrix.capacityById = {};
+  }
+  state.matrix.capacityById[seeded.row.id] = seeded.row;
+}
+
+// One-click reconfirm for a carried-forward (or operator-declared) capacity row — no
+// elicitation-engine survey involved, matching the operator's explicit request not to
+// re-enter data or repeat intake. Only advances DRAFT/NEEDS_REVIEW -> CONFIRMED; a
+// missing row or an already-CONFIRMED row is a no-op.
+function confirmCapacity(state, payload = {}) {
+  const id = payload?.id || null;
+  if (!id || !state.matrix?.capacityById) return;
+  const row = state.matrix.capacityById[id];
+  if (!row || row.reviewStatus === 'CONFIRMED') return;
+  state.matrix.capacityById[id] = { ...row, reviewStatus: 'CONFIRMED' };
+}
+
 function bootstrapCycleActionsFromDeliverables(state, cycleId, deliverables = []) {
   const items = Array.isArray(deliverables) ? deliverables : [];
   return items
@@ -4016,6 +4073,10 @@ function adaptDeterministicResultToColdPlan(result, strategy, nowISO) {
     createdAtISO: nowISO,
     forecastByDayKey,
     infeasible: undefined,
+    // PARTIAL contract (2026-07-13, §5): carried forward so a too-small confirmed capacity
+    // renders as a flagged, acknowledgeable state instead of a silent SUCCESS with fewer
+    // blocks than confirmed scope required. Undefined when result.status is plain SUCCESS.
+    capacityViolation: result.capacityViolation,
   };
 }
 
@@ -4160,16 +4221,46 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
     const nowDayKey = dayKeyFromISO(nowISO, timeZone);
     const execMode = rebaseMode === 'REMAINING_FROM_TODAY' ? 'REBASE_FROM_TODAY' : 'REGENERATE';
 
+    // Prefer an operator-authored causal chain (Goal Admission's CausalChainBuilder)
+    // when present; otherwise derive steps from CONFIRMED Master Grid matrix projects
+    // so a completed intake actually drives the schedule instead of silently falling
+    // through to the generic 3-tier default. Empty matrix -> [] -> generator's own
+    // fallback still applies, unchanged.
+    const manualCausalChainSteps = cycle.goalContract?.execution?.causalChainSteps;
+    const causalChainSteps =
+      manualCausalChainSteps && manualCausalChainSteps.length > 0
+        ? manualCausalChainSteps
+        : buildCausalChainStepsFromMatrix(state.matrix);
+
+    // Same precedence as causalChainSteps above: an explicitly-set cycle.strategy.constraints
+    // wins if the operator (or SET_STRATEGY/SET_SCHEDULING_CONSTRAINTS) put something there;
+    // otherwise prefer a CONFIRMED matrix capacity row over the bare 4/16 hardcoded defaults.
+    // Null from buildConstraintsFromMatrix (no CONFIRMED capacity yet) falls through to the
+    // pre-existing behavior unchanged.
+    const matrixConstraints = buildConstraintsFromMatrix(state.matrix);
+    const hasExplicitStrategyConstraints = Boolean(
+      cycle.strategy?.constraints?.maxBlocksPerDay || cycle.strategy?.constraints?.maxBlocksPerWeek
+    );
+    const resolvedConstraints =
+      hasExplicitStrategyConstraints || !matrixConstraints
+        ? {
+            maxBlocksPerDay: cycle.strategy?.constraints?.maxBlocksPerDay || 4,
+            maxBlocksPerWeek: cycle.strategy?.constraints?.maxBlocksPerWeek || 16,
+            preferredDaysOfWeek: cycle.strategy?.constraints?.preferredDaysOfWeek,
+            blackoutDayKeys: cycle.strategy?.constraints?.blackoutDayKeys,
+          }
+        : matrixConstraints;
+
     const deterministicResult = generateDeterministicPlan({
       contractDeadlineDayKey: deadlineKey,
       contractStartDayKey: startDayKey,
       nowDayKey,
-      causalChainSteps: cycle.goalContract?.execution?.causalChainSteps,
+      causalChainSteps,
       constraints: {
-        maxBlocksPerDay: cycle.strategy?.constraints?.maxBlocksPerDay || 4,
-        maxBlocksPerWeek: cycle.strategy?.constraints?.maxBlocksPerWeek || 16,
-        preferredDaysOfWeek: cycle.strategy?.constraints?.preferredDaysOfWeek,
-        blackoutDayKeys: cycle.strategy?.constraints?.blackoutDayKeys,
+        maxBlocksPerDay: resolvedConstraints.maxBlocksPerDay,
+        maxBlocksPerWeek: resolvedConstraints.maxBlocksPerWeek,
+        preferredDaysOfWeek: resolvedConstraints.preferredDaysOfWeek,
+        blackoutDayKeys: resolvedConstraints.blackoutDayKeys,
         timezone: timeZone,
       },
       mode: execMode,
@@ -4177,11 +4268,44 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
 
     nextPlan = adaptDeterministicResultToColdPlan(deterministicResult, strategy, nowISO);
 
+    // Canonical cycle.schedule (2026-07-13 unified schedule generation design, §3/§6).
+    // Additive, alongside cycle.coldPlan — nothing reads this yet, so this cannot regress
+    // any existing consumer. It is the foundation the full generateSchedule() engine
+    // (retiring GENERATE_COLD_PLAN and GENERATE_PLAN into one action) builds on: real
+    // ISO-timed ScheduledBlocks with entity/lane identity, derived from the exact same
+    // matrix-driven spine + capacity already wired into the deterministic generator above.
+    {
+      const scheduleCycleId = cycle.id || state.activeCycleId || 'cycle';
+      const scheduleGoalId = cycle.goalContract?.goalId || cycle.contract?.goalId || state.activeGoalId || null;
+      cycle.schedule = {
+        version: (cycle.schedule?.version || 0) + 1,
+        generatorVersion: 'deterministicPlan_v1',
+        strategyId: strategy.strategyId,
+        assumptionsHash: strategy.assumptionsHash,
+        createdAtISO: nowISO,
+        blocks: buildScheduledBlocksFromDeterministicResult({
+          result: deterministicResult,
+          matrix: state.matrix,
+          cycleId: scheduleCycleId,
+          goalId: scheduleGoalId,
+          generatorVersion: 'deterministicPlan_v1',
+          strategyId: strategy.strategyId,
+          createdAtISO: nowISO,
+          timeZone,
+        }),
+        infeasible:
+          deterministicResult.status === 'INFEASIBLE'
+            ? { reason: deterministicResult.error?.message || 'Plan generation is infeasible' }
+            : undefined,
+        capacityViolation: deterministicResult.capacityViolation,
+      };
+    }
+
     // Seed action layer from workspace deliverables (closes RC-03)
     // Only seeds when actions are absent — never overwrites LLM or user-set actions.
     // Uses canonical workspace deliverable IDs so forward-link lineage resolves.
     // Maps deliverable.kind → actionType: PLANNING → preparation, all others → execution.
-    if (deterministicResult.status === 'SUCCESS' && deliverables.length > 0) {
+    if ((deterministicResult.status === 'SUCCESS' || deterministicResult.status === 'PARTIAL') && deliverables.length > 0) {
       const currentActions = Array.isArray(cycle.actions) ? cycle.actions : [];
       if (currentActions.length === 0) {
         const cycleId = cycle.id || state.activeCycleId || 'cycle';
@@ -4255,6 +4379,21 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
     // Clear error if plan succeeded
     state.lastPlanError = null;
   }
+
+  // Non-fatal capacity warning (2026-07-13, §5): PARTIAL plans are still schedulable — the
+  // blocks that fit are real — but confirmed scope exceeded confirmed capacity, and that
+  // must be a visible, acknowledgeable flag rather than disappearing into a clean SUCCESS.
+  // Deliberately separate from lastPlanError, which gates on zero-blocks/INFEASIBLE only.
+  state.lastPlanWarning = nextPlan.capacityViolation
+    ? {
+        code: 'CAPACITY_VIOLATION',
+        reasons: [
+          `PARTIAL: ${nextPlan.capacityViolation.requiredBlocks} blocks required, only ${nextPlan.capacityViolation.availableBlocks} fit within confirmed capacity`,
+        ],
+        details: nextPlan.capacityViolation,
+        timestamp: nowISO || new Date().toISOString(),
+      }
+    : null;
 
   refreshColdPlanDailyProjection(state);
 }
@@ -7306,6 +7445,43 @@ function applyGoalPolicy(state) {
   state.masterPlanPolicyByPlanId = masterPlanPolicyByPlanId;
 }
 
+// Content key over the inputs that determine the (expensive) full-horizon substrate.
+// Day/clock inputs are deliberately excluded: the dated forecast substrate is
+// horizon-relative, not today-relative. Over-inclusion here can only force a
+// needless recompute (correct but slower); it can never produce a stale substrate.
+function buildFullHorizonMemoKey(state, plan, mode, scheduleLifecycleState) {
+  const activeCycleId = String(state?.activeCycleId || '').trim();
+  const activeCycle = activeCycleId ? state?.cyclesById?.[activeCycleId] || null : null;
+  // policyState is derived goal-policy output re-stamped with a wall-clock
+  // timestamp every compute; it is not an expansion input, so excluding it keeps
+  // the key stable across unrelated mutations.
+  const { policyState: _omitPolicyState, ...planForKey } = plan || {};
+  try {
+    return JSON.stringify({
+      plan: planForKey,
+      lanes: state?.masterPlanLanesById || null,
+      milestones: state?.masterPlanMilestonesById || null,
+      mode,
+      scheduleLifecycleState,
+      cycle: activeCycle
+        ? {
+            id: activeCycle.id || null,
+            deadlineDayKey: activeCycle.deadlineDayKey || null,
+            contractDeadline: activeCycle.contract?.deadlineISO || null,
+            goalDeadline: activeCycle.goalContract?.deadlineISO || null,
+            scheduleState: hasCycleOwnedScheduleState(activeCycle),
+          }
+        : null,
+      availabilityWindows: state?.availabilityPolicy?.workWindows || null,
+      contractWindows: state?.goalExecutionContract?.workWindows || null,
+      timeZone: state?.appTime?.timeZone || 'UTC',
+    });
+  } catch {
+    // Non-serializable input: never reuse (force a correct recompute).
+    return `__fh_nomemo__${Math.random()}`;
+  }
+}
+
 function applyLongHorizonCalendarBlocks(state) {
   // Resolve active master plan
   const activeProfileId = String(state?.activeProfileId || '').trim();
@@ -7323,6 +7499,30 @@ function applyLongHorizonCalendarBlocks(state) {
   // In current_cycle mode: no forecast blocks — calendar uses execution pipeline only
   if (!plan || mode === 'current_cycle') {
     state.calendarDisplayBlocks = [];
+    return;
+  }
+
+  // Memoize the expensive full-horizon expansion. It rebuilds a multi-MB dated
+  // substrate on every mutation; at enterprise scale that is ~900ms per keystroke
+  // and ~12MB of fresh garbage (the UI freeze + the long-session crash). When the
+  // substrate inputs are unchanged, reuse the prior derivation carried on the
+  // reducer draft and only refresh the cheap day-dependent agenda metadata.
+  const fullHorizonMemoKey = buildFullHorizonMemoKey(state, plan, mode, scheduleLifecycleState);
+  if (
+    state.__fullHorizonMemoKey === fullHorizonMemoKey &&
+    Array.isArray(state.fullHorizonScheduleBlocks) &&
+    Array.isArray(state.calendarDisplayBlocks) &&
+    'fullHorizonCoverageAudit' in state
+  ) {
+    attachFullHorizonAgendaMetadata(state, plan, operationalDescriptors, {
+      strategicCoverageState: state.fullHorizonCoverageAudit?.fullHorizonCovered
+        ? 'covered'
+        : state.fullHorizonCoverageAudit?.horizonExpanded
+          ? 'expanded'
+          : 'unresolved',
+      planQualityState: state.fullHorizonPlanQuality?.state || null,
+      blockQualityState: state.fullHorizonBlockQuality?.state || null,
+    });
     return;
   }
 
@@ -7603,6 +7803,7 @@ function applyLongHorizonCalendarBlocks(state) {
     planQualityState: planQuality?.state || null,
     blockQualityState: blockQuality?.state || null,
   });
+  state.__fullHorizonMemoKey = fullHorizonMemoKey;
 }
 
 function applyExecutionCorrection(state) {
@@ -11862,6 +12063,61 @@ function archiveAndCloneCycle(state, cycleId, overrides = {}) {
   state.lastPlanError = null;
 }
 
+/**
+ * routeGenerateSchedule (2026-07-13 unified schedule generation design, §6.2 — revised).
+ *
+ * Single entry point for the operator-facing "Generate" action, replacing "which button did
+ * the operator press" as the thing that decides which engine runs.
+ *
+ * Investigation before writing this (see design doc §6.2) found that `generatePlan` is NOT a
+ * redundant twin of `generateColdPlanForCycle` — it delegates to `compileAutoAsanaPlan`, a
+ * substantially richer engine (LLM action graphs, session-plan pacing, dependency chains,
+ * recovery/feasibility hooks) that is the right tool once a goal is admitted with a real
+ * action graph. `generateColdPlanForCycle`'s matrix-driven path is the right tool for a cycle
+ * with Master Grid intake but no admitted action graph yet. Merging their internals would be
+ * a capability regression, not a unification, and would reach into course-correction/
+ * feasibility machinery the operator explicitly deferred. So this function does NOT
+ * reimplement or alter either engine — it only routes.
+ *
+ * Routing rule: try `generatePlan` first (unchanged, including its own internal Master Plan
+ * bridge branch) — this preserves today's behavior exactly for every cycle that already
+ * works. Only when `generatePlan` reports its own well-defined `NO_ACTION_GRAPH` signal
+ * (meaning: no admitted contract, or no action graph/planProof exists for this cycle yet) does
+ * this fall back to `generateColdPlanForCycle`'s matrix-driven engine. Every other
+ * `generatePlan` gate (`CYCLE_READ_ONLY`, `GOAL_NOT_ADMITTED`, intake-readiness codes,
+ * `CURRENT_STATE_REASSESSMENT_REQUIRED`, `REGENERATE_BLOCKED_ACTIVE_SCHEDULE`, ...) is a real
+ * block, not a "try the other engine" signal, and is left standing untouched.
+ *
+ * Follow-up (2026-07-13, same day): closing the loop. Investigation confirmed that, in this
+ * app's actual live usage, `generatePlan` ALWAYS hits `NO_ACTION_GRAPH` — nothing in the
+ * shipped UI ever populates an admitted action graph (`GoalAdmissionPage.tsx` is orphaned,
+ * `COMPLETE_ONBOARDING`+`COMPILE_GOAL_EQUATION` is test-only, `generatePlanWithLLM` is
+ * unreachable from the Generate button). So this fallback isn't an edge case — it is, in
+ * practice, the only thing that ever runs. But `generateColdPlanForCycle` only ever wrote
+ * `cycle.coldPlan`/`cycle.schedule`, never `state.proposedBlocks` — the one thing the
+ * dashboard's Review/Apply screen and `applyDraftSchedule`/`activateSchedule` actually read.
+ * The matrix engine was computing a real schedule with nowhere for the operator to see or
+ * act on it. Bridged below via `buildProposedBlocksFromSchedule`, which adapts the canonical
+ * `ScheduledBlock[]` into the same 'suggested' proposal shape `generatePlan`'s
+ * `compileAutoAsanaPlan` path already produces — no changes to the review/apply pipeline
+ * itself, which only ever required `item.startISO` to be present (see
+ * `buildScheduleReviewBlock`), already true of every Stage-1 ScheduledBlock.
+ */
+function routeGenerateSchedule(state, payload = {}) {
+  generatePlan(state, payload);
+  if (state.lastPlanError?.code === 'NO_ACTION_GRAPH') {
+    generateColdPlanForCycle(state, { rebaseMode: payload?.rebaseMode || 'NONE' });
+    const fallbackCycle = getActiveCycle(state);
+    const scheduledBlocks = fallbackCycle?.schedule?.blocks;
+    if (fallbackCycle && Array.isArray(scheduledBlocks) && scheduledBlocks.length > 0) {
+      const proposals = buildProposedBlocksFromSchedule(scheduledBlocks, {
+        createdAtISO: state.appTime?.nowISO || new Date().toISOString(),
+      });
+      setCycleProposedBlocks(state, fallbackCycle.id, proposals);
+    }
+  }
+}
+
 function generatePlan(state, payload = {}) {
   const debugPerfActions = isRuntimeEnvFlagEnabled('JERICHO_DEBUG_PERF_ACTIONS');
   const perfGenerateStart = debugPerfActions ? Date.now() : 0;
@@ -15385,6 +15641,7 @@ function ensureMatrixSlot(state) {
       dependenciesById: {},
       convergenceEdgesById: {},
       resourceProfilesById: {},
+      capacityById: {},
       bindingConstraint: null,
       bootstrap: { candidates: [], selectedNodeId: null },
     };
@@ -15399,6 +15656,7 @@ function ensureMatrixSlot(state) {
   if (!state.matrix.dependenciesById) state.matrix.dependenciesById = {};
   if (!state.matrix.convergenceEdgesById) state.matrix.convergenceEdgesById = {};
   if (!state.matrix.resourceProfilesById) state.matrix.resourceProfilesById = {};
+  if (!state.matrix.capacityById) state.matrix.capacityById = {};
   if (!('bindingConstraint' in state.matrix)) state.matrix.bindingConstraint = null;
   if (!state.matrix.bootstrap) state.matrix.bootstrap = { candidates: [], selectedNodeId: null };
 }
@@ -15516,6 +15774,24 @@ function removeNode(state, payload = {}) {
   delete state.matrix.entitiesById[id];
 }
 
+// Intake Back button (RESTORE_MATRIX_SNAPSHOT): replaces state.matrix wholesale
+// with a prior snapshot captured before an intake answer was submitted. This
+// undoes any DECLARE_* dispatches that fired in between. The payload matrix is
+// cloned so the caller's retained reference can never alias live state.
+function restoreMatrixSnapshot(state, payload = {}) {
+  if (!payload.matrix || typeof payload.matrix !== 'object') {
+    state.lastPlanError = {
+      code: 'MATRIX_RESTORE_INVALID',
+      reason: 'RESTORE_MATRIX_SNAPSHOT requires a matrix object payload.',
+    };
+    return;
+  }
+  state.matrix =
+    typeof structuredClone === 'function'
+      ? structuredClone(payload.matrix)
+      : JSON.parse(JSON.stringify(payload.matrix));
+}
+
 // SEED_CANONICAL_ENTITIES is a DEV-SCAFFOLDING action. It violates the
 // extract-not-recall doctrine because it loads operator structure from a
 // code constant instead of eliciting it through intake. Every clean
@@ -15625,10 +15901,29 @@ function declareInitiative(state, payload = {}) {
     return;
   }
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  // Multi-owner (2026-07-10): owningEntityIds carries every owner; the legacy
+  // scalar owningEntityId stays populated with the first owner (or null) for
+  // downstream consumers. crossCutting marks whole-operation scope and is
+  // independent of whether owners are named.
+  const owningEntityIds = Array.isArray(payload?.owningEntityIds)
+    ? payload.owningEntityIds.filter(Boolean).map((v) => String(v).trim()).filter(Boolean)
+    : (owningEntityId ? [owningEntityId] : []);
+  // Ownership implies capability: owning an initiative IS the evidence that
+  // the entity can own initiatives. Backfill the [initiative] role tag on any
+  // owner that lacks it — the owner pickSet is unfiltered (2026-07-10), so a
+  // §2 under-tag must not leave the matrix internally inconsistent.
+  for (const ownerId of owningEntityIds) {
+    const owner = state.matrix.entitiesById?.[ownerId];
+    if (!owner) continue;
+    const tags = Array.isArray(owner.roleTags) ? owner.roleTags : [];
+    if (!tags.includes('initiative')) owner.roleTags = [...tags, 'initiative'];
+  }
   state.matrix.initiativesById[id] = {
     id,
     name,
-    owningEntityId,
+    owningEntityId: owningEntityIds[0] || owningEntityId || null,
+    owningEntityIds,
+    crossCutting: Boolean(payload?.crossCutting),
     purpose,
     classification,
     doneWhen,
@@ -15638,6 +15933,39 @@ function declareInitiative(state, payload = {}) {
     declaredAtISO: nowISO,
     source: 'operator_declared',
   };
+}
+
+// Initiative-level phase declaration (2026-07-13 phasing-scalability follow-up).
+// Pairwise Project-to-Project dependency declaration (SequencingPanel/DECLARE_DEPENDENCY)
+// doesn't scale once a portfolio holds many unrelated content lines (confirmed by the
+// operator: ~18 CONFIRMED Projects, largely no meaningful pairwise relationship to declare —
+// e.g. sequencing "OUR FEARLESS LEADER 3" against "I AM THE STATE" doesn't make sense).
+// Declaring phase once per Initiative (~10 decisions) is the coarse, tractable default;
+// Projects inherit it via deriveEffectiveProjectPhases unless they have their own
+// dependency-derived or hand-typed phase. This is a direct one-field set — not a graph
+// edge — deliberately as simple as CONFIRM_CAPACITY, not a form.
+function setInitiativePhase(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  if (!id) {
+    state.lastPlanError = {
+      code: 'INITIATIVE_PHASE_INVALID',
+      reason: 'Setting an initiative phase requires an id.',
+      meta: { id },
+    };
+    return;
+  }
+  const existing = state.matrix.initiativesById?.[id];
+  if (!existing) {
+    state.lastPlanError = {
+      code: 'INITIATIVE_UNKNOWN',
+      reason: `Cannot set phase on initiative "${id}" — not in matrix.initiativesById.`,
+      meta: { id },
+    };
+    return;
+  }
+  const phase = payload?.phase === null ? null : String(payload?.phase ?? '').trim() || null;
+  state.matrix.initiativesById[id] = { ...existing, phase };
 }
 
 // Section 4 system declared through the elicitation engine (DECLARE_SYSTEM).
@@ -15660,6 +15988,15 @@ function declareSystem(state, payload = {}) {
     return;
   }
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  // Ownership implies capability (mirrors declareInitiative): backfill the
+  // [system] role tag onto an owner that lacks it.
+  if (owningEntityId) {
+    const owner = state.matrix.entitiesById?.[owningEntityId];
+    if (owner) {
+      const tags = Array.isArray(owner.roleTags) ? owner.roleTags : [];
+      if (!tags.includes('system')) owner.roleTags = [...tags, 'system'];
+    }
+  }
   const entry = {
     id,
     name,
@@ -15965,6 +16302,22 @@ function reachesDependency(from, to, edges) {
   return false;
 }
 
+// Dependencies originally only ever linked Artifacts. 2026-07-13 (phase/sequencing design):
+// generalized to also accept Project and Initiative ids, using the same edge shape, same
+// cycle guard, same gate machinery — no schema duplication. This is the structural signal
+// phase derivation (phaseFromDependencies.js) is built on: which node classes/slices a
+// dependency id may resolve against.
+const DEPENDENCY_NODE_SLICES = ['projectsById', 'initiativesById', 'artifactsById'];
+
+function findDependencyNodeSlice(state, id) {
+  for (const slice of DEPENDENCY_NODE_SLICES) {
+    if (state.matrix?.[slice]?.[id]) {
+      return slice;
+    }
+  }
+  return null;
+}
+
 function declareDependency(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
@@ -15979,18 +16332,18 @@ function declareDependency(state, payload = {}) {
     };
     return;
   }
-  if (!state.matrix.artifactsById[downstreamId]) {
+  if (!findDependencyNodeSlice(state, downstreamId)) {
     state.lastPlanError = {
       code: 'DEPENDENCY_DOWNSTREAM_UNKNOWN',
-      reason: `Dependency downstreamId "${downstreamId}" is not in matrix.artifactsById.`,
+      reason: `Dependency downstreamId "${downstreamId}" is not in matrix.projectsById, initiativesById, or artifactsById.`,
       meta: { id, downstreamId },
     };
     return;
   }
-  if (!state.matrix.artifactsById[upstreamId]) {
+  if (!findDependencyNodeSlice(state, upstreamId)) {
     state.lastPlanError = {
       code: 'DEPENDENCY_UPSTREAM_UNKNOWN',
-      reason: `Dependency upstreamId "${upstreamId}" is not in matrix.artifactsById.`,
+      reason: `Dependency upstreamId "${upstreamId}" is not in matrix.projectsById, initiativesById, or artifactsById.`,
       meta: { id, upstreamId },
     };
     return;
@@ -16078,10 +16431,17 @@ function declareConvergence(state, payload = {}) {
     return;
   }
   // NOTE: No cycle guard. Loops are valid in Section 8 (convergence).
+  // Multi-source (2026-07-10): fromNodeIds carries every feeding node; the
+  // legacy scalar fromNodeId stays as the first source. Sources that are not
+  // declared nodes are dropped (same rule the scalar path enforces above).
+  const fromNodeIds = (Array.isArray(payload?.fromNodeIds) ? payload.fromNodeIds : [fromNodeId])
+    .map((v) => String(v || '').trim())
+    .filter((v) => v && allIds.has(v) && v !== toNodeId);
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
   state.matrix.convergenceEdgesById[id] = {
     id,
-    fromNodeId,
+    fromNodeId: fromNodeIds[0] || fromNodeId,
+    fromNodeIds: fromNodeIds.length ? fromNodeIds : [fromNodeId],
     toNodeId,
     gives,
     broken: Boolean(payload?.broken) || false,

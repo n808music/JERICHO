@@ -1,3 +1,5 @@
+// Capacity is NOT a matrix class (operator ruling). matrix.capacityById is a
+// separate store namespace (constraints/computed availability), never a grid row.
 export const CLASS_ORDER = ['Entity', 'Initiative', 'Project', 'Deliverable', 'System'];
 
 const SLICES = [
