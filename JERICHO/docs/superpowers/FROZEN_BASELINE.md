@@ -53,9 +53,9 @@ All confirmed flaky by passing in isolation while failing only under full-suite 
 - `generatePlan.calendarIntegration.test.jsx :: "generatePlan writes one canonical full-horizon proposal set and month views slice it without changing the total"` — isolation-verified. (Gate 2)
 - `AppShell.structureRoute.contract.test.jsx :: "renders the post-admission structure surface when an admitted goal exists"` — isolation-verified. (Gate 2)
 - `MatrixIntake.resumeAfterRulesChange.test.jsx :: "Back steps into the previous answered field; Next confirms and declares, then advances to Mission B"` — isolation-verified. (Gate 2)
-- `ZionDashboard.todayExecutionControls.test.jsx :: "completes the active today block and preserves completion across restore"` — isolation-verified. (Gate 2)
+- **`ZionDashboard.todayExecutionControls.test.jsx` — WHOLE FILE load-flaky.** Isolation 8/8 (Gate 3). Under full-suite load a *different subset* of its 8 tests fails each run, so it is allowlisted at file granularity.
 
-**Reconciliation rule (Gates 2–8):** reconcile the STABLE set = 27 deterministic failures across the 18 files. A subsequent run is GREEN-consistent if its failing set equals the stable 27 ± any allowlisted flake. Any OTHER new failing test (that also fails in isolation), or any of the 18 stable families disappearing, is an unexplained delta → HALT.
+**Reconciliation rule (Gates 2–8):** reconcile the STABLE set = 27 deterministic failures across the 18 files. For any new-failing test not in the stable set, **run its file in isolation**: if the file passes, its full-suite failures are load-flakes (non-blocking); if it fails in isolation, that is a real regression → HALT. A stable family disappearing is also an unexplained delta → HALT. (File-level isolation only masks load-variance — a real regression fails in isolation too.)
 
 ## Reconciliation rule for subsequent gates (2–8)
 
