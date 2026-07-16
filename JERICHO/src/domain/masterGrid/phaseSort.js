@@ -89,15 +89,31 @@ export function sortByPhase(gridTitles, matrix) {
     }),
   }));
 
+  // Defensive floor (second line behind ingest validation): any row whose phase is not
+  // canonical 1/2/3 goes to the residual bucket, never `phases.get(<unknown>).push` — a
+  // raw TypeError at render depth is never an acceptable way to discover a data problem.
   const phases = new Map([[1, []], [2, []], [3, []]]);
-  for (const p of placed) phases.get(p.phase).push(p);
+  const residual = [];
+  for (const p of placed) {
+    const bucket = phases.get(p.phase);
+    if (bucket) bucket.push(p);
+    else residual.push(p);
+  }
   for (const list of phases.values()) {
     list.sort((a, b) =>
       a.deadline !== b.deadline ? a.deadline.localeCompare(b.deadline) : a.fixtureTitle.localeCompare(b.fixtureTitle));
   }
 
+  const residualSet = new Set(residual);
   const questions = [];
   for (const p of placed) {
+    if (residualSet.has(p)) {
+      questions.push({
+        code: 'RESIDUAL-PHASE',
+        probe: `"${p.fixtureTitle}" has no attested phase (raw: ${p.phase === null || p.phase === undefined ? 'absent' : JSON.stringify(p.phase)}). Assign phase 1, 2, or 3, or confirm it stays in the residual bucket.`,
+      });
+      continue;
+    }
     if (p.crossTab) questions.push({
       code: 'FIXTURE-DISCREPANCY',
       probe: `"${p.fixtureTitle}": PROJECTS target is ${p.target}, DELIVERABLES target is ${p.crossTab.deliverablesTarget}. Which does the fixture attest? (${p.provenance})`,
@@ -132,5 +148,5 @@ export function sortByPhase(gridTitles, matrix) {
       `"${p.fixtureTitle}" is phase 2 but dated ${p.target} (inside phase 1's window). Phase category wins; flagged only.`);
   }
 
-  return { phases, questions, advisories, unmatched, milestones };
+  return { phases, residual, questions, advisories, unmatched, milestones };
 }

@@ -85,3 +85,42 @@ describe('phaseGridFromStore → sortByPhase (③④⑤ from canonical store)', 
     for (const t of [...P1, ...P2, ...P3]) expect(fixtureNames.has(t)).toBe(true);
   });
 });
+
+// Phase classification at ingest (2026-07-16 ruling). Number(n.phase) launders two
+// doctrinally different cases into an indistinguishable 0/NaN. Classify the RAW value
+// BEFORE coercion: absent → residual sentinel (a legitimate unknown, the two-gap model);
+// present-but-non-canonical → typed rejection at the boundary (corruption, not an unknown —
+// never laundered into the residual bucket). This is the render-layer sibling of refusing
+// to let canonical-matrix state quietly become wrong with no alarm.
+describe('phaseGridFromStore — phase classification at ingest', () => {
+  it('absent phase (null) → residual sentinel: renders (no throw) and lands in the residual group', () => {
+    const m = matrix();
+    const someId = Object.keys(m.projectsById)[0];
+    const nodeName = m.projectsById[someId].name;
+    m.projectsById[someId] = { ...m.projectsById[someId], phase: null };
+    const { gridTitles, matrix: mtx } = phaseGridFromStore(m); // must NOT throw
+    const r = sortByPhase(gridTitles, mtx);
+    expect(r.residual.some((p) => p.fixtureTitle === nodeName)).toBe(true);
+    expect(r.questions.some((q) => q.code === 'RESIDUAL-PHASE')).toBe(true);
+  });
+
+  it('present-but-invalid phase ("7") → typed ingest rejection naming the node and value', () => {
+    const m = matrix();
+    const someId = Object.keys(m.projectsById)[0];
+    const nodeName = m.projectsById[someId].name;
+    m.projectsById[someId] = { ...m.projectsById[someId], phase: '7' };
+    expect(() => phaseGridFromStore(m)).toThrow(/non-canonical phase/i);
+    let caught;
+    try { phaseGridFromStore(m); } catch (e) { caught = e; }
+    expect(caught.code).toBe('NON_CANONICAL_PHASE');
+    expect(caught.rawPhase).toBe('7');
+    expect(caught.nodeName).toBe(nodeName);
+  });
+
+  it('present-but-invalid phase ("banana") → typed ingest rejection', () => {
+    const m = matrix();
+    const someId = Object.keys(m.projectsById)[0];
+    m.projectsById[someId] = { ...m.projectsById[someId], phase: 'banana' };
+    expect(() => phaseGridFromStore(m)).toThrow(/non-canonical phase/i);
+  });
+});

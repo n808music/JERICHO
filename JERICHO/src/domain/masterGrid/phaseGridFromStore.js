@@ -48,6 +48,35 @@ export function selectGridNodes(matrix = {}) {
 // Relational link kinds render as convergence ties (mutual); directional kinds do not.
 const RELATIONAL_KINDS = new Set(['ships_with', 'soundtrack_of', 'promotes', 'feeds', 'loop']);
 
+// A grid node claims a phase outside the canonical set {1,2,3}. This is corruption,
+// not a missing assignment — it is rejected loudly at the ingest boundary rather than
+// laundered into the residual bucket, so canonical-matrix integrity holds.
+export class NonCanonicalPhaseError extends Error {
+  constructor(nodeName, rawPhase) {
+    super(
+      `Matrix node "${nodeName}" declares a non-canonical phase ${JSON.stringify(rawPhase)} ` +
+        `(allowed: 1, 2, 3). This is data corruption, not a missing assignment — rejected at ` +
+        `ingest rather than laundered into the residual bucket.`,
+    );
+    this.name = 'NonCanonicalPhaseError';
+    this.code = 'NON_CANONICAL_PHASE';
+    this.nodeName = nodeName;
+    this.rawPhase = rawPhase;
+  }
+}
+
+// Classify a RAW phase value BEFORE any numeric coercion — the coercion (Number()) is
+// exactly what destroys the absent-vs-corrupt distinction, collapsing both to 0/NaN.
+//   absent (null/undefined/blank)  → null sentinel  (legitimate unknown → residual bucket)
+//   present & canonical (1|2|3)     → the number     (placed in its phase group)
+//   present & non-canonical         → throw          (corruption, rejected at the boundary)
+export function classifyPhase(raw, nodeName) {
+  if (raw == null || String(raw).trim() === '') return null;
+  const n = Number(String(raw).trim());
+  if (n === 1 || n === 2 || n === 3) return n;
+  throw new NonCanonicalPhaseError(nodeName, raw);
+}
+
 // Full adapter: store.matrix -> { gridTitles, matrix } for sortByPhase(gridTitles, matrix).
 // - rows: the execution-tier grid nodes, with verbatim fixture titles.
 // - links: matrixLinksById tier-bridged to grid rows; relational kinds made mutual
@@ -68,8 +97,9 @@ export function phaseGridFromStore(matrix = {}) {
 
   const rowById = {};
   for (const n of gridNodes) {
-    // store carries phase as a string ("1"); sortByPhase groups on numeric 1/2/3.
-    rowById[n.id] = { title: n.name, phase: Number(n.phase), target: n.targetDate ?? 'TBD', targetNote: null, links: [] };
+    // store carries phase as a string ("1"); classifyPhase resolves it to a canonical
+    // number, a null sentinel (absent → residual), or throws (non-canonical → corruption).
+    rowById[n.id] = { title: n.name, phase: classifyPhase(n.phase, n.name), target: n.targetDate ?? 'TBD', targetNote: null, links: [] };
   }
 
   for (const l of Object.values(matrix.matrixLinksById || {})) {

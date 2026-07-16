@@ -69,3 +69,35 @@ describe('phaseSort (phase-primary, deadline-within-phase)', () => {
     expect(normalize('"Head Quarters"')).toBe('HEAD QUARTERS');
   });
 });
+
+// Off-canonical phase resilience (2026-07-16 ruling). render depth 10 is never an
+// acceptable place to discover a data problem. sortByPhase must route any row whose
+// phase is not 1/2/3 into a residual bucket — a legitimate absent phase (the two-gap
+// model made visible) OR a defensive catch for corruption that slipped past ingest —
+// never a raw TypeError from phases.get(<unknown>).push.
+describe('phaseSort — off-canonical phase never crashes render (residual floor)', () => {
+  it('absent phase (undefined) → residual group + RESIDUAL-PHASE question, no throw', () => {
+    const matrix = { rows: [{ title: 'Unphased Node', phase: undefined, target: '2026' }], milestones: [], aliases: {} };
+    const r = sortByPhase(['Unphased Node'], matrix);
+    expect(r.residual.map((p) => p.fixtureTitle)).toEqual(['Unphased Node']);
+    expect(r.phases.get(1).length + r.phases.get(2).length + r.phases.get(3).length).toBe(0);
+    expect(r.questions.map((q) => q.code)).toContain('RESIDUAL-PHASE');
+  });
+
+  it('defensive floor: a non-canonical phase key (7) reaching sort → residual, never a TypeError', () => {
+    const matrix = { rows: [{ title: 'Corrupt Node', phase: 7, target: '2027' }], milestones: [], aliases: {} };
+    const r = sortByPhase(['Corrupt Node'], matrix);
+    expect(r.residual.map((p) => p.fixtureTitle)).toEqual(['Corrupt Node']);
+    expect(r.questions.map((q) => q.code)).toContain('RESIDUAL-PHASE');
+  });
+
+  it('canonical rows are unaffected — residual stays empty', () => {
+    const matrix = {
+      rows: [{ title: 'Real Node', phase: 1, target: '2026' }],
+      milestones: [], aliases: {},
+    };
+    const r = sortByPhase(['Real Node'], matrix);
+    expect(r.residual).toEqual([]);
+    expect(r.phases.get(1).map((p) => p.fixtureTitle)).toEqual(['Real Node']);
+  });
+});
