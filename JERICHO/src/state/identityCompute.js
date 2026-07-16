@@ -978,6 +978,12 @@ export function computeDerivedState(state, action) {
     case 'DECLARE_CONVERGENCE':
       declareConvergence(next, action.payload || {});
       break;
+    case 'DECLARE_MATRIX_LINK':
+      declareMatrixLink(next, action.payload || {});
+      break;
+    case 'DECLARE_MILESTONE':
+      declareMilestone(next, action.payload || {});
+      break;
     case 'DECLARE_RESOURCE_PROFILE':
       declareResourceProfile(next, action.payload || {});
       break;
@@ -15640,6 +15646,8 @@ function ensureMatrixSlot(state) {
       artifactsById: {},
       dependenciesById: {},
       convergenceEdgesById: {},
+      matrixLinksById: {},
+      milestonesById: {},
       resourceProfilesById: {},
       capacityById: {},
       bindingConstraint: null,
@@ -15655,6 +15663,8 @@ function ensureMatrixSlot(state) {
   if (!state.matrix.artifactsById) state.matrix.artifactsById = {};
   if (!state.matrix.dependenciesById) state.matrix.dependenciesById = {};
   if (!state.matrix.convergenceEdgesById) state.matrix.convergenceEdgesById = {};
+  if (!state.matrix.matrixLinksById) state.matrix.matrixLinksById = {};
+  if (!state.matrix.milestonesById) state.matrix.milestonesById = {};
   if (!state.matrix.resourceProfilesById) state.matrix.resourceProfilesById = {};
   if (!state.matrix.capacityById) state.matrix.capacityById = {};
   if (!('bindingConstraint' in state.matrix)) state.matrix.bindingConstraint = null;
@@ -16217,6 +16227,7 @@ function declareArtifact(state, payload = {}) {
     operatorAttestationMethod,
     notes: String(payload?.notes || '').trim() || null,
     phase: String(payload?.phase || '').trim() || null,
+    targetDate: String(payload?.targetDate || '').trim() || null,
     roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
@@ -16447,6 +16458,44 @@ function declareConvergence(state, payload = {}) {
     broken: Boolean(payload?.broken) || false,
     label: String(payload?.label || '').trim() || null,
     declaredAtISO: nowISO,
+  };
+}
+
+// Attested relational link (ships_with / soundtrack_of / promotes / feeds / loop /
+// depends_on / legal_cliff). Distinct from dependenciesById (hard_gate/directional
+// scheduling deps): these are the fixture's typed relational edges the Master Grid
+// renders as ties. fromId/toId reference declared nodes by id.
+function declareMatrixLink(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const kind = String(payload?.kind || '').trim();
+  const fromId = String(payload?.fromId || '').trim();
+  const toId = String(payload?.toId || '').trim();
+  if (!id || !kind || !fromId || !toId) {
+    state.lastPlanError = { code: 'MATRIX_LINK_INVALID', reason: 'Matrix link requires id, kind, fromId, toId.', meta: { id, kind, fromId, toId } };
+    return;
+  }
+  state.matrix.matrixLinksById[id] = {
+    id, kind, fromId, toId,
+    declaredAtISO: state?.appTime?.nowISO || new Date().toISOString(),
+  };
+}
+
+// Named, dated convergence milestone with its lane node ids (e.g. "Oct 17 2026
+// Convergence"). An annotation, never a node or sort key — lanes keep own deadlines.
+function declareMilestone(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const name = String(payload?.name || '').trim();
+  const date = String(payload?.date || '').trim() || null;
+  const laneIds = Array.isArray(payload?.laneIds) ? payload.laneIds.filter(Boolean).map((x) => String(x).trim()) : [];
+  if (!id || !name || laneIds.length === 0) {
+    state.lastPlanError = { code: 'MILESTONE_INVALID', reason: 'Milestone requires id, name, and at least one laneId.', meta: { id, name, laneCount: laneIds.length } };
+    return;
+  }
+  state.matrix.milestonesById[id] = {
+    id, name, date, laneIds,
+    declaredAtISO: state?.appTime?.nowISO || new Date().toISOString(),
   };
 }
 

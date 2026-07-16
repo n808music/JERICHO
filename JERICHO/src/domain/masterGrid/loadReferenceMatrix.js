@@ -115,6 +115,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             completionEvidence: n.what_ships || 'reference',
             verificationSourceId: VERIFICATION_SOURCE_ID,
             operatorAttestationMethod: 'operator',
+            targetDate: n.target_date || null,
           },
         });
       } else if (cls === 'System') {
@@ -127,6 +128,38 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             activationState: 'planned',
           },
         });
+      }
+    }
+  }
+
+  // Attested edges: typed relational links → matrixLinksById; the named
+  // convergence → milestonesById. from/to reference node names (resolved to ids).
+  // Edges whose endpoints are descriptive strings (e.g. "software system",
+  // "2026-11 provisional expiry") don't resolve to declared nodes and are skipped.
+  const edges = fixture.canonical_edges || [];
+  let linkSeq = 0;
+  let msSeq = 0;
+  for (const e of edges) {
+    const from = e.from ?? e.source;
+    const to = e.to ?? e.target;
+    if (e.type === 'converges') {
+      // "from" is the milestone name; "to" is a semicolon list of lane node names.
+      const laneNames = String(to || '').split(';').map((s) => s.trim()).filter(Boolean);
+      const laneIds = laneNames.map(resolve).filter(Boolean);
+      // Derive the milestone date from the latest lane target_date (the anchor).
+      const laneDates = laneNames
+        .map((nm) => (nodes.find((n) => n.name === nm) || {}).target_date)
+        .filter((d) => d && /^\d{4}-\d{2}-\d{2}$/.test(d))
+        .sort();
+      const date = laneDates.length ? laneDates[laneDates.length - 1] : null;
+      if (laneIds.length) {
+        dispatch({ type: 'DECLARE_MILESTONE', payload: { id: `ms-${++msSeq}`, name: String(from || '').trim(), date, laneIds } });
+      }
+    } else {
+      const fromId = resolve(from);
+      const toId = resolve(to);
+      if (fromId && toId) {
+        dispatch({ type: 'DECLARE_MATRIX_LINK', payload: { id: `link-${++linkSeq}`, kind: e.type, fromId, toId } });
       }
     }
   }

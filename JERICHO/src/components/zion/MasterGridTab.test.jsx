@@ -2,59 +2,78 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MasterGridTab } from './MasterGridTab.jsx';
 
-vi.mock('../../state/identityStore.js', () => ({
-  useIdentityStore: () => globalThis.__STORE__,
-}));
-
+vi.mock('../../state/identityStore.js', () => ({ useIdentityStore: () => globalThis.__STORE__ }));
 function setStore(matrix) {
   globalThis.__STORE__ = { matrix, matrixDispatch: vi.fn() };
   return globalThis.__STORE__;
 }
 
-const baseMatrix = () => ({
-  entitiesById: { e1: { id: 'e1', name: 'Global State Corp.', roleTags: [], reviewStatus: 'CONFIRMED', phase: null } },
-  initiativesById: {}, projectsById: {}, artifactsById: {}, systemsById: {},
+const emptyMatrix = () => ({
+  projectsById: {}, artifactsById: {}, initiativesById: {}, entitiesById: {}, systemsById: {},
+  matrixLinksById: {}, milestonesById: {},
+});
+const withProjects = () => ({
+  ...emptyMatrix(),
+  projectsById: {
+    p1: { id: 'p1', name: 'Alpha Project', phase: '1', targetDate: '2026-03-01', reviewStatus: 'CONFIRMED' },
+    p2: { id: 'p2', name: 'Beta Project', phase: '2', targetDate: '2027', reviewStatus: 'DRAFT' },
+  },
 });
 
-describe('MasterGridTab', () => {
-  it('renders one row per node with live counts', () => {
-    setStore(baseMatrix());
+describe('MasterGridTab (phase-grouped, D1/D2)', () => {
+  it('renders three phase groups with rows generated from the store', () => {
+    setStore(withProjects());
     render(<MasterGridTab onOpenNode={() => {}} />);
-    expect(screen.getAllByTestId('mastergrid-row')).toHaveLength(1);
-    expect(screen.getByTestId('mastergrid-counts').textContent).toContain('1 nodes');
-    expect(screen.getByTestId('mastergrid-counts').textContent).toContain('1 Entities');
+    expect(screen.getAllByTestId('mastergrid-phase-group')).toHaveLength(3);
+    expect(screen.getAllByTestId('mastergrid-row')).toHaveLength(2);
+    expect(screen.getByText('Alpha Project')).toBeTruthy();
   });
 
-  it('empty store renders zero rows and zero counts, not an error', () => {
-    setStore({ entitiesById: {}, initiativesById: {}, projectsById: {}, artifactsById: {}, systemsById: {} });
+  it('empty store renders three empty phase groups, not an error', () => {
+    setStore(emptyMatrix());
     render(<MasterGridTab onOpenNode={() => {}} />);
+    expect(screen.getAllByTestId('mastergrid-phase-group')).toHaveLength(3);
     expect(screen.queryAllByTestId('mastergrid-row')).toHaveLength(0);
-    expect(screen.getByTestId('mastergrid-counts').textContent).toContain('0 nodes');
+    expect(screen.getByTestId('mastergrid-counts').textContent).toContain('0 execution nodes');
   });
 
-  it('row click calls onOpenNode with the node target (AC5)', () => {
-    setStore(baseMatrix());
-    const onOpenNode = vi.fn();
-    render(<MasterGridTab onOpenNode={onOpenNode} />);
-    fireEvent.click(screen.getByTestId('mastergrid-row'));
-    expect(onOpenNode).toHaveBeenCalledWith({ class: 'Entity', id: 'e1' });
-  });
-
-  it('never calls matrixDispatch — no write path (AC4)', () => {
-    const store = setStore(baseMatrix());
-    const onOpenNode = vi.fn();
-    render(<MasterGridTab onOpenNode={onOpenNode} />);
-    fireEvent.click(screen.getByTestId('mastergrid-row'));
+  it('D2: never calls matrixDispatch (render or row click)', () => {
+    const store = setStore(withProjects());
+    render(<MasterGridTab onOpenNode={vi.fn()} />);
+    fireEvent.click(screen.getAllByTestId('mastergrid-row')[0]);
     expect(store.matrixDispatch).not.toHaveBeenCalled();
   });
 
-  it('reflects a node added to the store on re-render without manual refresh (AC3)', () => {
-    setStore(baseMatrix());
+  it('D2: row click deep-links via onOpenNode with the node title, never writes', () => {
+    setStore(withProjects());
+    const onOpenNode = vi.fn();
+    render(<MasterGridTab onOpenNode={onOpenNode} />);
+    fireEvent.click(screen.getByText('Alpha Project').closest('tr'));
+    expect(onOpenNode).toHaveBeenCalledWith({ title: 'Alpha Project' });
+  });
+
+  it('D1: a project added to the store appears on re-render (no second copy)', () => {
+    setStore(withProjects());
     const { rerender } = render(<MasterGridTab onOpenNode={() => {}} />);
-    expect(screen.getAllByTestId('mastergrid-row')).toHaveLength(1);
-    const m = globalThis.__STORE__.matrix;
-    m.initiativesById.i1 = { id: 'i1', name: 'Jericho System', roleTags: [], reviewStatus: 'DRAFT', phase: null };
-    rerender(<MasterGridTab onOpenNode={() => {}} />);
     expect(screen.getAllByTestId('mastergrid-row')).toHaveLength(2);
+    globalThis.__STORE__.matrix.projectsById.p3 = { id: 'p3', name: 'Gamma Project', phase: '3', targetDate: '2028', reviewStatus: 'DRAFT' };
+    rerender(<MasterGridTab onOpenNode={() => {}} />);
+    expect(screen.getAllByTestId('mastergrid-row')).toHaveLength(3);
+  });
+
+  it('★ milestone star renders on lane rows (project that collapses a lane + promoted lane deliverable)', () => {
+    const matrix = {
+      ...emptyMatrix(),
+      projectsById: { pj: { id: 'pj', name: 'Jericho', phase: '1', targetDate: '2026-10-17', reviewStatus: 'CONFIRMED' } },
+      artifactsById: {
+        app: { id: 'app', name: 'Jericho APP', phase: '1', targetDate: '2026-10-17', producingProjectId: 'pj', reviewStatus: 'CONFIRMED' },
+        pat: { id: 'pat', name: 'Patent', phase: '1', targetDate: '2026-09-11', producingProjectId: 'pj', reviewStatus: 'CONFIRMED' },
+      },
+      milestonesById: { ms1: { id: 'ms1', name: 'Oct 17', date: '2026-10-17', laneIds: ['app', 'pat'] } },
+    };
+    setStore(matrix);
+    render(<MasterGridTab onOpenNode={() => {}} />);
+    // Jericho (collapses the app lane) + Patent (promoted, parent already claimed) both starred.
+    expect(screen.getAllByTestId('mastergrid-milestone-star').length).toBe(2);
   });
 });

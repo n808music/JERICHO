@@ -22,7 +22,8 @@ export function CapacityConfirmPanel() {
 
   return (
     <div data-testid="capacity-confirm-panel" className="space-y-2">
-      <div className="text-xs uppercase tracking-[0.14em] text-muted">Capacity</div>
+      <div className="text-xs uppercase tracking-[0.14em] text-muted">Allocation</div>
+      <div className="text-xs text-muted">Confirm each entity's allocation — its attested split of the one shared pool, not a supply.</div>
       {rows.map((row) => (
         <div
           key={row.id}

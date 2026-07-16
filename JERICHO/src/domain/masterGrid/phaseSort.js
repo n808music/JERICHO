@@ -18,10 +18,17 @@ export function normalize(s) {
 
 export function deadlineKey(target) {
   if (!target || /TBD/i.test(target)) return '9999-12-31';
-  const range = String(target).match(/^(\d{4})\s*[-–]\s*(\d{4})$/);
+  const s = String(target);
+  // Tolerant extraction (fixture targets can be messy, e.g. "2026-2027 (pt. 1 by 2026-10-17)").
+  // Priority: YYYY-YYYY period → end year; full ISO date → itself; bare/leading YYYY → end year.
+  // Byte-identical to the strict form on clean inputs ("2026", "2028-2030", "2026-10-17").
+  const range = s.match(/(\d{4})\s*[-–]\s*(\d{4})/);
   if (range) return `${range[2]}-12-31`;
-  if (/^\d{4}$/.test(target)) return `${target}-12-31`;
-  return String(target);
+  const iso = s.match(/(\d{4}-\d{2}-\d{2})/);
+  if (iso) return iso[1];
+  const year = s.match(/(\d{4})/);
+  if (year) return `${year[1]}-12-31`;
+  return s;
 }
 
 export function sortByPhase(gridTitles, matrix) {
