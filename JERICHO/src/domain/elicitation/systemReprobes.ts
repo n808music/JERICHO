@@ -29,7 +29,7 @@ export const SYSTEM_REPROBES = {
   },
   SYSTEM_CYCLE_MISSING: {
     spine:
-      'Describe the loop — the stages it cycles through and back to the start. This is what makes it a system instead of a one-time effort.',
+      'Describe the loop — the stages this system cycles through and back to the start. This is what makes it a system instead of a one-time effort.',
     examples: {
       musician: 'e.g. Create → Produce → Art + Metadata → Distribute → Promote → Analyze → repeat',
       founder: 'e.g. Pipeline → Pitch → Close → Report → repeat',

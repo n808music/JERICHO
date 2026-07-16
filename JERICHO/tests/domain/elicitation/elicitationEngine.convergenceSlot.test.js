@@ -113,13 +113,13 @@ describe('Convergence slot: structural', () => {
     expect(CONVERGENCE_SLOT.gate).toHaveLength(7);
   });
 
-  it('gate codes follow ladder order (no cycle gate)', () => {
+  it('gate codes follow ladder order (destination-first, 2026-07-10; no cycle gate)', () => {
     expect(CONVERGENCE_SLOT.gate.map((g) => g.code)).toEqual([
+      'CONVERGENCE_TO_MISSING',
+      'CONVERGENCE_TO_UNRESOLVED',
       'CONVERGENCE_FROM_MISSING',
       'CONVERGENCE_FROM_UNRESOLVED',
-      'CONVERGENCE_TO_MISSING',
       'CONVERGENCE_SELF_EDGE',
-      'CONVERGENCE_TO_UNRESOLVED',
       'CONVERGENCE_GIVES_MISSING',
       'CONVERGENCE_GIVES_NOT_SUBSTANTIVE',
     ]);
@@ -127,11 +127,11 @@ describe('Convergence slot: structural', () => {
 
   it('gate field names match gate order', () => {
     expect(CONVERGENCE_SLOT.gate.map((g) => g.fieldName)).toEqual([
+      'toNodeId',
+      'toNodeId',
       'fromNodeId',
       'fromNodeId',
-      'toNodeId',
-      'toNodeId',
-      'toNodeId',
+      'fromNodeId',
       'gives',
       'gives',
     ]);
@@ -141,30 +141,48 @@ describe('Convergence slot: structural', () => {
 // ── 2. Gate sequence ──────────────────────────────────────────────────────────
 
 describe('Convergence slot: gate sequence', () => {
-  it('emits CONVERGENCE_FROM_MISSING first on a blank slot', () => {
+  it('emits CONVERGENCE_TO_MISSING first on a blank slot (destination is the subject)', () => {
     const engine = createElicitationEngine({
       goalType: 'generic',
       matrixSnapshot: buildBlankIdentityState({}).matrix,
       scope: [CONVERGENCE_SLOT_ID],
     });
     const first = engine.openingStep();
-    expect(first.probe.code).toBe('CONVERGENCE_FROM_MISSING');
-    expect(first.probe.fieldName).toBe('fromNodeId');
+    expect(first.probe.code).toBe('CONVERGENCE_TO_MISSING');
+    expect(first.probe.fieldName).toBe('toNodeId');
   });
 
-  it('drives the full gate sequence: fromNodeId → toNodeId → gives', () => {
+  it('drives the full gate sequence: toNodeId → fromNodeId → gives', () => {
     let state = buildBaseState();
     state = addArtifact(state, 'art-album');
     state = addArtifact(state, 'art-podcast');
     const { probes } = runConvergenceScript(
       [
-        { fromNodeId: 'art-album' },
         { toNodeId: 'art-podcast' },
+        { fromNodeId: 'art-album' },
         { gives: 'creates awareness for the podcast' },
       ],
       { initialState: state }
     );
-    expect(probes.map((p) => p.fieldName)).toEqual(['fromNodeId', 'toNodeId', 'gives']);
+    expect(probes.map((p) => p.fieldName)).toEqual(['toNodeId', 'fromNodeId', 'gives']);
+  });
+
+  it('binds later questions to the destination name (subject binding)', () => {
+    let state = buildBaseState();
+    state = addArtifact(state, 'art-album');
+    state = addArtifact(state, 'art-podcast');
+    let engine = createElicitationEngine({
+      goalType: 'generic',
+      matrixSnapshot: state.matrix,
+      scope: [CONVERGENCE_SLOT_ID],
+    });
+    engine.openingStep();
+    const r = engine.consumeAnswer({ toNodeId: 'art-podcast' });
+    engine = r.engine.refreshMatrix(state.matrix);
+    const step = engine.nextStep();
+    expect(step.probe.fieldName).toBe('fromNodeId');
+    expect(step.probe.spine).toContain('art-podcast'); // destination name bound
+    expect(step.probe.spine).not.toContain('this destination');
   });
 
   it('emits CONVERGENCE_FROM_UNRESOLVED for unknown fromNodeId', () => {
@@ -176,7 +194,9 @@ describe('Convergence slot: gate sequence', () => {
       scope: [CONVERGENCE_SLOT_ID],
     });
     let step = engine.openingStep();
-    const r = engine.consumeAnswer({ fromNodeId: 'nonexistent-node' });
+    // Destination-first: answer toNodeId, then the bogus source.
+    let r = engine.consumeAnswer({ toNodeId: 'art-b' });
+    r = r.engine.refreshMatrix(state.matrix).consumeAnswer({ fromNodeId: 'nonexistent-node' });
     step = r.engine.refreshMatrix(state.matrix).nextStep();
     expect(step.probe.code).toBe('CONVERGENCE_FROM_UNRESOLVED');
   });
@@ -272,7 +292,7 @@ describe('Convergence slot: allDeclaredNodeOptions cross-registry', () => {
 // ── 4. Self-edge rejection ────────────────────────────────────────────────────
 
 describe('Convergence slot: self-edge rejection', () => {
-  it('CONVERGENCE_SELF_EDGE fires when fromNodeId === toNodeId (via engine)', () => {
+  it('CONVERGENCE_SELF_EDGE fires when a source equals the destination (via engine)', () => {
     let state = buildBaseState();
     state = addArtifact(state, 'art-loop');
 
@@ -282,8 +302,8 @@ describe('Convergence slot: self-edge rejection', () => {
       scope: [CONVERGENCE_SLOT_ID],
     });
     let step = engine.openingStep();
-    let r = engine.consumeAnswer({ fromNodeId: 'art-loop' });
-    r = r.engine.refreshMatrix(state.matrix).consumeAnswer({ toNodeId: 'art-loop' });
+    let r = engine.consumeAnswer({ toNodeId: 'art-loop' });
+    r = r.engine.refreshMatrix(state.matrix).consumeAnswer({ fromNodeId: 'art-loop' });
     step = r.engine.refreshMatrix(state.matrix).nextStep();
     expect(step.probe.code).toBe('CONVERGENCE_SELF_EDGE');
   });

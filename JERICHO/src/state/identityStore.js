@@ -48,6 +48,7 @@ const DERIVED_PERSISTENCE_KEYS = [
   'fullHorizonBlockQuality',
   'fullHorizonRenderTruthAudit',
   'fullHorizonCoverageFailureCodes',
+  '__fullHorizonMemoKey',
 ];
 
 const IdentityContext = createContext(null);
@@ -1761,8 +1762,15 @@ export function IdentityProvider({ children, initialState }) {
       if (!resolvedCycleId) {
         return Promise.resolve();
       }
+      // GENERATE_SCHEDULE (2026-07-13 unified schedule generation design, §6.2): routes to
+      // generatePlan first (unchanged behavior for every cycle that already works today),
+      // falling back to the matrix-driven generateColdPlanForCycle only when generatePlan
+      // itself reports NO_ACTION_GRAPH (no admitted goal/action graph yet) — see
+      // routeGenerateSchedule in identityCompute.js. Strict improvement over dispatching
+      // GENERATE_PLAN directly: a matrix-only cycle with no admitted goal now produces a
+      // real schedule instead of dead-ending on NO_ACTION_GRAPH.
       dispatch({
-        type: 'GENERATE_PLAN',
+        type: 'GENERATE_SCHEDULE',
         payload: {
           cycleId: resolvedCycleId,
           anchorDayKey: payload?.anchorDayKey || null,
@@ -1945,6 +1953,13 @@ export function IdentityProvider({ children, initialState }) {
 
   const matrixDispatch = useCallback((action) => dispatch(action), []);
 
+  // Explicit, user-triggered durable save to the backend. Returns the push result
+  // ({ ok, status? } / { ok:false, error }) so the UI can show a visible status.
+  const saveProgress = useCallback(
+    () => syncPush(buildPersistableIdentityState(stateRef.current)),
+    []
+  );
+
   React.useEffect(() => {
     persistState(state);
   }, [state]);
@@ -2059,6 +2074,7 @@ export function IdentityProvider({ children, initialState }) {
     setIntakeSession,
     clearIntakeSession,
     matrixDispatch,
+    saveProgress,
     archiveAndCloneCycle,
     ...coreMissionContractActions,
   };

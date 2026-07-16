@@ -86,6 +86,20 @@ function buildReadbackSentence(captured) {
   return `Your done-when will read: 'Open ${source} and confirm ${metric}.' Is that the check you'll perform?`;
 }
 
+// Formal signature of a compound record (2026-07-10 operator report: an app
+// and a patent crammed into one project read back as a "check" nobody would
+// actually perform). The engine cannot comprehend meaning — but it CAN notice
+// this shape: BOTH the target and the source joining two things with a
+// coordinator. Requiring the pattern on both sides keeps false positives low
+// ("mix and master" in a metric alone does not trigger). Advisory only —
+// the operator's judgment stays authoritative at the readback.
+const COMPOUND_JOIN_RE = /\s(?:and|&|\+)\s/i;
+function detectCompoundAttestation(captured) {
+  const source = String(captured.verificationSource || '').trim();
+  const metric = String(captured.successMetric || '').trim();
+  return COMPOUND_JOIN_RE.test(source) && COMPOUND_JOIN_RE.test(metric);
+}
+
 export { PROJECT_SLOT_ID } from './slots/projectSlot.js';
 export { VERIFICATION_SOURCE_SLOT_ID } from './slots/verificationSourceSlot.js';
 export { ENTITY_SLOT_ID } from './entitySlot';
@@ -156,12 +170,17 @@ function buildPickSet(kind, matrixSnapshot) {
     };
   }
   if (kind === 'initiativeOwnerOptions') {
+    // ALL declared entities are offered (2026-07-10). The old [initiative]
+    // role-tag filter turned a §2 under-tag into a structural trap: the
+    // entity silently vanished from §3 ownership with no hint why — e.g.
+    // "Global State Solutions Branding" could not be owned by Global State
+    // Solutions. Ownership IS evidence of capability: declareInitiative
+    // backfills the [initiative] tag onto any owner that lacks it.
     const entries = Object.values(matrixSnapshot?.entitiesById || {});
-    const capable = entries.filter(
-      (e) => Array.isArray(e.roleTags) && e.roleTags.includes('initiative')
-    );
-    const items = capable.map((e) => ({ id: e.id, label: e.name || e.id }));
-    items.push({ id: INITIATIVE_OWNER_ENTITY_LESS, label: 'entity-less / cross-cutting' });
+    const items = entries.map((e) => ({ id: e.id, label: e.name || e.id }));
+    // Cross-cutting describes scope (whole operation), not the absence of
+    // owners — it can be picked alongside entities. Alone it means entity-less.
+    items.push({ id: INITIATIVE_OWNER_ENTITY_LESS, label: 'cross-cutting / whole operation' });
     return { kind, items };
   }
   if (kind === 'classificationOptions') {
@@ -175,12 +194,11 @@ function buildPickSet(kind, matrixSnapshot) {
     };
   }
   if (kind === 'systemOwnerOptions') {
+    // Same de-filtering as initiativeOwnerOptions: every declared entity is a
+    // valid owner; declareSystem backfills the [system] tag when needed.
     const entries = Object.values(matrixSnapshot?.entitiesById || {});
-    const capable = entries.filter(
-      (e) => Array.isArray(e.roleTags) && e.roleTags.includes('system')
-    );
-    const items = capable.map((e) => ({ id: e.id, label: e.name || e.id }));
-    items.push({ id: SYSTEM_OWNER_ENTITY_LESS, label: 'entity-less / cross-cutting' });
+    const items = entries.map((e) => ({ id: e.id, label: e.name || e.id }));
+    items.push({ id: SYSTEM_OWNER_ENTITY_LESS, label: 'cross-cutting / whole operation' });
     return { kind, items };
   }
   if (kind === 'producingProjectOptions') {
@@ -220,8 +238,10 @@ function buildPickSet(kind, matrixSnapshot) {
       items: ['hard_gate', 'directional', 'informational'].map((v) => ({ id: v, label: LABELS[v] })),
     };
   }
-  if (kind === 'allDeclaredNodeOptions') {
+  if (kind === 'allDeclaredNodeOptions' || kind === 'convergenceSourceOptions') {
     // Cross-registry: all declared node types (entities, initiatives, systems, projects, artifacts).
+    // convergenceSourceOptions carries the same items but is multi-select in
+    // the UI (2026-07-10): several parts of an operation often feed one place.
     const snap = matrixSnapshot || {};
     const items = [];
     const registries = [
@@ -292,16 +312,35 @@ const REFERENT_PLACEHOLDER = {
   [SYSTEM_SLOT_ID]:    'this system',
   [PROJECT_SLOT_ID]:   'this project',
   [ARTIFACT_SLOT_ID]:  'this artifact',
+  // Convergence has no name of its own; its subject is the DESTINATION node,
+  // captured first (2026-07-10) precisely so later questions can bind to it.
+  [CONVERGENCE_SLOT_ID]: 'this destination',
 };
 
-function applyReferentBinding(spine, slotId, captured) {
+// The subject a slot's spines bind to. Most slots: the captured name.
+// Convergence: the destination node's display name, resolved from the matrix.
+function subjectNameFor(slotId, captured, matrixSnapshot) {
+  if (slotId === CONVERGENCE_SLOT_ID) {
+    const to = String(captured?.toNodeId || '').trim();
+    if (!to) return '';
+    const snap = matrixSnapshot || {};
+    for (const reg of ['entitiesById', 'initiativesById', 'systemsById', 'projectsById', 'artifactsById']) {
+      const node = snap[reg]?.[to];
+      if (node) return String(node.name || to);
+    }
+    return '';
+  }
+  return String(captured?.name || '').trim();
+}
+
+function applyReferentBinding(spine, slotId, captured, matrixSnapshot) {
   const placeholder = REFERENT_PLACEHOLDER[slotId];
   if (!placeholder) return spine;
-  const capturedName = String(captured?.name || '').trim();
-  if (!capturedName) return spine;
+  const subject = subjectNameFor(slotId, captured, matrixSnapshot);
+  if (!subject) return spine;
   // Replace all occurrences so multi-sentence spines bind fully. Plain text —
   // the UI renders the spine verbatim, so no markdown markers (Defect E).
-  return spine.split(placeholder).join(capturedName);
+  return spine.split(placeholder).join(subject);
 }
 
 function buildProbe({ slotId, goalType, code, matrixSnapshot, captured }) {
@@ -313,7 +352,7 @@ function buildProbe({ slotId, goalType, code, matrixSnapshot, captured }) {
     slotId,
     fieldName,
     code: base.code,
-    spine: applyReferentBinding(base.spine, slotId, captured),
+    spine: applyReferentBinding(base.spine, slotId, captured, matrixSnapshot),
     examples: base.examples,
     pickSet: null,
     dependencyGap: false,
@@ -496,6 +535,7 @@ function finalizeCompletedSlots(state) {
           ...nextState,
           readbackPending: {
             sentence,
+            compoundSuspected: detectCompoundAttestation(topSlotState.captured),
             fields: {
               name: topSlotState.captured.name,
               successMetric: topSlotState.captured.successMetric,
@@ -593,9 +633,16 @@ export function createElicitationEngine({ goalType, matrixSnapshot, scope = [PRO
           };
           return { engine: wrap(nextState), dispatches: [action] };
         }
-        // confirmed: false — clear the named field, preserve all siblings
+        // confirmed: false — clear the named field, preserve all siblings.
+        // Coupled fields (2026-07-10): the source GATE keys off the resolved
+        // verificationSourceId, so reopening 'verificationSource' must clear
+        // BOTH — otherwise the gate still passes, the question is never
+        // re-asked, and the readback regenerates with an empty source string.
+        const REOPEN_CASCADE = {
+          verificationSource: ['verificationSource', 'verificationSourceId'],
+        };
         const nextCaptured = { ...topSlotState.captured };
-        delete nextCaptured[reopen];
+        for (const f of REOPEN_CASCADE[reopen] || [reopen]) delete nextCaptured[f];
         const nextSlotState = { ...topSlotState, captured: nextCaptured };
         const nextStack = [...currentState.slotStack.slice(0, -1), nextSlotState];
         const nextState = {
@@ -615,6 +662,64 @@ export function createElicitationEngine({ goalType, matrixSnapshot, scope = [PRO
       },
       refreshMatrix(nextSnapshot) {
         return wrap({ ...currentState, matrixSnapshot: nextSnapshot });
+      },
+      // Resume-after-rules-change path: a restored snapshot may ALREADY pass
+      // every gate (e.g. a validator was loosened between save and resume, so
+      // a previously reprobed answer now clears). nextStep() finalizes such
+      // slots internally but DISCARDS the dispatches — fine mid-session, fatal
+      // on resume where the caller must apply them. This surfaces the same
+      // finalization WITH its dispatch list so the completed slot's DECLARE_*
+      // is never lost.
+      finalizePending() {
+        const finalized = finalizeCompletedSlots(currentState);
+        return { engine: wrap(finalized.state), dispatches: finalized.dispatches };
+      },
+      // The top slot's answered gate fields, in gate order (deduped). Used by
+      // the resume path to rebuild Back history after a reload — the operator
+      // must be able to step backwards through what they already answered.
+      answeredGateFields() {
+        const top = topOfStack(currentState.slotStack);
+        if (!top) return [];
+        const slotDef = SLOT_REGISTRY[top.slotId];
+        const seen = new Set();
+        const out = [];
+        for (const g of slotDef?.gate || []) {
+          const f = g.fieldName;
+          if (!f || seen.has(f)) continue;
+          seen.add(f);
+          if (top.captured[f] !== undefined) out.push({ fieldName: f, value: top.captured[f] });
+        }
+        return out;
+      },
+      // Re-open `fieldName` on the top slot: clears it AND every later gate
+      // field so nextStep() probes fieldName again with earlier answers intact.
+      // Resume uses this to land the operator ON the question they were
+      // answering (answer prefilled by the caller) instead of auto-submitting
+      // a captured answer they never confirmed.
+      reopenFieldAndLater(fieldName) {
+        const top = topOfStack(currentState.slotStack);
+        if (!top) return { engine: wrap(currentState), previousValue: null };
+        const slotDef = SLOT_REGISTRY[top.slotId];
+        const order = [];
+        const seen = new Set();
+        for (const g of slotDef?.gate || []) {
+          if (g.fieldName && !seen.has(g.fieldName)) {
+            seen.add(g.fieldName);
+            order.push(g.fieldName);
+          }
+        }
+        const idx = order.indexOf(fieldName);
+        if (idx < 0) return { engine: wrap(currentState), previousValue: null };
+        const previousValue = top.captured[fieldName];
+        const nextCaptured = { ...top.captured };
+        for (const f of order.slice(idx)) delete nextCaptured[f];
+        const nextTop = { ...top, captured: nextCaptured, lastFailureCode: null };
+        const nextState = {
+          ...currentState,
+          slotStack: [...currentState.slotStack.slice(0, -1), nextTop],
+          readbackPending: null,
+        };
+        return { engine: wrap(nextState), previousValue };
       },
       snapshotCapturedFields() {
         const top = topOfStack(currentState.slotStack);

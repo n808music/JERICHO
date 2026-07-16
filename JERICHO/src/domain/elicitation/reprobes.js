@@ -41,7 +41,9 @@ export const REPROBES = {
     },
   },
   PROJECT_OWNER_MISSING: {
-    spine: 'Which part of your operation owns this? Pick the entity it lives under.',
+    // Contains 'this project' so referent binding names the item (2026-07-10:
+    // 'owns this?' never bound — operator lost the subject mid fan-out).
+    spine: 'Which part of your operation owns this project? Pick the entity it lives under.',
     pickSet: 'declaredEntities',
     examples: { musician: '', founder: '', writer: '', generic: '' },
   },

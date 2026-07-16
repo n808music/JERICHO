@@ -34,6 +34,7 @@ import { isCanonicalBlankState } from '../../state/identityCompute.js';
 import { describeBlockMeaning } from '../zion/blockMeaning.js';
 import CycleTransitionModal from './CycleTransitionModal.jsx';
 import ExportFullScheduleButton from './ExportFullScheduleButton.jsx';
+import SaveProgressButton from './SaveProgressButton.jsx';
 import HorizonResolutionPanel from './HorizonResolutionPanel.jsx';
 import WorkWindowsEditor from './WorkWindowsEditor.tsx';
 import {
@@ -308,6 +309,7 @@ function MasterPlanStructureSection({
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <SaveProgressButton />
               <ExportFullScheduleButton />
               <button
                 type="button"
@@ -714,6 +716,20 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   // dispatch so both updates batch together). Debug-bridge admission never calls it,
   // so external admission correctly falls through to MODULE 2.
   const [intakeSessionActive, setIntakeSessionActive] = useState(false);
+  // Refresh-mid-intake (2026-07-10 defect): intakeSessionActive is component
+  // state and dies with the page, but the resumable session lives in the store
+  // (persisted on every step + pushed by Save Progress). If one exists for the
+  // active cycle, the survey is genuinely in-flight — mount MODULE 1 so
+  // MatrixIntake's resume path can rehydrate it. Sessions are retired on
+  // MARK_MATRIX_INTAKE_COMPLETE, so a present snapshot means unfinished intake.
+  // External/debug-bridge admission never writes a session → still falls
+  // through to MODULE 2 (test-safe).
+  const persistedIntakeSession = activeCycleId
+    ? store?.intakeSessionByCycleId?.[activeCycleId] || null
+    : null;
+  const hasResumableIntake = Boolean(
+    persistedIntakeSession?.engineSnapshot && persistedIntakeSession?.currentSlotId
+  );
   const hasGoalDraftRecovery =
     String(planRecovery?.required || '')
       .trim()
@@ -990,8 +1006,9 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   useEffect(() => {
     console.log('[StructurePage] hasAdmittedGoal changed:', hasAdmittedGoal,
       '| intakeSessionActive:', intakeSessionActive,
-      '| rendering MODULE:', (!hasAdmittedGoal || intakeSessionActive) ? '1 (intake)' : '2 (plan view)');
-  }, [hasAdmittedGoal, intakeSessionActive]);
+      '| hasResumableIntake:', hasResumableIntake,
+      '| rendering MODULE:', (!hasAdmittedGoal || intakeSessionActive || hasResumableIntake) ? '1 (intake)' : '2 (plan view)');
+  }, [hasAdmittedGoal, intakeSessionActive, hasResumableIntake]);
 
   const appNowISO = appTime?.nowISO || new Date().toISOString();
   const appCurrentDayKey = toDayKey(appNowISO);
@@ -1109,7 +1126,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   // the full survey. Debug-bridge / external admission never calls onSurveyStarted,
   // so intakeSessionActive stays false → MODULE 2 shows immediately (test-safe).
   // ============================================================================
-  if (!hasAdmittedGoal || intakeSessionActive) {
+  if (!hasAdmittedGoal || intakeSessionActive || hasResumableIntake) {
     const draftStartDayKey = toDayKey(
       admissionDraft?.startDayKey || admissionDraft?.startDateISO || admissionDraft?.startDate || ''
     );
@@ -1119,9 +1136,14 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
       : null;
     return (
       <div className="space-y-6">
-        <div className="border-b border-line/40 pb-4">
-          <h1 className="text-2xl font-bold text-jericho-text mb-2">Structure</h1>
-          <p className="text-sm text-muted">Contract Admission</p>
+        <div className="border-b border-line/40 pb-4 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-jericho-text mb-2">Structure</h1>
+            <p className="text-sm text-muted">Contract Admission</p>
+          </div>
+          {/* Mid-intake durable save — answers persist to the store on every
+              step transition, so this pushes the in-flight session too. */}
+          <SaveProgressButton />
         </div>
 
         {hasPersistenceRecovery ? <PersistenceRecoveryNotice planRecovery={planRecovery} /> : null}

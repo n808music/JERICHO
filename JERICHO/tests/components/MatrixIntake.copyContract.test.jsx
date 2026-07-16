@@ -80,9 +80,11 @@ describe('MatrixIntake copy — one ask per probe (Defect C)', () => {
 
     // First optional section shown is Initiative.
     expect(screen.getByText('Initiative')).toBeInTheDocument();
-    // Skip it — flow advances to the next optional section (System), not into Initiative.
+    // Skip it — flow advances to the next section (Project roster, per the
+    // 2026-07-10 workbook order: Projects/Deliverables before Systems),
+    // not into Initiative.
     await user.click(screen.getByRole('button', { name: /not for this goal — skip/i }));
-    await waitFor(() => expect(screen.getByText('System')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Project')).toBeInTheDocument());
     expect(screen.queryByText('Initiative')).not.toBeInTheDocument();
   });
 });

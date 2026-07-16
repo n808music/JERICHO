@@ -87,16 +87,28 @@ const OPTIONAL_SECTIONS = new Set([
 // Blocker codes: show a CTA, not an answer surface
 const BLOCKER_CODES = new Set(['BINDING_COVERAGE_INCOMPLETE']);
 
-// roleTagOptions is the only multi-select pickSet kind
-const MULTI_SELECT_KINDS = new Set(['roleTagOptions']);
+// Multi-select pickSet kinds. initiativeOwnerOptions joined 2026-07-10 (an
+// initiative can be owned by several entities); convergenceSourceOptions the
+// same day (several parts of an operation often feed one destination).
+const MULTI_SELECT_KINDS = new Set([
+  'roleTagOptions',
+  'initiativeOwnerOptions',
+  'convergenceSourceOptions',
+]);
 
-// Dependency-respecting slot order: spine first, then sub-structures, then edges, then bootstrap last
+// Dependency-respecting slot order: spine first, then sub-structures, then edges, then bootstrap last.
+// 2026-07-10 (operator decision): Projects and Deliverables are asked BEFORE
+// Systems, matching the canonical reference workbook tab order (ENTITIES →
+// INITIATIVES → PROJECTS → DELIVERABLES → SYSTEMS). Dependency-safe: systems
+// reference entities only; artifacts stay after the projects they attach to.
+// The § pills keep their canonical matrix section ids (§5 Project precedes
+// §4 System on screen by design).
 const FULL_SLOT_ORDER = [
   ENTITY_SLOT_ID,
   INITIATIVE_SLOT_ID,
-  SYSTEM_SLOT_ID,
   PROJECT_SLOT_ID,
   ARTIFACT_SLOT_ID,
+  SYSTEM_SLOT_ID,
   DEPENDENCY_SLOT_ID,
   CONVERGENCE_SLOT_ID,
   RESOURCE_PROFILE_SLOT_ID,
@@ -164,6 +176,17 @@ function SectionPill({ slotId }) {
   );
 }
 
+// Cross-registry pick lists group by node type (2026-07-10): a flat wall of
+// 40 chips made the operator scan every declared thing to find one. Grouping
+// uses the nodeType the engine already attaches; ungrouped sets render flat.
+const NODE_TYPE_GROUPS = [
+  ['entity', 'Companies / entities'],
+  ['initiative', 'Initiatives'],
+  ['project', 'Projects'],
+  ['artifact', 'Deliverables'],
+  ['system', 'Systems'],
+];
+
 function PickSetInput({ pickSet, selected, onChange }) {
   const isMulti = MULTI_SELECT_KINDS.has(pickSet.kind);
   const toggle = (id) => {
@@ -173,28 +196,52 @@ function PickSetInput({ pickSet, selected, onChange }) {
       onChange([id]);
     }
   };
+  const chip = (item) => {
+    const active = selected.includes(item.id);
+    return (
+      <button
+        key={item.id}
+        type="button"
+        data-testid="pickset-option"
+        onClick={() => toggle(item.id)}
+        style={{
+          padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: active ? 600 : 400,
+          border: `1px solid ${active ? '#60a5fa' : '#3f3f46'}`,
+          background: active ? '#1e3a5f' : '#18181b',
+          color: active ? '#93c5fd' : '#a1a1aa',
+          cursor: 'pointer', transition: 'all 0.12s',
+        }}
+      >
+        {item.label}
+      </button>
+    );
+  };
+
+  const typed = pickSet.items.filter((i) => i.nodeType);
+  if (typed.length > 0) {
+    const groups = NODE_TYPE_GROUPS
+      .map(([type, heading]) => [heading, pickSet.items.filter((i) => i.nodeType === type)])
+      .filter(([, items]) => items.length > 0);
+    const untyped = pickSet.items.filter((i) => !i.nodeType);
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 }}>
+        {groups.map(([heading, items]) => (
+          <div key={heading} data-testid="pickset-group">
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#71717a', marginBottom: 6 }}>
+              {heading}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{items.map(chip)}</div>
+          </div>
+        ))}
+        {untyped.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{untyped.map(chip)}</div>
+        )}
+      </div>
+    );
+  }
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
-      {pickSet.items.map(item => {
-        const active = selected.includes(item.id);
-        return (
-          <button
-            key={item.id}
-            type="button"
-            data-testid="pickset-option"
-            onClick={() => toggle(item.id)}
-            style={{
-              padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: active ? 600 : 400,
-              border: `1px solid ${active ? '#60a5fa' : '#3f3f46'}`,
-              background: active ? '#1e3a5f' : '#18181b',
-              color: active ? '#93c5fd' : '#a1a1aa',
-              cursor: 'pointer', transition: 'all 0.12s',
-            }}
-          >
-            {item.label}
-          </button>
-        );
-      })}
+      {pickSet.items.map(chip)}
     </div>
   );
 }
@@ -219,7 +266,126 @@ function TextInput({ value, onChange, onEnter, rows = 2 }) {
   );
 }
 
-function ReadbackScreen({ readback, onConfirm, onReopen }) {
+// Inline "queue another item" input — used mid fan-out ("+ add another
+// project") and on the compound-readback advisory ("queue as separate
+// project"). Inserts the name right after the current item so it's described
+// next; nothing already answered is touched.
+function AddAnotherInline({ label, onAdd, ctaText }) {
+  const [open, setOpen] = React.useState(false);
+  const [draft, setDraft] = React.useState('');
+  const [added, setAdded] = React.useState(null);
+  const submit = () => {
+    const v = draft.trim();
+    if (!v) return;
+    if (onAdd(v)) {
+      setAdded(v);
+      setDraft('');
+      setOpen(false);
+    }
+  };
+  if (!open) {
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+        <button
+          type="button"
+          data-testid="add-another-toggle"
+          onClick={() => { setAdded(null); setOpen(true); }}
+          style={{
+            padding: '6px 12px', borderRadius: 8, fontSize: 12,
+            background: 'transparent', border: '1px dashed #52525b', color: '#a1a1aa', cursor: 'pointer',
+          }}
+        >
+          {ctaText || `+ add another ${label}`}
+        </button>
+        {added ? (
+          <span data-testid="add-another-confirmation" style={{ fontSize: 12, color: '#34d399' }}>
+            "{added}" queued next — finish this one first.
+          </span>
+        ) : null}
+      </span>
+    );
+  }
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      <input
+        data-testid="add-another-input"
+        value={draft}
+        autoFocus
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }}
+        placeholder={`Name the ${label}`}
+        style={{
+          padding: '6px 10px', borderRadius: 8, fontSize: 12, minWidth: 220,
+          background: '#18181b', border: '1px solid #3f3f46', color: '#f4f4f5', outline: 'none',
+        }}
+      />
+      <button
+        type="button"
+        data-testid="add-another-submit"
+        onClick={submit}
+        style={{
+          padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+          background: '#1e3a5f', border: '1px solid #3b82f6', color: '#93c5fd', cursor: 'pointer',
+        }}
+      >
+        Queue it
+      </button>
+      <button
+        type="button"
+        onClick={() => { setOpen(false); setDraft(''); }}
+        style={{ padding: '6px 8px', borderRadius: 8, fontSize: 12, background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer' }}
+      >
+        cancel
+      </button>
+    </span>
+  );
+}
+
+// Persistent queue visibility (2026-07-10): after queueing a split/added item
+// the operator had NO way to see whether it landed — the per-add confirmation
+// was transient. This line always shows what's queued after the current item,
+// with × to remove a not-yet-described name (e.g. an accidental duplicate).
+function QueuedNextLine({ names, startIndex, onRemove }) {
+  const pending = (names || []).slice(startIndex + 1);
+  if (!pending.length) return null;
+  return (
+    <div
+      data-testid="roster-queued-line"
+      style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, fontSize: 12, color: '#71717a' }}
+    >
+      <span>Up next:</span>
+      {pending.map((n, i) => (
+        <span
+          key={`${n}-${i}`}
+          data-testid="roster-queued-chip"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px',
+            borderRadius: 999, background: '#18181b', border: '1px solid #3f3f46', color: '#a1a1aa',
+          }}
+        >
+          {n}
+          {onRemove ? (
+            <button
+              type="button"
+              aria-label={`Remove ${n}`}
+              data-testid="roster-queued-remove"
+              onClick={() => onRemove(startIndex + 1 + i)}
+              style={{ border: 'none', background: 'transparent', color: '#71717a', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}
+            >
+              ×
+            </button>
+          ) : null}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function ReadbackScreen({
+  readback, onConfirm, onReopen, onAddRosterName, rosterLabel,
+  rosterNames = [], rosterIndex = 0, onRemoveRosterName,
+}) {
+  const queuedCount = Math.max(0, (rosterNames || []).length - rosterIndex - 1);
   return (
     <div style={{ padding: '24px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ fontSize: 11, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
@@ -230,6 +396,46 @@ function ReadbackScreen({ readback, onConfirm, onReopen }) {
       }}>
         <p style={{ fontSize: 14, color: '#e2e8f0', lineHeight: 1.7, margin: 0 }}>{readback.sentence}</p>
       </div>
+      {/* Compound-attestation advisory: both the metric and the source join
+          two things with 'and' — the shape of two checks welded into one
+          record. Advisory only; the operator's judgment is authoritative. */}
+      {readback.compoundSuspected && (
+        <div
+          data-testid="readback-compound-advisory"
+          style={{
+            fontSize: 13, color: '#fcd34d', background: '#1c1407',
+            border: '1px solid #d97706', borderRadius: 6, padding: '10px 14px', lineHeight: 1.6,
+            display: 'flex', flexDirection: 'column', gap: 10,
+          }}
+        >
+          {queuedCount > 0 ? (
+            <span data-testid="compound-advisory-queued">
+              <span style={{ fontWeight: 700 }}>
+                {queuedCount} {rosterLabel || 'item'}{queuedCount > 1 ? 's' : ''} queued below.
+              </span>{' '}
+              Now trim THIS record to its first deliverable: tap the successMetric and
+              verificationSource chips underneath to re-enter each one, then confirm.
+              Confirm is never blocked — it declares this record exactly as read back.
+            </span>
+          ) : (
+            <span>
+              <span style={{ fontWeight: 700 }}>This reads like two checks in one.</span>{' '}
+              If these are two deliverables — each with its own place you'd verify it — split them:
+              name the second one below (it's asked right after this one), then use the field chips
+              to trim this record down to the first. Confirm only if it's truly a single check.
+            </span>
+          )}
+          {onAddRosterName ? (
+            <AddAnotherInline
+              label={rosterLabel || 'item'}
+              onAdd={onAddRosterName}
+              ctaText={`Split — queue a separate ${rosterLabel || 'item'}`}
+            />
+          ) : null}
+        </div>
+      )}
+      {/* Always-visible queue of items waiting after this one (removable). */}
+      <QueuedNextLine names={rosterNames} startIndex={rosterIndex} onRemove={onRemoveRosterName} />
       {readback.fields && (
         <div>
           <p style={{ fontSize: 11, color: '#71717a', marginBottom: 8 }}>Reopen a field:</p>
@@ -430,10 +636,14 @@ function LoopCheckScreen({ slotId, onAddMore, onContinue }) {
 // Roster chip entry for list-capture node slots (Defect E). Names are added one
 // at a time as removable chips → an array by construction. No freeform prose
 // parsing; the fan-out then describes each named item in turn.
-function RosterScreen({ slotId, onSubmit, onSkip }) {
+function RosterScreen({ slotId, onSubmit, onSkip, initialNames = [] }) {
   const meta = SLOT_META[slotId] || { label: slotId, plural: 'items', color: '#71717a' };
   const framingText = SECTION_FRAMING[slotId];
-  const [chips, setChips] = React.useState([]);
+  // initialNames repopulates the chips when the user navigates Back to this
+  // screen — their typed roster is never lost to a remount.
+  const [chips, setChips] = React.useState(() =>
+    (Array.isArray(initialNames) ? initialNames : []).map((n) => String(n).trim()).filter(Boolean)
+  );
   const [draft, setDraft] = React.useState('');
 
   const finalNames = () => {
@@ -521,6 +731,7 @@ function DoneScreen({ onAddMore }) {
           { label: '+ Initiative', slotId: INITIATIVE_SLOT_ID },
           { label: '+ Project',    slotId: PROJECT_SLOT_ID },
           { label: '+ Artifact',   slotId: ARTIFACT_SLOT_ID },
+          { label: '+ System',     slotId: SYSTEM_SLOT_ID },
         ].map(({ label, slotId }) => (
           <button
             key={slotId}
@@ -584,6 +795,15 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
   const [rosterIndex, setRosterIndex] = useState(0);
   const [rosterSlotId, setRosterSlotId] = useState(null);
 
+  // Back navigation: a stack of full pre-transition snapshots (UI state +
+  // engine reference + the store matrix reference from before the transition).
+  // Engines are immutable (each consumeAnswer returns a new instance) and
+  // computeDerivedState structuredClones state, so retained references are
+  // safe to restore verbatim. historyDepth mirrors the stack length in React
+  // state so the Back button's visibility re-renders.
+  const historyRef = useRef([]);
+  const [historyDepth, setHistoryDepth] = useState(0);
+
   // Latest inputValue held in a ref so we can persist the in-flight text on
   // unmount (back-gesture) WITHOUT persisting on every keystroke.
   const inputValueRef = useRef('');
@@ -606,6 +826,110 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
       rosterIndex,
       rosterSlotId,
     });
+  };
+
+  // Back-history writer, reassigned each render over current state (same
+  // pattern as persistSessionRef) so handlers with narrower useCallback deps
+  // always push the CURRENT state, never a stale closure. `overrides` lets a
+  // caller amend fields the transition is about to consume (e.g. beginFanOut
+  // records the roster names so Back restores the chips).
+  const pushHistoryRef = useRef(() => {});
+  pushHistoryRef.current = (overrides = {}) => {
+    historyRef.current.push({
+      phase,
+      slotQueue,
+      engine,
+      step,
+      inputValue,
+      selected,
+      isReprobe,
+      rosterNames,
+      rosterIndex,
+      rosterSlotId,
+      matrix: store.matrix,
+      ...overrides,
+    });
+    setHistoryDepth(historyRef.current.length);
+  };
+
+  // Pop one snapshot and restore it wholesale: UI state, engine, and the store
+  // matrix (RESTORE_MATRIX_SNAPSHOT undoes any DECLARE_* that fired since the
+  // snapshot — this is what lets Back cross an already-declared entity).
+  const goBack = () => {
+    const entry = historyRef.current.pop();
+    if (!entry) { return; }
+    setHistoryDepth(historyRef.current.length);
+    store.matrixDispatch({ type: 'RESTORE_MATRIX_SNAPSHOT', payload: { matrix: entry.matrix } });
+    setPendingRefresh(false);
+    setResumedFromSession(false);
+    setSlotQueue(entry.slotQueue);
+    setRosterNames(entry.rosterNames);
+    setRosterIndex(entry.rosterIndex);
+    setRosterSlotId(entry.rosterSlotId);
+    setEngine(entry.engine);
+    setStep(entry.step);
+    setInputValue(entry.inputValue);
+    setSelected(entry.selected);
+    setIsReprobe(entry.isReprobe);
+    prevFieldRef.current = null;
+    setPhase(entry.phase);
+    // The persisted resume session only models the engine phase; if Back lands
+    // on a non-engine screen, drop the now-stale session so resume can't jump
+    // forward past where the user deliberately went back to.
+    if (entry.phase !== 'engine' && activeCycleId) {
+      store.clearIntakeSession?.(activeCycleId);
+    }
+  };
+
+  // Insert a new roster name right after the item currently being described —
+  // the "split"/"add another" affordance. Uses the existing fan-out machinery:
+  // nothing already answered is touched; the new item is asked next.
+  const addRosterName = (name) => {
+    const clean = String(name || '').trim();
+    if (!clean || !rosterSlotId) return false;
+    if (rosterNames.some((n) => n.toLowerCase() === clean.toLowerCase())) return false;
+    const next = [...rosterNames];
+    next.splice(rosterIndex + 1, 0, clean);
+    setRosterNames(next);
+    return true;
+  };
+
+  // Remove a queued (not-yet-described) roster name — e.g. an accidental
+  // duplicate added while splitting. Only names AFTER the current index are
+  // removable; described items are already declared records.
+  const removeRosterName = (index) => {
+    if (!rosterSlotId) return;
+    if (index <= rosterIndex || index >= rosterNames.length) return;
+    setRosterNames(rosterNames.filter((_, i) => i !== index));
+  };
+
+  // Discard the item CURRENTLY being described and move to the next roster
+  // name (2026-07-10: a duplicate that had already become current could only
+  // be escaped by skipping the WHOLE section — losing every queued item
+  // behind it). Nothing is declared for the skipped item; Back undoes it.
+  const skipCurrentRosterItem = () => {
+    if (!rosterSlotId) return;
+    pushHistoryRef.current();
+    const nextIndex = rosterIndex + 1;
+    if (nextIndex < rosterNames.length) {
+      const eng = seedNodeEngine(store.matrix, rosterSlotId, rosterNames[nextIndex]);
+      setRosterIndex(nextIndex);
+      setEngine(eng);
+      setStep(eng.nextStep());
+      setInputValue('');
+      setSelected([]);
+      setIsReprobe(false);
+      prevFieldRef.current = null;
+      setPendingRefresh(false);
+      setPhase('engine');
+    } else {
+      setRosterSlotId(null);
+      setRosterNames([]);
+      setRosterIndex(0);
+      setEngine(null);
+      setStep(null);
+      enterQueue(slotQueue.slice(1), store.matrix);
+    }
   };
 
   // ── Slot advancement helper ──────────────────────────────────────────────────
@@ -709,6 +1033,8 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
     const clean = (Array.isArray(names) ? names : []).map((n) => String(n).trim()).filter(Boolean);
     const slotId = rosterSlotId || slotQueue[0];
     if (clean.length === 0 || !slotId) { advanceSlot(); return; }
+    // Record the roster screen WITH its typed names so Back restores the chips.
+    pushHistoryRef.current({ phase: 'roster', rosterNames: clean, rosterSlotId: slotId });
     onSurveyStarted?.();
     const eng = seedNodeEngine(store.matrix, slotId, clean[0]);
     const s = eng.nextStep();
@@ -735,26 +1061,107 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
     if (saved?.engineSnapshot && saved?.currentSlotId) {
       const eng = makeSlotEngine(store.matrix, saved.currentSlotId, saved.engineSnapshot);
       const s = eng.nextStep();
-      if (!s.done) {
-        onSurveyStarted?.(); // keep the intake mounted through resume
-        setSlotQueue(
-          Array.isArray(saved.slotQueue) && saved.slotQueue.length
-            ? saved.slotQueue
-            : [saved.currentSlotId]
-        );
-        setEngine(eng);
-        setStep(s);
-        setInputValue(saved.inputValue || '');
-        // Restore the fan-out position so remaining names still get described.
+      const savedQueue =
+        Array.isArray(saved.slotQueue) && saved.slotQueue.length
+          ? saved.slotQueue
+          : [saved.currentSlotId];
+      const restoreRoster = () => {
         if (saved.rosterSlotId && Array.isArray(saved.rosterNames) && saved.rosterNames.length) {
           setRosterSlotId(saved.rosterSlotId);
           setRosterNames(saved.rosterNames);
           setRosterIndex(saved.rosterIndex || 0);
         }
+      };
+
+      // Rebuild Back history from the fields already answered on the current
+      // slot (2026-07-10 defect: history was in-memory only, so after a reload
+      // the operator had "only Next" and no way to double-check answers).
+      // Each entry re-opens one answered field with its value prefilled —
+      // Back now steps question-by-question through the current item.
+      const answered = (typeof eng.answeredGateFields === 'function' ? eng.answeredGateFields() : [])
+        // The name of a rostered item is seeded, not asked — skip it.
+        .filter((f) => !(saved.rosterSlotId && f.fieldName === 'name'));
+      const entries = [];
+      for (const { fieldName, value } of answered) {
+        const reopened = eng.reopenFieldAndLater(fieldName);
+        const st = reopened.engine.nextStep();
+        if (st.done || !st.probe) continue;
+        entries.push({
+          phase: 'engine',
+          slotQueue: savedQueue,
+          engine: reopened.engine,
+          step: st,
+          inputValue: typeof value === 'string' ? value : '',
+          selected: Array.isArray(value) ? value : (st.probe.pickSet && value ? [value] : []),
+          isReprobe: false,
+          rosterNames: Array.isArray(saved.rosterNames) ? saved.rosterNames : [],
+          rosterIndex: saved.rosterIndex || 0,
+          rosterSlotId: saved.rosterSlotId || null,
+          matrix: store.matrix,
+        });
+      }
+
+      if (!s.done) {
+        onSurveyStarted?.(); // keep the intake mounted through resume
+        // Resuming INTO a readback: nextStep() computes the readback
+        // transiently, but the restored engine's internal state doesn't carry
+        // it — confirm/reopen would throw 'no readback pending' and every
+        // button on the readback dies silently (2026-07-10: unresponsive
+        // successMetric chips after reload). finalizePending() returns the
+        // engine WITH the readback registered; no dispatches fire because the
+        // readback is precisely what gates them.
+        let resumedEngine = eng;
+        if (s.readback && typeof eng.finalizePending === 'function') {
+          const fin = eng.finalizePending();
+          if (fin.dispatches.length === 0) resumedEngine = fin.engine;
+        }
+        historyRef.current = entries;
+        setHistoryDepth(entries.length);
+        setSlotQueue(savedQueue);
+        setEngine(resumedEngine);
+        setStep(s);
+        setInputValue(saved.inputValue || '');
+        restoreRoster();
         setResumedFromSession(true);
         setPhase('engine');
         return;
       }
+      // s.done on a restored snapshot: the slot ALREADY passes every gate
+      // under CURRENT rules — e.g. a validator was loosened between save and
+      // resume, so an answer that was mid-reprobe now clears. NEVER auto-
+      // submit it (the operator never confirmed that answer): land them ON
+      // the last question they were answering, answer prefilled, with Back
+      // history for the earlier fields. Pressing Next re-submits it through
+      // the normal flow.
+      if (entries.length > 0) {
+        const current = entries.pop();
+        onSurveyStarted?.();
+        historyRef.current = entries;
+        setHistoryDepth(entries.length);
+        setSlotQueue(savedQueue);
+        setEngine(current.engine);
+        setStep(current.step);
+        setInputValue(current.inputValue);
+        setSelected(current.selected);
+        restoreRoster();
+        setResumedFromSession(true);
+        setPhase('engine');
+        return;
+      }
+      // Boundary snapshot with nothing re-openable (no answered fields):
+      // finalize so the record isn't lost, then advance via pendingRefresh.
+      onSurveyStarted?.();
+      const fin = eng.finalizePending
+        ? eng.finalizePending()
+        : { engine: eng, dispatches: [] };
+      setSlotQueue(savedQueue);
+      restoreRoster();
+      fin.dispatches.forEach((action) => store.matrixDispatch(action));
+      setEngine(fin.engine);
+      setResumedFromSession(true);
+      setPhase('engine');
+      setPendingRefresh(true);
+      return;
     }
     if (phase === 'entering') {
       enterQueue([...FULL_SLOT_ORDER], store.matrix);
@@ -766,7 +1173,10 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
   // read from a ref, so this does NOT fire per keystroke.
   useEffect(() => {
     persistSessionRef.current();
-  }, [engine, phase, slotQueue]); // eslint-disable-line react-hooks/exhaustive-deps
+    // rosterNames/rosterIndex included (2026-07-10): queueing or removing an
+    // item mid fan-out must survive a reload — previously only question
+    // transitions persisted, so a split queued at the readback was lost.
+  }, [engine, phase, slotQueue, rosterNames, rosterIndex]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => persistSessionRef.current(), []); // persist on unmount
 
   // Transition: when the store admits the goal (Phase 0 → scope/engine)
@@ -872,6 +1282,7 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
       value = inputValue.trim() || null;
     }
     if (value === null || (Array.isArray(value) && value.length === 0)) return;
+    pushHistoryRef.current();
 
     const { engine: next, dispatches } = engine.consumeAnswer({ [fieldName]: value });
     if (dispatches.length > 0) {
@@ -892,6 +1303,7 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
 
   const handleReadbackConfirm = useCallback((confirmed, reopenField = null) => {
     if (!engine) return;
+    pushHistoryRef.current();
     const { engine: next, dispatches } = engine.confirmReadback({ confirmed, reopen: reopenField });
     if (dispatches.length > 0) {
       dispatches.forEach(action => store.matrixDispatch(action));
@@ -958,33 +1370,59 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
 
   const currentSlotId = slotQueue[0];
 
+  // "← Back" — pops one snapshot: returns to the previous question, restores
+  // the typed answer, and rolls back any entity/node declared in between.
+  const backButton = historyDepth > 0 ? (
+    <button
+      type="button"
+      data-testid="intake-back"
+      onClick={goBack}
+      style={{
+        alignSelf: 'flex-start', padding: '6px 14px', borderRadius: 8, fontSize: 12,
+        background: '#18181b', border: '1px solid #3f3f46', color: '#a1a1aa', cursor: 'pointer',
+      }}
+    >
+      ← Back
+    </button>
+  ) : null;
+
   if (phase === 'scope' && currentSlotId && OPTIONAL_SECTIONS.has(currentSlotId)) {
     return (
-      <ScopeScreen
-        slotId={currentSlotId}
-        onYes={() => enterCurrentSlot(store.matrix)}
-        onSkip={advanceSlot}
-      />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {backButton}
+        <ScopeScreen
+          slotId={currentSlotId}
+          onYes={() => { pushHistoryRef.current(); enterCurrentSlot(store.matrix); }}
+          onSkip={() => { pushHistoryRef.current(); advanceSlot(); }}
+        />
+      </div>
     );
   }
 
   if (phase === 'roster' && rosterSlotId) {
     return (
-      <RosterScreen
-        slotId={rosterSlotId}
-        onSubmit={beginFanOut}
-        onSkip={advanceSlot}
-      />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {backButton}
+        <RosterScreen
+          slotId={rosterSlotId}
+          initialNames={rosterNames}
+          onSubmit={beginFanOut}
+          onSkip={() => { pushHistoryRef.current(); advanceSlot(); }}
+        />
+      </div>
     );
   }
 
   if (phase === 'loop' && currentSlotId) {
     return (
-      <LoopCheckScreen
-        slotId={currentSlotId}
-        onAddMore={handleLoopAddMore}
-        onContinue={advanceSlot}
-      />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {backButton}
+        <LoopCheckScreen
+          slotId={currentSlotId}
+          onAddMore={() => { pushHistoryRef.current(); handleLoopAddMore(); }}
+          onContinue={() => { pushHistoryRef.current(); advanceSlot(); }}
+        />
+      </div>
     );
   }
 
@@ -993,12 +1431,21 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
   }
 
   if (step.readback) {
+    const rosterMeta = rosterSlotId ? SLOT_META[rosterSlotId] : null;
     return (
-      <ReadbackScreen
-        readback={step.readback}
-        onConfirm={() => handleReadbackConfirm(true, null)}
-        onReopen={(field) => handleReadbackConfirm(false, field)}
-      />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {backButton}
+        <ReadbackScreen
+          readback={step.readback}
+          onConfirm={() => handleReadbackConfirm(true, null)}
+          onReopen={(field) => handleReadbackConfirm(false, field)}
+          onAddRosterName={rosterSlotId ? addRosterName : null}
+          rosterLabel={rosterMeta ? rosterMeta.label.toLowerCase() : 'item'}
+          rosterNames={rosterNames}
+          rosterIndex={rosterIndex}
+          onRemoveRosterName={rosterSlotId ? removeRosterName : null}
+        />
+      </div>
     );
   }
 
@@ -1020,9 +1467,10 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
           </div>
         )}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {backButton}
           <button
             type="button"
-            onClick={handleBlockerAddResource}
+            onClick={() => { pushHistoryRef.current(); handleBlockerAddResource(); }}
             style={{
               padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600,
               background: '#052e16', border: '1px solid #047857', color: '#6ee7b7', cursor: 'pointer',
@@ -1032,7 +1480,7 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
           </button>
           <button
             type="button"
-            onClick={advanceSlot}
+            onClick={() => { pushHistoryRef.current(); advanceSlot(); }}
             style={{
               padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 400,
               background: '#18181b', border: '1px solid #3f3f46', color: '#71717a', cursor: 'pointer',
@@ -1053,6 +1501,12 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
   return (
     <div style={{ padding: '20px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <SectionPill slotId={probe.slotId} />
+
+      {/* Items queued after the one being described — always visible so a
+          split/add is never a leap of faith (2026-07-10). Removable via ×. */}
+      {rosterSlotId ? (
+        <QueuedNextLine names={rosterNames} startIndex={rosterIndex} onRemove={removeRosterName} />
+      ) : null}
 
       {/* Resume affordance (Defect B): shown when this session was rehydrated
           after a route change / back-gesture, so the user knows their place and
@@ -1127,8 +1581,9 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
         <TextInput value={inputValue} onChange={setInputValue} onEnter={handleSubmit} />
       ) : null}
 
-      {/* Actions: Next + Skip section (Rule 7 — never trap) */}
+      {/* Actions: Back + Next + Skip section (Rule 7 — never trap) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        {backButton}
         <button
           type="button"
           onClick={handleSubmit}
@@ -1149,7 +1604,7 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
         )}
         <button
           type="button"
-          onClick={advanceSlot}
+          onClick={() => { pushHistoryRef.current(); advanceSlot(); }}
           style={{
             padding: '8px 14px', borderRadius: 8, fontSize: 12,
             background: 'transparent', border: 'none', color: '#52525b', cursor: 'pointer',
@@ -1157,6 +1612,28 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
         >
           Skip this section →
         </button>
+        {/* Mid fan-out escape hatches: discard just the CURRENT item (e.g. a
+            duplicate) without losing the queue, or queue another item —
+            asked right after the current one. */}
+        {rosterSlotId ? (
+          <>
+            <button
+              type="button"
+              data-testid="skip-current-item"
+              onClick={skipCurrentRosterItem}
+              style={{
+                padding: '8px 14px', borderRadius: 8, fontSize: 12,
+                background: 'transparent', border: 'none', color: '#52525b', cursor: 'pointer',
+              }}
+            >
+              skip this {(SLOT_META[rosterSlotId]?.label || 'item').toLowerCase()} →
+            </button>
+            <AddAnotherInline
+              label={(SLOT_META[rosterSlotId]?.label || 'item').toLowerCase()}
+              onAdd={addRosterName}
+            />
+          </>
+        ) : null}
       </div>
     </div>
   );

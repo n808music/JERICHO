@@ -39,8 +39,10 @@ function runInitiativeScript(script, opts = {}) {
   return { state, probes, dispatchedActions };
 }
 
-// Seed a matrix with two entities: one [initiative]-capable, one NOT.
-// Used to prove the role-tag filter is load-bearing.
+// Seed a matrix with two entities: one [initiative]-tagged, one NOT.
+// 2026-07-10: the owner pickSet is UNFILTERED — every declared entity is a
+// valid owner (a §2 under-tag must not structurally trap §3 ownership).
+// declareInitiative backfills the [initiative] tag on owners that lack it.
 function buildMixedEntityState() {
   let state = buildBlankIdentityState({});
   // [initiative]-capable entity — should appear in initiativeOwnerOptions
@@ -138,8 +140,8 @@ describe('Elicitation Engine — Initiative slot: gate ladder', () => {
 
 // ── 2. Role-tag owner filter (the load-bearing new mechanic) ─────────────────
 
-describe('Elicitation Engine — Initiative slot: role-tag owner filter', () => {
-  it('initiativeOwnerOptions contains ONLY [initiative]-capable entities plus entity-less sentinel', () => {
+describe('Elicitation Engine — Initiative slot: owner options (unfiltered, 2026-07-10)', () => {
+  it('initiativeOwnerOptions offers EVERY declared entity plus the cross-cutting sentinel', () => {
     const state = buildMixedEntityState();
     let engine = createElicitationEngine({
       goalType: 'founder',
@@ -156,17 +158,40 @@ describe('Elicitation Engine — Initiative slot: role-tag owner filter', () => 
 
     const ids = step.probe.pickSet.items.map((i) => i.id);
 
-    // [initiative]-capable entity IS present
+    // [initiative]-tagged entity IS present
     expect(ids).toContain('ent-gs-corp');
 
-    // [system]-only entity is ABSENT — filter is load-bearing
-    expect(ids).not.toContain('ent-f8-system');
+    // Untagged entity is ALSO present — a §2 under-tag must not hide an
+    // entity from ownership (the old filter made "Global State Solutions
+    // Branding" unownable by Global State Solutions).
+    expect(ids).toContain('ent-f8-system');
 
-    // entity-less sentinel is always appended
+    // cross-cutting sentinel is always appended
     expect(ids).toContain(INITIATIVE_OWNER_ENTITY_LESS);
 
-    // exactly: one capable entity + sentinel = 2 items
-    expect(ids).toHaveLength(2);
+    // exactly: both entities + sentinel = 3 items
+    expect(ids).toHaveLength(3);
+  });
+
+  it('declaring an initiative under an untagged owner backfills its [initiative] role tag', () => {
+    let state = buildMixedEntityState();
+    expect(state.matrix.entitiesById['ent-f8-system'].roleTags).not.toContain('initiative');
+    state = computeDerivedState(state, {
+      type: 'DECLARE_INITIATIVE',
+      payload: {
+        id: 'initiative-backfill-proof',
+        name: 'Backfill proof',
+        owningEntityId: 'ent-f8-system',
+        owningEntityIds: ['ent-f8-system'],
+        purpose: 'Prove ownership implies capability',
+        classification: 'objective',
+        doneWhen: 'Initiative published on the public roadmap',
+      },
+    });
+    expect(state.matrix.initiativesById['initiative-backfill-proof']).toBeTruthy();
+    expect(state.matrix.entitiesById['ent-f8-system'].roleTags).toContain('initiative');
+    // Existing tags preserved
+    expect(state.matrix.entitiesById['ent-f8-system'].roleTags).toContain('system');
   });
 
   it('entity-less sentinel resolves the owner gate — fires once then does not re-fire', () => {

@@ -9,6 +9,14 @@ export default defineConfig({
   server: {
     port: 5183,
     strictPort: true,
+    // syncService.js issues same-origin /api requests in the browser and relies
+    // on this proxy to reach the FastAPI backend without tripping CORS.
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
   },
   define: {
     process: {

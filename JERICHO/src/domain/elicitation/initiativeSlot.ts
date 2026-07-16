@@ -63,7 +63,12 @@ export const INITIATIVE_SLOT = {
     {
       code: 'INITIATIVE_OWNER_UNRESOLVED',
       fieldName: 'owningEntityId',
-      detect: (captured) => !captured?.owningEntityId,
+      // Accepts a single id (legacy), an array of ids (multi-owner), or the
+      // cross-cutting sentinel — alone or alongside entities. Empty/blank is
+      // the only unresolved state.
+      detect: (captured) =>
+        !captured?.owningEntityId ||
+        (Array.isArray(captured.owningEntityId) && captured.owningEntityId.length === 0),
       pickSet: 'initiativeOwnerOptions',
     },
     // ── purpose ─────────────────────────────────────────────────────────
@@ -125,15 +130,24 @@ export function buildInitiativeDeclarePayload(captured) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
-  // Normalize the entity-less sentinel to a null owner in the stored record.
-  const owningEntityId =
-    captured.owningEntityId === INITIATIVE_OWNER_ENTITY_LESS
-      ? null
-      : captured.owningEntityId;
+  // Owner normalization (2026-07-10): the answer may be a single id (legacy),
+  // an array of ids (multi-owner), and may include the cross-cutting sentinel
+  // ALONGSIDE entities — cross-cutting describes scope, it does not force
+  // entity-less. Sentinel alone → no owners (true entity-less).
+  const rawOwners = Array.isArray(captured.owningEntityId)
+    ? captured.owningEntityId
+    : [captured.owningEntityId];
+  const crossCutting = rawOwners.includes(INITIATIVE_OWNER_ENTITY_LESS);
+  const owningEntityIds = rawOwners.filter(
+    (id) => id && id !== INITIATIVE_OWNER_ENTITY_LESS,
+  );
   return {
     id: `initiative-${idSlug}`,
     name: captured.name,
-    owningEntityId,
+    // First owner kept in the legacy scalar field for downstream consumers.
+    owningEntityId: owningEntityIds[0] || null,
+    owningEntityIds,
+    crossCutting,
     purpose: captured.purpose,
     classification: String(captured.classification).trim().toLowerCase(),
     doneWhen: captured.doneWhen,

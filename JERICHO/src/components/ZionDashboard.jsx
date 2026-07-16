@@ -11,6 +11,7 @@ import HorizonResolutionPanel from './zion/HorizonResolutionPanel.jsx';
 import DailyCheckInPanel from './zion/DailyCheckInPanel.jsx';
 import { StructurePageConsolidated } from './zion/StructurePageConsolidated.jsx';
 import { MasterGridTab } from './zion/MasterGridTab.jsx';
+import { CapacityConfirmPanel } from './zion/CapacityConfirmPanel.jsx';
 import CycleTransitionModal from './zion/CycleTransitionModal.jsx';
 import ProfileHistoryMenu from './zion/ProfileHistoryMenu.jsx';
 import ProductStateBanner from './product/ProductStateBanner.jsx';
@@ -4381,7 +4382,12 @@ export default function ZionDashboard({
             />
           )}
 
-          {view === 'mastergrid' && <MasterGridTab onOpenNode={() => changeView('structure')} />}
+          {view === 'mastergrid' && (
+            <div className="space-y-4">
+              <CapacityConfirmPanel />
+              <MasterGridTab onOpenNode={() => changeView('structure')} />
+            </div>
+          )}
 
           {view === 'stability' ? (
             <div className="space-y-4">

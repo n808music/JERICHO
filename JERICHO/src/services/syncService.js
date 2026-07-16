@@ -56,39 +56,42 @@ async function ensureAuth() {
   return access_token;
 }
 
+// Returns { ok, status? } / { ok:false, error } and never throws: the debounced
+// auto-sync ignores the result, while the explicit Save Progress action reads it
+// to show a visible saved/failed status. LocalStorage remains the fallback.
 export async function pushState(stateBlob) {
   try {
     const token = await ensureAuth();
     const pushUrl = buildApiUrl('/api/sync/push');
-    const resp = await fetch(pushUrl, {
+    const body = JSON.stringify({
+      state_blob: JSON.stringify(stateBlob),
+      client_updated_at: new Date().toISOString(),
+    });
+    let resp = await fetch(pushUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        state_blob: JSON.stringify(stateBlob),
-        client_updated_at: new Date().toISOString(),
-      }),
+      body,
     });
     if (resp.status === 401) {
       // Token expired — clear and retry once
       localStorage.removeItem(AUTH_TOKEN_KEY);
       const freshToken = await ensureAuth();
-      await fetch(pushUrl, {
+      resp = await fetch(pushUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${freshToken}`,
         },
-        body: JSON.stringify({
-          state_blob: JSON.stringify(stateBlob),
-          client_updated_at: new Date().toISOString(),
-        }),
+        body,
       });
     }
-  } catch {
-    // Backend offline — localStorage is the fallback, do nothing
+    return { ok: resp.ok, status: resp.status };
+  } catch (err) {
+    // Backend offline — localStorage is the fallback.
+    return { ok: false, error: err?.message || 'offline' };
   }
 }
 

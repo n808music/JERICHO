@@ -174,10 +174,10 @@ describe('Elicitation Engine — System slot: gate ladder', () => {
   });
 });
 
-// ── 3. Role-tag owner filter ──────────────────────────────────────────────────
+// ── 3. Owner options (unfiltered, 2026-07-10) ────────────────────────────────
 
-describe('Elicitation Engine — System slot: role-tag owner filter', () => {
-  it('systemOwnerOptions contains ONLY [system]-capable entities plus entity-less sentinel', () => {
+describe('Elicitation Engine — System slot: owner options (unfiltered)', () => {
+  it('systemOwnerOptions offers EVERY declared entity plus the cross-cutting sentinel', () => {
     const state = buildMixedEntityState();
     let engine = createElicitationEngine({
       goalType: 'musician',
@@ -194,17 +194,36 @@ describe('Elicitation Engine — System slot: role-tag owner filter', () => {
 
     const ids = step.probe.pickSet.items.map((i) => i.id);
 
-    // [system]-capable entity IS present
+    // [system]-tagged entity IS present
     expect(ids).toContain('ent-gs-corp');
 
-    // [initiative]-only entity is ABSENT — role-tag filter is load-bearing
-    expect(ids).not.toContain('ent-ofl-initiative');
+    // Untagged entity ALSO present — §2 under-tag must not hide an entity
+    // from ownership; declareSystem backfills the [system] tag instead.
+    expect(ids).toContain('ent-ofl-initiative');
 
-    // entity-less sentinel always appended
+    // cross-cutting sentinel always appended
     expect(ids).toContain(SYSTEM_OWNER_ENTITY_LESS);
 
-    // exactly: one capable entity + sentinel = 2 items
-    expect(ids).toHaveLength(2);
+    // exactly: both entities + sentinel = 3 items
+    expect(ids).toHaveLength(3);
+  });
+
+  it('declaring a system under an untagged owner backfills its [system] role tag', () => {
+    let state = buildMixedEntityState();
+    expect(state.matrix.entitiesById['ent-ofl-initiative'].roleTags).not.toContain('system');
+    state = computeDerivedState(state, {
+      type: 'DECLARE_SYSTEM',
+      payload: {
+        id: 'system-backfill-proof',
+        name: 'Backfill proof system',
+        owningEntityId: 'ent-ofl-initiative',
+        cycle: 'weekly',
+        activationState: 'planned',
+      },
+    });
+    expect(state.matrix.systemsById['system-backfill-proof']).toBeTruthy();
+    expect(state.matrix.entitiesById['ent-ofl-initiative'].roleTags).toContain('system');
+    expect(state.matrix.entitiesById['ent-ofl-initiative'].roleTags).toContain('initiative');
   });
 });
 

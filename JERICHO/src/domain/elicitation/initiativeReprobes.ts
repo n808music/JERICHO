@@ -31,7 +31,7 @@ export const INITIATIVE_REPROBES = {
   },
   INITIATIVE_OWNER_UNRESOLVED: {
     spine:
-      'Which entity owns this undertaking? Pick one — or mark it cross-cutting if it belongs to the whole operation, not a single entity.',
+      'Which entities own this undertaking? Pick every entity involved — or mark it cross-cutting if it belongs to the whole operation.',
     pickSet: 'initiativeOwnerOptions',
     examples: { musician: '', founder: '', writer: '', generic: '' },
   },
@@ -56,7 +56,7 @@ export const INITIATIVE_REPROBES = {
   },
   INITIATIVE_CLASSIFICATION_MISSING: {
     spine:
-      'Is this something the plan should work TOWARD, or a reality it should work AROUND? Pick one — it sets how the plan treats this.',
+      'Is this undertaking something the plan should work TOWARD, or a reality it should work AROUND? Pick one — it sets how the plan treats this.',
     pickSet: 'classificationOptions',
     examples: { musician: '', founder: '', writer: '', generic: '' },
   },

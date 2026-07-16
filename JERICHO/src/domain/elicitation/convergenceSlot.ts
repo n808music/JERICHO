@@ -14,43 +14,28 @@ function declaredAllNodeIds(matrixSnapshot: unknown): Set<string> {
   return ids;
 }
 
+// A source answer may be a single id (legacy) or an array (multi-source —
+// several parts of the operation feeding one destination, 2026-07-10).
+function normalizeSourceIds(value: unknown): string[] {
+  const arr = Array.isArray(value) ? value : value ? [value] : [];
+  return arr.map((v) => String(v).trim()).filter(Boolean);
+}
+
 export const CONVERGENCE_SLOT = {
   slotId: CONVERGENCE_SLOT_ID,
   section: 8,
+  // Destination-first (2026-07-10): a convergence has no name of its own, so
+  // asking for the sources first produced a subject-less question ("where
+  // does THIS flow start?" — this what?). The destination is captured first
+  // and becomes the subject every later question binds to ("What feeds
+  // Marketing flywheel?").
   gate: [
-    {
-      code: 'CONVERGENCE_FROM_MISSING',
-      fieldName: 'fromNodeId',
-      detect: (captured: unknown) => {
-        const c = captured as Record<string, unknown>;
-        return !c?.fromNodeId;
-      },
-    },
-    {
-      code: 'CONVERGENCE_FROM_UNRESOLVED',
-      fieldName: 'fromNodeId',
-      // ctx.matrixSnapshot must be injected — resolves against ALL declared-node registries.
-      detect: (captured: unknown, ctx?: unknown) => {
-        const c = captured as Record<string, unknown>;
-        if (!c?.fromNodeId) return false;
-        const snap = (ctx as Record<string, unknown>)?.matrixSnapshot;
-        return !declaredAllNodeIds(snap).has(String(c.fromNodeId));
-      },
-    },
     {
       code: 'CONVERGENCE_TO_MISSING',
       fieldName: 'toNodeId',
       detect: (captured: unknown) => {
         const c = captured as Record<string, unknown>;
         return !c?.toNodeId;
-      },
-    },
-    {
-      code: 'CONVERGENCE_SELF_EDGE',
-      fieldName: 'toNodeId',
-      detect: (captured: unknown) => {
-        const c = captured as Record<string, unknown>;
-        return Boolean(c?.fromNodeId) && c.fromNodeId === c.toNodeId;
       },
     },
     {
@@ -61,6 +46,38 @@ export const CONVERGENCE_SLOT = {
         if (!c?.toNodeId) return false;
         const snap = (ctx as Record<string, unknown>)?.matrixSnapshot;
         return !declaredAllNodeIds(snap).has(String(c.toNodeId));
+      },
+    },
+    {
+      code: 'CONVERGENCE_FROM_MISSING',
+      fieldName: 'fromNodeId',
+      detect: (captured: unknown) => {
+        const c = captured as Record<string, unknown>;
+        return normalizeSourceIds(c?.fromNodeId).length === 0;
+      },
+    },
+    {
+      code: 'CONVERGENCE_FROM_UNRESOLVED',
+      fieldName: 'fromNodeId',
+      // ctx.matrixSnapshot must be injected — resolves against ALL declared-node registries.
+      detect: (captured: unknown, ctx?: unknown) => {
+        const c = captured as Record<string, unknown>;
+        const sources = normalizeSourceIds(c?.fromNodeId);
+        if (sources.length === 0) return false;
+        const snap = (ctx as Record<string, unknown>)?.matrixSnapshot;
+        const declared = declaredAllNodeIds(snap);
+        return sources.some((id) => !declared.has(id));
+      },
+    },
+    {
+      code: 'CONVERGENCE_SELF_EDGE',
+      // Destination is captured first, so the self-edge is detected on the
+      // SOURCES answer: the destination cannot be one of its own feeders.
+      fieldName: 'fromNodeId',
+      detect: (captured: unknown) => {
+        const c = captured as Record<string, unknown>;
+        if (!c?.toNodeId) return false;
+        return normalizeSourceIds(c?.fromNodeId).includes(String(c.toNodeId));
       },
     },
     {
@@ -85,12 +102,16 @@ export const CONVERGENCE_SLOT = {
 
 export function buildConvergenceDeclarePayload(captured: unknown) {
   const c = captured as Record<string, unknown>;
-  const fromNodeId = String(c?.fromNodeId || '').trim();
+  const fromNodeIds = normalizeSourceIds(c?.fromNodeId);
+  const fromNodeId = fromNodeIds[0] || '';
   const toNodeId = String(c?.toNodeId || '').trim();
   const id = `conv-${fromNodeId}-to-${toNodeId}`.slice(0, 80);
   return {
     id,
+    // Legacy scalar (first source) kept for downstream consumers; the full
+    // multi-source list rides alongside.
     fromNodeId,
+    fromNodeIds,
     toNodeId,
     gives: String(c?.gives || '').trim(),
     broken: Boolean(c?.broken) || false,
