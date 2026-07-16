@@ -61,6 +61,10 @@ All confirmed flaky by passing in isolation while failing only under full-suite 
 
 The stable frozen set is **27 failures across the 18 files above.** A subsequent full-suite run is GREEN-consistent if its failing set equals those 27, ± the documented `fullHorizon.computeMemo` flake. Any OTHER new failing test, or any of the 18 families disappearing, is an unexplained delta → HALT.
 
+## Pre-wave deletions (accountability record — Gate 4c)
+
+- **`SequencingPanel.jsx` + `SequencingPanel.test.jsx`** were **untracked parallel work — never committed to git, never present in any baseline count.** They were deleted pre-wave (before this directive). Recovery was exhausted (find/git-log/stash all empty); content unrecoverable. Gate 4 re-scoped (operator ruling) to: land the sorter (`243b040`), verify un-wiring by grep (Gate 4b: **zero** residual `SequencingPanel`/dependency-form/initiative-phase-selector UI references), and record this note. **Expected test-count delta from this removal: ZERO** (never-tracked tests were never in any count).
+
 ## Parked (untouched this wave)
 - R1a / R1b / R3 (pre-existing schedule-gen failures — separate track)
 - barrier-probe stage (Gate 6 glossary: PARKED)
