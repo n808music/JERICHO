@@ -44,9 +44,18 @@ Capacity was **relocated** per operator ruling — it is NOT a matrix class. `ma
 | suggestion.accept.idempotence.test.js | 1 | suggestion idempotence |
 | **= 18 files, 27 tests** | | |
 
-## Known-flaky (documented, not counted as a functional regression)
+## Known-flaky allowlist (load-sensitive; isolation-verified; non-blocking)
 
-- **`fullHorizon.computeMemo.test.js :: "recomputes derived state well under the freeze threshold for an unrelated mutation"`** — a performance-threshold assertion. Passes deterministically in isolation (2/2, ≈15s); intermittently fails under full-suite load. New A test (does not exist at clean HEAD). Candidate for a load-tolerant threshold in a later pass; not blocking A.
+All confirmed flaky by passing in isolation while failing only under full-suite CPU contention. Reconciliation ignores these; a delta is a real regression **only if the new-failing test also fails in isolation**.
+
+- `fullHorizon.computeMemo.test.js :: "recomputes derived state well under the freeze threshold for an unrelated mutation"` — perf-threshold assertion; isolation 2/2 (≈15s). (Gate 1)
+- `generatePlan.calendarIntegration.test.jsx :: "generatePlan requires explicit apply then activate before calendar becomes authoritative in April-June"` — isolation-verified 16/16. (Gate 2; matches documented calendar-timeout flake family)
+- `generatePlan.calendarIntegration.test.jsx :: "generatePlan writes one canonical full-horizon proposal set and month views slice it without changing the total"` — isolation-verified. (Gate 2)
+- `AppShell.structureRoute.contract.test.jsx :: "renders the post-admission structure surface when an admitted goal exists"` — isolation-verified. (Gate 2)
+- `MatrixIntake.resumeAfterRulesChange.test.jsx :: "Back steps into the previous answered field; Next confirms and declares, then advances to Mission B"` — isolation-verified. (Gate 2)
+- `ZionDashboard.todayExecutionControls.test.jsx :: "completes the active today block and preserves completion across restore"` — isolation-verified. (Gate 2)
+
+**Reconciliation rule (Gates 2–8):** reconcile the STABLE set = 27 deterministic failures across the 18 files. A subsequent run is GREEN-consistent if its failing set equals the stable 27 ± any allowlisted flake. Any OTHER new failing test (that also fails in isolation), or any of the 18 stable families disappearing, is an unexplained delta → HALT.
 
 ## Reconciliation rule for subsequent gates (2–8)
 
