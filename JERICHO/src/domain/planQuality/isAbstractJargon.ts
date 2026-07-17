@@ -9,10 +9,10 @@ export const LEAD_MGMT_VERBS: readonly string[] = [
   'manage', 'drive', 'deliver', 'enable', 'facilitate', 'leverage', 'execute', 'support', 'coordinate',
 ];
 
-// Dead nouns that signal empty management-speak. Countable nouns now carry BOTH forms
-// (singular + plural) so the list no longer completes reactively as forms slip through.
-// Deliberate exclusion: 'values' (plural) is NOT listed — it legitimately means principles;
-// only the singular 'value' ("deliver value") is the management-speak sense.
+// Dead nouns that signal empty management-speak. Countable nouns carry BOTH forms
+// (singular + plural). 'values' is blocklisted per the 2026-07-17 ruling: the list is
+// clarity enforcement at the boundary, not word-policing — "values" used as a goal/status
+// word is management-speak; concrete principles get named concretely, not as bare "values".
 export const JARGON_WORDS: readonly string[] = [
   'solution', 'solutions',
   'capability', 'capabilities',
@@ -22,7 +22,7 @@ export const JARGON_WORDS: readonly string[] = [
   'paradigm', 'paradigms',
   'competency', 'competencies',
   'efficiency', 'efficiencies',
-  'excellence', 'bandwidth', 'traction', 'value',
+  'excellence', 'bandwidth', 'traction', 'value', 'values',
   'synergize', 'ideate', 'optimize', 'optimization',
 ];
 

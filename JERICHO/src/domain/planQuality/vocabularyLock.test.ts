@@ -30,7 +30,7 @@ const FROZEN_JARGON_WORDS = [
   'alignment', 'alignments', 'bandwidth', 'capabilities', 'capability', 'competencies', 'competency',
   'efficiencies', 'efficiency', 'excellence', 'ideate', 'optimization', 'optimize', 'paradigm',
   'paradigms', 'solution', 'solutions', 'synergies', 'synergize', 'synergy', 'traction',
-  'transformation', 'transformations', 'value',
+  'transformation', 'transformations', 'value', 'values',
 ];
 
 describe('vocabulary lock (Gate 6) — frozen controlled vocabularies', () => {
@@ -51,16 +51,14 @@ describe('vocabulary lock (Gate 6) — frozen controlled vocabularies', () => {
     expect([...JARGON_WORDS].sort()).toEqual([...FROZEN_JARGON_WORDS].sort());
   });
 
-  it('countable jargon nouns carry both forms; the values exception holds', () => {
+  it('countable jargon nouns carry both forms, values included (clarity-enforcement ruling)', () => {
     for (const [sing, plur] of [
       ['alignment', 'alignments'], ['transformation', 'transformations'], ['paradigm', 'paradigms'],
-      ['competency', 'competencies'], ['efficiency', 'efficiencies'],
+      ['competency', 'competencies'], ['efficiency', 'efficiencies'], ['value', 'values'],
     ]) {
       expect(isAbstractJargon(sing)).toBe(true);
       expect(isAbstractJargon(plur)).toBe(true);
     }
-    expect(isAbstractJargon('value')).toBe(true);   // singular management-speak
-    expect(isAbstractJargon('values')).toBe(false); // principles — deliberately not jargon
   });
 
   it('the lead-management-verb regex still matches both base and -s forms', () => {

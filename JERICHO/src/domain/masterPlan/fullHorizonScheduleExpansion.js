@@ -600,7 +600,7 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Groom backlog with prioritized iteration scope for ${laneTitle} next P1 cycle`, 'action', 'Backlog refinement notes with sized stories and sequencing', null, { lifecycleStage: 'iteration_backlog_grooming' }],
       ],
       P2: [
-        [`Revise conversion-lift requirements for ${laneTitle} from P1 telemetry and feedback`, 'action', 'Requirements brief tying P2 conversion scope to P1 telemetry findings', null, { lifecycleStage: 'requirements_clarification' }],
+        [`Revise conversion-lift requirements for ${laneTitle} from the P1 telemetry review and user-feedback summary`, 'action', 'Requirements brief tying P2 conversion scope to P1 telemetry findings', null, { lifecycleStage: 'requirements_clarification' }],
         [`Write conversion-lift product specification for ${laneTitle} P2 cycle`, 'action', 'Product spec covering conversion-lift user stories and acceptance criteria', null, { lifecycleStage: 'product_spec' }],
         [`Draft retention-loop technical design for ${laneTitle} in P2 product/software lane`, 'action', 'Technical design note for retention loop with architecture decision record', null, { lifecycleStage: 'technical_design' }],
         [`Implement conversion-lift feature for ${laneTitle} in P2 product/software lane`, 'action', 'Conversion-lift implementation branch shipped with measurement plan', null, { lifecycleStage: 'implementation' }],
@@ -622,7 +622,7 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         [`Confirm operating handoff readiness for ${laneTitle} in P3 product/software lane`, 'readiness', 'Operating handoff readiness decision with support coverage', 'p3_product_handoff_readiness'],
         [`Define automation and delegation coverage for ${laneTitle} to sustain scale without key-person dependency`, 'action', 'Automation and delegation brief with coverage map, escalation paths, and handoff schedule', 'p3_product_automation_delegation'],
         [`Build repeatable operating dashboard for ${laneTitle} tracking scale signals and owner accountability`, 'action', 'Operating dashboard spec with KPIs, owner assignments, and decision triggers', 'p3_product_operating_dashboard'],
-        [`Revise scale-readiness requirements for ${laneTitle} in P3 product/software lane`, 'action', 'P3 scale-readiness requirements brief with handoff acceptance criteria', null, { lifecycleStage: 'requirements_clarification' }],
+        [`Revise scale-readiness requirements for ${laneTitle} from the P2 telemetry review and user-feedback summary`, 'action', 'P3 scale-readiness requirements brief with handoff acceptance criteria', null, { lifecycleStage: 'requirements_clarification' }],
         [`Write delegation-handoff product specification for ${laneTitle} P3 cycle`, 'action', 'P3 product spec covering delegation-handoff user stories and acceptance criteria', null, { lifecycleStage: 'product_spec' }],
         [`Draft delegation-handoff technical design for ${laneTitle} in P3`, 'action', 'P3 technical design note for delegation handoff with architecture decision record', null, { lifecycleStage: 'technical_design' }],
         [`Author P3 test plan covering delegation-handoff acceptance scope for ${laneTitle}`, 'action', 'P3 test plan tied to delegation-handoff acceptance criteria', null, { lifecycleStage: 'test_planning' }],
