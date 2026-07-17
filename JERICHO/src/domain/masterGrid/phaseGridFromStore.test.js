@@ -173,4 +173,24 @@ describe('phaseGridFromStore — delegates to derived phase for real (raw-null) 
     expect(placed).toBe(0);
     expect(r.residual.length).toBe(3);
   });
+
+  // DISPLAY raw-first (2026-07-16 ruling, scope (a) display-only): in the Master Grid, a node's
+  // hand-attested raw phase outranks its dependency-derived phase when they disagree — the
+  // operator attests, the system proposes. (The SHARED deriveEffectiveProjectPhases stays
+  // derived-first so causalChain scheduling still honors hard dependencies for execution order.)
+  it('display raw-first: raw phase disagreeing with the derived phase renders at the RAW phase', () => {
+    const m = {
+      entitiesById: {}, initiativesById: {}, systemsById: {}, artifactsById: {}, milestonesById: {}, matrixLinksById: {},
+      projectsById: {
+        p1: { id: 'p1', name: 'Prereq', phase: '3', reviewStatus: 'CONFIRMED', targetDate: '2026' }, // raw says 3
+        p2: { id: 'p2', name: 'Dependent', phase: null, reviewStatus: 'CONFIRMED', targetDate: '2027' },
+      },
+      // p1 is the prerequisite → dependency layer 0 → derived phase 1, disagreeing with raw 3.
+      dependenciesById: { d1: { id: 'd1', type: 'hard_gate', upstreamId: 'p1', downstreamId: 'p2' } },
+    };
+    const { gridTitles, matrix: mtx } = phaseGridFromStore(m);
+    const r = sortByPhase(gridTitles, mtx);
+    expect(r.phases.get(3).some((row) => /Prereq/.test(row.fixtureTitle))).toBe(true);  // raw 3 wins
+    expect(r.phases.get(1).some((row) => /Prereq/.test(row.fixtureTitle))).toBe(false); // not derived 1
+  });
 });

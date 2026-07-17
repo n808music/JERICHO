@@ -67,12 +67,16 @@ function toCanonicalPhase(raw) {
 // initiative, then a promoted deliverable inheriting its producing project's phase. No signal
 // anywhere → null → residual (a legitimate unknown, surfaced as a question).
 function resolveNodePhase(node, canonicalRaw, derivedEffective, projects, initiatives) {
-  // deriveEffectiveProjectPhases returns a NUMBER from the dependency tier but the RAW STRING
-  // ("1") from its raw/initiative tiers — normalize every branch to a canonical number, since
-  // sortByPhase groups on numeric 1/2/3 and phases.get("1") would miss and bucket residual.
+  // DISPLAY raw-first (2026-07-16 ruling, scope (a) display-only): the node's own hand-attested
+  // phase outranks its dependency-derived phase when they disagree — the operator attests, the
+  // system proposes. This override lives ONLY here; the shared deriveEffectiveProjectPhases stays
+  // derived-first so causalChain scheduling still honors hard dependencies for execution order.
+  if (canonicalRaw != null) return canonicalRaw;
+  // Raw absent → fall to the shared resolver (dependency-derived, else initiative). It returns a
+  // NUMBER from the dependency tier but the RAW STRING ("1") from its raw/initiative tiers —
+  // normalize, since sortByPhase groups on numeric 1/2/3 and phases.get("1") would bucket residual.
   const derived = toCanonicalPhase(derivedEffective[node.id]);
   if (derived != null) return derived;
-  if (canonicalRaw != null) return canonicalRaw;
   const initCanon = toCanonicalPhase(initiatives[node.owningInitiativeId]?.phase);
   if (initCanon != null) return initCanon;
   const pid = node.producingProjectId;
