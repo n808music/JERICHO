@@ -38,10 +38,10 @@ export const ACTION_VERB_SET: ReadonlySet<string> = new Set([
   'gate', 'institutionalize', 'prove', 'reassess', 'stabilize', 'widen',
   // Schedule-generator verbs surfaced by Operation Endgame fixture drift
   // (2026-06-11). Each is a genuinely imperative business action that the
-  // OE generator emits. 're-clarify' is a generator-specific compound;
-  // see follow-up to redesign that phrasing as a separate cleanup.
+  // OE generator emits. ('re-clarify' removed 2026-07-17 — the generator titles
+  // it served were redesigned to 'Revise …'; see fullHorizonScheduleExpansion.js.)
   'author', 'capture', 'clarify', 'enrich', 'groom',
-  'log', 'qualify', 're-clarify', 'source', 'summarize', 'triage',
+  'log', 'qualify', 'source', 'summarize', 'triage',
   // Milestone-generator surfaced verbs (2026-06-13): "advance" is the
   // imperative business verb used by EP/release milestone templates
   // ("Advance EP release distribution setup, …"). Keeping it in the
