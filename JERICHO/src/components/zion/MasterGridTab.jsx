@@ -2,23 +2,60 @@ import React from 'react';
 import { useIdentityStore } from '../../state/identityStore.js';
 import { phaseGridFromStore } from '../../domain/masterGrid/phaseGridFromStore.js';
 import { sortByPhase } from '../../domain/masterGrid/phaseSort.js';
+import { selectMasterGridRows, countByClass, CLASS_ORDER } from '../../domain/masterGrid/masterGridSelectors.js';
 
 const PHASE_LABEL = { 1: 'Phase 1', 2: 'Phase 2', 3: 'Phase 3' };
+const STATUS_COLOR = { CONFIRMED: '#16a34a', NEEDS_REVIEW: '#ca8a04', DRAFT: '#6b7280' };
 
-// The Master Grid's default view: the execution tier rendered as three phase groups,
-// within-phase deadline order. Generated live from the canonical store (D1 — no second
-// copy). Read-only (D2 — row click deep-links, never writes). ★ marks milestone lanes;
-// residual questions render where the census prompts used to be.
+// The Master Grid renders one of two SCOPES of the same canonical store (Gate 7):
+//   - phase-execution (default): the execution tier as three phase groups (Gate 5).
+//   - class rollup: every matrix node across all five classes (original 2026-07-08 view).
+// The selector is view-state only — read-only (D2): no matrixDispatch in either scope; a
+// row click deep-links via onOpenNode. Both scopes recompute from store.matrix (D1).
 export function MasterGridTab({ onOpenNode } = {}) {
   const store = useIdentityStore();
-  const { gridTitles, matrix } = phaseGridFromStore(store?.matrix || {});
-  const r = sortByPhase(gridTitles, matrix);
+  const [scope, setScope] = React.useState('phase');
+  const matrix = store?.matrix || {};
+
+  const tab = (value, label, testid) => (
+    <button
+      type="button"
+      data-testid={testid}
+      onClick={() => setScope(value)}
+      aria-pressed={scope === value}
+      className={`rounded px-3 py-1 border ${
+        scope === value ? 'border-jericho-accent text-jericho-accent font-medium' : 'border-line/60 text-muted'
+      }`}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div data-testid="mastergrid-scope-selector" className="flex gap-1 text-xs">
+        {tab('phase', 'Phases', 'mastergrid-scope-phase')}
+        {tab('class', 'All classes', 'mastergrid-scope-class')}
+      </div>
+
+      {scope === 'phase' ? (
+        <PhaseScopeView matrix={matrix} onOpenNode={onOpenNode} />
+      ) : (
+        <ClassScopeView matrix={matrix} onOpenNode={onOpenNode} />
+      )}
+    </div>
+  );
+}
+
+// Phase-execution scope: execution tier as three phase groups, within-phase deadline order.
+// ★ marks milestone lanes; residual questions render where the census prompts used to be.
+function PhaseScopeView({ matrix, onOpenNode }) {
+  const { gridTitles, matrix: gridMatrix } = phaseGridFromStore(matrix);
+  const r = sortByPhase(gridTitles, gridMatrix);
   const total = [1, 2, 3].reduce((n, ph) => n + r.phases.get(ph).length, 0);
 
   // Tripwire (2026-07-16): graceful residual bucketing can make a TOTAL ingest failure look
-  // like an ordinary to-do list. If EVERY node bucketed residual, that is almost never "the
-  // data has no phases" — it is a read-path mismatch. Surface it as a distinct warning so the
-  // operator does not dutifully re-answer questions the store already has answers to.
+  // like an ordinary to-do list. If EVERY node bucketed residual, surface a distinct warning.
   const residualCount = r.residual?.length || 0;
   const ingestMismatch = total === 0 && residualCount > 0;
 
@@ -78,6 +115,48 @@ export function MasterGridTab({ onOpenNode } = {}) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// Class-rollup scope: every matrix node across all five classes, grouped in canonical class
+// order, phase-then-name within a class. Read-only — row click deep-links to the node.
+function ClassScopeView({ matrix, onOpenNode }) {
+  const rows = selectMasterGridRows(matrix);
+  const counts = countByClass(rows);
+
+  return (
+    <div className="space-y-4" data-testid="mastergrid-classrollup">
+      <div data-testid="mastergrid-class-counts" className="text-sm text-jericho-text font-medium">
+        {counts.total} nodes — {counts.Entity} Entity · {counts.Initiative} Initiative · {counts.Project} Project · {counts.Deliverable} Deliverable · {counts.System} System
+      </div>
+
+      {CLASS_ORDER.map((cls) => {
+        const clsRows = rows.filter((row) => row.primaryClass === cls);
+        if (clsRows.length === 0) return null;
+        return (
+          <div key={cls} data-testid="mastergrid-class-group" className="space-y-1">
+            <div className="text-xs uppercase tracking-[0.14em] text-muted">{cls} ({clsRows.length})</div>
+            <table className="w-full text-sm">
+              <tbody>
+                {clsRows.map((row) => (
+                  <tr
+                    key={row.id}
+                    data-testid="mastergrid-class-row"
+                    onClick={() => onOpenNode?.(row.intakeTarget)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <td>{row.name}</td>
+                    <td className="pl-2 tabular-nums text-muted">{row.phase == null ? '—' : `P${row.phase}`}</td>
+                    <td className="pl-2 text-xs" style={{ color: STATUS_COLOR[row.reviewStatus] || '#6b7280' }}>{row.reviewStatus}</td>
+                    <td className="pl-2 text-xs text-muted">{row.ownerParentLabel}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
     </div>
   );
 }

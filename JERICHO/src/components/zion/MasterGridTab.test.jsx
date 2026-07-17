@@ -20,6 +20,54 @@ const withProjects = () => ({
   },
 });
 
+// A matrix spanning all five classes — the phase-execution scope shows only Project/
+// promoted-Deliverable nodes, while the full-class rollup shows Entity/Initiative/System too.
+const fullMatrix = () => ({
+  ...emptyMatrix(),
+  entitiesById: { e1: { id: 'e1', name: 'Global State Corp', reviewStatus: 'CONFIRMED' } },
+  initiativesById: { i1: { id: 'i1', name: 'Jericho System', reviewStatus: 'CONFIRMED' } },
+  projectsById: { p1: { id: 'p1', name: 'Alpha Project', phase: '1', targetDate: '2026-03-01', reviewStatus: 'CONFIRMED' } },
+  systemsById: { s1: { id: 's1', name: 'Music System', reviewStatus: 'DRAFT' } },
+});
+
+describe('MasterGridTab — scope selector (Gate 7: both scopes, default phase-execution)', () => {
+  it('defaults to the phase-execution scope (System/Entity not shown; three phase groups)', () => {
+    setStore(fullMatrix());
+    render(<MasterGridTab onOpenNode={() => {}} />);
+    expect(screen.getByTestId('mastergrid-scope-selector')).toBeTruthy();
+    expect(screen.getAllByTestId('mastergrid-phase-group')).toHaveLength(3);
+    expect(screen.queryByText('Music System')).toBeNull();
+    expect(screen.queryByText('Global State Corp')).toBeNull();
+  });
+
+  it('switching to the class scope reveals all five classes (reconnects selectMasterGridRows)', () => {
+    setStore(fullMatrix());
+    render(<MasterGridTab onOpenNode={() => {}} />);
+    fireEvent.click(screen.getByTestId('mastergrid-scope-class'));
+    expect(screen.getByText('Music System')).toBeTruthy();       // System — invisible in phase scope
+    expect(screen.getByText('Global State Corp')).toBeTruthy();  // Entity — invisible in phase scope
+    expect(screen.getByText('Jericho System')).toBeTruthy();     // Initiative
+    expect(screen.queryAllByTestId('mastergrid-phase-group')).toHaveLength(0);
+  });
+
+  it('switches back to the phase-execution scope', () => {
+    setStore(fullMatrix());
+    render(<MasterGridTab onOpenNode={() => {}} />);
+    fireEvent.click(screen.getByTestId('mastergrid-scope-class'));
+    fireEvent.click(screen.getByTestId('mastergrid-scope-phase'));
+    expect(screen.getAllByTestId('mastergrid-phase-group')).toHaveLength(3);
+    expect(screen.queryByText('Music System')).toBeNull();
+  });
+
+  it('read-only in both scopes: switching scope and clicking a class row never calls matrixDispatch', () => {
+    const store = setStore(fullMatrix());
+    render(<MasterGridTab onOpenNode={vi.fn()} />);
+    fireEvent.click(screen.getByTestId('mastergrid-scope-class'));
+    fireEvent.click(screen.getAllByTestId('mastergrid-class-row')[0]);
+    expect(store.matrixDispatch).not.toHaveBeenCalled();
+  });
+});
+
 describe('MasterGridTab (phase-grouped, D1/D2)', () => {
   it('renders three phase groups with rows generated from the store', () => {
     setStore(withProjects());
