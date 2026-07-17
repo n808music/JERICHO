@@ -26,11 +26,12 @@ export function MasterGridTab({ onOpenNode } = {}) {
     <div className="space-y-4" data-testid="mastergrid-phasegroups">
       {ingestMismatch && (
         <div data-testid="mastergrid-ingest-warning" className="rounded-lg border border-amber-500/70 bg-amber-50 p-3 text-sm text-amber-900">
-          <div className="font-semibold">No phase attestations read — possible ingest mismatch</div>
+          <div className="font-semibold">No phases resolved — every node is residual</div>
           <div className="text-xs">
-            All {residualCount} execution nodes bucketed residual. This usually means the store's phase data isn't being
-            read where the grid expects it — not that intake is incomplete. Verify the matrix read path before treating
-            these as ordinary questions.
+            All {residualCount} execution nodes bucketed residual. Two causes are possible and they need different
+            responses: either the store's phase data isn't being read where the grid expects it (a read mismatch — a
+            bug), or these nodes genuinely have no phase attested yet (intake is incomplete — and these are legitimate
+            questions to answer). Check whether the store carries phase attestations before treating this as either.
           </div>
         </div>
       )}

@@ -61,9 +61,10 @@ describe('MasterGridTab (phase-grouped, D1/D2)', () => {
     expect(screen.getAllByTestId('mastergrid-row')).toHaveLength(3);
   });
 
-  it('tripwire: 100% of nodes residual surfaces a distinct ingest-mismatch warning, not ordinary intake work', () => {
-    // Real-store-shaped but with no resolvable phase anywhere → every node buckets residual.
-    // This must NOT look like a normal to-do list; it must warn that no phase attestations read.
+  it('tripwire: 100% residual surfaces a distinct warning naming BOTH causes (read mismatch AND incomplete intake)', () => {
+    // Every node residual has two causes needing different responses: a read mismatch (bug) OR
+    // genuinely unattested phase (incomplete intake — legitimate questions). The banner must name
+    // both and dismiss neither — a live store with null phase everywhere is the incomplete-intake case.
     const matrix = {
       ...emptyMatrix(),
       projectsById: {
@@ -74,8 +75,11 @@ describe('MasterGridTab (phase-grouped, D1/D2)', () => {
     };
     setStore(matrix);
     render(<MasterGridTab onOpenNode={() => {}} />);
-    expect(screen.getByTestId('mastergrid-ingest-warning')).toBeTruthy();
-    // and zero placed nodes
+    const warn = screen.getByTestId('mastergrid-ingest-warning');
+    expect(warn).toBeTruthy();
+    // Calibrated: names the read-mismatch cause AND the incomplete-intake cause; dismisses neither.
+    expect(warn.textContent.toLowerCase()).toContain('read');
+    expect(warn.textContent.toLowerCase()).toContain('intake');
     expect(screen.getByTestId('mastergrid-counts').textContent).toContain('0 execution nodes');
   });
 
