@@ -61,6 +61,30 @@ describe('MasterGridTab (phase-grouped, D1/D2)', () => {
     expect(screen.getAllByTestId('mastergrid-row')).toHaveLength(3);
   });
 
+  it('tripwire: 100% of nodes residual surfaces a distinct ingest-mismatch warning, not ordinary intake work', () => {
+    // Real-store-shaped but with no resolvable phase anywhere → every node buckets residual.
+    // This must NOT look like a normal to-do list; it must warn that no phase attestations read.
+    const matrix = {
+      ...emptyMatrix(),
+      projectsById: {
+        a: { id: 'a', name: 'Alpha', phase: null, reviewStatus: 'CONFIRMED', targetDate: '2026-03' },
+        b: { id: 'b', name: 'Beta', phase: null, reviewStatus: 'CONFIRMED', targetDate: '2026-06' },
+      },
+      dependenciesById: {},
+    };
+    setStore(matrix);
+    render(<MasterGridTab onOpenNode={() => {}} />);
+    expect(screen.getByTestId('mastergrid-ingest-warning')).toBeTruthy();
+    // and zero placed nodes
+    expect(screen.getByTestId('mastergrid-counts').textContent).toContain('0 execution nodes');
+  });
+
+  it('no tripwire when at least one node places (ordinary residuals are not an ingest failure)', () => {
+    setStore(withProjects());
+    render(<MasterGridTab onOpenNode={() => {}} />);
+    expect(screen.queryByTestId('mastergrid-ingest-warning')).toBeNull();
+  });
+
   it('★ milestone star renders on lane rows (project that collapses a lane + promoted lane deliverable)', () => {
     const matrix = {
       ...emptyMatrix(),

@@ -45,8 +45,45 @@ export function selectGridNodes(matrix = {}) {
   return nodes;
 }
 
+import { deriveEffectiveProjectPhases } from './phaseFromDependencies.js';
+
 // Relational link kinds render as convergence ties (mutual); directional kinds do not.
 const RELATIONAL_KINDS = new Set(['ships_with', 'soundtrack_of', 'promotes', 'feeds', 'loop']);
+
+// Lenient canonical read (does NOT throw) — for INHERITED phases (owning initiative, producing
+// project) where a non-canonical value is someone else's field, not this node's own attestation.
+// The node's OWN raw phase is guarded by classifyPhase (which rejects corruption); see below.
+function toCanonicalPhase(raw) {
+  if (raw == null || String(raw).trim() === '') return null;
+  const n = Number(String(raw).trim());
+  return n === 1 || n === 2 || n === 3 ? n : null;
+}
+
+// Effective phase for a grid node. Phase is DERIVED, not entered: a real intake store leaves
+// project.phase near-always-null and expresses order through dependency edges. So resolve the
+// same way the rest of masterGrid does — dependency-derived first (deriveEffectiveProjectPhases
+// already folds derived → raw → initiative for CONFIRMED projects) — then the node's own
+// canonical raw phase (covers non-CONFIRMED projects and the reference fixture), then owning
+// initiative, then a promoted deliverable inheriting its producing project's phase. No signal
+// anywhere → null → residual (a legitimate unknown, surfaced as a question).
+function resolveNodePhase(node, canonicalRaw, derivedEffective, projects, initiatives) {
+  // deriveEffectiveProjectPhases returns a NUMBER from the dependency tier but the RAW STRING
+  // ("1") from its raw/initiative tiers — normalize every branch to a canonical number, since
+  // sortByPhase groups on numeric 1/2/3 and phases.get("1") would miss and bucket residual.
+  const derived = toCanonicalPhase(derivedEffective[node.id]);
+  if (derived != null) return derived;
+  if (canonicalRaw != null) return canonicalRaw;
+  const initCanon = toCanonicalPhase(initiatives[node.owningInitiativeId]?.phase);
+  if (initCanon != null) return initCanon;
+  const pid = node.producingProjectId;
+  if (pid) {
+    const parentDerived = toCanonicalPhase(derivedEffective[pid]);
+    if (parentDerived != null) return parentDerived;
+    const parentCanon = toCanonicalPhase(projects[pid]?.phase);
+    if (parentCanon != null) return parentCanon;
+  }
+  return null;
+}
 
 // A grid node claims a phase outside the canonical set {1,2,3}. This is corruption,
 // not a missing assignment — it is rejected loudly at the ingest boundary rather than
@@ -84,8 +121,13 @@ export function classifyPhase(raw, nodeName) {
 // - milestones: milestonesById with lanes tier-bridged from deliverable ids to grid-row titles.
 export function phaseGridFromStore(matrix = {}) {
   const artifacts = matrix.artifactsById || {};
+  const projects = matrix.projectsById || {};
+  const initiatives = matrix.initiativesById || {};
   const gridNodes = selectGridNodes(matrix);
   const gridIds = new Set(gridNodes.map((n) => n.id));
+
+  // Dependency-derived effective phase per CONFIRMED project (derived → raw → initiative).
+  const derivedEffective = deriveEffectiveProjectPhases(matrix);
 
   // any node id -> its grid-row id (itself if a grid row; else its parent project if that's a grid row)
   const toGridRowId = (id) => {
@@ -97,9 +139,11 @@ export function phaseGridFromStore(matrix = {}) {
 
   const rowById = {};
   for (const n of gridNodes) {
-    // store carries phase as a string ("1"); classifyPhase resolves it to a canonical
-    // number, a null sentinel (absent → residual), or throws (non-canonical → corruption).
-    rowById[n.id] = { title: n.name, phase: classifyPhase(n.phase, n.name), target: n.targetDate ?? 'TBD', targetNote: null, links: [] };
+    // Reject corruption FIRST: a present-but-non-canonical raw phase throws here, before any
+    // resolution can launder it. classifyPhase returns the canonical number, or null (absent).
+    const canonicalRaw = classifyPhase(n.phase, n.name);
+    const phase = resolveNodePhase(n, canonicalRaw, derivedEffective, projects, initiatives);
+    rowById[n.id] = { title: n.name, phase, target: n.targetDate ?? 'TBD', targetNote: null, links: [] };
   }
 
   for (const l of Object.values(matrix.matrixLinksById || {})) {

@@ -15,8 +15,25 @@ export function MasterGridTab({ onOpenNode } = {}) {
   const r = sortByPhase(gridTitles, matrix);
   const total = [1, 2, 3].reduce((n, ph) => n + r.phases.get(ph).length, 0);
 
+  // Tripwire (2026-07-16): graceful residual bucketing can make a TOTAL ingest failure look
+  // like an ordinary to-do list. If EVERY node bucketed residual, that is almost never "the
+  // data has no phases" — it is a read-path mismatch. Surface it as a distinct warning so the
+  // operator does not dutifully re-answer questions the store already has answers to.
+  const residualCount = r.residual?.length || 0;
+  const ingestMismatch = total === 0 && residualCount > 0;
+
   return (
     <div className="space-y-4" data-testid="mastergrid-phasegroups">
+      {ingestMismatch && (
+        <div data-testid="mastergrid-ingest-warning" className="rounded-lg border border-amber-500/70 bg-amber-50 p-3 text-sm text-amber-900">
+          <div className="font-semibold">No phase attestations read — possible ingest mismatch</div>
+          <div className="text-xs">
+            All {residualCount} execution nodes bucketed residual. This usually means the store's phase data isn't being
+            read where the grid expects it — not that intake is incomplete. Verify the matrix read path before treating
+            these as ordinary questions.
+          </div>
+        </div>
+      )}
       <div data-testid="mastergrid-counts" className="text-sm text-jericho-text font-medium">
         {total} execution nodes — {r.phases.get(1).length} · {r.phases.get(2).length} · {r.phases.get(3).length} across three phases
       </div>

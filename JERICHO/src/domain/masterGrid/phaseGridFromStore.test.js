@@ -93,11 +93,17 @@ describe('phaseGridFromStore → sortByPhase (③④⑤ from canonical store)', 
 // never laundered into the residual bucket). This is the render-layer sibling of refusing
 // to let canonical-matrix state quietly become wrong with no alarm.
 describe('phaseGridFromStore — phase classification at ingest', () => {
-  it('absent phase (null) → residual sentinel: renders (no throw) and lands in the residual group', () => {
+  it('absent raw phase with NO derivation and NO inheritable initiative phase → residual sentinel (renders, no throw)', () => {
+    // Under the derived-phase ruling, absent raw phase is NOT immediately residual — it falls
+    // through derivation → raw → owning-initiative. A node only buckets residual with no signal
+    // anywhere, so strip both the project's raw phase and its owning initiative's phase.
     const m = matrix();
     const someId = Object.keys(m.projectsById)[0];
-    const nodeName = m.projectsById[someId].name;
-    m.projectsById[someId] = { ...m.projectsById[someId], phase: null };
+    const proj = m.projectsById[someId];
+    const nodeName = proj.name;
+    m.projectsById[someId] = { ...proj, phase: null };
+    const initId = proj.owningInitiativeId;
+    if (initId && m.initiativesById[initId]) m.initiativesById[initId] = { ...m.initiativesById[initId], phase: null };
     const { gridTitles, matrix: mtx } = phaseGridFromStore(m); // must NOT throw
     const r = sortByPhase(gridTitles, mtx);
     expect(r.residual.some((p) => p.fixtureTitle === nodeName)).toBe(true);
@@ -122,5 +128,49 @@ describe('phaseGridFromStore — phase classification at ingest', () => {
     const someId = Object.keys(m.projectsById)[0];
     m.projectsById[someId] = { ...m.projectsById[someId], phase: 'banana' };
     expect(() => phaseGridFromStore(m)).toThrow(/non-canonical phase/i);
+  });
+});
+
+// Real intake-store shape (2026-07-16 ruling): raw project.phase is near-always-null; phase
+// is DERIVED from the dependency graph. phaseGridFromStore must delegate to the same resolver
+// the rest of masterGrid uses (deriveEffectiveProjectPhases: derived → raw → initiative), not
+// read raw n.phase alone — otherwise a real store buckets 100% residual (the fixture masked it).
+const realStore = () => ({
+  entitiesById: {}, initiativesById: {}, systemsById: {}, artifactsById: {}, milestonesById: {}, matrixLinksById: {},
+  projectsById: {
+    a: { id: 'a', name: 'Foundations', phase: null, reviewStatus: 'CONFIRMED', targetDate: '2026-03' },
+    b: { id: 'b', name: 'Build', phase: null, reviewStatus: 'CONFIRMED', targetDate: '2026-06' },
+    c: { id: 'c', name: 'Launch', phase: null, reviewStatus: 'CONFIRMED', targetDate: '2026-09' },
+  },
+  dependenciesById: {
+    e1: { id: 'e1', type: 'hard_gate', upstreamId: 'a', downstreamId: 'b' },
+    e2: { id: 'e2', type: 'hard_gate', upstreamId: 'b', downstreamId: 'c' },
+  },
+});
+
+describe('phaseGridFromStore — delegates to derived phase for real (raw-null) stores', () => {
+  it('raw phase null + dependency edges → nodes PLACED via derived phase, zero residual', () => {
+    const { gridTitles, matrix: mtx } = phaseGridFromStore(realStore());
+    const r = sortByPhase(gridTitles, mtx);
+    const placed = [1, 2, 3].reduce((n, p) => n + r.phases.get(p).length, 0);
+    expect(placed).toBe(3);
+    expect(r.residual.length).toBe(0);
+    expect(r.questions.filter((q) => q.code === 'RESIDUAL-PHASE').length).toBe(0);
+  });
+
+  it('corruption is rejected FIRST — a present-but-invalid raw phase throws even when edges could derive one', () => {
+    const m = realStore();
+    m.projectsById.a = { ...m.projectsById.a, phase: '7' };
+    expect(() => phaseGridFromStore(m)).toThrow(/non-canonical phase/i);
+  });
+
+  it('genuinely unphasable (raw null, no ordering edges, no initiative phase) still buckets residual', () => {
+    const m = realStore();
+    m.dependenciesById = {}; // remove the ordering signal
+    const { gridTitles, matrix: mtx } = phaseGridFromStore(m);
+    const r = sortByPhase(gridTitles, mtx);
+    const placed = [1, 2, 3].reduce((n, p) => n + r.phases.get(p).length, 0);
+    expect(placed).toBe(0);
+    expect(r.residual.length).toBe(3);
   });
 });
