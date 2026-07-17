@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadReferenceMatrix } from '../../src/domain/masterGrid/loadReferenceMatrix.js';
+import { loadReferenceMatrix, slugId } from '../../src/domain/masterGrid/loadReferenceMatrix.js';
 import { selectMasterGridRows, countByClass } from '../../src/domain/masterGrid/masterGridSelectors.js';
 import { buildPersistableIdentityState, rehydratePersistedState } from '../../src/state/identityStore.js';
 
@@ -30,5 +30,28 @@ describe('Master Grid acceptance', () => {
     const rehydrated = rehydratePersistedState(JSON.parse(blob));
     const counts = countByClass(selectMasterGridRows(rehydrated.matrix));
     expect(counts.total).toBe(53);
+  });
+
+  // AC7 (2026-07-16 seed-fidelity gate): the per-profile store built from the reference matrix
+  // must carry EVERY node's canonical phase attestation verbatim — no silent loss. A dropped
+  // phase (as happened when a seed builder nulled raw phase) makes the resolver fall through to
+  // inheritance and render a phase that contradicts canon. This node-by-node diff is the cheap
+  // standing guard that surfaces such loss at the boundary instead of by eye on a screenshot.
+  it('AC7: seed fidelity — every reference node phase is carried verbatim into the store', () => {
+    const { matrix } = loadReferenceMatrix(fixture, { nowISO: '2026-07-08T00:00:00Z' });
+    const byId = {
+      ...matrix.entitiesById, ...matrix.initiativesById, ...matrix.projectsById,
+      ...matrix.artifactsById, ...matrix.systemsById,
+    };
+    const mismatches = [];
+    for (const node of fixture.nodes) {
+      const stored = byId[slugId(node.name)];
+      const canonPhase = node.phase ?? null;
+      const storedPhase = stored ? stored.phase ?? null : '(node missing)';
+      if (String(storedPhase) !== String(canonPhase)) {
+        mismatches.push(`${node.name}: canon=${JSON.stringify(canonPhase)} stored=${JSON.stringify(storedPhase)}`);
+      }
+    }
+    expect(mismatches).toEqual([]);
   });
 });
