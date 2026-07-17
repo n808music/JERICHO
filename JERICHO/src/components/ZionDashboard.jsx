@@ -11,6 +11,8 @@ import HorizonResolutionPanel from './zion/HorizonResolutionPanel.jsx';
 import DailyCheckInPanel from './zion/DailyCheckInPanel.jsx';
 import { StructurePageConsolidated } from './zion/StructurePageConsolidated.jsx';
 import { MasterGridTab } from './zion/MasterGridTab.jsx';
+import { filterCalendarBlocksByScope, availableBlockScopes, BLOCK_SCOPE_KINDS } from '../domain/masterGrid/filterCalendarBlocksByScope.js';
+import { CalendarScopeToggle } from './zion/CalendarScopeToggle.jsx';
 import { CapacityConfirmPanel } from './zion/CapacityConfirmPanel.jsx';
 import CycleTransitionModal from './zion/CycleTransitionModal.jsx';
 import ProfileHistoryMenu from './zion/ProfileHistoryMenu.jsx';
@@ -875,6 +877,7 @@ function useZionState() {
     scheduleLifecycleState,
     setSelectedHorizonMode,
     setViewDate,
+    matrix,
   } = useIdentityStore();
   return {
     activeProfileId,
@@ -929,6 +932,7 @@ function useZionState() {
     fullHorizonPlanQuality,
     fullHorizonBlockQuality,
     scheduleLifecycleState,
+    matrix,
     actions: {
       completeBlock,
       missBlock,
@@ -1035,6 +1039,7 @@ export default function ZionDashboard({
     coreContinuity,
     coreMissionContractsById,
     scheduleLifecycleState,
+    matrix: calendarScopeMatrix,
     selectedHorizonMode,
     calendarDisplayBlocks: forecastCalendarBlocks = [],
     fullHorizonScheduleBlocks: fullHorizon = [],
@@ -1864,7 +1869,7 @@ export default function ZionDashboard({
         .sort((a, b) => a.localeCompare(b)),
     [scheduleDisplayItemsAllResolved, timeZone]
   );
-  const calendarSurfaceBlocks = useMemo(() => {
+  const calendarSurfaceBlocksFull = useMemo(() => {
     const committed = normalizeScheduleSurfaceBlocks(scheduleDisplayItemsAllResolved);
     if (isInterCycle) {
       return !selectedHorizonMode || selectedHorizonMode === 'current_cycle' ? committed : [];
@@ -1893,6 +1898,19 @@ export default function ZionDashboard({
     visibleScheduleEndDayKey,
     timeZone,
   ]);
+  // Gate 8 — calendar scope toggle: isolate blocks by matrix category (node-level). 'full'
+  // is a pure pass-through, so default behavior is unchanged. All downstream consumers read
+  // the scoped list, so day/month/metrics scope together; returning to 'full' restores the
+  // complete schedule. Options are enumerated from the FULL (unscoped) list.
+  const [calendarScope, setCalendarScope] = useState('full');
+  const calendarSurfaceBlocks = useMemo(
+    () => filterCalendarBlocksByScope(calendarSurfaceBlocksFull, calendarScope, calendarScopeMatrix),
+    [calendarSurfaceBlocksFull, calendarScope, calendarScopeMatrix]
+  );
+  const calendarScopeOptions = useMemo(
+    () => availableBlockScopes(calendarSurfaceBlocksFull, calendarScopeMatrix),
+    [calendarSurfaceBlocksFull, calendarScopeMatrix]
+  );
   const shouldShowMasterPlanForecastInspectionNotice =
     view === 'today' &&
     Boolean(selectedHorizonMode && selectedHorizonMode !== 'current_cycle') &&
@@ -3691,6 +3709,12 @@ export default function ZionDashboard({
                 </div>
               </div>
 
+              <CalendarScopeToggle
+                options={calendarScopeOptions}
+                scope={calendarScope}
+                onScope={setCalendarScope}
+              />
+
               {zionView === 'day' || zionView === 'today' ? (
                 <div className="space-y-4">
                   {dailyCheckInView ? (
@@ -3709,7 +3733,7 @@ export default function ZionDashboard({
                       drafts={[]}
                       timeZone={timeZone}
                       selectedBlockId={selectedBlockId}
-                      lineageBlocks={calendarSurfaceBlocks}
+                      lineageBlocks={calendarSurfaceBlocksFull}
                       deliverableLabelById={deliverableLabelById}
                       criterionLabelById={criterionLabelById}
                       primaryObjectiveId={primaryObjectiveId}
@@ -4220,7 +4244,7 @@ export default function ZionDashboard({
                         whatMovedToday={whatMovedToday}
                         strictMode={strictProgressMode}
                         criterionLabelById={criterionLabelById}
-                        lineageBlocks={calendarSurfaceBlocks}
+                        lineageBlocks={calendarSurfaceBlocksFull}
                         readOnly={isCycleReadOnly}
                         executionLocked={hasPendingActivation}
                         executionLockReason={executionLockReason}
@@ -4244,7 +4268,7 @@ export default function ZionDashboard({
                       onSelectDay={handleDrillToDay}
                       onSelectBlock={setSelectedBlockId}
                       timeZone={timeZone}
-                      lineageBlocks={calendarSurfaceBlocks}
+                      lineageBlocks={calendarSurfaceBlocksFull}
                       deliverableLabelById={deliverableLabelById}
                       criterionLabelById={criterionLabelById}
                     />
@@ -4254,7 +4278,7 @@ export default function ZionDashboard({
                       <ZionMonthView
                         days={monthViewDays}
                         onSelectDay={handleDrillToDay}
-                        lineageBlocks={calendarSurfaceBlocks}
+                        lineageBlocks={calendarSurfaceBlocksFull}
                         deliverableLabelById={deliverableLabelById}
                         criterionLabelById={criterionLabelById}
                       />
@@ -4345,8 +4369,8 @@ export default function ZionDashboard({
                   {selectedBlockId ? (
                     <BlockDetailsPanel
                       blockId={selectedBlockId}
-                      blocks={calendarSurfaceBlocks}
-                      lineageBlocks={calendarSurfaceBlocks}
+                      blocks={calendarSurfaceBlocksFull}
+                      lineageBlocks={calendarSurfaceBlocksFull}
                       surface="today"
                       hierarchyContext={blockHierarchyContext}
                       onComplete={hasPendingActivation ? undefined : handleCompleteBlock}

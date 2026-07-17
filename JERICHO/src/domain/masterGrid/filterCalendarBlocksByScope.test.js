@@ -46,7 +46,7 @@ describe('filterCalendarBlocksByScope (Gate 8 — isolate calendar blocks per ca
     expect(filterCalendarBlocksByScope(blocks, { kind: 'System', id: 's2' }, matrix).map((b) => b.id)).toEqual(['b3']);       // funnel → e2
   });
 
-  it('a system with no owning entity isolates nothing (honest empty, not a crash)', () => {
+  it('an unowned system isolates nothing (honest empty, not a crash) — but is still a real scope', () => {
     expect(filterCalendarBlocksByScope(blocks, { kind: 'System', id: 's3' }, matrix)).toEqual([]);
   });
 
@@ -56,12 +56,18 @@ describe('filterCalendarBlocksByScope (Gate 8 — isolate calendar blocks per ca
     expect(blocks.map((b) => b.id)).toEqual(before);
   });
 
-  it('availableBlockScopes enumerates only nodes that actually have blocks, with counts', () => {
+  it('availableBlockScopes enumerates block-bearing nodes for E/I/P/D, with counts', () => {
     const opts = availableBlockScopes(blocks, matrix);
     expect(opts.Entity.map((o) => o.id).sort()).toEqual(['e1', 'e2']);
     expect(opts.Entity.find((o) => o.id === 'e1').count).toBe(2);
     expect(opts.Project.map((o) => o.id).sort()).toEqual(['p1', 'p2', 'p3']);
-    // only systems whose owning entity has blocks are offered (s3 has no owner → excluded)
-    expect(opts.System.map((o) => o.id).sort()).toEqual(['s1', 's2']);
+  });
+
+  it('availableBlockScopes surfaces EVERY system — unowned ones as their own explicit bucket, not vanished', () => {
+    const opts = availableBlockScopes(blocks, matrix);
+    // all three systems present (owned + unowned); the unowned one is flagged, not dropped.
+    expect(opts.System.map((o) => o.id).sort()).toEqual(['s1', 's2', 's3']);
+    expect(opts.System.find((o) => o.id === 's1')).toMatchObject({ count: 2, unowned: false }); // music → e1
+    expect(opts.System.find((o) => o.id === 's3')).toMatchObject({ count: 0, unowned: true });  // Marketing flywheel — no owner
   });
 });

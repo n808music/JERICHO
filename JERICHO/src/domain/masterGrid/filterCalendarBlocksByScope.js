@@ -64,9 +64,14 @@ export function availableBlockScopes(blocks = [], matrix = {}) {
     Initiative: optionize(tally((b) => b.initiativeId), initiatives),
     Project: optionize(tally((b) => b.sourceProjectId), projects),
     Deliverable: optionize(tally((b) => b.deliverableId), artifacts),
-    // A system is offered only when its owning entity actually has blocks; count = that entity's blocks.
-    System: Object.values(systems)
-      .filter((s) => s.owningEntityId && entityCounts.has(s.owningEntityId))
-      .map((s) => ({ id: s.id, count: entityCounts.get(s.owningEntityId), label: s.name || s.id })),
+    // Every system surfaces (ruling: unowned Systems are their own explicit bucket — never
+    // vanished, never attached to a guessed entity). Owned → count = owning entity's blocks;
+    // unowned → count 0, flagged, same "absent is a legitimate answer" doctrine as residual phase.
+    System: Object.values(systems).map((s) => ({
+      id: s.id,
+      label: s.name || s.id,
+      unowned: !s.owningEntityId,
+      count: s.owningEntityId ? entityCounts.get(s.owningEntityId) || 0 : 0,
+    })),
   };
 }
