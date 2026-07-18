@@ -1,0 +1,196 @@
+import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import { loadReferenceMatrix, slugId } from './loadReferenceMatrix.js';
+import { selectGridNodes, phaseGridFromStore } from './phaseGridFromStore.js';
+import { sortByPhase } from './phaseSort.js';
+
+const fixture = JSON.parse(fs.readFileSync(path.resolve('tests/fixtures/reference_matrix_v1_4.json'), 'utf8'));
+const matrix = () => loadReferenceMatrix(fixture, { nowISO: '2026-07-15T00:00:00Z' }).matrix;
+
+describe('selectGridNodes — grid default-tier rule (allProjects ∪ promoted lane deliverables)', () => {
+  it('derives exactly 18 from the reference store: 17 projects + the Patent deliverable', () => {
+    const nodes = selectGridNodes(matrix());
+    expect(nodes.length).toBe(18);
+    expect(nodes.filter((n) => n.primaryClass === 'Project').length).toBe(17);
+    const promoted = nodes.filter((n) => n.primaryClass === 'Deliverable');
+    expect(promoted.map((n) => n.name)).toEqual(['Behavioral Execution Engine Patent']);
+  });
+
+  it('CAUSALITY: Patent is in the grid BECAUSE it is a lane whose parent is already claimed', () => {
+    const m = matrix();
+    const patentId = slugId('Behavioral Execution Engine Patent');
+    // with Patent as a lane → present
+    expect(selectGridNodes(m).some((n) => n.id === patentId)).toBe(true);
+    // remove Patent from the Oct-17 milestone lanes → parent Jericho 1.0 no longer double-claimed → Patent NOT promoted → drops
+    for (const ms of Object.values(m.milestonesById)) ms.laneIds = ms.laneIds.filter((id) => id !== patentId);
+    const after = selectGridNodes(m);
+    expect(after.some((n) => n.id === patentId)).toBe(false);
+    expect(after.length).toBe(17);
+  });
+
+  it('a non-lane deliverable is absent (grid is not a hand list of all deliverables)', () => {
+    const nonLaneDeliverable = slugId('State of Control pt. 3'); // a deliverable, not a milestone lane
+    expect(selectGridNodes(matrix()).some((n) => n.id === nonLaneDeliverable)).toBe(false);
+  });
+});
+
+// ③ acceptance: store-sourced phase groups byte-match demoV2 ORDER with FIXTURE-CANONICAL
+// verbatim titles (operator ruling). Order is the invariant demoV2 encodes; casing is
+// canonicalized to the source of truth. Titles are guarded against the fixture (condition 2:
+// no independently-typed third copy of these strings).
+describe('phaseGridFromStore → sortByPhase (③④⑤ from canonical store)', () => {
+  const r = sortByPhase(...(({ gridTitles, matrix: mtx }) => [gridTitles, mtx])(phaseGridFromStore(matrix())));
+  const P1 = r.phases.get(1).map((p) => p.fixtureTitle);
+  const P2 = r.phases.get(2).map((p) => p.fixtureTitle);
+  const P3 = r.phases.get(3).map((p) => p.fixtureTitle);
+
+  it('③ phase 1 — demoV2 order, canonical titles', () => {
+    expect(P1).toEqual([
+      'email-capture container',
+      'HYS Broadcast — Season 1',
+      'Behavioral Execution Engine Patent',
+      'Jericho 1.0 build',
+      'OUR FEARLESS LEADER 3: Romance Riot',
+      'OUR FEARLESS LEADER 4: PAINKILLERS',
+      'OUR FEARLESS LEADER 5: CORONATION',
+      'OUR FEARLESS LEADER 6: SAVIOR',
+      'OUR FEARLESS LEADER 7: SACRIFICE',
+      'State of Control pts. 1–5',
+    ]);
+  });
+
+  it('③ phase 2 + phase 3 — demoV2 order, canonical titles', () => {
+    expect(P2).toEqual(['MAX CLOUT trilogy', 'SEEDS OF DESTRUCTION TRILOGY', 'Energy Gum']);
+    expect(P3).toEqual([
+      'First Building (79th Street) — HQ + Academy', 'Desiree', 'I AM THE STATE (album)',
+      'Academy #1 launch', 'Alternative Smoke Pens',
+    ]);
+  });
+
+  it('⑤ the Oct-17 milestone stars exactly its four lanes', () => {
+    const starred = r.phases.get(1).filter((p) => p.milestones).map((p) => p.fixtureTitle).sort();
+    expect(starred).toEqual([
+      'Behavioral Execution Engine Patent', 'HYS Broadcast — Season 1',
+      'Jericho 1.0 build', 'OUR FEARLESS LEADER 3: Romance Riot',
+    ]);
+  });
+
+  it('④ residual = exactly 3 TBD questions (Energy Gum, Smoke Pens, Academy #1)', () => {
+    expect(r.questions.map((q) => q.code)).toEqual(['RESIDUAL-DATE', 'RESIDUAL-DATE', 'RESIDUAL-DATE']);
+  });
+
+  it('guard: every asserted ③ title exists verbatim in the fixture (no third-copy drift)', () => {
+    const fixtureNames = new Set(fixture.nodes.map((n) => n.name));
+    for (const t of [...P1, ...P2, ...P3]) expect(fixtureNames.has(t)).toBe(true);
+  });
+});
+
+// Phase classification at ingest (2026-07-16 ruling). Number(n.phase) launders two
+// doctrinally different cases into an indistinguishable 0/NaN. Classify the RAW value
+// BEFORE coercion: absent → residual sentinel (a legitimate unknown, the two-gap model);
+// present-but-non-canonical → typed rejection at the boundary (corruption, not an unknown —
+// never laundered into the residual bucket). This is the render-layer sibling of refusing
+// to let canonical-matrix state quietly become wrong with no alarm.
+describe('phaseGridFromStore — phase classification at ingest', () => {
+  it('absent raw phase with NO derivation and NO inheritable initiative phase → residual sentinel (renders, no throw)', () => {
+    // Under the derived-phase ruling, absent raw phase is NOT immediately residual — it falls
+    // through derivation → raw → owning-initiative. A node only buckets residual with no signal
+    // anywhere, so strip both the project's raw phase and its owning initiative's phase.
+    const m = matrix();
+    const someId = Object.keys(m.projectsById)[0];
+    const proj = m.projectsById[someId];
+    const nodeName = proj.name;
+    m.projectsById[someId] = { ...proj, phase: null };
+    const initId = proj.owningInitiativeId;
+    if (initId && m.initiativesById[initId]) m.initiativesById[initId] = { ...m.initiativesById[initId], phase: null };
+    const { gridTitles, matrix: mtx } = phaseGridFromStore(m); // must NOT throw
+    const r = sortByPhase(gridTitles, mtx);
+    expect(r.residual.some((p) => p.fixtureTitle === nodeName)).toBe(true);
+    expect(r.questions.some((q) => q.code === 'RESIDUAL-PHASE')).toBe(true);
+  });
+
+  it('present-but-invalid phase ("7") → typed ingest rejection naming the node and value', () => {
+    const m = matrix();
+    const someId = Object.keys(m.projectsById)[0];
+    const nodeName = m.projectsById[someId].name;
+    m.projectsById[someId] = { ...m.projectsById[someId], phase: '7' };
+    expect(() => phaseGridFromStore(m)).toThrow(/non-canonical phase/i);
+    let caught;
+    try { phaseGridFromStore(m); } catch (e) { caught = e; }
+    expect(caught.code).toBe('NON_CANONICAL_PHASE');
+    expect(caught.rawPhase).toBe('7');
+    expect(caught.nodeName).toBe(nodeName);
+  });
+
+  it('present-but-invalid phase ("banana") → typed ingest rejection', () => {
+    const m = matrix();
+    const someId = Object.keys(m.projectsById)[0];
+    m.projectsById[someId] = { ...m.projectsById[someId], phase: 'banana' };
+    expect(() => phaseGridFromStore(m)).toThrow(/non-canonical phase/i);
+  });
+});
+
+// Real intake-store shape (2026-07-16 ruling): raw project.phase is near-always-null; phase
+// is DERIVED from the dependency graph. phaseGridFromStore must delegate to the same resolver
+// the rest of masterGrid uses (deriveEffectiveProjectPhases: derived → raw → initiative), not
+// read raw n.phase alone — otherwise a real store buckets 100% residual (the fixture masked it).
+const realStore = () => ({
+  entitiesById: {}, initiativesById: {}, systemsById: {}, artifactsById: {}, milestonesById: {}, matrixLinksById: {},
+  projectsById: {
+    a: { id: 'a', name: 'Foundations', phase: null, reviewStatus: 'CONFIRMED', targetDate: '2026-03' },
+    b: { id: 'b', name: 'Build', phase: null, reviewStatus: 'CONFIRMED', targetDate: '2026-06' },
+    c: { id: 'c', name: 'Launch', phase: null, reviewStatus: 'CONFIRMED', targetDate: '2026-09' },
+  },
+  dependenciesById: {
+    e1: { id: 'e1', type: 'hard_gate', upstreamId: 'a', downstreamId: 'b' },
+    e2: { id: 'e2', type: 'hard_gate', upstreamId: 'b', downstreamId: 'c' },
+  },
+});
+
+describe('phaseGridFromStore — delegates to derived phase for real (raw-null) stores', () => {
+  it('raw phase null + dependency edges → nodes PLACED via derived phase, zero residual', () => {
+    const { gridTitles, matrix: mtx } = phaseGridFromStore(realStore());
+    const r = sortByPhase(gridTitles, mtx);
+    const placed = [1, 2, 3].reduce((n, p) => n + r.phases.get(p).length, 0);
+    expect(placed).toBe(3);
+    expect(r.residual.length).toBe(0);
+    expect(r.questions.filter((q) => q.code === 'RESIDUAL-PHASE').length).toBe(0);
+  });
+
+  it('corruption is rejected FIRST — a present-but-invalid raw phase throws even when edges could derive one', () => {
+    const m = realStore();
+    m.projectsById.a = { ...m.projectsById.a, phase: '7' };
+    expect(() => phaseGridFromStore(m)).toThrow(/non-canonical phase/i);
+  });
+
+  it('genuinely unphasable (raw null, no ordering edges, no initiative phase) still buckets residual', () => {
+    const m = realStore();
+    m.dependenciesById = {}; // remove the ordering signal
+    const { gridTitles, matrix: mtx } = phaseGridFromStore(m);
+    const r = sortByPhase(gridTitles, mtx);
+    const placed = [1, 2, 3].reduce((n, p) => n + r.phases.get(p).length, 0);
+    expect(placed).toBe(0);
+    expect(r.residual.length).toBe(3);
+  });
+
+  // DISPLAY raw-first (2026-07-16 ruling, scope (a) display-only): in the Master Grid, a node's
+  // hand-attested raw phase outranks its dependency-derived phase when they disagree — the
+  // operator attests, the system proposes. (The SHARED deriveEffectiveProjectPhases stays
+  // derived-first so causalChain scheduling still honors hard dependencies for execution order.)
+  it('display raw-first: raw phase disagreeing with the derived phase renders at the RAW phase', () => {
+    const m = {
+      entitiesById: {}, initiativesById: {}, systemsById: {}, artifactsById: {}, milestonesById: {}, matrixLinksById: {},
+      projectsById: {
+        p1: { id: 'p1', name: 'Prereq', phase: '3', reviewStatus: 'CONFIRMED', targetDate: '2026' }, // raw says 3
+        p2: { id: 'p2', name: 'Dependent', phase: null, reviewStatus: 'CONFIRMED', targetDate: '2027' },
+      },
+      // p1 is the prerequisite → dependency layer 0 → derived phase 1, disagreeing with raw 3.
+      dependenciesById: { d1: { id: 'd1', type: 'hard_gate', upstreamId: 'p1', downstreamId: 'p2' } },
+    };
+    const { gridTitles, matrix: mtx } = phaseGridFromStore(m);
+    const r = sortByPhase(gridTitles, mtx);
+    expect(r.phases.get(3).some((row) => /Prereq/.test(row.fixtureTitle))).toBe(true);  // raw 3 wins
+    expect(r.phases.get(1).some((row) => /Prereq/.test(row.fixtureTitle))).toBe(false); // not derived 1
+  });
+});

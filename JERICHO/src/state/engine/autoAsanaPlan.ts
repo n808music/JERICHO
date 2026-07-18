@@ -287,6 +287,7 @@ export function compileAutoAsanaPlan({
     conflicts,
     constraints,
     timeZone,
+    nowISO,
   });
   if (maxPerDay && requiredPerDay > maxPerDay) {
     conflicts.push({
@@ -2037,7 +2038,16 @@ function buildPackedTargetDayKeys(dayKeys: string[], weekCount: number, totalSes
     const weekIndex = Math.min(weeksInOrder.length - 1, Math.floor(index / sessionsPerWeek));
     const slotIndex = index % sessionsPerWeek;
     const weekDays = weeksInOrder[weekIndex] || [];
-    const targetDayKey = weekDays[Math.min(slotIndex, Math.max(0, weekDays.length - 1))] || dayKeys[dayKeys.length - 1];
+    const weekStartIndex = weekIndex * sessionsPerWeek;
+    const sessionsThisWeek = Math.max(1, Math.min(sessionsPerWeek, totalSessions - weekStartIndex));
+    const distributedSlotIndexes =
+      sessionsThisWeek <= 1 || weekDays.length <= 1
+        ? [0]
+        : Array.from({ length: sessionsThisWeek }, (_, distributedIndex) =>
+            Math.round((distributedIndex * Math.max(0, weekDays.length - 1)) / Math.max(1, sessionsThisWeek - 1))
+          );
+    const targetSlotIndex = distributedSlotIndexes[Math.min(slotIndex, distributedSlotIndexes.length - 1)] || 0;
+    const targetDayKey = weekDays[Math.min(targetSlotIndex, Math.max(0, weekDays.length - 1))] || dayKeys[dayKeys.length - 1];
     targets.push(targetDayKey);
   }
   return targets;
@@ -2296,14 +2306,24 @@ function findSlotForDraft({
   };
 
   const findBestCandidate = (candidateDayKeys: string[]) => {
-    let bestCandidate: { dayKey: string; startISO: string; load: number } | null = null;
+    let bestCandidate: { dayKey: string; startISO: string; load: number; targetDistance: number } | null = null;
+    const targetDayKey = String(draft?.targetDayKey || '').trim();
+    const hasTargetDayKey = /^\d{4}-\d{2}-\d{2}$/.test(targetDayKey);
     for (const dayKey of candidateDayKeys) {
       const startCandidate = tryDayKey(dayKey);
       if (!startCandidate) continue;
       // Balance first across valid days, then pack within the chosen day.
       const load = (dailyCounts[dayKey] || 0) + ((placedBusyByDay[dayKey] || []).length || 0);
-      if (!bestCandidate || load < bestCandidate.load) {
-        bestCandidate = { ...startCandidate, load };
+      const targetDistance = hasTargetDayKey ? Math.abs(dayKeyDistance(dayKey, targetDayKey)) : 0;
+      if (
+        !bestCandidate ||
+        load < bestCandidate.load ||
+        (load === bestCandidate.load && targetDistance < bestCandidate.targetDistance) ||
+        (load === bestCandidate.load &&
+          targetDistance === bestCandidate.targetDistance &&
+          dayKey < bestCandidate.dayKey)
+      ) {
+        bestCandidate = { ...startCandidate, load, targetDistance };
       }
     }
     return bestCandidate;
@@ -2906,6 +2926,7 @@ function clampPlacedBlocksToCycleWindow({
   conflicts,
   constraints,
   timeZone,
+  nowISO,
 }: {
   placed: Array<{
     id: string;
@@ -2922,8 +2943,10 @@ function clampPlacedBlocksToCycleWindow({
   conflicts: AutoAsanaPlan['conflicts'];
   constraints: Constraints;
   timeZone: string;
+  nowISO?: string | null;
 }) {
-  const startDayKey = constraints?.cycleStartDayKey || null;
+  const runtimeNowDayKey = dayKeyFromISO(String(nowISO || ''), timeZone) || null;
+  const startDayKey = maxDayKey(constraints?.cycleStartDayKey || null, runtimeNowDayKey);
   const endDayKey = constraints?.cycleEndDayKey || null;
   const dayEndAtMin = parseHHMMToMinutes(constraints?.dayEndAtHHMM || '23:59');
   if (!startDayKey && !endDayKey) return { placed };

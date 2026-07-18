@@ -73,7 +73,47 @@ export type PlanQualityFailureCode =
   | 'MISSING_LANE_OUTCOME'
   | 'VAGUE_LANE_OUTCOME'
   | 'LANE_WITHOUT_EXECUTION_WORK'
-  | 'LANE_OUTCOME_WITHOUT_PHASE_OR_MISSION_SUPPORT';
+  | 'LANE_OUTCOME_WITHOUT_PHASE_OR_MISSION_SUPPORT'
+  | 'BLOCK_DETAIL_AMBIGUOUS'
+  | 'GENERIC_EXECUTION_INSTRUCTION'
+  | 'LANE_CONTEXT_NOT_APPLIED'
+  | 'MISSING_EXPECTED_OUTPUT'
+  | 'MISSING_ACCEPTANCE_EVIDENCE'
+  | 'MISSING_DEPENDENCY_CONTEXT'
+  | 'TITLE_REPEATED_AS_EXPLANATION'
+  | 'UNKNOWN_LANE_IDENTITY'
+  | 'UNKNOWN_WORK_TYPE'
+  | 'TITLE_REPEATED_IN_DO_THIS'
+  | 'TITLE_REPEATED_IN_DONE_WHEN'
+  | 'TITLE_REPEATED_IN_PRODUCES'
+  | 'MISSING_COMPLETED_ARTIFACT'
+  | 'ABSTRACT_BLOCK_MEANING'
+  | 'INITIATIVE_LABEL_MISSING'
+  | 'OUTPUT_ARTIFACT_TOO_VAGUE'
+  | 'COMPLETION_STANDARD_TOO_VAGUE'
+  | 'INITIATIVE_LABEL_INACCURATE'
+  | 'PHASE_PRIORITY_MISCLASSIFIED'
+  | 'PREMATURE_INITIATIVE_ACTIVATION'
+  | 'USER_DECISION_DUMPING'
+  | 'DEFERRED_LANE_SCHEDULED_AS_ACTIVE'
+  | 'LONG_HORIZON_LANE_OVERWEIGHTED_IN_P1'
+  | 'PHASE_SCOPE_CONFLICT'
+  | 'DEFERRED_LANE_SCHEDULED_WITHOUT_JUSTIFICATION'
+  | 'FUTURE_PHASE_WORK_REQUIRES_PREREQUISITE_PROOF'
+  | 'ACTIVE_BLOCK_UNKNOWN_LANE'
+  | 'ACTIVE_BLOCK_UNKNOWN_ENTITY'
+  | 'PROJECT_CONTEXT_MISSING'
+  | 'ENTITY_PURPOSE_MISMATCH'
+  | 'SCHEDULE_DISTRIBUTION_CLUSTER_UNJUSTIFIED'
+  | 'P1_NONCRITICAL_LANE_OVERREPRESENTED'
+  | 'PHASE_ENERGY_VIOLATION'
+  | 'LOW_PRIORITY_WORK_CROWDS_OUT_P1'
+  | 'FULL_HORIZON_REPRESENTATION_LEAKED_INTO_SPRINT'
+  | 'INTAKE_FACT_CONTRADICTION'
+  | 'MILESTONE_RENDERED_AS_EXECUTION_BLOCK'
+  | 'PLACEHOLDER_EXECUTION_LANGUAGE'
+  | 'GENERIC_PROGRESS_NOTE_ARTIFACT'
+  | 'ENTITY_DOCTRINE_UNRESOLVED';
 
 export type PlanQualityGateResult = {
   status: PlanQualityGateStatus;
@@ -109,6 +149,7 @@ export type PlanQualityGateResult = {
     lanesWithVagueOutcome?: string[];
     lanesWithoutExecution?: string[];
     lanesWithoutSupport?: string[];
+    blockDetailQualityFailures?: Record<string, string[]>;
     temporalDistribution?: {
       contractStartDayKey: string;
       contractEndDayKey: string;
@@ -130,6 +171,9 @@ export type PlanQualityGateResult = {
       maxAllowedInterBlockGapDays?: number;
       averageActiveWeekdaysPerScheduledWeek?: number;
       requiredActiveWeekdaysPerScheduledWeek?: number;
+      clusteredWeekdayLabels?: string[];
+      clusteredWeekdayRatio?: number;
+      availableWeekdayCount?: number;
     };
     commercialBlockSpecificity?: {
       repeatedShellBlockIds: string[];

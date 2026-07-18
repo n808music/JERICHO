@@ -4,3 +4,13 @@ coverage
 dist
 *.log
 .worktrees
+venv/
+__pycache__/
+*.db
+.claude/
+tmp/
+tmp-*
+data-store.json
+vite.config.mjs.timestamp-*
+debug_activate_tmp.mjs
+runtime_proof.mjs

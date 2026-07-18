@@ -35,13 +35,22 @@ import {
 import { projectBlocksForDisplay } from '../domain/masterPlan/blockDisplayProjection.js';
 import { buildGoalIntakeContract, getIntakeGateCode } from '../domain/goal/GoalIntakeContract.ts';
 import { buildGoalPolicySnapshot } from '../domain/goal/GoalPolicy.ts';
-import { evaluatePlanQualityGate } from '../domain/planQuality/evaluatePlanQualityGate.ts';
+import {
+  auditExecutionBlockAdmission,
+  evaluatePlanQualityGate,
+  HARD_BLOCK_ADMISSION_FAILURE_CODES,
+} from '../domain/planQuality/evaluatePlanQualityGate.ts';
 import { ACTION_VERB_SET } from '../domain/planQuality/actionVerbs.ts';
 import { mapLaneToEntity } from '../domain/enterprise/laneToEntity.ts';
 import { generateAutoDeliverables, debugAutoDeliverablesGeneration } from '../core/autoDeliverables.ts';
 import { getDeadlineDayKey } from '../core/deadline.ts';
 
 import { generateDeterministicPlan } from '../core/deterministicPlanGenerator.ts';
+import { buildCausalChainStepsFromMatrix } from '../domain/masterGrid/causalChainFromMatrix.js';
+import { seedCapacityFromLegacyConstraints } from '../domain/masterGrid/capacityFromLegacy.js';
+import { buildConstraintsFromMatrix } from '../domain/masterGrid/constraintsFromMatrix.js';
+import { buildScheduledBlocksFromDeterministicResult } from '../domain/masterGrid/scheduledBlocksFromDeterministicResult.js';
+import { buildProposedBlocksFromSchedule } from '../domain/masterGrid/proposedBlocksFromSchedule.js';
 import { canEmitExecutionEvent } from './engine/executionContract.ts';
 import {
   appendExternalEvidenceEvent,
@@ -90,7 +99,9 @@ import { deriveSystemShotClock } from './engine/shotClock.ts';
 import { deriveForecastBlocks, resolveHorizonEndForMode } from '../domain/masterPlan/forecastBlockDerivation.js';
 import { deriveMasterPlanPhaseModel } from '../domain/masterPlan/masterPlanPhaseModel.js';
 import { resolveEffectiveExecutableStartDayKey } from '../domain/product/resolveEffectiveExecutableStartDayKey.js';
+import { resolveBlockPlainLanguage } from '../domain/product/resolveBlockPlainLanguage.js';
 import { projectEnterpriseDisplay } from '../domain/enterprise/enterpriseDisplayProjection';
+import { ENTERPRISE_IDENTITY_MAP } from '../domain/enterprise/enterpriseIdentityMap';
 import { evaluateEnterpriseIdentityAudit } from '../domain/enterprise/evaluateEnterpriseIdentityAudit';
 
 /**
@@ -266,6 +277,9 @@ export function computeDerivedState(state, action) {
   if (!Array.isArray(next.calendarDisplayBlocks)) {
     next.calendarDisplayBlocks = [];
   }
+  if (!next.intakeSessionByCycleId || typeof next.intakeSessionByCycleId !== 'object') {
+    next.intakeSessionByCycleId = {};
+  }
   ensureCycleStructures(next);
   ensureAdmissionStores(next);
   ensureDeliverablesStore(next);
@@ -274,6 +288,7 @@ export function computeDerivedState(state, action) {
   quarantineOrphanedActiveExecution(next);
   deriveProfileExecutionContainment(next);
   hydrateActiveCycleState(next);
+  ensureCapacitySeed(next);
   const hadCycleRecords = Boolean(next.cyclesById && Object.keys(next.cyclesById).length);
   if (!next.executionEvents) {
     next.executionEvents = [];
@@ -292,6 +307,69 @@ export function computeDerivedState(state, action) {
   const perfActionStart = debugPerfActions ? Date.now() : 0;
 
   switch (action.type) {
+    case 'SET_INTAKE_SESSION': {
+      // Persist the in-flight matrix-intake session so it can resume at the
+      // exact slot after a route change/refresh/back-gesture (Defect B).
+      const { cycleId, session } = action.payload || {};
+      if (cycleId && session) {
+        next.intakeSessionByCycleId[cycleId] = session;
+      }
+      break;
+    }
+    case 'CLEAR_INTAKE_SESSION': {
+      const { cycleId } = action.payload || {};
+      if (cycleId) {
+        delete next.intakeSessionByCycleId[cycleId];
+      }
+      break;
+    }
+    case 'MARK_MATRIX_INTAKE_COMPLETE': {
+      // Completing the intake retires its resumable session — but NEVER silently
+      // when the session still holds uncommitted operator answers (captured
+      // fields beyond a bare name that never produced a DECLARE_*). That is the
+      // 2026-07-06 data-loss defect: an abandoned §3 fan-out was discarded on
+      // completion. Fail-safe (preserve the session so it stays resumable) and
+      // fail-loud (record a warning) instead of deleting.
+      const { cycleId } = action.payload || {};
+      if (cycleId && next.cyclesById?.[cycleId]) {
+        next.cyclesById[cycleId].matrixIntakeComplete = true;
+        // The confirmed readback is the producer of CONFIRMED (V8): every DRAFT
+        // node the operator just verified advances to CONFIRMED (Ready flips YES).
+        // NEEDS_REVIEW stays operator-set; already-CONFIRMED is untouched.
+        const matrix = next.matrix || {};
+        for (const slice of ['entitiesById', 'initiativesById', 'projectsById', 'artifactsById', 'systemsById']) {
+          const map = matrix[slice];
+          if (!map) continue;
+          for (const id of Object.keys(map)) {
+            if (map[id] && map[id].reviewStatus === 'DRAFT') {
+              map[id] = { ...map[id], reviewStatus: 'CONFIRMED' };
+            }
+          }
+        }
+        const session = next.intakeSessionByCycleId?.[cycleId];
+        const stack = session?.engineSnapshot?.slotStack;
+        const hasUncommittedAnswers =
+          Array.isArray(stack) &&
+          stack.some((s) => {
+            const captured = (s && s.captured) || {};
+            return Object.keys(captured).some(
+              (k) => k !== 'name' && captured[k] != null && captured[k] !== '',
+            );
+          });
+        if (session && hasUncommittedAnswers) {
+          next.intakeCommitWarning = {
+            cycleId,
+            code: 'UNCOMMITTED_SESSION_RETAINED',
+            reason:
+              'Intake marked complete while its in-flight session still held uncommitted answers; the session was preserved for resume rather than discarded.',
+          };
+        } else {
+          if (session) delete next.intakeSessionByCycleId[cycleId];
+          next.intakeCommitWarning = null;
+        }
+      }
+      break;
+    }
     case 'BEGIN_BLOCK':
       updateBlockStatus(next, action.id, 'in_progress');
       break;
@@ -809,6 +887,14 @@ export function computeDerivedState(state, action) {
     case 'REBUILD_SCHEDULE':
       generatePlan(next, action.payload || {});
       break;
+    // Unified entry point (2026-07-13 design, §6.2): routes to generatePlan first, falling
+    // back to the matrix-driven generateColdPlanForCycle only when generatePlan itself
+    // reports NO_ACTION_GRAPH (no admitted goal/action graph yet). Neither engine's
+    // internals are touched — see routeGenerateSchedule's docblock. GENERATE_PLAN/
+    // REBUILD_SCHEDULE above are unchanged and still work exactly as before.
+    case 'GENERATE_SCHEDULE':
+      routeGenerateSchedule(next, action.payload || {});
+      break;
     case 'APPLY_PLAN':
       // The user-facing "Apply schedule" action must commit the reviewed draft
       // proposal, not bypass preview by replaying the legacy auto-plan branch.
@@ -828,6 +914,84 @@ export function computeDerivedState(state, action) {
       break;
     case 'APPLY_RENEGOTIATION_OPTION':
       applyRenegotiationOption(next, action.payload || {});
+      break;
+    case 'DECLARE_VERIFICATION_SOURCE':
+      declareVerificationSource(next, action.payload || {});
+      break;
+    case 'UPDATE_VERIFICATION_SOURCE':
+      updateVerificationSource(next, action.payload || {});
+      break;
+    case 'REMOVE_VERIFICATION_SOURCE':
+      removeVerificationSource(next, action.payload || {});
+      break;
+    case 'DECLARE_NODE':
+      declareNode(next, action.payload || {});
+      break;
+    case 'UPDATE_NODE':
+      updateNode(next, action.payload || {});
+      break;
+    case 'REMOVE_NODE':
+      removeNode(next, action.payload || {});
+      break;
+    case 'SEED_CANONICAL_ENTITIES':
+      seedCanonicalEntities(next, action.payload || {});
+      break;
+    case 'RESTORE_MATRIX_SNAPSHOT':
+      restoreMatrixSnapshot(next, action.payload || {});
+      break;
+    case 'DECLARE_ENTITY':
+      declareEntity(next, action.payload || {});
+      break;
+    case 'DECLARE_INITIATIVE':
+      declareInitiative(next, action.payload || {});
+      break;
+    case 'SET_INITIATIVE_PHASE':
+      setInitiativePhase(next, action.payload || {});
+      break;
+    case 'DECLARE_SYSTEM':
+      declareSystem(next, action.payload || {});
+      break;
+    case 'DECLARE_PROJECT':
+      declareProject(next, action.payload || {});
+      break;
+    case 'UPDATE_PROJECT':
+      updateProject(next, action.payload || {});
+      break;
+    case 'CONFIRM_CAPACITY':
+      confirmCapacity(next, action.payload || {});
+      break;
+    case 'REMOVE_PROJECT':
+      removeProject(next, action.payload || {});
+      break;
+    case 'DECLARE_ARTIFACT':
+      declareArtifact(next, action.payload || {});
+      break;
+    case 'UPDATE_ARTIFACT':
+      updateArtifact(next, action.payload || {});
+      break;
+    case 'REMOVE_ARTIFACT':
+      removeArtifact(next, action.payload || {});
+      break;
+    case 'DECLARE_DEPENDENCY':
+      declareDependency(next, action.payload || {});
+      break;
+    case 'DECLARE_CONVERGENCE':
+      declareConvergence(next, action.payload || {});
+      break;
+    case 'DECLARE_MATRIX_LINK':
+      declareMatrixLink(next, action.payload || {});
+      break;
+    case 'DECLARE_MILESTONE':
+      declareMilestone(next, action.payload || {});
+      break;
+    case 'DECLARE_RESOURCE_PROFILE':
+      declareResourceProfile(next, action.payload || {});
+      break;
+    case 'DECLARE_BINDING_CONSTRAINT':
+      declareBindingConstraint(next, action.payload || {});
+      break;
+    case 'DECLARE_BOOTSTRAP':
+      declareBootstrap(next, action.payload || {});
       break;
     case 'SET_SCHEDULING_CONSTRAINTS': {
       const payload = action.payload || {};
@@ -1685,7 +1849,10 @@ function applyExecutionEvents(state) {
   if (!events.length) {
     return;
   }
-  const { days, todayBlocks } = materializeBlocksFromEvents(events, { todayISO: state.today?.date });
+  const { days, todayBlocks } = materializeBlocksFromEvents(events, {
+    todayISO: state.today?.date,
+    canonicalBlocks: state.blockStore?.blocks || null,
+  });
   state.today.blocks = todayBlocks || [];
   state.cycle = days || [];
 }
@@ -1939,6 +2106,13 @@ function buildScheduleReviewBlock(
     durationMinutes = null;
   }
   const { domain, practice } = normalizeDomainValue(item.domain || item.domainKey || defaultDomain || 'FOCUS');
+  const canonicalIdentity = buildCanonicalScheduleIdentityMetadata(state, {
+    cycle: state?.cyclesById?.[cycleId || ''] || null,
+    block: item,
+    laneId: item.laneId ?? item.masterPlanLaneId ?? null,
+    laneLabel: item.laneLabel ?? item.payload?.laneLabel ?? null,
+    workType: item.workType || item.blockType || item.actionType || null,
+  });
   return {
     id: item.id || nextDeterministicId(state, 'blk'),
     cycleId,
@@ -1946,8 +2120,13 @@ function buildScheduleReviewBlock(
     origin: 'schedule_review',
     suggestionId: item.id || null,
     identityKey: item.identityKey || null,
-    laneId: item.laneId ?? item.masterPlanLaneId ?? null,
-    laneLabel: item.laneLabel ?? item.payload?.laneLabel ?? null,
+    laneId: canonicalIdentity.laneId,
+    laneLabel: canonicalIdentity.laneLabel,
+    entityId: canonicalIdentity.entityId,
+    entityLabel: canonicalIdentity.entityLabel,
+    phaseId: canonicalIdentity.phaseId,
+    phaseLabel: canonicalIdentity.phaseLabel,
+    workType: canonicalIdentity.workType,
     masterPlanLaneId: item.masterPlanLaneId ?? item.laneId ?? null,
     owner: item.owner ?? item.executionOwner ?? null,
     executionOwner: item.executionOwner ?? item.owner ?? null,
@@ -1982,9 +2161,77 @@ function buildScheduleReviewBlock(
     scheduleLifecycle: 'applied_review',
     blockType: item.blockType || null,
     producesArtifact: item.producesArtifact || null,
+    expectedOutput: item.expectedOutput ?? item.producesArtifact ?? null,
     consumedBy: Array.isArray(item.consumedBy) ? [...item.consumedBy] : item.consumedBy || null,
     consumedByRef: item.consumedByRef ? { ...item.consumedByRef } : item.consumedByRef || null,
     passEvidence: item.passEvidence || null,
+    acceptanceEvidence: item.acceptanceEvidence ?? item.passEvidence ?? null,
+    // Canonical identity context — must survive apply so that the
+    // schedule_review block, and the subsequent schedule_active block,
+    // present full lane / artifact / dependency surface to BlockDetailsPanel.
+    masterPlanId: item.masterPlanId ?? null,
+    masterCalendarId: item.masterCalendarId ?? null,
+    coreMissionContractId: item.coreMissionContractId ?? null,
+    initiativeLabel: item.initiativeLabel ?? null,
+    projectLabel: item.projectLabel ?? null,
+    milestoneType: item.milestoneType ?? null,
+    derivedFrom: item.derivedFrom ?? null,
+    derivationReason: item.derivationReason ?? item.derivedFrom ?? null,
+    phaseJustification: item.phaseJustification ?? null,
+    missConsequence: item.missConsequence ?? null,
+    completionAssertion: item.completionAssertion ?? null,
+    // Attestation contract — operator verifies, Jericho does not.
+    // Canonical-only fields; never synthesized.
+    target: item.target ?? null,
+    verificationSource: item.verificationSource ?? null,
+    operatorAttestation: item.operatorAttestation ?? null,
+  };
+}
+
+function buildAdmissionAuditIntakeText(state, cycleId = null) {
+  const cycle = cycleId ? state?.cyclesById?.[cycleId] || null : null;
+  const sources = [
+    state?.masterPlanIntake?.answers || null,
+    cycle?.goalContract?.planningIntake || null,
+    cycle?.goalContract?.goalIntakeContract?.planningIntake || null,
+    state?.goalExecutionContract?.planningIntake || null,
+  ].filter(Boolean);
+  return sources
+    .flatMap((source) => {
+      if (typeof source === 'string') return [source];
+      if (Array.isArray(source)) return source;
+      if (source && typeof source === 'object') return Object.values(source);
+      return [];
+    })
+    .map((value) => (typeof value === 'string' ? value : JSON.stringify(value)))
+    .filter(Boolean)
+    .join(' ');
+}
+
+function auditBlockForSurfaceAdmission(state, block, { cycleId = null, goalId = null } = {}) {
+  const hierarchy = {
+    phase: block?.phaseLabel || null,
+    lane: block?.laneLabel || null,
+    initiative: block?.initiativeLabel || block?.projectLabel || null,
+    operatingCycle: state?.cyclesById?.[cycleId || '']?.goalContract?.cycleLabel || null,
+  };
+  const intakeText = buildAdmissionAuditIntakeText(state, cycleId);
+  const audit = auditExecutionBlockAdmission(
+    {
+      ...block,
+      cycleId,
+      goalId,
+    },
+    {
+      hierarchy,
+      intakeText,
+    }
+  );
+  const hardFailureCodes = audit.failureCodes.filter((code) => HARD_BLOCK_ADMISSION_FAILURE_CODES.has(code));
+  return {
+    ...audit,
+    hardFailureCodes,
+    admitted: hardFailureCodes.length === 0,
   };
 }
 
@@ -2010,6 +2257,112 @@ function hasCanonicalExecutionOutcome(state, blockId) {
   });
 }
 
+function normalizeStableWorkType(value, fallback = 'Execution') {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (!normalized) {
+    return fallback;
+  }
+  if (normalized === 'validation') return 'Validation';
+  if (normalized === 'review') return 'Review';
+  if (normalized === 'readiness') return 'Readiness';
+  if (normalized === 'gate') return 'Gate';
+  if (normalized === 'monitoring' || normalized === 'audit') return 'Monitoring';
+  if (normalized === 'planning') return 'Planning';
+  if (normalized === 'execution' || normalized === 'action') return 'Execution';
+  return String(value || '').trim() || fallback;
+}
+
+function inferMasterPlanPhaseMetadata(cycle = null, state = null, block = null) {
+  const explicitPhaseId = String(block?.phaseId || '').trim();
+  const explicitPhaseLabel = String(block?.phaseLabel || '').trim();
+  if (explicitPhaseId || explicitPhaseLabel) {
+    return {
+      phaseId: explicitPhaseId || (explicitPhaseLabel ? `phase-${explicitPhaseLabel.toLowerCase()}` : null),
+      phaseLabel: explicitPhaseLabel || null,
+    };
+  }
+  if (!(cycle?.masterPlanId || cycle?.source === 'master_plan')) {
+    return { phaseId: null, phaseLabel: null };
+  }
+  return {
+    phaseId: 'phase-p1',
+    phaseLabel: 'P1',
+  };
+}
+
+function buildCanonicalScheduleIdentityMetadata(
+  state,
+  {
+    cycle = null,
+    block = null,
+    plan = null,
+    laneId = null,
+    laneLabel = null,
+    phaseId = null,
+    phaseLabel = null,
+    workType = null,
+  } = {}
+) {
+  const resolvedLaneId =
+    String(laneId || block?.laneId || block?.masterPlanLaneId || '').trim() || null;
+  const resolvedLane =
+    resolvedLaneId && state?.masterPlanLanesById
+      ? state.masterPlanLanesById[resolvedLaneId] || null
+      : null;
+  const resolvedLaneLabel =
+    String(
+      laneLabel ||
+        block?.laneLabel ||
+        block?.laneTitle ||
+        resolvedLane?.title ||
+        resolvedLane?.label ||
+        resolvedLane?.domain ||
+        ''
+    ).trim() || null;
+  const phaseMetadata = inferMasterPlanPhaseMetadata(cycle, state, {
+    phaseId,
+    phaseLabel,
+    ...(block || {}),
+  });
+  const resolvedPlan =
+    plan ||
+    (cycle?.masterPlanId ? state?.masterPlansById?.[cycle.masterPlanId] || null : null);
+  const projection =
+    resolvedLaneId || resolvedLaneLabel
+      ? projectEnterpriseDisplay({
+          laneId: resolvedLaneId || String(resolvedLane?.domain || '').trim(),
+          laneLabel: resolvedLaneLabel || String(resolvedLane?.title || resolvedLane?.label || '').trim(),
+          intakeSignals: {
+            goalText: String(resolvedPlan?.goalText || resolvedPlan?.title || '').trim(),
+            declaredLaneIds: Array.isArray(resolvedPlan?.laneIds) ? resolvedPlan.laneIds : [],
+          },
+        })
+      : null;
+  return {
+    laneId: resolvedLaneId,
+    laneLabel: resolvedLaneLabel || projection?.displayName || null,
+    entityId: String(block?.entityId || projection?.entityId || '').trim() || null,
+    entityLabel: String(block?.entityLabel || projection?.displayName || '').trim() || null,
+    phaseId: phaseMetadata.phaseId,
+    phaseLabel: phaseMetadata.phaseLabel,
+    workType: normalizeStableWorkType(workType || block?.workType, resolvedLaneId ? 'Execution' : 'Unknown'),
+  };
+}
+
+function isUnactivatedGeneratedScheduleExpired(state, cycle, blocks = [], { timeZone = 'UTC' } = {}) {
+  if (!cycle) {
+    return false;
+  }
+  const lifecycle = getCycleScheduleLifecycle(cycle, state);
+  if (lifecycle === 'active_schedule') {
+    return false;
+  }
+  const audit = buildScheduleTemporalAudit(state, cycle, blocks, { timeZone });
+  return Array.isArray(audit?.temporalReasonCodes) && audit.temporalReasonCodes.includes('GENERATED_SCHEDULE_STALE');
+}
+
 function buildScheduleTemporalAudit(state, cycle, blocks = [], { referenceDayKey = null, timeZone = 'UTC' } = {}) {
   const normalizedBlocks = (Array.isArray(blocks) ? blocks : []).filter(Boolean);
   const sortedDayKeys = normalizedBlocks
@@ -2028,7 +2381,7 @@ function buildScheduleTemporalAudit(state, cycle, blocks = [], { referenceDayKey
     coerceDayKey(state?.today?.date, timeZone) ||
     nowDayKey(timeZone);
   const generatedForStartDayKey = sortedDayKeys[0] || generatedDayKey || executionStartDayKey;
-  const freshnessDays = 7;
+  const freshnessDays = 1;
   const validUntilDayKey = generatedDayKey ? addDays(generatedDayKey, freshnessDays - 1, timeZone) : executionStartDayKey;
   const daysSinceGenerated = generatedDayKey ? Math.max(0, daysBetween(generatedDayKey, executionStartDayKey)) : 0;
   const pastDatedBlocks = normalizedBlocks.filter((block) => {
@@ -2338,6 +2691,40 @@ function ensureDeliverablesStore(state) {
   if (!state.deliverablesByCycleId) {
     state.deliverablesByCycleId = {};
   }
+}
+
+// Carries forward whatever time-constraint data already exists (goalContract.workWindows,
+// the global availabilityPolicy fallback, or strategy.constraints) into a DRAFT
+// matrix.capacityById row — once, idempotently — so the operator never has to retype
+// something they already entered just because it's moving into the matrix's CONFIRMED
+// pattern. See src/domain/masterGrid/capacityFromLegacy.js for the pure seeding logic and
+// docs/superpowers/specs/2026-07-13-unified-schedule-generation-design.md §7.3.
+function ensureCapacitySeed(state) {
+  if (!state.matrix) return;
+  const cycle = getActiveCycle(state);
+  const seeded = seedCapacityFromLegacyConstraints({
+    matrix: state.matrix,
+    goalContractWorkWindows: cycle?.goalContract?.workWindows || null,
+    availabilityPolicyWorkWindows: state.availabilityPolicy?.workWindows || null,
+    strategyConstraints: cycle?.strategy?.constraints || null,
+  });
+  if (!seeded) return;
+  if (!state.matrix.capacityById) {
+    state.matrix.capacityById = {};
+  }
+  state.matrix.capacityById[seeded.row.id] = seeded.row;
+}
+
+// One-click reconfirm for a carried-forward (or operator-declared) capacity row — no
+// elicitation-engine survey involved, matching the operator's explicit request not to
+// re-enter data or repeat intake. Only advances DRAFT/NEEDS_REVIEW -> CONFIRMED; a
+// missing row or an already-CONFIRMED row is a no-op.
+function confirmCapacity(state, payload = {}) {
+  const id = payload?.id || null;
+  if (!id || !state.matrix?.capacityById) return;
+  const row = state.matrix.capacityById[id];
+  if (!row || row.reviewStatus === 'CONFIRMED') return;
+  state.matrix.capacityById[id] = { ...row, reviewStatus: 'CONFIRMED' };
 }
 
 function bootstrapCycleActionsFromDeliverables(state, cycleId, deliverables = []) {
@@ -3446,18 +3833,53 @@ function setCycleProposedBlocks(state, cycleId, proposals = []) {
       identityKey: proposal.identityKey || identity,
     });
   });
-  state.proposedBlocks = normalized;
+  // Admission audit requires lane/entity context that only master-plan cycles have.
+  // Direct-goal cycles (no masterPlanId) bypass hard rejection.
+  const cycleRecord = state?.cyclesById?.[cycleId] || null;
+  const hasMasterPlanContext = Boolean(cycleRecord?.masterPlanId);
+  const audited = normalized.map((proposal) => {
+    if (proposal?.status && proposal.status !== 'suggested') {
+      return proposal;
+    }
+    if (!hasMasterPlanContext) {
+      return proposal;
+    }
+    const reviewBlock = buildScheduleReviewBlock(state, proposal, {
+      cycleId,
+      goalId: proposal?.goalId || state?.activeGoalId || null,
+      timeZone: state?.appTime?.timeZone || 'UTC',
+      defaultDomain: proposal?.domain || 'FOCUS',
+    });
+    if (!reviewBlock) {
+      return proposal;
+    }
+    const admissionAudit = auditBlockForSurfaceAdmission(state, reviewBlock, {
+      cycleId,
+      goalId: proposal?.goalId || state?.activeGoalId || null,
+    });
+    if (admissionAudit.admitted) {
+      return proposal;
+    }
+    return {
+      ...proposal,
+      status: 'rejected',
+      admissionFailureCodes: admissionAudit.hardFailureCodes,
+      admissionRejectedAtISO: state?.appTime?.nowISO || new Date().toISOString(),
+      deferredReason: 'admission_audit_failed',
+    };
+  });
+  state.proposedBlocks = audited;
   if (!state.proposedBlocksByCycleId || typeof state.proposedBlocksByCycleId !== 'object') {
     state.proposedBlocksByCycleId = {};
   }
   if (cycleId) {
-    state.proposedBlocksByCycleId[cycleId] = normalized;
+    state.proposedBlocksByCycleId[cycleId] = audited;
   }
   // Temporary compatibility mirror for 1.0.x.
-  state.suggestedBlocks = normalized;
+  state.suggestedBlocks = audited;
   if (cycleId && state.cyclesById?.[cycleId]) {
-    state.cyclesById[cycleId].proposedBlocks = normalized;
-    state.cyclesById[cycleId].suggestedBlocks = normalized;
+    state.cyclesById[cycleId].proposedBlocks = audited;
+    state.cyclesById[cycleId].suggestedBlocks = audited;
   }
 }
 
@@ -3573,7 +3995,10 @@ function countCompletedBlocks(events = [], todayISO) {
   if (!events.length) {
     return 0;
   }
-  const { days } = materializeBlocksFromEvents(events, { todayISO });
+  const { days } = materializeBlocksFromEvents(events, {
+    todayISO,
+    canonicalBlocks: state.blockStore?.blocks || null,
+  });
   const all = (days || []).flatMap((d) => d.blocks || []);
   return all.filter((b) => b?.status === 'completed' || b?.status === 'complete').length;
 }
@@ -3654,6 +4079,10 @@ function adaptDeterministicResultToColdPlan(result, strategy, nowISO) {
     createdAtISO: nowISO,
     forecastByDayKey,
     infeasible: undefined,
+    // PARTIAL contract (2026-07-13, §5): carried forward so a too-small confirmed capacity
+    // renders as a flagged, acknowledgeable state instead of a silent SUCCESS with fewer
+    // blocks than confirmed scope required. Undefined when result.status is plain SUCCESS.
+    capacityViolation: result.capacityViolation,
   };
 }
 
@@ -3704,8 +4133,8 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
       // Update strategy with workspace deliverables
       cycle.strategy.deliverables = deliverables;
       cycle.strategy.assumptionsHash = buildAssumptionsHash(cycle.strategy);
-    } else if (cycle.goalContract && deadlineKey && deadlineKey.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      // Only auto-seed if no workspace exists (shouldn't happen post-admission, but safe fallback)
+    } else if (cycle.goalContract && cycle.matrixIntakeComplete !== false && deadlineKey && deadlineKey.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      // Only auto-seed if intake is complete (matrixIntakeComplete !== false) and no workspace exists
       let autoStrategy = null;
       try {
         deliverables = generateAutoDeliverables(cycle.goalContract) || [];
@@ -3798,16 +4227,46 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
     const nowDayKey = dayKeyFromISO(nowISO, timeZone);
     const execMode = rebaseMode === 'REMAINING_FROM_TODAY' ? 'REBASE_FROM_TODAY' : 'REGENERATE';
 
+    // Prefer an operator-authored causal chain (Goal Admission's CausalChainBuilder)
+    // when present; otherwise derive steps from CONFIRMED Master Grid matrix projects
+    // so a completed intake actually drives the schedule instead of silently falling
+    // through to the generic 3-tier default. Empty matrix -> [] -> generator's own
+    // fallback still applies, unchanged.
+    const manualCausalChainSteps = cycle.goalContract?.execution?.causalChainSteps;
+    const causalChainSteps =
+      manualCausalChainSteps && manualCausalChainSteps.length > 0
+        ? manualCausalChainSteps
+        : buildCausalChainStepsFromMatrix(state.matrix);
+
+    // Same precedence as causalChainSteps above: an explicitly-set cycle.strategy.constraints
+    // wins if the operator (or SET_STRATEGY/SET_SCHEDULING_CONSTRAINTS) put something there;
+    // otherwise prefer a CONFIRMED matrix capacity row over the bare 4/16 hardcoded defaults.
+    // Null from buildConstraintsFromMatrix (no CONFIRMED capacity yet) falls through to the
+    // pre-existing behavior unchanged.
+    const matrixConstraints = buildConstraintsFromMatrix(state.matrix);
+    const hasExplicitStrategyConstraints = Boolean(
+      cycle.strategy?.constraints?.maxBlocksPerDay || cycle.strategy?.constraints?.maxBlocksPerWeek
+    );
+    const resolvedConstraints =
+      hasExplicitStrategyConstraints || !matrixConstraints
+        ? {
+            maxBlocksPerDay: cycle.strategy?.constraints?.maxBlocksPerDay || 4,
+            maxBlocksPerWeek: cycle.strategy?.constraints?.maxBlocksPerWeek || 16,
+            preferredDaysOfWeek: cycle.strategy?.constraints?.preferredDaysOfWeek,
+            blackoutDayKeys: cycle.strategy?.constraints?.blackoutDayKeys,
+          }
+        : matrixConstraints;
+
     const deterministicResult = generateDeterministicPlan({
       contractDeadlineDayKey: deadlineKey,
       contractStartDayKey: startDayKey,
       nowDayKey,
-      causalChainSteps: cycle.goalContract?.execution?.causalChainSteps,
+      causalChainSteps,
       constraints: {
-        maxBlocksPerDay: cycle.strategy?.constraints?.maxBlocksPerDay || 4,
-        maxBlocksPerWeek: cycle.strategy?.constraints?.maxBlocksPerWeek || 16,
-        preferredDaysOfWeek: cycle.strategy?.constraints?.preferredDaysOfWeek,
-        blackoutDayKeys: cycle.strategy?.constraints?.blackoutDayKeys,
+        maxBlocksPerDay: resolvedConstraints.maxBlocksPerDay,
+        maxBlocksPerWeek: resolvedConstraints.maxBlocksPerWeek,
+        preferredDaysOfWeek: resolvedConstraints.preferredDaysOfWeek,
+        blackoutDayKeys: resolvedConstraints.blackoutDayKeys,
         timezone: timeZone,
       },
       mode: execMode,
@@ -3815,11 +4274,44 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
 
     nextPlan = adaptDeterministicResultToColdPlan(deterministicResult, strategy, nowISO);
 
+    // Canonical cycle.schedule (2026-07-13 unified schedule generation design, §3/§6).
+    // Additive, alongside cycle.coldPlan — nothing reads this yet, so this cannot regress
+    // any existing consumer. It is the foundation the full generateSchedule() engine
+    // (retiring GENERATE_COLD_PLAN and GENERATE_PLAN into one action) builds on: real
+    // ISO-timed ScheduledBlocks with entity/lane identity, derived from the exact same
+    // matrix-driven spine + capacity already wired into the deterministic generator above.
+    {
+      const scheduleCycleId = cycle.id || state.activeCycleId || 'cycle';
+      const scheduleGoalId = cycle.goalContract?.goalId || cycle.contract?.goalId || state.activeGoalId || null;
+      cycle.schedule = {
+        version: (cycle.schedule?.version || 0) + 1,
+        generatorVersion: 'deterministicPlan_v1',
+        strategyId: strategy.strategyId,
+        assumptionsHash: strategy.assumptionsHash,
+        createdAtISO: nowISO,
+        blocks: buildScheduledBlocksFromDeterministicResult({
+          result: deterministicResult,
+          matrix: state.matrix,
+          cycleId: scheduleCycleId,
+          goalId: scheduleGoalId,
+          generatorVersion: 'deterministicPlan_v1',
+          strategyId: strategy.strategyId,
+          createdAtISO: nowISO,
+          timeZone,
+        }),
+        infeasible:
+          deterministicResult.status === 'INFEASIBLE'
+            ? { reason: deterministicResult.error?.message || 'Plan generation is infeasible' }
+            : undefined,
+        capacityViolation: deterministicResult.capacityViolation,
+      };
+    }
+
     // Seed action layer from workspace deliverables (closes RC-03)
     // Only seeds when actions are absent — never overwrites LLM or user-set actions.
     // Uses canonical workspace deliverable IDs so forward-link lineage resolves.
     // Maps deliverable.kind → actionType: PLANNING → preparation, all others → execution.
-    if (deterministicResult.status === 'SUCCESS' && deliverables.length > 0) {
+    if ((deterministicResult.status === 'SUCCESS' || deterministicResult.status === 'PARTIAL') && deliverables.length > 0) {
       const currentActions = Array.isArray(cycle.actions) ? cycle.actions : [];
       if (currentActions.length === 0) {
         const cycleId = cycle.id || state.activeCycleId || 'cycle';
@@ -3893,6 +4385,21 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
     // Clear error if plan succeeded
     state.lastPlanError = null;
   }
+
+  // Non-fatal capacity warning (2026-07-13, §5): PARTIAL plans are still schedulable — the
+  // blocks that fit are real — but confirmed scope exceeded confirmed capacity, and that
+  // must be a visible, acknowledgeable flag rather than disappearing into a clean SUCCESS.
+  // Deliberately separate from lastPlanError, which gates on zero-blocks/INFEASIBLE only.
+  state.lastPlanWarning = nextPlan.capacityViolation
+    ? {
+        code: 'CAPACITY_VIOLATION',
+        reasons: [
+          `PARTIAL: ${nextPlan.capacityViolation.requiredBlocks} blocks required, only ${nextPlan.capacityViolation.availableBlocks} fit within confirmed capacity`,
+        ],
+        details: nextPlan.capacityViolation,
+        timestamp: nowISO || new Date().toISOString(),
+      }
+    : null;
 
   refreshColdPlanDailyProjection(state);
 }
@@ -4546,10 +5053,12 @@ export function resolveFirstCycleScheduleStart(
   { plan = null, cycle = null, contract = null, activationDayKey = null } = {}
 ) {
   const timeZone = state?.appTime?.timeZone || APP_TIME_ZONE;
-  const todayDayKey =
-    coerceDayKey(state?.today?.date, timeZone) ||
+  const liveTodayDayKey =
     coerceDayKey(state?.appTime?.activeDayKey, timeZone) ||
+    coerceDayKey(state?.today?.date, timeZone) ||
     nowDayKey(timeZone);
+  const todayDayKey =
+    liveTodayDayKey;
   const planStartDayKey =
     coerceDayKey(plan?.horizonStart, timeZone) ||
     coerceDayKey(plan?.officialStartDate, timeZone) ||
@@ -4660,7 +5169,10 @@ function buildMasterPlanPolicySnapshot(state, plan) {
   const profile = state?.profilesById?.[plan.profileId] || null;
   const masterCalendarId = profile?.masterCalendarId || null;
   const masterCalendar = masterCalendarId ? state?.masterCalendarsById?.[masterCalendarId] || null : null;
-  const fallbackToday = state?.today?.date || nowDayKey(state?.appTime?.timeZone || APP_TIME_ZONE);
+  const fallbackToday =
+    coerceDayKey(state?.appTime?.activeDayKey, state?.appTime?.timeZone || APP_TIME_ZONE) ||
+    coerceDayKey(state?.today?.date, state?.appTime?.timeZone || APP_TIME_ZONE) ||
+    nowDayKey(state?.appTime?.timeZone || APP_TIME_ZONE);
   const lanes = (plan?.laneIds || [])
     .map((laneId) => state?.masterPlanLanesById?.[laneId] || null)
     .filter(Boolean);
@@ -4950,7 +5462,10 @@ export function buildMasterPlanOperationalDescriptors(state, plan) {
   const masterCalendarId = profile?.masterCalendarId || null;
   const masterCalendar = masterCalendarId ? state?.masterCalendarsById?.[masterCalendarId] || null : null;
   const timeZone = state?.appTime?.timeZone || APP_TIME_ZONE;
-  const fallbackToday = state?.today?.date || nowDayKey(timeZone);
+  const fallbackToday =
+    coerceDayKey(state?.appTime?.activeDayKey, timeZone) ||
+    coerceDayKey(state?.today?.date, timeZone) ||
+    nowDayKey(timeZone);
   const lanes = (plan?.laneIds || [])
     .map((laneId) => state?.masterPlanLanesById?.[laneId] || null)
     .filter(Boolean);
@@ -5352,7 +5867,17 @@ function buildMasterPlanReadinessCandidates(plan, lanes = [], weeklyCapacityHour
   const creativeLane =
     lanes.find((lane) => String(lane?.domain || '').trim().toLowerCase() === 'creative') || null;
   const mediaLane = lanes.find((lane) => String(lane?.domain || '').trim().toLowerCase() === 'media') || null;
+  const operationsLane = lanes.find((lane) => String(lane?.domain || '').trim().toLowerCase() === 'brand') || null;
   const incomeLane = lanes.find((lane) => String(lane?.domain || '').trim().toLowerCase() === 'income') || null;
+  const runwaySupportLane =
+    lanes.find((lane) => {
+      const domain = String(lane?.domain || '').trim().toLowerCase();
+      const label = String(lane?.label || '').trim().toLowerCase();
+      if (!/^(capital|revenue|income|runway)$/.test(domain)) {
+        return false;
+      }
+      return !/energy gym|f8 energy|services revenue bridge/.test(label);
+    }) || null;
   const candidates = [];
   if (hasFixedAnchors) {
     candidates.push({
@@ -5363,8 +5888,12 @@ function buildMasterPlanReadinessCandidates(plan, lanes = [], weeklyCapacityHour
       priority: 125,
       missConsequence: 'Anchor drift weakens every downstream lane sequence.',
       derivedFrom: 'master_plan_fixed_anchors',
-      laneId: null,
+      expectedOutput: 'Validated hard-anchor rule set with explicit non-movable constraints and allowed reflow rules.',
+      passEvidence:
+        'Written hard-anchor protection rule set showing preserved fixed anchors, allowed schedule reflow boundaries, and the next reassessment trigger.',
+      laneId: operationsLane?.id || null,
       milestoneId: null,
+      workType: 'validation',
     });
   }
   if (creativeLane || productLane || mediaLane) {
@@ -5378,6 +5907,7 @@ function buildMasterPlanReadinessCandidates(plan, lanes = [], weeklyCapacityHour
       derivedFrom: 'cross_lane_readiness_inventory',
       laneId: creativeLane?.id || productLane?.id || mediaLane?.id || null,
       milestoneId: null,
+      workType: 'planning',
     });
   }
   if (productLane) {
@@ -5391,6 +5921,7 @@ function buildMasterPlanReadinessCandidates(plan, lanes = [], weeklyCapacityHour
       derivedFrom: 'product_lane_readiness_gate',
       laneId: productLane.id,
       milestoneId: null,
+      workType: 'readiness',
     });
   }
   candidates.push({
@@ -5401,20 +5932,22 @@ function buildMasterPlanReadinessCandidates(plan, lanes = [], weeklyCapacityHour
     priority: 116,
     missConsequence: 'Sequence ambiguity increases schedule churn before execution begins.',
     derivedFrom: 'first_cycle_sequence_review',
-    laneId: null,
+    laneId: operationsLane?.id || null,
     milestoneId: null,
+    workType: 'validation',
   });
-  if (incomeLane || plan?.financialConstraint?.exists) {
+  if (runwaySupportLane || incomeLane || plan?.financialConstraint?.exists) {
     candidates.push({
       key: 'identify-income-calendar-burden',
       title: 'Map job-search and income demands against the execution calendar',
       minutes: 45,
-      practice: incomeLane ? mapMasterPlanLaneToPractice(incomeLane.domain) : 'RESOURCES',
+      practice: runwaySupportLane ? mapMasterPlanLaneToPractice(runwaySupportLane.domain) : incomeLane ? mapMasterPlanLaneToPractice(incomeLane.domain) : 'RESOURCES',
       priority: 114,
       missConsequence: 'Runway pressure can silently consume the master calendar if it is not made explicit.',
       derivedFrom: 'income_runway_calendar_pressure',
-      laneId: incomeLane?.id || null,
+      laneId: runwaySupportLane?.id || incomeLane?.id || null,
       milestoneId: null,
+      workType: 'planning',
     });
   }
   if (!(Number.isFinite(Number(weeklyCapacityHours)) && Number(weeklyCapacityHours) > 0)) {
@@ -5435,11 +5968,15 @@ function buildMasterPlanReadinessCandidates(plan, lanes = [], weeklyCapacityHour
     ...(Array.isArray(plan?.structureCritic?.deferredQuestions) ? plan.structureCritic.deferredQuestions : []),
   ];
   followupQuestions.slice(0, 2).forEach((question, index) => {
+    const questionText = String(question?.question || '').trim();
+    const inferredLaneId = question?.laneId
+      || (/timing slips|hard anchor dates/i.test(questionText) ? operationsLane?.id || null : null)
+      || (question?.domain === 'income_runway' ? runwaySupportLane?.id || incomeLane?.id || null : null);
     candidates.push({
       key: `critic-clarification-${index + 1}`,
-      title: String(question?.question || 'Clarify unresolved plan substrate').trim(),
+      title: questionText || 'Clarify unresolved plan substrate',
       expectedOutput:
-        String(question?.question || '').trim()
+        questionText
           ? `Written resolution for: ${String(question.question).trim().replace(/\?+$/g, '')}.`
           : 'Written resolution for the unresolved plan substrate item.',
       minutes: 30,
@@ -5448,8 +5985,9 @@ function buildMasterPlanReadinessCandidates(plan, lanes = [], weeklyCapacityHour
       missConsequence:
         String(question?.reason || '').trim() || 'Unresolved structure context weakens schedule and feasibility trust.',
       derivedFrom: String(question?.resolvesField || 'structureCritic').trim(),
-      laneId: question?.laneId || null,
+      laneId: inferredLaneId,
       milestoneId: null,
+      workType: 'validation',
     });
   });
   return candidates;
@@ -5735,11 +6273,14 @@ function decomposeCompositeCandidates(candidates) {
 const LANE_CADENCE_INTERVAL_DAYS = 14;
 const LANE_RECURRING_WORK = {
   creative: [
-    (l) => `Complete recording session and advance ${stripTrailingReleaseLaunchToken(l)} toward release`,
     (l) => `Review and finalize ${l} mastering, mix, and artwork assets`,
-    (l) => `Advance ${l} distribution setup, pre-save campaign, and promotion`,
+    (l) => `Review release copy, visual rollout assets, and store metadata for ${l}`,
+    (_l, context = {}) =>
+      Number(context?.recurrenceIndex || 0) % 2 === 0
+        ? 'Prepare and upload release files for primary distribution submission'
+        : 'Prepare and upload release files for distribution status verification',
     (l) => `Evaluate ${l} release readiness and confirm distribution timeline`,
-    (l) => `Execute ${l} promo material batch — social, press, and visual assets`,
+    (l) => `Prepare ${l} promo material batch — social, press, and visual assets`,
   ],
   product: [
     (l) => `Complete ${l} development sprint — feature, fix, or integration`,
@@ -5755,13 +6296,13 @@ const LANE_RECURRING_WORK = {
     (l) => `Review ${l} listener metrics and adjust content strategy`,
   ],
   income: [
-    (l) => `Advance ${l} revenue pipeline — outreach, follow-ups, and deal progress`,
+    (l) => `Review ${l} revenue pipeline and identify next revenue actions`,
     (l) => `Review and update ${l} offer definition and pricing`,
     (l) => `Evaluate ${l} income progress and identify next high-leverage action`,
   ],
   brand: [
-    (l) => `Advance ${l} partnerships and positioning — outreach and relationship progress`,
-    (l) => `Review ${l} market presence and identify next visibility action`,
+    (l) => `Document positioning brief and next outreach move for ${l}`,
+    (l) => `Review stakeholder and partner tracker for ${l}`,
   ],
   company: [
     (l) => `Run cross-lane operations review — blockers, dependencies, and cadence check`,
@@ -5781,8 +6322,16 @@ const LANE_RECURRING_WORK = {
   ],
 };
 
+function normalizeRecurringCadenceTitle(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
 function buildLaneCadenceCandidates(lanes, todayDayKey, windowEndDayKey, timeZone) {
   const candidates = [];
+  const seenRecurringTitles = new Set();
   const activeLanes = (Array.isArray(lanes) ? lanes : []).filter((lane) => {
     const activation = String(lane?.activationState || '').trim().toLowerCase();
     return activation === 'active';
@@ -5799,9 +6348,22 @@ function buildLaneCadenceCandidates(lanes, todayDayKey, windowEndDayKey, timeZon
     let templateIdx = 0;
     while (cursor && cursor <= windowEndDayKey) {
       const titleFn = templates[templateIdx % templates.length];
+      const title = titleFn(laneLabel, {
+        cadenceIndex: templateIdx,
+        recurrenceIndex: Math.floor(templateIdx / templates.length),
+        targetDate: cursor,
+        laneId,
+      });
+      const normalizedRecurringTitle = `${laneId}:${normalizeRecurringCadenceTitle(title)}`;
+      if (seenRecurringTitles.has(normalizedRecurringTitle)) {
+        cursor = addDays(cursor, LANE_CADENCE_INTERVAL_DAYS, timeZone);
+        templateIdx += 1;
+        continue;
+      }
+      seenRecurringTitles.add(normalizedRecurringTitle);
       candidates.push({
         key: `cadence:${laneId}:${cursor}`,
-        title: titleFn(laneLabel),
+        title,
         minutes: 60,
         practice: mapMasterPlanLaneToPractice(domain),
         priority: 4,
@@ -5809,7 +6371,7 @@ function buildLaneCadenceCandidates(lanes, todayDayKey, windowEndDayKey, timeZon
         targetDate: cursor,
         milestoneType: 'checkpoint',
         derivedFrom: `cadence:${laneId}`,
-        missConsequence: `Consistent execution in ${laneLabel} supports launch readiness.`,
+        missConsequence: `Because ${laneLabel} depends on fresh operating evidence, this block creates the current artifact or decision the next phase step needs.`,
       });
       cursor = addDays(cursor, LANE_CADENCE_INTERVAL_DAYS, timeZone);
       templateIdx += 1;
@@ -5930,13 +6492,31 @@ function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
     String(descriptors?.goalContract?.fullHorizonEndDayKey || descriptors?.fullHorizonEndDayKey || '').trim() ||
     activePhaseDeadlineDayKey;
   const windowEndDayKey = activePhaseDeadlineDayKey;
+  const allowFirstCycleMilestoneProposal = (laneDomain, title) => {
+    const domain = String(laneDomain || '').trim().toLowerCase();
+    const normalizedTitle = String(title || '').trim().toLowerCase();
+    if (['capital', 'institution', 'civic'].includes(domain)) {
+      return false;
+    }
+    if (
+      /^(first revenue event|growth milestone|revenue milestone|scale \/ retention target|recurring pipeline established|positioning complete|repositioning complete|widen channel distribution loop)$/i.test(
+        normalizedTitle
+      )
+    ) {
+      return false;
+    }
+    return true;
+  };
   const milestoneCandidates = milestones
     .filter((milestone) => {
       const targetDate = String(milestone?.targetDate || '').trim();
       if (!targetDate) {
         return false;
       }
-      return targetDate >= todayDayKey && targetDate <= windowEndDayKey;
+      if (targetDate < todayDayKey || targetDate > windowEndDayKey) {
+        return false;
+      }
+      return allowFirstCycleMilestoneProposal(milestone?.lane?.domain || milestone?.domain || '', milestone?.title);
     })
     .map((milestone) => ({
       key: `milestone:${milestone.id}`,
@@ -5962,6 +6542,9 @@ function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
       const firstMilestone = milestones.find(
         (milestone) => (milestone?.lane?.id || milestone?.laneId || null) === lane.id
       );
+      if (!allowFirstCycleMilestoneProposal(lane?.domain || '', firstMilestone?.title || '')) {
+        return null;
+      }
       return firstMilestone
         ? {
             key: `milestone:${firstMilestone.id}`,
@@ -6065,6 +6648,14 @@ function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
       });
       return;
     }
+    if (/^complete repositioning for /i.test(titleResult.title)) {
+      skippedCandidates.push({
+        key: candidate?.key || null,
+        reasonCode: 'UNACTIONABLE_BLOCK_TITLE',
+        originalTitle: String(candidate?.title || '').trim() || null,
+      });
+      return;
+    }
     const durationMinutes = Number(candidate?.minutes || 60);
     const targetDate = String(candidate?.targetDate || '').trim() || null;
     let preferredSlotIndex = -1;
@@ -6106,27 +6697,51 @@ function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
     const startISO = start?.startISO || `${scheduledDayKey}T10:00:00.000Z`;
     const durationMinutes = Number(candidate?.minutes || 60);
     const lane = state?.masterPlanLanesById?.[candidate?.laneId || ''] || null;
+    const canonicalIdentity = buildCanonicalScheduleIdentityMetadata(state, {
+      cycle: state?.cyclesById?.[cycleId] || null,
+      plan,
+      block: candidate,
+      laneId: candidate?.laneId || lane?.id || null,
+      laneLabel: candidate?.laneLabel || candidate?.laneTitle || lane?.title || lane?.label || null,
+      phaseId: 'phase-p1',
+      phaseLabel: 'P1',
+      workType: candidate?.workType || candidate?.milestoneType || candidate?.blockType || null,
+    });
     const laneProjection = projectEnterpriseDisplay({
-      laneId: candidate?.laneId || lane?.domain || '',
-      laneLabel: candidate?.laneLabel || candidate?.laneTitle || lane?.title || lane?.label || candidate?.laneId || '',
+      laneId: canonicalIdentity.laneId || lane?.domain || '',
+      laneLabel: canonicalIdentity.laneLabel || lane?.title || lane?.label || candidate?.laneId || '',
       intakeSignals: {
         goalText: String(plan?.goalText || plan?.title || '').trim(),
         declaredLaneIds: Array.isArray(plan?.laneIds) ? plan.laneIds : [],
       },
     });
-    const laneLabel =
-      laneProjection.displayName ||
-      candidate?.laneLabel ||
-      candidate?.laneTitle ||
-      lane?.title ||
-      lane?.label ||
-      candidate?.laneId ||
-      null;
+    const laneLabel = canonicalIdentity.laneLabel;
     const actionTitle = candidate.title || 'First-cycle milestone work';
     const laneDisplayLabel = laneLabel || 'Master plan lane';
-    const producesArtifactText = candidate?.milestoneId
-      ? `Milestone checkpoint: ${actionTitle} completed for ${laneDisplayLabel}`
-      : `First-cycle readiness work: ${actionTitle}`;
+    const detailHierarchy = {
+      phase: canonicalIdentity.phaseLabel || 'P1',
+      lane: laneDisplayLabel,
+      operatingCycle: descriptors?.goalContract?.cycleLabel || null,
+    };
+    const detailContract = resolveBlockPlainLanguage(
+      {
+        title: actionTitle,
+        laneId: canonicalIdentity.laneId,
+        laneLabel: laneDisplayLabel,
+        phaseId: canonicalIdentity.phaseId,
+        phaseLabel: canonicalIdentity.phaseLabel || 'P1',
+        workType: canonicalIdentity.workType,
+        producesArtifact: String(candidate?.expectedOutput || '').trim() || null,
+        passEvidence: String(candidate?.acceptanceEvidence || '').trim() || null,
+        missConsequence: String(candidate?.missConsequence || '').trim() || null,
+      },
+      { hierarchy: detailHierarchy }
+    );
+    const producesArtifactText =
+      String(detailContract?.expectedOutput || '').trim() ||
+      (candidate?.milestoneId
+        ? `Milestone checkpoint: ${actionTitle} completed for ${laneDisplayLabel}`
+        : `First-cycle readiness work: ${actionTitle}`);
     const laneRefId = candidate?.laneId || null;
     const consumedByArray = laneRefId
       ? [`masterPlanLane:${laneRefId}`]
@@ -6134,7 +6749,9 @@ function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
     const consumedByRef = laneRefId
       ? { type: 'masterPlanLane', id: laneRefId }
       : { type: 'masterPlan', id: plan.id };
-    const passEvidenceText = candidate?.missConsequence ||
+    const passEvidenceText =
+      String(detailContract?.acceptanceEvidence || '').trim() ||
+      candidate?.missConsequence ||
       `${actionTitle} confirmed complete with observable progress for ${laneDisplayLabel}.`;
     return {
       id: `suggested:masterplan:${plan.id}:${candidate.key}`,
@@ -6145,13 +6762,21 @@ function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
       masterCalendarId: masterCalendarId || null,
       masterPlanId: plan.id,
       coreMissionContractId: plan?.coreMissionContractId || null,
-      laneId: candidate?.laneId || null,
+      laneId: canonicalIdentity.laneId,
       laneLabel,
+      entityId: canonicalIdentity.entityId,
+      entityLabel: String(detailContract?.entityLabel || canonicalIdentity.entityLabel || '').trim() || null,
+      projectLabel: String(detailContract?.projectLabel || '').trim() || null,
+      initiativeLabel: String(detailContract?.initiativeLabel || detailContract?.projectLabel || '').trim() || null,
+      phaseId: canonicalIdentity.phaseId,
+      phaseLabel: canonicalIdentity.phaseLabel,
+      workType: String(detailContract?.workType || canonicalIdentity.workType || '').trim() || null,
       masterPlanLaneId: candidate?.laneId || null,
       masterPlanMilestoneId: candidate?.milestoneId || null,
       title: candidate.title,
       label: candidate.title,
       expectedOutput:
+        String(detailContract?.expectedOutput || '').trim() ||
         String(candidate?.expectedOutput || '').trim() ||
         `Concrete progress completed for ${String(candidate?.title || '').trim()}.`,
       domain: candidate.practice || 'FOCUS',
@@ -6175,10 +6800,12 @@ function buildMasterPlanFirstCycleProposals(state, plan, descriptors) {
       sessionIndex: index,
       sourceQuestion: candidate?.originalQuestion || null,
       transformedFromQuestion: candidate?.transformedFromQuestion === true,
+      phaseJustification: String(detailContract?.phaseJustification || '').trim() || null,
       producesArtifact: producesArtifactText,
       consumedBy: consumedByArray,
       consumedByRef,
       passEvidence: passEvidenceText,
+      completionAssertion: String(detailContract?.completionAssertion || '').trim() || null,
     };
   });
   const scheduledMinutes = blocks.reduce((sum, block) => sum + Number(block?.durationMinutes || 0), 0);
@@ -6427,6 +7054,13 @@ function generateMasterPlanFirstCycle(state, payload = {}) {
   state.scheduleApplied = false;
   state.scheduleLifecycle = suggestions.length > 0 ? 'draft_schedule_ready' : 'no_schedule';
   cycle.scheduleLifecycle = suggestions.length > 0 ? 'draft_schedule_ready' : 'no_schedule';
+  if (suggestions.length > 0) {
+    cycle.scheduleGeneratedAtISO = state.appTime?.nowISO || new Date().toISOString();
+    cycle.validUntilDayKey = coerceDayKey(cycle.scheduleGeneratedAtISO, descriptors.timeZone || APP_TIME_ZONE) || null;
+    cycle.scheduleReviewBlocks = [];
+    cycle.scheduleAppliedAtISO = null;
+    cycle.scheduleActivatedAtISO = null;
+  }
   state.lastPlanError =
     suggestions.length > 0
       ? null
@@ -6537,6 +7171,11 @@ function applyPlanQualityGates(state) {
           contract?.cadence?.type === 'recurring' ||
           contract?.recurrence?.type === 'recurring',
         earlyCompletionJustification: contract?.earlyCompletionJustification || null,
+        workWindows:
+          contract?.workWindows ||
+          cycle?.goalContract?.workWindows ||
+          state?.goalExecutionContract?.workWindows ||
+          null,
       },
     });
     cycle.planQualityGate = result;
@@ -6812,6 +7451,43 @@ function applyGoalPolicy(state) {
   state.masterPlanPolicyByPlanId = masterPlanPolicyByPlanId;
 }
 
+// Content key over the inputs that determine the (expensive) full-horizon substrate.
+// Day/clock inputs are deliberately excluded: the dated forecast substrate is
+// horizon-relative, not today-relative. Over-inclusion here can only force a
+// needless recompute (correct but slower); it can never produce a stale substrate.
+function buildFullHorizonMemoKey(state, plan, mode, scheduleLifecycleState) {
+  const activeCycleId = String(state?.activeCycleId || '').trim();
+  const activeCycle = activeCycleId ? state?.cyclesById?.[activeCycleId] || null : null;
+  // policyState is derived goal-policy output re-stamped with a wall-clock
+  // timestamp every compute; it is not an expansion input, so excluding it keeps
+  // the key stable across unrelated mutations.
+  const { policyState: _omitPolicyState, ...planForKey } = plan || {};
+  try {
+    return JSON.stringify({
+      plan: planForKey,
+      lanes: state?.masterPlanLanesById || null,
+      milestones: state?.masterPlanMilestonesById || null,
+      mode,
+      scheduleLifecycleState,
+      cycle: activeCycle
+        ? {
+            id: activeCycle.id || null,
+            deadlineDayKey: activeCycle.deadlineDayKey || null,
+            contractDeadline: activeCycle.contract?.deadlineISO || null,
+            goalDeadline: activeCycle.goalContract?.deadlineISO || null,
+            scheduleState: hasCycleOwnedScheduleState(activeCycle),
+          }
+        : null,
+      availabilityWindows: state?.availabilityPolicy?.workWindows || null,
+      contractWindows: state?.goalExecutionContract?.workWindows || null,
+      timeZone: state?.appTime?.timeZone || 'UTC',
+    });
+  } catch {
+    // Non-serializable input: never reuse (force a correct recompute).
+    return `__fh_nomemo__${Math.random()}`;
+  }
+}
+
 function applyLongHorizonCalendarBlocks(state) {
   // Resolve active master plan
   const activeProfileId = String(state?.activeProfileId || '').trim();
@@ -6829,6 +7505,30 @@ function applyLongHorizonCalendarBlocks(state) {
   // In current_cycle mode: no forecast blocks — calendar uses execution pipeline only
   if (!plan || mode === 'current_cycle') {
     state.calendarDisplayBlocks = [];
+    return;
+  }
+
+  // Memoize the expensive full-horizon expansion. It rebuilds a multi-MB dated
+  // substrate on every mutation; at enterprise scale that is ~900ms per keystroke
+  // and ~12MB of fresh garbage (the UI freeze + the long-session crash). When the
+  // substrate inputs are unchanged, reuse the prior derivation carried on the
+  // reducer draft and only refresh the cheap day-dependent agenda metadata.
+  const fullHorizonMemoKey = buildFullHorizonMemoKey(state, plan, mode, scheduleLifecycleState);
+  if (
+    state.__fullHorizonMemoKey === fullHorizonMemoKey &&
+    Array.isArray(state.fullHorizonScheduleBlocks) &&
+    Array.isArray(state.calendarDisplayBlocks) &&
+    'fullHorizonCoverageAudit' in state
+  ) {
+    attachFullHorizonAgendaMetadata(state, plan, operationalDescriptors, {
+      strategicCoverageState: state.fullHorizonCoverageAudit?.fullHorizonCovered
+        ? 'covered'
+        : state.fullHorizonCoverageAudit?.horizonExpanded
+          ? 'expanded'
+          : 'unresolved',
+      planQualityState: state.fullHorizonPlanQuality?.state || null,
+      blockQualityState: state.fullHorizonBlockQuality?.state || null,
+    });
     return;
   }
 
@@ -6889,6 +7589,20 @@ function applyLongHorizonCalendarBlocks(state) {
     });
     allForecastBlocks.push(...blocks);
   }
+  const fullHorizonWorkWindows =
+    (state?.availabilityPolicy?.workWindows && typeof state.availabilityPolicy.workWindows === 'object'
+      ? state.availabilityPolicy.workWindows
+      : null) ||
+    (state?.goalExecutionContract?.workWindows && typeof state.goalExecutionContract.workWindows === 'object'
+      ? state.goalExecutionContract.workWindows
+      : null) ||
+    null;
+  const fullHorizonWorkDays = fullHorizonWorkWindows
+    ? Object.entries(fullHorizonWorkWindows)
+        .filter(([, windows]) => Array.isArray(windows) && windows.length > 0)
+        .map(([day]) => String(day || '').trim().toLowerCase())
+        .filter(Boolean)
+    : ['mon', 'tue', 'wed', 'thu', 'fri'];
 
   // Expand the sparse forecast markers into a full-horizon dated workload substrate.
   // This produces a canonical `fullHorizonScheduleBlocks` array that all UI surfaces
@@ -6910,9 +7624,10 @@ function applyLongHorizonCalendarBlocks(state) {
       committedBlocks: [],
       // Long-horizon forecast blocks are inspectable planning artifacts, not
       // executable schedule commitments. Do not force them through cycle work-window
-      // placement, which is both semantically wrong for locked future work and
-      // explosively expensive at five-year substrate size.
-      workDays: [],
+      // time-slot placement, which is semantically wrong for locked future work
+      // and explosively expensive at five-year substrate size. We still use the
+      // canonical workday set to spread dated forecast blocks across the week.
+      workDays: fullHorizonWorkDays.length > 0 ? fullHorizonWorkDays : ['mon', 'tue', 'wed', 'thu', 'fri'],
       workWindows: null,
       timeZone: state.appTime?.timeZone || 'UTC',
     });
@@ -7094,6 +7809,7 @@ function applyLongHorizonCalendarBlocks(state) {
     planQualityState: planQuality?.state || null,
     blockQualityState: blockQuality?.state || null,
   });
+  state.__fullHorizonMemoKey = fullHorizonMemoKey;
 }
 
 function applyExecutionCorrection(state) {
@@ -8135,7 +8851,10 @@ function applyCycleScoring(state) {
   const activeDayKey = state?.appTime?.activeDayKey || state?.today?.date || nowDayKey();
   const nowISO = state?.appTime?.nowISO || `${activeDayKey}T12:00:00.000Z`;
   const scopedEvents = getCanonicalExecutionEventsForCycleGoal(state, cycleId, goalId);
-  const materialized = materializeBlocksFromEvents(scopedEvents, { todayISO: state.today?.date });
+  const materialized = materializeBlocksFromEvents(scopedEvents, {
+    todayISO: state.today?.date,
+    canonicalBlocks: state.blockStore?.blocks || null,
+  });
   const blocks = Array.from(materialized?.blocksById?.values?.() || []).filter(Boolean);
   const supportBlocks = getPreExecutionSupportBlocksForCycleGoal({
     state,
@@ -8402,7 +9121,10 @@ function applyCycleDynamics(state) {
   const nowISO =
     state?.appTime?.nowISO || `${state?.appTime?.activeDayKey || state?.today?.date || nowDayKey()}T12:00:00.000Z`;
   const scopedEvents = getCanonicalExecutionEventsForCycleGoal(state, cycleId, goalId);
-  const materialized = materializeBlocksFromEvents(scopedEvents, { todayISO: state.today?.date });
+  const materialized = materializeBlocksFromEvents(scopedEvents, {
+    todayISO: state.today?.date,
+    canonicalBlocks: state.blockStore?.blocks || null,
+  });
   const scopedBlocks = Array.from(materialized?.blocksById?.values?.() || []).filter(Boolean);
   const profile = deriveCycleDynamicsProfile({
     cycleId,
@@ -8571,13 +9293,13 @@ function enforceCycleDynamicsTransitions(state, { cycleId, goalId, nowISO, block
   if (!didAppend) {
     return;
   }
-  const rematerialized = materializeBlocksFromEvents(state.executionEvents || [], { todayISO: state.today?.date });
+  const rematerialized = materializeBlocksFromEvents(state.executionEvents || [], { todayISO: state.today?.date, canonicalBlocks: state.blockStore?.blocks || null });
   state.today.blocks = rematerialized.todayBlocks || [];
   state.cycle = rematerialized.days || [];
 }
 
 function applyProgressCredit(state) {
-  const { days } = materializeBlocksFromEvents(state.executionEvents || [], { todayISO: state.today?.date });
+  const { days } = materializeBlocksFromEvents(state.executionEvents || [], { todayISO: state.today?.date, canonicalBlocks: state.blockStore?.blocks || null });
   const allBlocks = (days || []).flatMap((d) => d.blocks || []);
   const progressByGoal = {};
   allBlocks.forEach((block) => {
@@ -8833,20 +9555,43 @@ function rescheduleBlock(state, id, start, end) {
 }
 
 function recomputeSummaries(state) {
+  const timeZone = state.appTime?.timeZone || APP_TIME_ZONE;
+  const liveDayKey =
+    state.appTime?.activeDayKey ||
+    dayKeyFromISO(state.appTime?.nowISO || '', timeZone) ||
+    state.today?.date ||
+    nowDayKey(timeZone);
+  const selectedDayKey = state.viewDate || liveDayKey;
+  state.today = { ...(state.today || {}), date: liveDayKey };
   buildTodayFromPattern(state);
-  const viewDate = state.viewDate || state.today?.date || nowDayKey();
-  const cycle = buildMonthCycle(state, viewDate);
+  const cycle = buildMonthCycle(state, selectedDayKey);
   const targetMap = targetMinutesMap(getPatternConfig(state));
 
   const recomputedCycle = cycle.map((day) => summarizeDay(day, targetMap, state));
-  const today = recomputedCycle.find((d) => d.date === viewDate) || recomputedCycle[0];
-  const currentWeek = buildWeekFromCycle(recomputedCycle, viewDate);
+  const selectedDay = recomputedCycle.find((d) => d.date === selectedDayKey) || recomputedCycle[0];
+  const todayFromCycle = recomputedCycle.find((d) => d.date === liveDayKey) || null;
+  const liveDayBlocks = getAllBlocks(state).filter((block) => getBlockDayKey(block) === liveDayKey);
+  const today = summarizeDay(
+    todayFromCycle || {
+      date: liveDayKey,
+      blocks: liveDayBlocks,
+      completionRate: 0,
+      driftSignal: 'contained',
+      loadByPractice: {},
+      practices: [],
+      label: liveDayKey,
+    },
+    targetMap,
+    state
+  );
+  const currentWeek = buildWeekFromCycle(recomputedCycle, selectedDayKey);
 
   state.cycle = recomputedCycle;
   state.today = today;
   state.currentWeek = currentWeek;
   computeWeekSummary(state, targetMap);
   state.today.summaryLine = buildDaySummary(state.today, state.vector, state.lenses);
+  state.selectedDay = selectedDay;
   state.cycle = state.cycle.map((day) => ({
     ...day,
     summaryLine: buildDaySummary(day, state.vector, state.lenses),
@@ -9242,11 +9987,15 @@ function dayKeyUTC(iso) {
 
 export function getBlockDayKey(block) {
   if (!block) return null;
+  const localizedFromStart = dayKeyFromISO(block?.start || block?.startISO || '', APP_TIME_ZONE);
+  if (localizedFromStart) {
+    return localizedFromStart;
+  }
   const explicit = String(block?.date || block?.dayKey || '').trim();
   if (explicit) {
     return explicit;
   }
-  return dayKeyFromISO(block?.start || block?.startISO || '', 'UTC');
+  return null;
 }
 
 export function projectWeekDays({ anchorDate, blocks }) {
@@ -10892,10 +11641,22 @@ function setActiveCycle(state, cycleId) {
     return;
   }
   state.activeCycleId = cycleId;
-  if (cycle.startedAtDayKey) {
-    state.viewDate = cycle.startedAtDayKey;
+  const visibleStartDayKey =
+    resolveEffectiveExecutableStartDayKey({
+      executionStartDayKey: cycle?.executionStartDayKey || null,
+      reassessmentCompletedAtISO: cycle?.reassessmentCompletedAtISO || null,
+      scheduleGeneratedAtISO: cycle?.scheduleGeneratedAtISO || cycle?.autoAsanaPlan?.audit?.generatedAtISO || null,
+      fallbackStartDayKey:
+        cycle?.goalContract?.startDayKey ||
+        cycle?.goalContract?.startDateISO ||
+        cycle?.goalContract?.startDate ||
+        cycle?.startedAtDayKey ||
+        null,
+    }) || cycle?.startedAtDayKey || null;
+  if (visibleStartDayKey) {
+    state.viewDate = visibleStartDayKey;
     if (state.appTime) {
-      state.appTime.activeDayKey = cycle.startedAtDayKey;
+      state.appTime.activeDayKey = visibleStartDayKey;
       state.appTime.isFollowingNow = false;
     }
   }
@@ -10907,7 +11668,10 @@ function collectCycleHistorySignals(state, cycle) {
     return null;
   }
   const cycleEvents = (cycle.executionEvents || []).filter((event) => (event?.cycleId || cycle.id) === cycle.id);
-  const materialized = materializeBlocksFromEvents(cycleEvents, { todayISO: cycle.endedAtDayKey || state.today?.date });
+  const materialized = materializeBlocksFromEvents(cycleEvents, {
+    todayISO: cycle.endedAtDayKey || state.today?.date,
+    canonicalBlocks: state.blockStore?.blocks || null,
+  });
   const materializedBlocks = (materialized.days || []).flatMap((day) => day.blocks || []);
   return deriveCycleHistorySignals(cycle, materializedBlocks, cycleEvents, {
     depTightCount: cycle?.planPreview?.policySelectionSignalsSnapshot?.depTightCount,
@@ -11305,6 +12069,61 @@ function archiveAndCloneCycle(state, cycleId, overrides = {}) {
   state.lastPlanError = null;
 }
 
+/**
+ * routeGenerateSchedule (2026-07-13 unified schedule generation design, §6.2 — revised).
+ *
+ * Single entry point for the operator-facing "Generate" action, replacing "which button did
+ * the operator press" as the thing that decides which engine runs.
+ *
+ * Investigation before writing this (see design doc §6.2) found that `generatePlan` is NOT a
+ * redundant twin of `generateColdPlanForCycle` — it delegates to `compileAutoAsanaPlan`, a
+ * substantially richer engine (LLM action graphs, session-plan pacing, dependency chains,
+ * recovery/feasibility hooks) that is the right tool once a goal is admitted with a real
+ * action graph. `generateColdPlanForCycle`'s matrix-driven path is the right tool for a cycle
+ * with Master Grid intake but no admitted action graph yet. Merging their internals would be
+ * a capability regression, not a unification, and would reach into course-correction/
+ * feasibility machinery the operator explicitly deferred. So this function does NOT
+ * reimplement or alter either engine — it only routes.
+ *
+ * Routing rule: try `generatePlan` first (unchanged, including its own internal Master Plan
+ * bridge branch) — this preserves today's behavior exactly for every cycle that already
+ * works. Only when `generatePlan` reports its own well-defined `NO_ACTION_GRAPH` signal
+ * (meaning: no admitted contract, or no action graph/planProof exists for this cycle yet) does
+ * this fall back to `generateColdPlanForCycle`'s matrix-driven engine. Every other
+ * `generatePlan` gate (`CYCLE_READ_ONLY`, `GOAL_NOT_ADMITTED`, intake-readiness codes,
+ * `CURRENT_STATE_REASSESSMENT_REQUIRED`, `REGENERATE_BLOCKED_ACTIVE_SCHEDULE`, ...) is a real
+ * block, not a "try the other engine" signal, and is left standing untouched.
+ *
+ * Follow-up (2026-07-13, same day): closing the loop. Investigation confirmed that, in this
+ * app's actual live usage, `generatePlan` ALWAYS hits `NO_ACTION_GRAPH` — nothing in the
+ * shipped UI ever populates an admitted action graph (`GoalAdmissionPage.tsx` is orphaned,
+ * `COMPLETE_ONBOARDING`+`COMPILE_GOAL_EQUATION` is test-only, `generatePlanWithLLM` is
+ * unreachable from the Generate button). So this fallback isn't an edge case — it is, in
+ * practice, the only thing that ever runs. But `generateColdPlanForCycle` only ever wrote
+ * `cycle.coldPlan`/`cycle.schedule`, never `state.proposedBlocks` — the one thing the
+ * dashboard's Review/Apply screen and `applyDraftSchedule`/`activateSchedule` actually read.
+ * The matrix engine was computing a real schedule with nowhere for the operator to see or
+ * act on it. Bridged below via `buildProposedBlocksFromSchedule`, which adapts the canonical
+ * `ScheduledBlock[]` into the same 'suggested' proposal shape `generatePlan`'s
+ * `compileAutoAsanaPlan` path already produces — no changes to the review/apply pipeline
+ * itself, which only ever required `item.startISO` to be present (see
+ * `buildScheduleReviewBlock`), already true of every Stage-1 ScheduledBlock.
+ */
+function routeGenerateSchedule(state, payload = {}) {
+  generatePlan(state, payload);
+  if (state.lastPlanError?.code === 'NO_ACTION_GRAPH') {
+    generateColdPlanForCycle(state, { rebaseMode: payload?.rebaseMode || 'NONE' });
+    const fallbackCycle = getActiveCycle(state);
+    const scheduledBlocks = fallbackCycle?.schedule?.blocks;
+    if (fallbackCycle && Array.isArray(scheduledBlocks) && scheduledBlocks.length > 0) {
+      const proposals = buildProposedBlocksFromSchedule(scheduledBlocks, {
+        createdAtISO: state.appTime?.nowISO || new Date().toISOString(),
+      });
+      setCycleProposedBlocks(state, fallbackCycle.id, proposals);
+    }
+  }
+}
+
 function generatePlan(state, payload = {}) {
   const debugPerfActions = isRuntimeEnvFlagEnabled('JERICHO_DEBUG_PERF_ACTIONS');
   const perfGenerateStart = debugPerfActions ? Date.now() : 0;
@@ -11535,7 +12354,9 @@ function generatePlan(state, payload = {}) {
     return;
   }
   const timeZone = state.appTime?.timeZone || 'UTC';
-  const nowISO = state.appTime?.nowISO || new Date().toISOString();
+  const runtimeNowISO = new Date().toISOString();
+  const runtimeNowDayKey = dayKeyFromISO(runtimeNowISO, timeZone) || null;
+  const nowISO = state.appTime?.nowISO || runtimeNowISO;
   const nowDayKeyFromClock = dayKeyFromISO(nowISO, timeZone) || null;
   const requestedAnchorDayKey = coerceDayKey(payload?.anchorDayKey, timeZone) || null;
   const activeDayKey = state.appTime?.activeDayKey || null;
@@ -11715,7 +12536,7 @@ function generatePlan(state, payload = {}) {
     timezone: timeZone,
     weeklyWindows,
     dayEndAtHHMM: scopedConstraints?.dayEndAtHHMM || state?.availabilityPolicy?.dayEndAtHHMM,
-    cycleStartDayKey: contractStartDayKey,
+    cycleStartDayKey: schedulerStartDayKey,
     cycleEndDayKey: contractEndDayKey,
     blackoutDates: Array.from(blackoutDates).sort(),
   };
@@ -11732,7 +12553,7 @@ function generatePlan(state, payload = {}) {
   constraints.longHorizonNonRecurring = horizonDays >= 180 && !isRecurringLongHorizon;
   constraints.earlyCompletionJustification = contract?.earlyCompletionJustification || null;
   const horizonEnd = addDays(schedulerStartDayKey, Math.max(0, horizonDays - 1), timeZone);
-  const { days } = materializeBlocksFromEvents(state.executionEvents || [], { todayISO: state.today?.date });
+  const { days } = materializeBlocksFromEvents(state.executionEvents || [], { todayISO: state.today?.date, canonicalBlocks: state.blockStore?.blocks || null });
   const acceptedBlocks = (days || []).flatMap((d) =>
     (d.blocks || []).filter((b) => {
       if (!b || b?.cycleId !== cycle.id) {
@@ -11828,45 +12649,59 @@ function generatePlan(state, payload = {}) {
   if (cycle.selectedPlanResolutionKind && !candidateResolutionKinds.includes(cycle.selectedPlanResolutionKind)) {
     cycle.selectedPlanResolutionKind = null;
   }
-  const suggestions = (cycle.autoAsanaPlan?.horizonBlocks || []).map((block, index) => ({
-    id: block.identityKey || block.id || `suggested:auto:${cycle.id}:${index}`,
-    goalId: contract.goalId,
-    cycleId: cycle.id,
-    status: 'suggested',
-    title: block.title || 'Scheduled action',
-    domain: plan?.primaryDomain || 'FOCUS',
-    durationMinutes: Number(block.durationMinutes) || 30,
-    createdAtISO: nowISO,
-    startISO: block.startISO,
-    endISO: block.endISO || null,
-    dayKey: block.dayKey,
-    identityKey: block.identityKey || null,
-    deliverableId: block.deliverableId || null,
-    actionId: block.actionId || null,
-    directDependencyIds: Array.isArray(block.directDependencyIds) ? [...block.directDependencyIds] : [],
-    directDependencyDetails: Array.isArray(block.directDependencyDetails) ? [...block.directDependencyDetails] : [],
-    transitiveDependencyIds: Array.isArray(block.transitiveDependencyIds) ? [...block.transitiveDependencyIds] : [],
-    transitiveDependencyDetails: Array.isArray(block.transitiveDependencyDetails)
-      ? [...block.transitiveDependencyDetails]
-      : [],
-    commerceReadinessLevel: block.commerceReadinessLevel || null,
-    placementBasis: block.placementBasis || 'confirmed',
-    assumedDependencies: Array.isArray(block.assumedDependencies) ? [...block.assumedDependencies] : [],
-    blockType: block.blockType || 'execution',
-    owner: block.owner,
-    producesArtifact: block.producesArtifact,
-    consumedBy: Array.isArray(block.consumedBy) ? [...block.consumedBy] : block.consumedBy,
-    passEvidence: block.passEvidence,
-    consumedByRef: block.consumedByRef ? { ...block.consumedByRef } : block.consumedByRef,
-    waitType: block.waitType || null,
-    minimumDurationBusinessDays: block.minimumDurationBusinessDays || null,
-    parallelWorkSuggestions: Array.isArray(block.parallelWorkSuggestions) ? [...block.parallelWorkSuggestions] : [],
-    requiredWorkFamily: block.requiredWorkFamily || null,
-    capitalGateId: block.capitalGateId || null,
-    pathwayTag: block.pathwayTag || null,
-    sessionIndex: Number.isFinite(block.sessionIndex) ? Number(block.sessionIndex) : index,
-    source: 'action_graph',
-  }));
+  const suggestions = (cycle.autoAsanaPlan?.horizonBlocks || []).map((block, index) => {
+    const canonicalIdentity = buildCanonicalScheduleIdentityMetadata(state, {
+      cycle,
+      block,
+      workType: block.workType || block.blockType || null,
+    });
+    return {
+      id: block.identityKey || block.id || `suggested:auto:${cycle.id}:${index}`,
+      goalId: contract.goalId,
+      cycleId: cycle.id,
+      status: 'suggested',
+      title: block.title || 'Scheduled action',
+      domain: plan?.primaryDomain || 'FOCUS',
+      durationMinutes: Number(block.durationMinutes) || 30,
+      createdAtISO: nowISO,
+      startISO: block.startISO,
+      endISO: block.endISO || null,
+      dayKey: block.dayKey,
+      identityKey: block.identityKey || null,
+      laneId: canonicalIdentity.laneId,
+      laneLabel: canonicalIdentity.laneLabel,
+      entityId: canonicalIdentity.entityId,
+      entityLabel: canonicalIdentity.entityLabel,
+      phaseId: canonicalIdentity.phaseId,
+      phaseLabel: canonicalIdentity.phaseLabel,
+      workType: canonicalIdentity.workType,
+      deliverableId: block.deliverableId || null,
+      actionId: block.actionId || null,
+      directDependencyIds: Array.isArray(block.directDependencyIds) ? [...block.directDependencyIds] : [],
+      directDependencyDetails: Array.isArray(block.directDependencyDetails) ? [...block.directDependencyDetails] : [],
+      transitiveDependencyIds: Array.isArray(block.transitiveDependencyIds) ? [...block.transitiveDependencyIds] : [],
+      transitiveDependencyDetails: Array.isArray(block.transitiveDependencyDetails)
+        ? [...block.transitiveDependencyDetails]
+        : [],
+      commerceReadinessLevel: block.commerceReadinessLevel || null,
+      placementBasis: block.placementBasis || 'confirmed',
+      assumedDependencies: Array.isArray(block.assumedDependencies) ? [...block.assumedDependencies] : [],
+      blockType: block.blockType || 'execution',
+      owner: block.owner,
+      producesArtifact: block.producesArtifact,
+      consumedBy: Array.isArray(block.consumedBy) ? [...block.consumedBy] : block.consumedBy,
+      passEvidence: block.passEvidence,
+      consumedByRef: block.consumedByRef ? { ...block.consumedByRef } : block.consumedByRef,
+      waitType: block.waitType || null,
+      minimumDurationBusinessDays: block.minimumDurationBusinessDays || null,
+      parallelWorkSuggestions: Array.isArray(block.parallelWorkSuggestions) ? [...block.parallelWorkSuggestions] : [],
+      requiredWorkFamily: block.requiredWorkFamily || null,
+      capitalGateId: block.capitalGateId || null,
+      pathwayTag: block.pathwayTag || null,
+      sessionIndex: Number.isFinite(block.sessionIndex) ? Number(block.sessionIndex) : index,
+      source: 'action_graph',
+    };
+  });
   setCycleProposedBlocks(state, cycle.id, suggestions);
   suggestions.forEach((suggestion) => {
     appendTransitionTrace(state, {
@@ -11893,8 +12728,25 @@ function generatePlan(state, payload = {}) {
     timeZone: state.appTime?.timeZone || APP_TIME_ZONE,
   });
   const perfPreviewMs = debugPerfActions ? Date.now() - perfPreviewStart : 0;
+  const rawProposalCount = Array.isArray(state.proposedBlocks) ? state.proposedBlocks.length : 0;
   const suggestedCount = (state.proposedBlocks || []).filter((item) => item?.status === 'suggested').length;
+  const rejectedProposals = (state.proposedBlocks || []).filter((item) => item?.status === 'rejected');
+  const rejectedCount = rejectedProposals.length;
   if (suggestedCount === 0) {
+    if (rawProposalCount > 0 && rejectedCount === rawProposalCount) {
+      const admissionReasonCodes = [...new Set(rejectedProposals.flatMap((item) => item?.admissionFailureCodes || []).filter(Boolean))];
+      state.lastPlanError = {
+        code: 'NO_ADMISSIBLE_PROPOSED_BLOCKS',
+        reason: 'Generated blocks were withheld because they failed pre-surface admission checks.',
+        reasonCodes: admissionReasonCodes.slice(0, 12),
+        meta: {
+          ...baseErrorMeta,
+          rejectedProposalCount: rejectedCount,
+          rawProposalCount,
+        },
+      };
+      setGenerateHeartbeat(state, cycle.id, 0, state.lastPlanError.code);
+    } else {
     const conflictCodes = Array.from(
       new Set(
         (cycle.autoAsanaPlan?.conflicts || [])
@@ -11967,21 +12819,20 @@ function generatePlan(state, payload = {}) {
       };
       setGenerateHeartbeat(state, cycle.id, 0, state.lastPlanError.code);
     }
-  } else if (!state.lastPlanError || state.lastPlanError.code === 'NO_PROPOSED_BLOCKS') {
-    if (suggestedCount > 0) {
-      cycle.scheduleLifecycle = 'draft_schedule_ready';
-      cycle.scheduleReviewBlocks = [];
-      cycle.scheduleAppliedAtISO = null;
-      cycle.scheduleActivatedAtISO = null;
-      state.scheduleLifecycle = 'draft_schedule_ready';
-      state.scheduleReviewBlocks = [];
-      state.scheduleApplied = false;
-      state.pendingPlanConfirmation = true;
     }
+  } else {
+    cycle.scheduleLifecycle = 'draft_schedule_ready';
+    cycle.scheduleReviewBlocks = [];
+    cycle.scheduleGeneratedAtISO = nowISO;
+    cycle.validUntilDayKey = coerceDayKey(nowISO, state.appTime?.timeZone || APP_TIME_ZONE) || null;
+    cycle.scheduleAppliedAtISO = null;
+    cycle.scheduleActivatedAtISO = null;
+    state.scheduleLifecycle = 'draft_schedule_ready';
+    state.scheduleReviewBlocks = [];
+    state.scheduleApplied = false;
+    state.pendingPlanConfirmation = true;
     state.lastPlanError = null;
     setGenerateHeartbeat(state, cycle.id, suggestedCount, null);
-  } else {
-    setGenerateHeartbeat(state, cycle.id, suggestedCount, state.lastPlanError?.code || null);
   }
   logGenerateDiagnostics({
     state,
@@ -12476,6 +13327,86 @@ function applyDraftSchedule(state, payload = {}) {
     });
     return;
   }
+  const admissionRejectedDrafts = [];
+  // Admission audit only applies to master-plan cycles; direct-goal cycles
+  // lack lane/entity context the audit requires.
+  const applyHasMasterPlanContext = Boolean(cycle?.masterPlanId);
+  proposedItems = proposedItems.filter((item) => {
+    if (!applyHasMasterPlanContext) {
+      return true;
+    }
+    const reviewBlock = buildScheduleReviewBlock(state, item, {
+      cycleId: cycle.id,
+      goalId: contract.goalId,
+      timeZone,
+      defaultDomain: state.planDraft?.primaryDomain || 'FOCUS',
+    });
+    if (!reviewBlock) {
+      return false;
+    }
+    const admissionAudit = auditBlockForSurfaceAdmission(state, reviewBlock, {
+      cycleId: cycle.id,
+      goalId: contract.goalId,
+    });
+    if (admissionAudit.admitted) {
+      return true;
+    }
+    admissionRejectedDrafts.push({
+      id: item?.id || null,
+      title: item?.title || 'Rejected block',
+      actionId: item?.actionId || null,
+      targetDayKey: item?.dayKey || null,
+      deferredReason: 'admission_audit_failed',
+      failureCodes: admissionAudit.hardFailureCodes,
+    });
+    return false;
+  });
+  if (!proposedItems.length) {
+    cycle.deferredScheduleBlocks = admissionRejectedDrafts;
+    setCycleProposedBlocks(
+      state,
+      cycle.id,
+      sourceBlocks.map((item) =>
+        admissionRejectedDrafts.some((draft) => draft.id && draft.id === item?.id)
+          ? {
+              ...item,
+              status: 'rejected',
+              admissionFailureCodes:
+                admissionRejectedDrafts.find((draft) => draft.id && draft.id === item?.id)?.failureCodes || [],
+              deferredReason: 'admission_audit_failed',
+            }
+          : item
+      )
+    );
+    state.lastPlanError = {
+      code: 'NO_ADMISSIBLE_PROPOSED_BLOCKS',
+      reason: 'Generated blocks failed schedule admission and were deferred before surfacing in the active schedule.',
+      cycleId: cycle.id,
+      goalId: contract.goalId,
+      reasonCodes: admissionRejectedDrafts.flatMap((draft) => draft.failureCodes || []).slice(0, 12),
+    };
+    return;
+  }
+  if (isUnactivatedGeneratedScheduleExpired(state, cycle, proposedItems, { timeZone })) {
+    const staleAudit = buildScheduleTemporalAudit(state, cycle, proposedItems, { timeZone });
+    cycle.reassessmentStatus = 'required';
+    cycle.reassessmentRequiredAtISO = state.appTime?.nowISO || new Date().toISOString();
+    state.cyclesById[cycle.id] = cycle;
+    state.lastPlanError = {
+      code: 'GENERATED_SCHEDULE_STALE',
+      reason:
+        'This generated schedule expired at the end of its generation day. Reassess current state and regenerate before applying it.',
+      cycleId: cycle.id,
+      goalId: contract.goalId,
+      reasonCodes: staleAudit.temporalReasonCodes,
+      meta: {
+        generatedAtISO: staleAudit.generatedAtISO,
+        validUntilDayKey: staleAudit.validUntilDayKey,
+        executionStartDayKey: staleAudit.executionStartDayKey,
+      },
+    };
+    return;
+  }
   const perfCreateStart = debugPerfActions ? Date.now() : 0;
   const reviewBlocks = proposedItems
     .map((item) =>
@@ -12487,9 +13418,32 @@ function applyDraftSchedule(state, payload = {}) {
       })
     )
     .filter(Boolean);
-  annotateRepeatedSessionTitles(reviewBlocks);
+  const admittedReviewBlocks = [];
+  reviewBlocks.forEach((block) => {
+    if (!applyHasMasterPlanContext) {
+      admittedReviewBlocks.push(block);
+      return;
+    }
+    const admissionAudit = auditBlockForSurfaceAdmission(state, block, {
+      cycleId: cycle.id,
+      goalId: contract.goalId,
+    });
+    if (admissionAudit.admitted) {
+      admittedReviewBlocks.push(block);
+    } else {
+      admissionRejectedDrafts.push({
+        id: block?.suggestionId || block?.id || null,
+        title: block?.title || 'Rejected block',
+        actionId: block?.actionId || null,
+        targetDayKey: block?.dayKey || null,
+        deferredReason: 'admission_audit_failed',
+        failureCodes: admissionAudit.hardFailureCodes,
+      });
+    }
+  });
+  annotateRepeatedSessionTitles(admittedReviewBlocks);
   const temporalAudit = buildScheduleTemporalAudit(state, cycle, proposedItems, { timeZone });
-  cycle.scheduleReviewBlocks = reviewBlocks;
+  cycle.scheduleReviewBlocks = admittedReviewBlocks;
   cycle.scheduleDraftHash = buildScheduleDraftHash(proposedItems);
   cycle.scheduleAppliedAtISO = state.appTime?.nowISO || new Date().toISOString();
   cycle.scheduleGeneratedAtISO = temporalAudit.generatedAtISO;
@@ -12503,7 +13457,7 @@ function applyDraftSchedule(state, payload = {}) {
   cycle.scheduleDebtMinutes = temporalAudit.scheduleDebtMinutes;
   cycle.compressionDelta = temporalAudit.compressionDelta;
   cycle.temporalReasonCodes = temporalAudit.temporalReasonCodes;
-  cycle.scheduleLifecycle = reviewBlocks.length > 0 ? 'applied_review' : 'no_schedule';
+  cycle.scheduleLifecycle = admittedReviewBlocks.length > 0 ? 'applied_review' : 'no_schedule';
   cycle.selectedPlanResolutionKind = resolutionKind || cycle.selectedPlanResolutionKind || null;
   cycle.selectedPlanResolutionAtISO = state.appTime?.nowISO || new Date().toISOString();
   cycle.deferredScheduleBlocks =
@@ -12517,6 +13471,9 @@ function applyDraftSchedule(state, payload = {}) {
           deferredReason: 'horizon_insufficient',
         }))
       : [];
+  if (admissionRejectedDrafts.length > 0) {
+    cycle.deferredScheduleBlocks = [...(cycle.deferredScheduleBlocks || []), ...admissionRejectedDrafts];
+  }
   if (resolutionKind === 'ACCEPT_PARTIAL_PLAN') {
     cycle.lastResolvedPlanSummary = {
       ...(planSummary || {}),
@@ -12527,13 +13484,13 @@ function applyDraftSchedule(state, payload = {}) {
   } else if (resolutionKind === 'REDUCE_CYCLE_COUNT') {
     cycle.lastResolvedPlanSummary = {
       ...(planSummary || {}),
-      planStatus: 'VALID_AND_FULLY_SCHEDULED',
-      requiredBlockCount: reviewBlocks.length,
-      scheduledBlockCount: reviewBlocks.length,
-      unscheduledBlockCount: 0,
-      candidateResolutionKinds: [],
-      recommendations: [],
-    };
+        planStatus: 'VALID_AND_FULLY_SCHEDULED',
+        requiredBlockCount: admittedReviewBlocks.length + admissionRejectedDrafts.length,
+        scheduledBlockCount: admittedReviewBlocks.length,
+        unscheduledBlockCount: admissionRejectedDrafts.length,
+        candidateResolutionKinds: [],
+        recommendations: [],
+      };
   } else if (planSummary) {
     cycle.lastResolvedPlanSummary = {
       ...planSummary,
@@ -12543,13 +13500,23 @@ function applyDraftSchedule(state, payload = {}) {
     };
   }
   state.scheduleLifecycle = cycle.scheduleLifecycle;
-  state.scheduleReviewBlocks = reviewBlocks;
+  state.scheduleReviewBlocks = admittedReviewBlocks;
   mergeScheduleReviewBlocksIntoCycleProjection(state, cycle);
   const perfCreateMs = debugPerfActions ? Date.now() - perfCreateStart : 0;
   const perfAcceptStart = debugPerfActions ? Date.now() : 0;
   const acceptedSuggestionIds = new Set(proposedItems.map((item) => item.id));
+  const rejectedSuggestionIds = new Set(admissionRejectedDrafts.map((item) => item.id).filter(Boolean));
   const nextSuggestions = sourceBlocks.map((item) => {
     if (!acceptedSuggestionIds.has(item?.id)) {
+      if (rejectedSuggestionIds.has(item?.id)) {
+        return {
+          ...item,
+          status: 'rejected',
+          admissionFailureCodes:
+            admissionRejectedDrafts.find((draft) => draft.id && draft.id === item?.id)?.failureCodes || [],
+          deferredReason: 'admission_audit_failed',
+        };
+      }
       return item;
     }
     return {
@@ -13060,6 +14027,42 @@ function activateSchedule(state, payload = {}) {
       actionId: block.actionId ?? null,
       sessionIndex: Number.isFinite(block.sessionIndex) ? Number(block.sessionIndex) : null,
       identityKey: block.identityKey || null,
+      laneId: block.laneId ?? block.masterPlanLaneId ?? null,
+      laneLabel: block.laneLabel || null,
+      entityId: block.entityId || null,
+      entityLabel: block.entityLabel || null,
+      phaseId: block.phaseId || null,
+      phaseLabel: block.phaseLabel || null,
+      workType: block.workType || null,
+      // Canonical identity context — must survive activation so the
+      // BlockDetailsPanel detail authority and downstream readers see the
+      // same lane / artifact / dependency surface the proposal carried.
+      masterPlanId: block.masterPlanId ?? null,
+      masterPlanLaneId: block.masterPlanLaneId ?? block.laneId ?? null,
+      masterCalendarId: block.masterCalendarId ?? null,
+      coreMissionContractId: block.coreMissionContractId ?? null,
+      initiativeLabel: block.initiativeLabel ?? null,
+      projectLabel: block.projectLabel ?? null,
+      milestoneType: block.milestoneType ?? null,
+      derivedFrom: block.derivedFrom ?? null,
+      derivationReason: block.derivationReason ?? block.derivedFrom ?? null,
+      placementBasis: block.placementBasis ?? null,
+      phaseJustification: block.phaseJustification ?? null,
+      producesArtifact: block.producesArtifact ?? null,
+      expectedOutput: block.expectedOutput ?? block.producesArtifact ?? null,
+      passEvidence: block.passEvidence ?? null,
+      acceptanceEvidence: block.acceptanceEvidence ?? block.passEvidence ?? null,
+      missConsequence: block.missConsequence ?? null,
+      completionAssertion: block.completionAssertion ?? null,
+      // Attestation contract — operator verifies, Jericho does not.
+      target: block.target ?? null,
+      verificationSource: block.verificationSource ?? null,
+      operatorAttestation: block.operatorAttestation ?? null,
+      consumedBy: Array.isArray(block.consumedBy) ? block.consumedBy : null,
+      consumedByRef: block.consumedByRef ?? null,
+      directDependencyIds: Array.isArray(block.directDependencyIds) ? block.directDependencyIds : null,
+      directDependencyDetails: Array.isArray(block.directDependencyDetails) ? block.directDependencyDetails : null,
+      owner: block.owner ?? null,
       criterionId: block.criterionId ?? null,
       lockedUntilDayKey: block.lockedUntilDayKey ?? null,
       requiredSystemBlock: true,
@@ -13069,6 +14072,7 @@ function activateSchedule(state, payload = {}) {
       label: block.title || block.label || null,
       start: block.startISO || block.start || null,
       end: block.endISO || block.end || null,
+      durationMinutes: Number.isFinite(Number(block.durationMinutes)) ? Number(block.durationMinutes) : null,
       status: block.status || 'planned',
       missedAtISO: null,
     };
@@ -13459,10 +14463,10 @@ function compileGoalEquation(state, payload = {}) {
     deadlineDayKey: equation.deadlineDayKey,
   };
 
-  // AUTO-SEED DELIVERABLES AT ADMISSION TIME
-  // This ensures generateColdPlanForCycle can find them in the workspace
+  // AUTO-SEED DELIVERABLES — only when matrix intake is already complete
+  // During intake (matrixIntakeComplete === false), the matrix drives deliverables; assumed state is blocked.
   const workspace = getDeliverableWorkspace(state, cycle.id);
-  if (workspace && (!workspace.deliverables || workspace.deliverables.length === 0)) {
+  if (cycle.matrixIntakeComplete !== false && workspace && (!workspace.deliverables || workspace.deliverables.length === 0)) {
     let autoDeliverables = [];
     let autoStrategy = null;
 
@@ -13526,7 +14530,7 @@ function compileGoalEquation(state, payload = {}) {
   };
   state.cyclesById[cycle.id] = cycle;
   if (planProof.status === 'SUBMITTED' && planProof.verdict !== 'INFEASIBLE') {
-    const { days } = materializeBlocksFromEvents(state.executionEvents || [], { todayISO: state.today?.date });
+    const { days } = materializeBlocksFromEvents(state.executionEvents || [], { todayISO: state.today?.date, canonicalBlocks: state.blockStore?.blocks || null });
     const allBlocks = (days || []).flatMap((d) => d.blocks || []);
     const coldBlocks = allBlocks.filter((b) => b.origin === 'cold_plan' && b.cycleId === cycle.id);
     coldBlocks.forEach((b) => {
@@ -14255,6 +15259,13 @@ function createBlock(state, payload = {}) {
     goalId,
     origin,
     suggestionId: payload.suggestionId || null,
+    laneId: payload.laneId ?? null,
+    laneLabel: payload.laneLabel ?? null,
+    entityId: payload.entityId ?? null,
+    entityLabel: payload.entityLabel ?? null,
+    phaseId: payload.phaseId ?? null,
+    phaseLabel: payload.phaseLabel ?? null,
+    workType: payload.workType ?? null,
     deliverableId,
     criterionId,
     lockedUntilDayKey,
@@ -14351,6 +15362,13 @@ function appendSuggestedApplyBlocks(
       origin: 'suggested_apply',
       suggestionId: item.id || null,
       identityKey: item.identityKey || null,
+      laneId: item.laneId ?? item.masterPlanLaneId ?? null,
+      laneLabel: item.laneLabel ?? null,
+      entityId: item.entityId ?? null,
+      entityLabel: item.entityLabel ?? null,
+      phaseId: item.phaseId ?? null,
+      phaseLabel: item.phaseLabel ?? null,
+      workType: item.workType ?? null,
       deliverableId: item.payload?.deliverableId ?? null,
       actionId: item.actionId ?? null,
       sessionIndex: Number.isFinite(item.sessionIndex) ? Number(item.sessionIndex) : null,
@@ -14628,14 +15646,29 @@ function ensureMatrixSlot(state) {
       artifactsById: {},
       dependenciesById: {},
       convergenceEdgesById: {},
-      resources: { available: {}, needed: {}, gap: {} },
+      matrixLinksById: {},
+      milestonesById: {},
+      resourceProfilesById: {},
+      capacityById: {},
+      bindingConstraint: null,
       bootstrap: { candidates: [], selectedNodeId: null },
     };
     return;
   }
   if (!state.matrix.verificationSourcesById) state.matrix.verificationSourcesById = {};
   if (!state.matrix.entitiesById) state.matrix.entitiesById = {};
+  if (!state.matrix.initiativesById) state.matrix.initiativesById = {};
+  if (!state.matrix.systemsById) state.matrix.systemsById = {};
   if (!state.matrix.projectsById) state.matrix.projectsById = {};
+  if (!state.matrix.artifactsById) state.matrix.artifactsById = {};
+  if (!state.matrix.dependenciesById) state.matrix.dependenciesById = {};
+  if (!state.matrix.convergenceEdgesById) state.matrix.convergenceEdgesById = {};
+  if (!state.matrix.matrixLinksById) state.matrix.matrixLinksById = {};
+  if (!state.matrix.milestonesById) state.matrix.milestonesById = {};
+  if (!state.matrix.resourceProfilesById) state.matrix.resourceProfilesById = {};
+  if (!state.matrix.capacityById) state.matrix.capacityById = {};
+  if (!('bindingConstraint' in state.matrix)) state.matrix.bindingConstraint = null;
+  if (!state.matrix.bootstrap) state.matrix.bootstrap = { candidates: [], selectedNodeId: null };
 }
 
 function declareVerificationSource(state, payload = {}) {
@@ -14659,6 +15692,44 @@ function declareVerificationSource(state, payload = {}) {
     notes: String(payload?.notes || '').trim() || null,
     declaredAtISO: nowISO,
   };
+}
+
+function updateVerificationSource(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  if (!id) return;
+  const existing = state.matrix.verificationSourcesById[id];
+  if (!existing) return;
+  const patch = {};
+  if (payload.domain !== undefined) patch.domain = String(payload.domain || '').trim();
+  if (payload.source !== undefined) patch.source = String(payload.source || '').trim();
+  if (payload.notes !== undefined) patch.notes = String(payload.notes || '').trim() || null;
+  state.matrix.verificationSourcesById[id] = { ...existing, ...patch };
+}
+
+function removeVerificationSource(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  if (!id) return;
+  delete state.matrix.verificationSourcesById[id];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  MATRIX v2 — Section 2 (Nodes / Entities)
+//  Every node in the enterprise (business / initiative / project / system /
+//  function) must be declared once. Lanes and blocks reference nodes by id
+//  via `entityId`. The gate code UNDECLARED_NODE fires when a block
+//  references an entity that is not in the registry. The SEED_CANONICAL_
+//  ENTITIES action provides a fast path to populate the 8 Operation Endgame
+//  reference entities from ENTERPRISE_IDENTITY_MAP — idempotent and
+//  non-destructive of any operator-declared nodes.
+// ─────────────────────────────────────────────────────────────────────────
+
+function canonicalNodeIdFromDisplayName(displayName) {
+  return `node-${String(displayName || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')}`;
 }
 
 function declareNode(state, payload = {}) {
@@ -14688,6 +15759,283 @@ function declareNode(state, payload = {}) {
   };
 }
 
+function updateNode(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  if (!id) return;
+  const existing = state.matrix.entitiesById[id];
+  if (!existing) return;
+  const patch = {};
+  if (payload.name !== undefined) patch.name = String(payload.name || '').trim();
+  if (payload.purpose !== undefined) patch.purpose = String(payload.purpose || '').trim() || null;
+  if (payload.currentStatus !== undefined)
+    patch.currentStatus = String(payload.currentStatus || '').trim() || null;
+  if (payload.desiredFutureState !== undefined)
+    patch.desiredFutureState = String(payload.desiredFutureState || '').trim() || null;
+  if (Array.isArray(payload.roleTags)) patch.roleTags = payload.roleTags.filter(Boolean);
+  if (payload.notes !== undefined) patch.notes = String(payload.notes || '').trim() || null;
+  state.matrix.entitiesById[id] = { ...existing, ...patch };
+}
+
+function removeNode(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  if (!id) return;
+  delete state.matrix.entitiesById[id];
+}
+
+// Intake Back button (RESTORE_MATRIX_SNAPSHOT): replaces state.matrix wholesale
+// with a prior snapshot captured before an intake answer was submitted. This
+// undoes any DECLARE_* dispatches that fired in between. The payload matrix is
+// cloned so the caller's retained reference can never alias live state.
+function restoreMatrixSnapshot(state, payload = {}) {
+  if (!payload.matrix || typeof payload.matrix !== 'object') {
+    state.lastPlanError = {
+      code: 'MATRIX_RESTORE_INVALID',
+      reason: 'RESTORE_MATRIX_SNAPSHOT requires a matrix object payload.',
+    };
+    return;
+  }
+  state.matrix =
+    typeof structuredClone === 'function'
+      ? structuredClone(payload.matrix)
+      : JSON.parse(JSON.stringify(payload.matrix));
+}
+
+// SEED_CANONICAL_ENTITIES is a DEV-SCAFFOLDING action. It violates the
+// extract-not-recall doctrine because it loads operator structure from a
+// code constant instead of eliciting it through intake. Every clean
+// "from scratch" production run must populate state.matrix.entitiesById
+// through DECLARE_NODE / UPDATE_NODE, not this action. Callers must pass
+// { confirmDevRecall: true } to acknowledge they are explicitly using the
+// dev path. Without the flag the action is a no-op and lastPlanError
+// records SEED_RECALLS_NOT_EXTRACT so the violation never happens silently.
+//
+// Additionally: the entity content seeded here is sourced from
+// ENTERPRISE_IDENTITY_MAP, a code constant that has drifted from the
+// canonical matrix .md (e.g., "Capital Path or Revenue Engine" is in the
+// constant but is actually three node functions in the matrix; every
+// seeded node gets roleTags=['Business'] which flattens the graph). Treat
+// the seeded structure as throwaway — operators must overwrite via the
+// declared intake path for any real plan.
+function seedCanonicalEntities(state, payload = {}) {
+  ensureMatrixSlot(state);
+  if (payload?.confirmDevRecall !== true) {
+    state.lastPlanError = {
+      code: 'SEED_RECALLS_NOT_EXTRACT',
+      reason:
+        'SEED_CANONICAL_ENTITIES violates extract-not-recall and is dev-only. Pass { confirmDevRecall: true } to acknowledge you are using the dev scaffolding path, or use DECLARE_NODE to populate from operator-elicited intake.',
+    };
+    return;
+  }
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  ENTERPRISE_IDENTITY_MAP.forEach((entity) => {
+    const id = canonicalNodeIdFromDisplayName(entity.displayName);
+    // Non-destructive — preserve operator-declared values if a node with
+    // this id already exists.
+    if (state.matrix.entitiesById[id]) return;
+    state.matrix.entitiesById[id] = {
+      id,
+      name: entity.displayName,
+      purpose: `${entity.companyCategory} — ${entity.typeLabel}`,
+      currentStatus: null,
+      desiredFutureState: null,
+      roleTags: ['Business'],
+      notes: `Canonical entity seeded from ENTERPRISE_IDENTITY_MAP. Products: ${entity.products.join(', ')}. Phase scope: ${entity.phaseScope}.`,
+      declaredAtISO: nowISO,
+      source: 'canonical_seed',
+      companyCategory: entity.companyCategory,
+      products: [...entity.products],
+      typeLabel: entity.typeLabel,
+      phaseScope: entity.phaseScope,
+    };
+  });
+}
+
+// Section 2 entity declared through the elicitation engine (DECLARE_ENTITY).
+// Uses the slot schema: formationState + statusEvidence instead of the legacy
+// currentStatus field, and carries optional doneWhen from the gate ladder.
+function declareEntity(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const name = String(payload?.name || '').trim();
+  const roleTags = Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [];
+  const purpose = String(payload?.purpose || '').trim();
+  const formationState = String(payload?.formationState || '').trim();
+  const statusEvidence = String(payload?.statusEvidence || '').trim();
+  if (!id || !name || roleTags.length === 0 || !purpose || !formationState || !statusEvidence) {
+    state.lastPlanError = {
+      code: 'ENTITY_INVALID',
+      reason: 'Entity requires id, name, roleTags, purpose, formationState, and statusEvidence.',
+      meta: { id, name, roleTagCount: roleTags.length, purpose, formationState, statusEvidence },
+    };
+    return;
+  }
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  const entry = {
+    id,
+    name,
+    roleTags,
+    purpose,
+    formationState,
+    statusEvidence,
+    phase: String(payload?.phase || '').trim() || null,
+    reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
+    declaredAtISO: nowISO,
+    source: 'operator_declared',
+  };
+  if (payload?.doneWhen) entry.doneWhen = String(payload.doneWhen).trim();
+  state.matrix.entitiesById[id] = entry;
+}
+
+// Section 3 initiative declared through the elicitation engine (DECLARE_INITIATIVE).
+// owningEntityId is nullable (null = entity-less / cross-cutting). The slot
+// normalizes the entity-less sentinel to null before dispatch, so the reducer
+// accepts null as a valid value (not an error).
+function declareInitiative(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const name = String(payload?.name || '').trim();
+  const purpose = String(payload?.purpose || '').trim();
+  const classification = String(payload?.classification || '').trim().toLowerCase();
+  const doneWhen = String(payload?.doneWhen || '').trim();
+  // owningEntityId is explicitly nullable — null means entity-less, not missing.
+  const owningEntityId = payload?.owningEntityId === null ? null : String(payload?.owningEntityId || '').trim() || null;
+  const VALID_CLASSIFICATIONS = ['objective', 'constraint'];
+  if (!id || !name || !purpose || !VALID_CLASSIFICATIONS.includes(classification) || !doneWhen) {
+    state.lastPlanError = {
+      code: 'INITIATIVE_INVALID',
+      reason: 'Initiative requires id, name, purpose, classification (objective|constraint), and doneWhen.',
+      meta: { id, name, purpose, classification, doneWhen },
+    };
+    return;
+  }
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  // Multi-owner (2026-07-10): owningEntityIds carries every owner; the legacy
+  // scalar owningEntityId stays populated with the first owner (or null) for
+  // downstream consumers. crossCutting marks whole-operation scope and is
+  // independent of whether owners are named.
+  const owningEntityIds = Array.isArray(payload?.owningEntityIds)
+    ? payload.owningEntityIds.filter(Boolean).map((v) => String(v).trim()).filter(Boolean)
+    : (owningEntityId ? [owningEntityId] : []);
+  // Ownership implies capability: owning an initiative IS the evidence that
+  // the entity can own initiatives. Backfill the [initiative] role tag on any
+  // owner that lacks it — the owner pickSet is unfiltered (2026-07-10), so a
+  // §2 under-tag must not leave the matrix internally inconsistent.
+  for (const ownerId of owningEntityIds) {
+    const owner = state.matrix.entitiesById?.[ownerId];
+    if (!owner) continue;
+    const tags = Array.isArray(owner.roleTags) ? owner.roleTags : [];
+    if (!tags.includes('initiative')) owner.roleTags = [...tags, 'initiative'];
+  }
+  state.matrix.initiativesById[id] = {
+    id,
+    name,
+    owningEntityId: owningEntityIds[0] || owningEntityId || null,
+    owningEntityIds,
+    crossCutting: Boolean(payload?.crossCutting),
+    purpose,
+    classification,
+    doneWhen,
+    phase: String(payload?.phase || '').trim() || null,
+    roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],
+    reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
+    declaredAtISO: nowISO,
+    source: 'operator_declared',
+  };
+}
+
+// Initiative-level phase declaration (2026-07-13 phasing-scalability follow-up).
+// Pairwise Project-to-Project dependency declaration (SequencingPanel/DECLARE_DEPENDENCY)
+// doesn't scale once a portfolio holds many unrelated content lines (confirmed by the
+// operator: ~18 CONFIRMED Projects, largely no meaningful pairwise relationship to declare —
+// e.g. sequencing "OUR FEARLESS LEADER 3" against "I AM THE STATE" doesn't make sense).
+// Declaring phase once per Initiative (~10 decisions) is the coarse, tractable default;
+// Projects inherit it via deriveEffectiveProjectPhases unless they have their own
+// dependency-derived or hand-typed phase. This is a direct one-field set — not a graph
+// edge — deliberately as simple as CONFIRM_CAPACITY, not a form.
+function setInitiativePhase(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  if (!id) {
+    state.lastPlanError = {
+      code: 'INITIATIVE_PHASE_INVALID',
+      reason: 'Setting an initiative phase requires an id.',
+      meta: { id },
+    };
+    return;
+  }
+  const existing = state.matrix.initiativesById?.[id];
+  if (!existing) {
+    state.lastPlanError = {
+      code: 'INITIATIVE_UNKNOWN',
+      reason: `Cannot set phase on initiative "${id}" — not in matrix.initiativesById.`,
+      meta: { id },
+    };
+    return;
+  }
+  const phase = payload?.phase === null ? null : String(payload?.phase ?? '').trim() || null;
+  state.matrix.initiativesById[id] = { ...existing, phase };
+}
+
+// Section 4 system declared through the elicitation engine (DECLARE_SYSTEM).
+// owningEntityId nullable (null = entity-less). activationCondition is optional
+// — included in the stored record only when the payload carries it.
+function declareSystem(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const name = String(payload?.name || '').trim();
+  const cycle = String(payload?.cycle || '').trim();
+  const activationState = String(payload?.activationState || '').trim().toLowerCase();
+  const owningEntityId = payload?.owningEntityId === null ? null : String(payload?.owningEntityId || '').trim() || null;
+  const VALID_STATES = ['running', 'missing', 'planned'];
+  if (!id || !name || !cycle || !VALID_STATES.includes(activationState)) {
+    state.lastPlanError = {
+      code: 'SYSTEM_INVALID',
+      reason: 'System requires id, name, cycle, and activationState (running|missing|planned).',
+      meta: { id, name, cycle, activationState },
+    };
+    return;
+  }
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  // Ownership implies capability (mirrors declareInitiative): backfill the
+  // [system] role tag onto an owner that lacks it.
+  if (owningEntityId) {
+    const owner = state.matrix.entitiesById?.[owningEntityId];
+    if (owner) {
+      const tags = Array.isArray(owner.roleTags) ? owner.roleTags : [];
+      if (!tags.includes('system')) owner.roleTags = [...tags, 'system'];
+    }
+  }
+  const entry = {
+    id,
+    name,
+    owningEntityId,
+    cycle,
+    activationState,
+    phase: String(payload?.phase || '').trim() || null,
+    roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],
+    reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
+    declaredAtISO: nowISO,
+    source: 'operator_declared',
+  };
+  if (payload?.activationCondition) entry.activationCondition = String(payload.activationCondition).trim();
+  state.matrix.systemsById[id] = entry;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  MATRIX v2 — Section 5 (Projects)
+//  The only section named in both laws:
+//    Law 1 — produces-nouns
+//    Law 2 — attestation pair {target, source}
+//  DECLARE_PROJECT therefore enforces both at the matrix level: every
+//  project must declare a successMetric (Law 2 target) AND a
+//  verificationSourceId pointing into Section 1A's registry. The owning
+//  entity must also exist in Section 2's registry. There is no synthesis
+//  path that fills these in later — every project ships its attestation
+//  pair at declaration time or it is rejected.
+// ─────────────────────────────────────────────────────────────────────────
+
 function declareProject(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
@@ -14698,7 +16046,8 @@ function declareProject(state, payload = {}) {
   if (!id || !name || !owningEntityId || !successMetric || !verificationSourceId) {
     state.lastPlanError = {
       code: 'PROJECT_INVALID',
-      reason: 'Project requires id, name, owningEntityId, successMetric, and verificationSourceId.',
+      reason:
+        'Project requires id, name, owningEntityId, successMetric (Law 2 target), and verificationSourceId (Law 2 source).',
       meta: { id, hasName: Boolean(name), hasOwner: Boolean(owningEntityId), hasMetric: Boolean(successMetric), hasSource: Boolean(verificationSourceId) },
     };
     return;
@@ -14706,7 +16055,7 @@ function declareProject(state, payload = {}) {
   if (!state.matrix.entitiesById[owningEntityId]) {
     state.lastPlanError = {
       code: 'PROJECT_OWNING_ENTITY_UNKNOWN',
-      reason: `Project owningEntityId "${owningEntityId}" is not in matrix.entitiesById. Declare the node first.`,
+      reason: `Project owningEntityId "${owningEntityId}" is not declared in matrix.entitiesById. Declare the node first.`,
       meta: { id, owningEntityId },
     };
     return;
@@ -14714,7 +16063,7 @@ function declareProject(state, payload = {}) {
   if (!state.matrix.verificationSourcesById[verificationSourceId]) {
     state.lastPlanError = {
       code: 'PROJECT_VERIFICATION_SOURCE_UNKNOWN',
-      reason: `Project verificationSourceId "${verificationSourceId}" is not in matrix.verificationSourcesById. Declare the source first.`,
+      reason: `Project verificationSourceId "${verificationSourceId}" is not declared in matrix.verificationSourcesById. Declare the source first.`,
       meta: { id, verificationSourceId },
     };
     return;
@@ -14724,9 +16073,528 @@ function declareProject(state, payload = {}) {
     id,
     name,
     owningEntityId,
+    owningInitiativeId: String(payload?.owningInitiativeId || '').trim() || null,
+    status: String(payload?.status || '').trim() || null,
+    desiredOutcome: String(payload?.desiredOutcome || '').trim() || null,
+    targetDate: String(payload?.targetDate || '').trim() || null,
     successMetric,
     verificationSourceId,
+    evidenceProduced: String(payload?.evidenceProduced || '').trim() || null,
     notes: String(payload?.notes || '').trim() || null,
+    phase: String(payload?.phase || '').trim() || null,
+    roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],
+    reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
+  };
+}
+
+function updateProject(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  if (!id) return;
+  const existing = state.matrix.projectsById[id];
+  if (!existing) return;
+  // Enforce cross-section integrity on patched fields BEFORE writing.
+  if (payload.owningEntityId !== undefined) {
+    const nextOwner = String(payload.owningEntityId || '').trim();
+    if (!nextOwner || !state.matrix.entitiesById[nextOwner]) {
+      state.lastPlanError = {
+        code: 'PROJECT_OWNING_ENTITY_UNKNOWN',
+        reason: `Cannot update project owningEntityId to "${nextOwner}" — not in entitiesById.`,
+        meta: { id, owningEntityId: nextOwner },
+      };
+      return;
+    }
+  }
+  if (payload.verificationSourceId !== undefined) {
+    const nextSource = String(payload.verificationSourceId || '').trim();
+    if (!nextSource || !state.matrix.verificationSourcesById[nextSource]) {
+      state.lastPlanError = {
+        code: 'PROJECT_VERIFICATION_SOURCE_UNKNOWN',
+        reason: `Cannot update project verificationSourceId to "${nextSource}" — not in verificationSourcesById.`,
+        meta: { id, verificationSourceId: nextSource },
+      };
+      return;
+    }
+  }
+  const patch = {};
+  if (payload.name !== undefined) patch.name = String(payload.name || '').trim();
+  if (payload.owningEntityId !== undefined) patch.owningEntityId = String(payload.owningEntityId).trim();
+  if (payload.owningInitiativeId !== undefined)
+    patch.owningInitiativeId = String(payload.owningInitiativeId || '').trim() || null;
+  if (payload.status !== undefined) patch.status = String(payload.status || '').trim() || null;
+  if (payload.desiredOutcome !== undefined)
+    patch.desiredOutcome = String(payload.desiredOutcome || '').trim() || null;
+  if (payload.targetDate !== undefined) patch.targetDate = String(payload.targetDate || '').trim() || null;
+  if (payload.successMetric !== undefined) patch.successMetric = String(payload.successMetric || '').trim();
+  if (payload.verificationSourceId !== undefined)
+    patch.verificationSourceId = String(payload.verificationSourceId).trim();
+  if (payload.evidenceProduced !== undefined)
+    patch.evidenceProduced = String(payload.evidenceProduced || '').trim() || null;
+  if (payload.notes !== undefined) patch.notes = String(payload.notes || '').trim() || null;
+  state.matrix.projectsById[id] = { ...existing, ...patch };
+}
+
+function removeProject(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  if (!id) return;
+  delete state.matrix.projectsById[id];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  MATRIX v2 — Section 6 (Artifacts)
+//  Physical outputs that prove project completion. Every artifact must
+//  declare a producingProjectId (Section 5), a verificationSourceId
+//  (Section 1A), a completionEvidence string, and an operatorAttestationMethod
+//  (the script the operator runs to confirm the artifact's existence).
+// ─────────────────────────────────────────────────────────────────────────
+
+function declareArtifact(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const name = String(payload?.name || '').trim();
+  const producingProjectId = String(payload?.producingProjectId || '').trim();
+  const producedByEntityId = payload?.producedByEntityId === null
+    ? null
+    : String(payload?.producedByEntityId || '').trim() || null;
+  const completionEvidence = String(payload?.completionEvidence || '').trim();
+  const verificationSourceId = String(payload?.verificationSourceId || '').trim();
+  const operatorAttestationMethod = String(payload?.operatorAttestationMethod || '').trim();
+  if (!id || !name || !producingProjectId || !completionEvidence || !verificationSourceId || !operatorAttestationMethod) {
+    state.lastPlanError = {
+      code: 'ARTIFACT_INVALID',
+      reason:
+        'Artifact requires id, name, producingProjectId, completionEvidence, verificationSourceId, and operatorAttestationMethod.',
+      meta: {
+        id,
+        hasName: Boolean(name),
+        hasProducingProject: Boolean(producingProjectId),
+        hasEvidence: Boolean(completionEvidence),
+        hasSource: Boolean(verificationSourceId),
+        hasAttestationMethod: Boolean(operatorAttestationMethod),
+      },
+    };
+    return;
+  }
+  if (!state.matrix.projectsById[producingProjectId]) {
+    state.lastPlanError = {
+      code: 'ARTIFACT_PRODUCING_PROJECT_UNKNOWN',
+      reason: `Artifact producingProjectId "${producingProjectId}" is not in matrix.projectsById.`,
+      meta: { id, producingProjectId },
+    };
+    return;
+  }
+  if (producedByEntityId && !state.matrix.entitiesById[producedByEntityId]) {
+    state.lastPlanError = {
+      code: 'ARTIFACT_PRODUCED_BY_ENTITY_UNKNOWN',
+      reason: `Artifact producedByEntityId "${producedByEntityId}" is not in matrix.entitiesById.`,
+      meta: { id, producedByEntityId },
+    };
+    return;
+  }
+  if (!state.matrix.verificationSourcesById[verificationSourceId]) {
+    state.lastPlanError = {
+      code: 'ARTIFACT_VERIFICATION_SOURCE_UNKNOWN',
+      reason: `Artifact verificationSourceId "${verificationSourceId}" is not in matrix.verificationSourcesById.`,
+      meta: { id, verificationSourceId },
+    };
+    return;
+  }
+  const consumingProjectIds = Array.isArray(payload?.consumingProjectIds)
+    ? payload.consumingProjectIds
+        .map((cid) => String(cid || '').trim())
+        .filter(Boolean)
+    : [];
+  const unknownConsumers = consumingProjectIds.filter((cid) => !state.matrix.projectsById[cid]);
+  if (unknownConsumers.length > 0) {
+    state.lastPlanError = {
+      code: 'ARTIFACT_CONSUMING_PROJECT_UNKNOWN',
+      reason: `Artifact consumingProjectIds reference unknown projects: ${unknownConsumers.join(', ')}.`,
+      meta: { id, unknownConsumers },
+    };
+    return;
+  }
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  state.matrix.artifactsById[id] = {
+    id,
+    name,
+    producingProjectId,
+    producedByEntityId,
+    consumingProjectIds,
+    completionEvidence,
+    verificationSourceId,
+    operatorAttestationMethod,
+    notes: String(payload?.notes || '').trim() || null,
+    phase: String(payload?.phase || '').trim() || null,
+    targetDate: String(payload?.targetDate || '').trim() || null,
+    roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],
+    reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
+    declaredAtISO: nowISO,
+  };
+}
+
+function updateArtifact(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  if (!id) return;
+  const existing = state.matrix.artifactsById[id];
+  if (!existing) return;
+  if (payload.producingProjectId !== undefined) {
+    const nextProducer = String(payload.producingProjectId || '').trim();
+    if (!nextProducer || !state.matrix.projectsById[nextProducer]) {
+      state.lastPlanError = {
+        code: 'ARTIFACT_PRODUCING_PROJECT_UNKNOWN',
+        reason: `Cannot update artifact producingProjectId to "${nextProducer}" — not in projectsById.`,
+        meta: { id, producingProjectId: nextProducer },
+      };
+      return;
+    }
+  }
+  if (payload.verificationSourceId !== undefined) {
+    const nextSource = String(payload.verificationSourceId || '').trim();
+    if (!nextSource || !state.matrix.verificationSourcesById[nextSource]) {
+      state.lastPlanError = {
+        code: 'ARTIFACT_VERIFICATION_SOURCE_UNKNOWN',
+        reason: `Cannot update artifact verificationSourceId to "${nextSource}" — not in verificationSourcesById.`,
+        meta: { id, verificationSourceId: nextSource },
+      };
+      return;
+    }
+  }
+  if (Array.isArray(payload.consumingProjectIds)) {
+    const consumers = payload.consumingProjectIds.map((cid) => String(cid || '').trim()).filter(Boolean);
+    const unknown = consumers.filter((cid) => !state.matrix.projectsById[cid]);
+    if (unknown.length > 0) {
+      state.lastPlanError = {
+        code: 'ARTIFACT_CONSUMING_PROJECT_UNKNOWN',
+        reason: `Artifact consumingProjectIds reference unknown projects: ${unknown.join(', ')}.`,
+        meta: { id, unknownConsumers: unknown },
+      };
+      return;
+    }
+  }
+  const patch = {};
+  if (payload.name !== undefined) patch.name = String(payload.name || '').trim();
+  if (payload.producingProjectId !== undefined) patch.producingProjectId = String(payload.producingProjectId).trim();
+  if (Array.isArray(payload.consumingProjectIds))
+    patch.consumingProjectIds = payload.consumingProjectIds.map((cid) => String(cid || '').trim()).filter(Boolean);
+  if (payload.completionEvidence !== undefined) patch.completionEvidence = String(payload.completionEvidence || '').trim();
+  if (payload.verificationSourceId !== undefined) patch.verificationSourceId = String(payload.verificationSourceId).trim();
+  if (payload.operatorAttestationMethod !== undefined)
+    patch.operatorAttestationMethod = String(payload.operatorAttestationMethod || '').trim();
+  if (payload.notes !== undefined) patch.notes = String(payload.notes || '').trim() || null;
+  state.matrix.artifactsById[id] = { ...existing, ...patch };
+}
+
+function removeArtifact(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  if (!id) return;
+  delete state.matrix.artifactsById[id];
+}
+
+// BFS transitive reachability over dependency edges (Section 7).
+// Mirrors the `reaches` export in dependencySlot.ts — must stay in sync.
+function reachesDependency(from, to, edges) {
+  const visited = new Set();
+  const queue = [from];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (current === to) return true;
+    if (visited.has(current)) continue;
+    visited.add(current);
+    for (const edge of edges) {
+      if (edge.downstreamId === current) {
+        queue.push(edge.upstreamId);
+      }
+    }
+  }
+  return false;
+}
+
+// Dependencies originally only ever linked Artifacts. 2026-07-13 (phase/sequencing design):
+// generalized to also accept Project and Initiative ids, using the same edge shape, same
+// cycle guard, same gate machinery — no schema duplication. This is the structural signal
+// phase derivation (phaseFromDependencies.js) is built on: which node classes/slices a
+// dependency id may resolve against.
+const DEPENDENCY_NODE_SLICES = ['projectsById', 'initiativesById', 'artifactsById'];
+
+function findDependencyNodeSlice(state, id) {
+  for (const slice of DEPENDENCY_NODE_SLICES) {
+    if (state.matrix?.[slice]?.[id]) {
+      return slice;
+    }
+  }
+  return null;
+}
+
+function declareDependency(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const downstreamId = String(payload?.downstreamId || '').trim();
+  const upstreamId = String(payload?.upstreamId || '').trim();
+  const type = String(payload?.type || '').trim();
+  if (!id || !downstreamId || !upstreamId || !type) {
+    state.lastPlanError = {
+      code: 'DEPENDENCY_INVALID',
+      reason: 'Dependency requires id, downstreamId, upstreamId, and type.',
+      meta: { id, downstreamId, upstreamId, type },
+    };
+    return;
+  }
+  if (!findDependencyNodeSlice(state, downstreamId)) {
+    state.lastPlanError = {
+      code: 'DEPENDENCY_DOWNSTREAM_UNKNOWN',
+      reason: `Dependency downstreamId "${downstreamId}" is not in matrix.projectsById, initiativesById, or artifactsById.`,
+      meta: { id, downstreamId },
+    };
+    return;
+  }
+  if (!findDependencyNodeSlice(state, upstreamId)) {
+    state.lastPlanError = {
+      code: 'DEPENDENCY_UPSTREAM_UNKNOWN',
+      reason: `Dependency upstreamId "${upstreamId}" is not in matrix.projectsById, initiativesById, or artifactsById.`,
+      meta: { id, upstreamId },
+    };
+    return;
+  }
+  if (downstreamId === upstreamId) {
+    state.lastPlanError = {
+      code: 'DEPENDENCY_SELF_EDGE',
+      reason: `Dependency cannot have downstreamId === upstreamId: "${downstreamId}".`,
+      meta: { id, downstreamId },
+    };
+    return;
+  }
+  const existingEdges = Object.values(state.matrix.dependenciesById);
+  if (reachesDependency(upstreamId, downstreamId, existingEdges)) {
+    state.lastPlanError = {
+      code: 'DEPENDENCY_CYCLE',
+      reason: `Dependency would create a cycle: "${upstreamId}" already transitively requires "${downstreamId}".`,
+      meta: { id, downstreamId, upstreamId },
+    };
+    return;
+  }
+  const VALID_TYPES = ['hard_gate', 'directional', 'informational'];
+  if (!VALID_TYPES.includes(type)) {
+    state.lastPlanError = {
+      code: 'DEPENDENCY_TYPE_INVALID',
+      reason: `Dependency type "${type}" must be one of: ${VALID_TYPES.join(', ')}.`,
+      meta: { id, type },
+    };
+    return;
+  }
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  state.matrix.dependenciesById[id] = {
+    id,
+    downstreamId,
+    upstreamId,
+    type,
+    label: String(payload?.label || '').trim() || null,
+    declaredAtISO: nowISO,
+  };
+}
+
+function declareConvergence(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const fromNodeId = String(payload?.fromNodeId || '').trim();
+  const toNodeId = String(payload?.toNodeId || '').trim();
+  const gives = String(payload?.gives || '').trim();
+  if (!id || !fromNodeId || !toNodeId || !gives) {
+    state.lastPlanError = {
+      code: 'CONVERGENCE_INVALID',
+      reason: 'Convergence edge requires id, fromNodeId, toNodeId, and gives.',
+      meta: { id, fromNodeId, toNodeId, gives },
+    };
+    return;
+  }
+  const REGISTRIES = ['entitiesById', 'initiativesById', 'systemsById', 'projectsById', 'artifactsById'];
+  const allIds = new Set();
+  for (const reg of REGISTRIES) {
+    for (const nodeId of Object.keys(state.matrix[reg] || {})) {
+      allIds.add(nodeId);
+    }
+  }
+  if (!allIds.has(fromNodeId)) {
+    state.lastPlanError = {
+      code: 'CONVERGENCE_FROM_UNKNOWN',
+      reason: `Convergence fromNodeId "${fromNodeId}" is not in any declared-node registry.`,
+      meta: { id, fromNodeId },
+    };
+    return;
+  }
+  if (!allIds.has(toNodeId)) {
+    state.lastPlanError = {
+      code: 'CONVERGENCE_TO_UNKNOWN',
+      reason: `Convergence toNodeId "${toNodeId}" is not in any declared-node registry.`,
+      meta: { id, toNodeId },
+    };
+    return;
+  }
+  if (fromNodeId === toNodeId) {
+    state.lastPlanError = {
+      code: 'CONVERGENCE_SELF_EDGE',
+      reason: `Convergence cannot have fromNodeId === toNodeId: "${fromNodeId}".`,
+      meta: { id, fromNodeId },
+    };
+    return;
+  }
+  // NOTE: No cycle guard. Loops are valid in Section 8 (convergence).
+  // Multi-source (2026-07-10): fromNodeIds carries every feeding node; the
+  // legacy scalar fromNodeId stays as the first source. Sources that are not
+  // declared nodes are dropped (same rule the scalar path enforces above).
+  const fromNodeIds = (Array.isArray(payload?.fromNodeIds) ? payload.fromNodeIds : [fromNodeId])
+    .map((v) => String(v || '').trim())
+    .filter((v) => v && allIds.has(v) && v !== toNodeId);
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  state.matrix.convergenceEdgesById[id] = {
+    id,
+    fromNodeId: fromNodeIds[0] || fromNodeId,
+    fromNodeIds: fromNodeIds.length ? fromNodeIds : [fromNodeId],
+    toNodeId,
+    gives,
+    broken: Boolean(payload?.broken) || false,
+    label: String(payload?.label || '').trim() || null,
+    declaredAtISO: nowISO,
+  };
+}
+
+// Attested relational link (ships_with / soundtrack_of / promotes / feeds / loop /
+// depends_on / legal_cliff). Distinct from dependenciesById (hard_gate/directional
+// scheduling deps): these are the fixture's typed relational edges the Master Grid
+// renders as ties. fromId/toId reference declared nodes by id.
+function declareMatrixLink(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const kind = String(payload?.kind || '').trim();
+  const fromId = String(payload?.fromId || '').trim();
+  const toId = String(payload?.toId || '').trim();
+  if (!id || !kind || !fromId || !toId) {
+    state.lastPlanError = { code: 'MATRIX_LINK_INVALID', reason: 'Matrix link requires id, kind, fromId, toId.', meta: { id, kind, fromId, toId } };
+    return;
+  }
+  state.matrix.matrixLinksById[id] = {
+    id, kind, fromId, toId,
+    declaredAtISO: state?.appTime?.nowISO || new Date().toISOString(),
+  };
+}
+
+// Named, dated convergence milestone with its lane node ids (e.g. "Oct 17 2026
+// Convergence"). An annotation, never a node or sort key — lanes keep own deadlines.
+function declareMilestone(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const name = String(payload?.name || '').trim();
+  const date = String(payload?.date || '').trim() || null;
+  const laneIds = Array.isArray(payload?.laneIds) ? payload.laneIds.filter(Boolean).map((x) => String(x).trim()) : [];
+  if (!id || !name || laneIds.length === 0) {
+    state.lastPlanError = { code: 'MILESTONE_INVALID', reason: 'Milestone requires id, name, and at least one laneId.', meta: { id, name, laneCount: laneIds.length } };
+    return;
+  }
+  state.matrix.milestonesById[id] = {
+    id, name, date, laneIds,
+    declaredAtISO: state?.appTime?.nowISO || new Date().toISOString(),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  MATRIX — Section 9 (Resource Profiles + Binding Constraint)
+//  Per-initiative gap grid: one profile per initiative, four dimensions each.
+//  bindingConstraint is the section-level synthesis once all profiles exist.
+// ─────────────────────────────────────────────────────────────────────────
+
+const RESOURCE_PROFILE_VALID_DIMENSIONS = ['money', 'time', 'skills', 'tech'];
+
+function declareResourceProfile(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const initiativeId = String(payload?.initiativeId || '').trim();
+  if (!id || !initiativeId) {
+    state.lastPlanError = {
+      code: 'RESOURCE_PROFILE_INVALID',
+      reason: 'Resource profile requires id and initiativeId.',
+      meta: { id, initiativeId },
+    };
+    return;
+  }
+  if (!state.matrix.initiativesById[initiativeId]) {
+    state.lastPlanError = {
+      code: 'RESOURCE_PROFILE_INITIATIVE_UNKNOWN',
+      reason: `Resource profile initiativeId "${initiativeId}" is not in matrix.initiativesById.`,
+      meta: { id, initiativeId },
+    };
+    return;
+  }
+  const dimensions = payload?.dimensions || {};
+  const builtDimensions = {};
+  for (const dim of RESOURCE_PROFILE_VALID_DIMENSIONS) {
+    const raw = dimensions[dim] || {};
+    builtDimensions[dim] = {
+      need: String(raw.need || '').trim(),
+      gap: raw.gap === null || raw.gap === undefined ? null : String(raw.gap).trim() || null,
+    };
+  }
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  state.matrix.resourceProfilesById[initiativeId] = {
+    id,
+    initiativeId,
+    dimensions: builtDimensions,
+    declaredAtISO: nowISO,
+  };
+}
+
+function declareBindingConstraint(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const bindingDimension = String(payload?.bindingDimension || '').trim();
+  const rationale = String(payload?.rationale || '').trim();
+  if (!bindingDimension || !rationale) {
+    state.lastPlanError = {
+      code: 'BINDING_CONSTRAINT_INVALID',
+      reason: 'Binding constraint requires bindingDimension and rationale.',
+      meta: { bindingDimension, rationale },
+    };
+    return;
+  }
+  if (!RESOURCE_PROFILE_VALID_DIMENSIONS.includes(bindingDimension)) {
+    state.lastPlanError = {
+      code: 'BINDING_CONSTRAINT_DIMENSION_INVALID',
+      reason: `Binding dimension "${bindingDimension}" must be one of: ${RESOURCE_PROFILE_VALID_DIMENSIONS.join(', ')}.`,
+      meta: { bindingDimension },
+    };
+    return;
+  }
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  state.matrix.bindingConstraint = {
+    bindingDimension,
+    rationale,
+    declaredAtISO: nowISO,
+  };
+}
+
+function declareBootstrap(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const selectedNodeId = String(payload?.selectedNodeId || '').trim();
+  const candidates = Array.isArray(payload?.candidates) ? payload.candidates : [];
+  if (!selectedNodeId) {
+    state.lastPlanError = {
+      code: 'BOOTSTRAP_INVALID',
+      reason: 'Bootstrap requires selectedNodeId.',
+      meta: { selectedNodeId },
+    };
+    return;
+  }
+  if (!candidates.includes(selectedNodeId)) {
+    state.lastPlanError = {
+      code: 'BOOTSTRAP_SELECTION_NOT_CANDIDATE',
+      reason: `Selected node "${selectedNodeId}" is not in the computed candidate set.`,
+      meta: { selectedNodeId, candidates },
+    };
+    return;
+  }
+  state.matrix.bootstrap = {
+    candidates,
+    selectedNodeId,
   };
 }

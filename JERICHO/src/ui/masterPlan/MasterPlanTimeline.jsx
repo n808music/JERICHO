@@ -24,6 +24,7 @@ import { deriveMasterPlanPhaseModel } from '../../domain/masterPlan/masterPlanPh
 import { clampDayKeyToRange, normalizeStrategicDayKey, resolveStrategicAgendaHorizon } from '../../domain/masterPlan/strategicHorizon.js';
 import TimelineGrid from './TimelineGrid.jsx';
 import MasterPlanLaneCard from './MasterPlanLaneCard.jsx';
+import MatrixInstrument from './MatrixInstrument.jsx';
 
 function titleCaseWords(value) {
   return String(value || '')
@@ -39,12 +40,17 @@ function humanizeReasonCode(value) {
     .trim();
 }
 
-function projectLaneDisplayName(domainOrLaneId, intakeSignals) {
-  const key = String(domainOrLaneId || '').trim().toLowerCase();
-  if (!key) return 'Unassigned';
+function projectLaneDisplayName(laneOrDomain, intakeSignals) {
+  const lane =
+    laneOrDomain && typeof laneOrDomain === 'object'
+      ? laneOrDomain
+      : { domain: String(laneOrDomain || '').trim().toLowerCase(), title: String(laneOrDomain || '').trim() };
+  const key = String(lane?.domain || lane?.id || '').trim().toLowerCase();
+  const laneLabel = String(lane?.title || lane?.label || lane?.name || '').trim();
+  if (!key && !laneLabel) return 'Unassigned';
   const projection = projectEnterpriseDisplay({
     laneId: key,
-    laneLabel: key,
+    laneLabel: laneLabel || key,
     intakeSignals: intakeSignals || { goalText: '', declaredLaneIds: [] },
   });
   return projection.displayName;
@@ -84,22 +90,41 @@ function getAgendaSummaryCounts(summary = {}) {
 }
 
 const AGENDA_RANGE_OPTIONS = ['1Y', '2Y', '3Y', '4Y', '5Y'];
-const AGENDA_LANE_DOMAINS = ['all', 'product', 'creative', 'media', 'brand', 'income', 'capital', 'institution', 'civic'];
 
-function buildAgendaLaneOptions(intakeSignals) {
-  return AGENDA_LANE_DOMAINS.map((value) => {
-    if (value === 'all') return { value: 'all', label: 'All lanes' };
-    return { value, label: projectLaneDisplayName(value, intakeSignals) };
-  });
+function buildEntitySpine(entitiesById) {
+  if (!entitiesById || Object.keys(entitiesById).length === 0) return null;
+  return Object.values(entitiesById)
+    .map((entity) => ({ id: String(entity?.id || '').trim(), name: String(entity?.name || '').trim() }))
+    .filter((e) => e.id && e.name);
+}
+
+function buildAgendaLaneOptions(intakeSignals, lanes = [], entitySpine = null) {
+  const options = [{ value: 'all', label: 'All lanes' }];
+  if (entitySpine && entitySpine.length > 0) {
+    entitySpine.forEach((entity) => {
+      options.push({ value: entity.id, label: entity.name });
+    });
+  } else {
+    (Array.isArray(lanes) ? lanes : []).forEach((lane) => {
+      if (!lane?.id) {
+        return;
+      }
+      options.push({
+        value: lane.id,
+        label: projectLaneDisplayName(lane, intakeSignals),
+      });
+    });
+  }
+  return options;
 }
 
 function getAgendaLaneFilterValue(label) {
   return String(label || 'all').trim().toLowerCase();
 }
 
-function getAgendaLaneFilterLabel(value, intakeSignals) {
-  const options = buildAgendaLaneOptions(intakeSignals);
-  const filter = options.find((option) => option.value === String(value || 'all').trim().toLowerCase());
+function getAgendaLaneFilterLabel(value, intakeSignals, lanes = [], entitySpine = null) {
+  const options = buildAgendaLaneOptions(intakeSignals, lanes, entitySpine);
+  const filter = options.find((option) => option.value === String(value || 'all').trim());
   return filter ? filter.label : 'All lanes';
 }
 
@@ -114,17 +139,15 @@ function summarizeFilteredScheduledAgenda(blocks = [], selectedRange = '5Y', sel
   const rangeStart = normalizeDayKey(agendaRangeStartDayKey) ||
     (Array.isArray(blocks) ? blocks.map((block) => normalizeDayKey(block?.dayKey || block?.date || block?.startISO)).filter(Boolean).sort()[0] : null);
   const rangeEnd = getScheduledAgendaRangeEnd(rangeStart, selectedRange);
-  const filterDomain = String(selectedLane || 'all').trim().toLowerCase();
-  const selectedDomain =
-    filterDomain === 'brand/operations' ? 'brand' : filterDomain === 'income/revenue' ? 'income' : filterDomain;
+  const selectedLaneId = String(selectedLane || 'all').trim();
 
   const filteredBlocks = (Array.isArray(blocks) ? blocks : []).filter((block) => {
     const dayKey = normalizeDayKey(block?.dayKey || block?.date || block?.startISO);
     if (!dayKey) return false;
     if (rangeEnd && dayKey > rangeEnd) return false;
-    if (selectedDomain === 'all') return true;
-    const lane = lanes.find((laneItem) => laneItem?.id === block?.masterPlanLaneId);
-    return String(lane?.domain || '').trim().toLowerCase() === selectedDomain;
+    if (selectedLaneId === 'all') return true;
+    const blockLaneId = String(block?.masterPlanLaneId || block?.laneId || '').trim();
+    return blockLaneId === selectedLaneId;
   });
 
   const byPhase = filteredBlocks.reduce((acc, block) => {
@@ -135,8 +158,7 @@ function summarizeFilteredScheduledAgenda(blocks = [], selectedRange = '5Y', sel
 
   const byLane = filteredBlocks.reduce((acc, block) => {
     const lane = lanes.find((laneItem) => laneItem?.id === (block?.masterPlanLaneId || block?.laneId));
-    const domain = String(lane?.domain || '').trim().toLowerCase();
-    const label = domain ? projectLaneDisplayName(domain, intakeSignals) : (lane?.title || 'Unassigned');
+    const label = lane ? projectLaneDisplayName(lane, intakeSignals) : (block?.entityLabel || block?.laneLabel || 'Unassigned');
     acc[label] = (acc[label] || 0) + 1;
     return acc;
   }, {});
@@ -938,16 +960,29 @@ function MasterPlanTimelineView({ plan, store }) {
     [plan, visibleHorizonEnd]
   );
 
+  const entitySpine = useMemo(
+    () => buildEntitySpine(store?.matrix?.entitiesById),
+    [store?.matrix?.entitiesById]
+  );
+
   const gridLanes = useMemo(
     () =>
-      lanes.map((lane) => ({
-        id: lane.id,
-        title: lane.title,
-        domain: lane.domain,
-        activationState: lane.activationState,
-        anchorIds: lane.anchorIds || [],
-      })),
-    [lanes]
+      entitySpine && entitySpine.length > 0
+        ? entitySpine.map((entity) => ({
+            id: entity.id,
+            title: entity.name,
+            domain: null,
+            activationState: 'active',
+            anchorIds: [],
+          }))
+        : lanes.map((lane) => ({
+            id: lane.id,
+            title: projectLaneDisplayName(lane, intakeSignals),
+            domain: lane.domain,
+            activationState: lane.activationState,
+            anchorIds: lane.anchorIds || [],
+          })),
+    [entitySpine, intakeSignals, lanes]
   );
 
   return (
@@ -1023,9 +1058,13 @@ function MasterPlanTimelineView({ plan, store }) {
           </div>
         </div>
       ) : null}
+      {store?.cyclesById?.[store?.activeCycleId]?.matrixIntakeComplete === true && (
+        <MatrixInstrument matrix={store.matrix} />
+      )}
       <StrategicCoveragePanel
         plan={plan}
         lanes={lanes}
+        entitySpine={entitySpine}
         strategicCoverage={strategicCoverage}
         strategicCoverageAudit={strategicCoverageAudit}
         strategicPlanQuality={store?.fullHorizonPlanQuality || null}
@@ -1104,6 +1143,7 @@ function StrategicCoveragePanel({
   onHorizonViewChange,
   visibleHorizonEnd,
   scheduleLifecycleState = 'no_goal',
+  entitySpine = null,
 }) {
   const normalizedScheduleLifecycleState = String(scheduleLifecycleState || '').trim().toLowerCase();
   const isForecastOnlyLifecycle =
@@ -1262,7 +1302,7 @@ function StrategicCoveragePanel({
                 ))}
               </div>
               <div className="flex flex-wrap gap-2 pb-2">
-                {buildAgendaLaneOptions(intakeSignals).map((option) => (
+                {buildAgendaLaneOptions(intakeSignals, lanes, entitySpine).map((option) => (
                   <button
                     key={option.value}
                     type="button"
@@ -1279,7 +1319,7 @@ function StrategicCoveragePanel({
                 ))}
               </div>
               <p className="text-[11px] text-muted">
-                {selectedAgendaRange} horizon · {getAgendaLaneFilterLabel(selectedAgendaLane, intakeSignals)}
+                {selectedAgendaRange} horizon · {getAgendaLaneFilterLabel(selectedAgendaLane, intakeSignals, lanes, entitySpine)}
               </p>
               <p className="text-[11px] text-muted">
                 {scheduledAgendaSummary?.totalBlocks ?? 0} visible planned blocks

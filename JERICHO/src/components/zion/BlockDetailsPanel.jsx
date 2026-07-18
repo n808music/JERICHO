@@ -40,6 +40,20 @@ export default function BlockDetailsPanel({
         : null,
     [block, lineageSource, deliverableLabelById, criterionLabelById]
   );
+  // Recover the canonical lane label for the selected block when the block
+  // itself was stripped of laneLabel but still carries laneId / masterPlanLaneId.
+  // The dashboard threads `lanesById` (the master-plan lane map) through
+  // hierarchyContext so this lookup is purely canonical — it is not title
+  // inference and it does not silence the gate when the block is truly orphan
+  // (no laneId AND no lanesById entry).
+  const resolvedLaneFromLookup = useMemo(() => {
+    if (!block) return null;
+    const laneId = block.laneId || block.masterPlanLaneId || null;
+    if (!laneId) return null;
+    const lane = hierarchyContext?.lanesById?.[laneId];
+    if (!lane) return null;
+    return lane?.title || lane?.label || lane?.name || null;
+  }, [block, hierarchyContext]);
   const hierarchy = useMemo(
     () =>
       block
@@ -50,12 +64,12 @@ export default function BlockDetailsPanel({
             phase: hierarchyContext?.phase,
             operatingCycle: hierarchyContext?.operatingCycle,
             sprint: hierarchyContext?.sprint,
-            lane: hierarchyContext?.lane,
+            lane: hierarchyContext?.lane || resolvedLaneFromLookup,
             initiative: hierarchyContext?.initiative,
             milestoneType: hierarchyContext?.milestoneType,
           })
         : null,
-    [block, hierarchyContext]
+    [block, hierarchyContext, resolvedLaneFromLookup]
   );
   const enterprise = useMemo(() => {
     if (!block) return null;
@@ -160,8 +174,47 @@ export default function BlockDetailsPanel({
             <p className="text-muted">
               <span className="font-semibold text-jericho-text">Lane:</span> {plainLanguage.laneLabel || 'Missing'}
             </p>
+          </div>
+          <div className="grid gap-1 sm:grid-cols-2">
+            <p className="text-muted">
+              <span className="font-semibold text-jericho-text">Project/Program:</span> {plainLanguage.projectLabel || 'Missing'}
+            </p>
             <p className="text-muted">
               <span className="font-semibold text-jericho-text">Work type:</span> {plainLanguage.workType || 'Unspecified'}
+            </p>
+          </div>
+          {plainLanguage.phaseJustification ? (
+            <div className="grid gap-1 sm:grid-cols-2">
+              <p className="text-muted">
+                <span className="font-semibold text-jericho-text">P1 justification:</span> {plainLanguage.phaseJustification}
+              </p>
+            </div>
+          ) : null}
+          {/*
+            ATTESTATION CONTRACT — canonical triple.
+            Jericho is never the verifier; the operator is. Every block must
+            carry an explicit Target, a Verification Source (external system
+            the operator can point at), and an Operator Attestation script.
+            None of these are synthesized by the resolver. When any is
+            absent, the row shows "Missing" and the failure banner names the
+            corresponding MISSING_* gate code.
+          */}
+          <div
+            data-testid="attestation-triple"
+            className="rounded-md border border-line/40 bg-jericho-bg/70 px-2 py-2 space-y-1"
+          >
+            <p className="text-muted font-semibold">Attestation (operator verifies — Jericho does not)</p>
+            <p className="text-muted">
+              <span className="font-semibold text-jericho-text">Target:</span>{' '}
+              {plainLanguage.target || <span className="text-amber-700">Missing</span>}
+            </p>
+            <p className="text-muted">
+              <span className="font-semibold text-jericho-text">Verification source:</span>{' '}
+              {plainLanguage.verificationSource || <span className="text-amber-700">Missing</span>}
+            </p>
+            <p className="text-muted">
+              <span className="font-semibold text-jericho-text">Operator attestation:</span>{' '}
+              {plainLanguage.operatorAttestation || <span className="text-amber-700">Missing</span>}
             </p>
           </div>
           {plainLanguage.quality?.status === 'under_specified' ? (
@@ -187,8 +240,17 @@ export default function BlockDetailsPanel({
               <p className="text-muted">{plainLanguage.whyThisExists}</p>
             </div>
           ) : null}
+          {/*
+            OPERATOR INSTRUCTIONS — reframed from "truth claim" to
+            "suggested script". The legacy synthesized doneWhen / plainAction /
+            steps content is kept as guidance, but it is NOT the canonical
+            attestation: operator must verify in the declared source and
+            attest completion above.
+          */}
           <div className="space-y-1">
-            <p className="text-muted font-semibold">Do this</p>
+            <p className="text-muted font-semibold">
+              Operator instructions <span className="text-[10px] text-amber-700">(suggested — operator must verify and attest)</span>
+            </p>
             {plainLanguage.plainAction ? <p className="text-muted">{plainLanguage.plainAction}</p> : null}
             {plainLanguage.steps.map((step) => (
               <p key={step} className="text-muted">
@@ -197,7 +259,7 @@ export default function BlockDetailsPanel({
             ))}
           </div>
           <div className="space-y-1">
-            <p className="text-muted font-semibold">Done when</p>
+            <p className="text-muted font-semibold">Done when (suggested)</p>
             <p className="text-muted">{plainLanguage.doneWhen}</p>
           </div>
           <div className="grid gap-1 sm:grid-cols-2">

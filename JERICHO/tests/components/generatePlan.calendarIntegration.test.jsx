@@ -2,7 +2,7 @@ import React from 'react';
 import '@testing-library/jest-dom';
 import { act, render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import ZionDashboard from '../../src/components/ZionDashboard.jsx';
 import JerichoDebugPanel from '../../src/components/debug/JerichoDebugPanel.jsx';
 import { IdentityProvider, useIdentityStore } from '../../src/state/identityStore.js';
@@ -152,6 +152,15 @@ describe('generatePlan -> calendar integration', () => {
     }
   });
 
+  // These are heavy full-pipeline integration tests (real generate + full
+  // dashboard render). Under the full suite's accumulated-load slowdown a slow
+  // test can leave its React tree mounted; because `capturedStore` is a
+  // module-global, that leaks into the next test. Always unmount between tests
+  // so a slow/aborted test cannot cascade into a false failure in the next one.
+  afterEach(() => {
+    cleanup();
+  });
+
   it('generatePlan requires explicit apply then activate before calendar becomes authoritative in April-June', async () => {
     const user = userEvent.setup();
     const { container } = render(
@@ -269,7 +278,7 @@ describe('generatePlan -> calendar integration', () => {
       expect(cell).toBeTruthy();
       expect(cell.textContent).toContain(firstReviewTitle);
     });
-  }, 90000);
+  }, 300000);
 
   it('generatePlan writes one canonical full-horizon proposal set and month views slice it without changing the total', async () => {
     const user = userEvent.setup();
@@ -307,7 +316,7 @@ describe('generatePlan -> calendar integration', () => {
       expect(document.querySelector('[data-window-label="true"]')?.textContent).toMatch(/May 2026/i);
       expect(capturedStore.getState().proposedBlocks.length).toBe(horizonCount);
     });
-  }, 90000);
+  }, 300000);
 
   it('regenerating from a later month recomputes the same full horizon instead of erasing earlier months', async () => {
     render(
@@ -349,7 +358,7 @@ describe('generatePlan -> calendar integration', () => {
     expect(regeneratedProposals.some((block) => String(block.dayKey || '').startsWith('2026-04-'))).toBe(true);
     expect(regeneratedProposals.every((block) => String(block.dayKey || '') <= '2026-06-30')).toBe(true);
     expect(regeneratedProposals.length).toBeGreaterThanOrEqual(juneVisibleCount);
-  }, 90000);
+  }, 300000);
 
   it('does not emit a render-time update warning while accepted goals materialize a review schedule', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -392,5 +401,5 @@ describe('generatePlan -> calendar integration', () => {
     } finally {
       errorSpy.mockRestore();
     }
-  }, 90000);
+  }, 300000);
 });

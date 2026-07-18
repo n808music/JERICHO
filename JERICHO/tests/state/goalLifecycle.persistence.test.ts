@@ -68,6 +68,15 @@ function buildAppliedReviewState() {
         archetype: 'ProfessionalQualification',
         startDayKey: dayKey,
         endDayKey: '2026-06-09',
+        workWindows: {
+          mon: [{ start: '09:00', end: '17:00' }],
+          tue: [{ start: '09:00', end: '17:00' }],
+          wed: [{ start: '09:00', end: '17:00' }],
+          thu: [{ start: '09:00', end: '17:00' }],
+          fri: [{ start: '09:00', end: '17:00' }],
+          sat: [],
+          sun: [],
+        },
         deadline: { dayKey: '2026-06-09' },
         terminalOutcome: { text: 'Published case-study page', verificationCriteria: 'Published case-study page' },
       },
@@ -150,6 +159,67 @@ describe('goal lifecycle persistence and activation integrity', () => {
     );
     expect(rehydrated.goalLifecycleState).toBe('in_execution');
     expect(rehydrated.today.blocks.some((block: any) => block?.id === blockId)).toBe(true);
+  });
+
+  it('rehydrates active execution by rebasing owed pre-floor work into review schedule', () => {
+    const activated = buildActivatedState() as any;
+    activated.appTime = {
+      ...activated.appTime,
+      nowISO: '2026-06-08T12:00:00.000Z',
+      activeDayKey: '2026-06-08',
+      isFollowingNow: true,
+    };
+    activated.today = {
+      ...activated.today,
+      date: '2026-06-08',
+      blocks: [],
+    };
+    activated.currentWeek = { weekStart: '2026-06-08', days: [] };
+    activated.cycle = [];
+    activated.cyclesById[cycleId].executionStartDayKey = null;
+    activated.cyclesById[cycleId].reassessmentCompletedAtISO = '2026-06-07T02:29:09.880Z';
+    activated.cyclesById[cycleId].scheduleGeneratedAtISO = '2026-06-07T03:11:21.442Z';
+    activated.executionEvents = [
+      {
+        id: 'evt-stale',
+        kind: 'create',
+        blockId: 'blk-stale',
+        cycleId,
+        goalId,
+        dateISO: '2026-05-19',
+        startISO: '2026-05-19T09:00:00.000Z',
+        endISO: '2026-05-19T10:00:00.000Z',
+        origin: 'schedule_active',
+        status: 'planned',
+      },
+      {
+        id: 'evt-forward',
+        kind: 'create',
+        blockId: 'blk-forward',
+        cycleId,
+        goalId,
+        dateISO: '2026-06-08',
+        startISO: '2026-06-08T09:00:00.000Z',
+        endISO: '2026-06-08T10:00:00.000Z',
+        origin: 'schedule_active',
+        status: 'planned',
+      },
+    ];
+    activated.cyclesById[cycleId].executionEvents = [...activated.executionEvents];
+
+    const rehydrated = rehydratePersistedState(JSON.parse(JSON.stringify(activated))) as any;
+    expect(rehydrated.cyclesById[cycleId].executionStartDayKey).toBe('2026-06-07');
+    expect(rehydrated.cyclesById[cycleId].scheduleLifecycle).toBe('applied_review');
+    expect(rehydrated.scheduleLifecycle).toBe('applied_review');
+    expect((rehydrated.cyclesById[cycleId].scheduleReviewBlocks || []).length).toBeGreaterThan(0);
+    expect(
+      (rehydrated.cyclesById[cycleId].scheduleReviewBlocks || []).every((block: any) => {
+        const dayKey = block?.dayKey || block?.startISO?.slice(0, 10) || '';
+        return dayKey >= '2026-06-07';
+      })
+    ).toBe(true);
+    expect(rehydrated.cyclesById[cycleId].activationDelayAssessment?.selectedResolution).toBe('rebase');
+    expect((rehydrated.executionEvents || []).some((event: any) => event?.blockId === 'blk-stale' && event?.kind === 'create')).toBe(false);
   });
 
   it('blocks completion before official activation', () => {

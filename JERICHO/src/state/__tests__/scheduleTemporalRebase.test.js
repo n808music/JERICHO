@@ -206,6 +206,77 @@ describe('schedule temporal rebase', () => {
     );
   });
 
+  it('carries forward the full owed unexecuted block set, preserves dependency order, and keeps the fixed deadline', () => {
+    const next = computeDerivedState(
+      buildAppliedReviewState({
+        blocks: [
+          {
+            id: 'blk-review-1',
+            title: 'Past block A',
+            start: '2026-05-19T09:00:00.000Z',
+            end: '2026-05-19T10:00:00.000Z',
+            startISO: '2026-05-19T09:00:00.000Z',
+            endISO: '2026-05-19T10:00:00.000Z',
+            durationMinutes: 60,
+          },
+          {
+            id: 'blk-review-2',
+            title: 'Past block B depends on A',
+            start: '2026-05-20T09:00:00.000Z',
+            end: '2026-05-20T10:00:00.000Z',
+            startISO: '2026-05-20T09:00:00.000Z',
+            endISO: '2026-05-20T10:00:00.000Z',
+            durationMinutes: 60,
+            dependencyIds: ['blk-review-1'],
+          },
+          {
+            id: 'blk-review-3',
+            title: 'Future owed block',
+            start: '2026-06-02T09:00:00.000Z',
+            end: '2026-06-02T10:00:00.000Z',
+            startISO: '2026-06-02T09:00:00.000Z',
+            endISO: '2026-06-02T10:00:00.000Z',
+            durationMinutes: 60,
+            dependencyIds: ['blk-review-2'],
+          },
+        ],
+        endDayKey: '2026-06-15',
+        workWindows: {
+          mon: [{ start: '09:00', end: '12:00' }],
+          tue: [{ start: '09:00', end: '12:00' }],
+          wed: [{ start: '09:00', end: '12:00' }],
+          thu: [{ start: '09:00', end: '12:00' }],
+          fri: [{ start: '09:00', end: '12:00' }],
+          sat: [],
+          sun: [],
+        },
+        strategyConstraints: { maxBlocksPerDay: 2, maxBlocksPerWeek: 10 },
+      }),
+      { type: 'REBASE_SCHEDULE', payload: { cycleId: 'cycle-1', executionStartDayKey: '2026-06-08' } }
+    );
+
+    const reviewBlocks = next.cyclesById['cycle-1'].scheduleReviewBlocks || [];
+    expect(reviewBlocks).toHaveLength(3);
+    expect(reviewBlocks.every((block) => String(block?.dayKey || block?.startISO || '').slice(0, 10) >= '2026-06-08')).toBe(true);
+
+    const blockA = reviewBlocks.find((block) => block?.id === 'blk-review-1');
+    const blockB = reviewBlocks.find((block) => block?.id === 'blk-review-2');
+    const blockC = reviewBlocks.find((block) => block?.id === 'blk-review-3');
+    expect(blockA).toBeTruthy();
+    expect(blockB).toBeTruthy();
+    expect(blockC).toBeTruthy();
+    expect((blockB?.dependencyIds || []).includes('blk-review-1')).toBe(true);
+    expect((blockC?.dependencyIds || []).includes('blk-review-2')).toBe(true);
+    expect(String(blockA?.dayKey || blockA?.startISO || '').slice(0, 10) <= String(blockB?.dayKey || blockB?.startISO || '').slice(0, 10)).toBe(
+      true
+    );
+    expect(String(blockB?.dayKey || blockB?.startISO || '').slice(0, 10) <= String(blockC?.dayKey || blockC?.startISO || '').slice(0, 10)).toBe(
+      true
+    );
+    expect(next.cyclesById['cycle-1'].goalContract?.endDayKey).toBe('2026-06-15');
+    expect(next.lastPlanError).toBeNull();
+  });
+
   it('fails explicitly when displaced work cannot fit future capacity', () => {
     const next = computeDerivedState(
       buildAppliedReviewState({
@@ -248,7 +319,8 @@ describe('schedule temporal rebase', () => {
     expect(next.cyclesById['cycle-1'].rebaseRequired).toBe(true);
     expect(next.cyclesById['cycle-1'].temporalStatus).toBe('rebase_required');
     expect(next.lastPlanError?.reasonCodes || []).toEqual(
-      expect.arrayContaining(['INSUFFICIENT_CAPACITY_FOR_TEMPORAL_REBASE'])
+      expect.arrayContaining(['REQUIRES_RECALIBRATION', 'INSUFFICIENT_CAPACITY_FOR_TEMPORAL_REBASE'])
     );
+    expect(next.cyclesById['cycle-1'].goalContract?.endDayKey).toBe('2026-05-26');
   });
 });

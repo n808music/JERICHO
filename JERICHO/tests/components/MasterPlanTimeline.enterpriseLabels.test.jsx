@@ -19,12 +19,34 @@ afterEach(() => {
   cleanup();
 });
 
+const CANONICAL_ENTITY_FIXTURE = [
+  { id: 'entity-systems', name: 'Global State Systems', roleTags: ['technology'] },
+  { id: 'entity-corp', name: 'Global State Corp.', roleTags: ['creative'] },
+  { id: 'entity-productions', name: 'Global State Productions', roleTags: ['media'] },
+  { id: 'entity-solutions', name: 'Global State Solutions', roleTags: ['operations'] },
+  { id: 'entity-f8', name: 'F8 Energy Co.', roleTags: ['energy'] },
+  { id: 'entity-capital', name: 'Capital Path or Revenue Engine', roleTags: ['capital'] },
+  { id: 'entity-academy', name: 'Global State Academy', roleTags: ['education'] },
+  { id: 'entity-holdings', name: 'Global State Holdings', roleTags: ['civic'] },
+];
+
 function buildStoreWithLanes(laneDomains) {
+  const laneTitleByDomain = {
+    product: 'Operation Endgame app platform',
+    creative: 'Operation Endgame album release engine',
+    media: 'Operation Endgame media narrative pipeline',
+    brand: 'Operation Endgame studio operations system',
+    income: 'Operation Endgame services revenue bridge',
+    capital: 'Operation Endgame capital stack',
+    institution: 'Operation Endgame apprenticeship institution design',
+    civic: 'Operation Endgame district coalition development',
+    energy_gym: 'F8 Energy Gum',
+  };
   const lanes = laneDomains.map((domain, i) => ({
     id: `${domain}-${i}`,
     domain,
     label: domain,
-    title: `${domain} lane`,
+    title: laneTitleByDomain[domain] || `${domain} lane`,
     milestoneIds: [],
     activationState: 'active',
   }));
@@ -98,6 +120,21 @@ function buildStoreWithLanes(laneDomains) {
     masterCalendarsById: {},
     strategicClustersById: {},
     constraintRelations: [],
+    matrix: {
+      verificationSourcesById: {},
+      entitiesById: CANONICAL_ENTITY_FIXTURE.reduce((acc, e) => {
+        acc[e.id] = { ...e, declaredAtISO: '2026-01-01T00:00:00.000Z', source: 'test_fixture' };
+        return acc;
+      }, {}),
+      initiativesById: {},
+      systemsById: {},
+      projectsById: {},
+      artifactsById: {},
+      dependenciesById: {},
+      convergenceEdgesById: {},
+      resources: { available: {}, needed: {}, gap: {} },
+      bootstrap: { candidates: [], selectedNodeId: null },
+    },
   };
 }
 
@@ -105,7 +142,7 @@ describe('MasterPlanTimeline enterprise-facing labels', () => {
   it('renders Global State Holdings instead of Civic for the civic lane', () => {
     mockStore = buildStoreWithLanes(['civic']);
     render(<MasterPlanTimeline />);
-    expect(screen.queryByText('Global State Holdings')).toBeInTheDocument();
+    expect(screen.getAllByText('Global State Holdings').length).toBeGreaterThan(0);
     expect(screen.queryAllByText(/^Civic$/)).toHaveLength(0);
   });
 
@@ -113,12 +150,47 @@ describe('MasterPlanTimeline enterprise-facing labels', () => {
     mockStore = buildStoreWithLanes(['energy_gym']);
     render(<MasterPlanTimeline />);
     expect(screen.queryAllByText(/E8 Energy Co\./)).toHaveLength(0);
-    expect(screen.queryByText(/F8 Energy Co\./)).toBeInTheDocument();
+    expect(screen.getAllByText('F8 Energy Co.')).toHaveLength(2);
   });
 
   it('renders Global State Systems for product lane', () => {
     mockStore = buildStoreWithLanes(['product']);
     render(<MasterPlanTimeline />);
-    expect(screen.queryByText('Global State Systems')).toBeInTheDocument();
+    expect(screen.getAllByText('Global State Systems').length).toBeGreaterThan(0);
+  });
+
+  it('renders the full canonical entity matrix with F8 present and Capital shown once', () => {
+    mockStore = buildStoreWithLanes(['product', 'creative', 'media', 'brand', 'income', 'capital', 'institution', 'civic']);
+    render(<MasterPlanTimeline />);
+
+    expect(screen.getAllByText('Global State Systems').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Global State Corp.').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Global State Productions').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Global State Solutions').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('F8 Energy Co.').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Capital Path or Revenue Engine')).toHaveLength(2);
+    expect(screen.getAllByText('Global State Academy').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Global State Holdings').length).toBeGreaterThan(0);
+  });
+
+  it('projects the bottom lane overview from the same canonical entity set as the agenda controls', () => {
+    mockStore = buildStoreWithLanes(['product', 'creative', 'media', 'brand', 'income', 'capital', 'institution', 'civic']);
+    render(<MasterPlanTimeline />);
+
+    const agendaLaneLabels = screen
+      .getAllByTestId(/^scheduled-agenda-lane-/)
+      .map((node) => node.textContent?.trim())
+      .filter((label) => label && label !== 'All lanes');
+    const overviewLaneLabels = screen
+      .getAllByTestId(/^timeline-lane-/)
+      .map((node) => node.querySelector('span')?.textContent?.trim())
+      .filter(Boolean);
+
+    expect(new Set(overviewLaneLabels)).toEqual(new Set(agendaLaneLabels));
+    expect(overviewLaneLabels.filter((label) => label === 'Capital Path or Revenue Engine')).toHaveLength(1);
+    expect(overviewLaneLabels).toContain('F8 Energy Co.');
+    expect(overviewLaneLabels.some((label) => /Operation Endgame capi/i.test(label))).toBe(false);
+    expect(overviewLaneLabels.some((label) => /Operation Endgame civic/i.test(label))).toBe(false);
+    expect(overviewLaneLabels.some((label) => /Operation Endgame insti/i.test(label))).toBe(false);
   });
 });

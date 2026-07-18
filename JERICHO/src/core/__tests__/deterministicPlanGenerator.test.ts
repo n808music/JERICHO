@@ -268,6 +268,30 @@ describe('deterministicPlanGenerator', () => {
       expect(result.autoDeliverables[0].title).toBe('Phase 1');
       expect(result.autoDeliverables[1].title).toBe('Phase 2');
     });
+
+    it('carries an optional projectId through to autoDeliverables and proposedBlocks as sourceProjectId (2026-07-13 §3/§6)', () => {
+      const steps = [
+        { sequence: 1, description: 'Foundation', projectId: 'p1' },
+        { sequence: 2, description: 'Finish', projectId: 'p2' },
+      ];
+      const input = buildInput({ causalChainSteps: steps });
+      const result = generateDeterministicPlan(input);
+      expect(result.autoDeliverables.map((d) => d.sourceProjectId)).toEqual(['p1', 'p2']);
+      if (result.status === 'SUCCESS' || result.status === 'PARTIAL') {
+        expect(result.proposedBlocks.length).toBeGreaterThan(0);
+        result.proposedBlocks.forEach((block) => {
+          const deliv = result.autoDeliverables.find((d) => d.id === block.deliverableId);
+          expect(block.sourceProjectId).toBe(deliv?.sourceProjectId);
+        });
+      }
+    });
+
+    it('leaves sourceProjectId undefined for a manually-authored causal chain step with no projectId', () => {
+      const steps = [{ sequence: 1, description: 'Manual step, no matrix link' }];
+      const input = buildInput({ causalChainSteps: steps });
+      const result = generateDeterministicPlan(input);
+      expect(result.autoDeliverables[0].sourceProjectId).toBeUndefined();
+    });
   });
 
   describe('iteration guardrails: termination under pathological constraints', () => {
@@ -352,6 +376,76 @@ describe('deterministicPlanGenerator', () => {
     });
   });
 
+  describe('capacity violation contract (2026-07-13 unified schedule generation, §5)', () => {
+    it('returns PARTIAL, not a silent SUCCESS, when required blocks exceed available capacity', () => {
+      // Default 3-tier deliverables require 10 blocks (2 + 6 + 2). Give it only 3 days at
+      // 1 block/day/week so at most ~3 blocks can ever fit.
+      const input = buildInput({
+        contractStartDayKey: '2026-01-05', // Monday
+        contractDeadlineDayKey: '2026-01-07', // Wednesday
+        constraints: {
+          maxBlocksPerDay: 1,
+          maxBlocksPerWeek: 3,
+          preferredDaysOfWeek: [1, 2, 3, 4, 5],
+          blackoutDayKeys: [],
+          timezone: 'UTC',
+        },
+      });
+      const result = generateDeterministicPlan(input);
+      expect(result.status).toBe('PARTIAL');
+      // Blocks that did fit are still real and schedulable — not thrown away.
+      expect(result.proposedBlocks.length).toBeGreaterThan(0);
+      expect(result.proposedBlocks.length).toBeLessThan(10);
+    });
+
+    it('capacityViolation payload names required vs available and which steps were cut', () => {
+      const input = buildInput({
+        contractStartDayKey: '2026-01-05',
+        contractDeadlineDayKey: '2026-01-07',
+        causalChainSteps: [
+          { sequence: 1, description: 'Foundation' },
+          { sequence: 2, description: 'Middle' },
+          { sequence: 3, description: 'Final' },
+          { sequence: 4, description: 'Overflow' },
+          { sequence: 5, description: 'Overflow 2' },
+        ],
+        constraints: {
+          maxBlocksPerDay: 1,
+          maxBlocksPerWeek: 2,
+          preferredDaysOfWeek: [1, 2, 3, 4, 5],
+          blackoutDayKeys: [],
+          timezone: 'UTC',
+        },
+      });
+      const result = generateDeterministicPlan(input);
+      expect(result.status).toBe('PARTIAL');
+      expect(result.capacityViolation).toBeDefined();
+      expect(result.capacityViolation?.requiredBlocks).toBe(5);
+      expect(result.capacityViolation?.availableBlocks).toBeLessThan(5);
+      expect(result.capacityViolation?.overageMinutes).toBeGreaterThan(0);
+      expect(result.capacityViolation?.cutSteps.length).toBeGreaterThan(0);
+      // The steps that got cut are named, not silently dropped.
+      const cutTitles = result.capacityViolation?.cutSteps.map((s) => s.deliverableTitle) || [];
+      expect(cutTitles.some((t) => t.startsWith('Overflow'))).toBe(true);
+    });
+
+    it('still returns plain SUCCESS with no capacityViolation when everything fits', () => {
+      const input = buildInput(); // generous default constraints, ~6 week window
+      const result = generateDeterministicPlan(input);
+      expect(result.status).toBe('SUCCESS');
+      expect(result.capacityViolation).toBeUndefined();
+    });
+
+    it('INFEASIBLE (zero blocks fit at all) still takes precedence over PARTIAL', () => {
+      const input = buildInput({
+        constraints: { ...buildInput().constraints, maxBlocksPerDay: 0 },
+      });
+      const result = generateDeterministicPlan(input);
+      expect(result.status).toBe('INFEASIBLE');
+      expect(result.capacityViolation).toBeUndefined();
+    });
+  });
+
   describe('iteration cap distance verification', () => {
     it('typical admitted goal uses minimal iterations (proves cap is safe margin)', () => {
       // Typical scenario: 41 days, regular constraints
@@ -378,7 +472,10 @@ describe('deterministicPlanGenerator', () => {
     });
 
     it('tight but valid goal still uses fraction of cap', () => {
-      // Tight: 2 weeks, high preference filtering, but feasible
+      // Tight: 2 weeks, high preference filtering. Only 4 eligible days (Tue/Wed x2) at
+      // 2 blocks/day = 8 available against the default 10-block requirement — this is a
+      // genuine capacity shortfall (2026-07-13 §5 capacity-violation contract: PARTIAL, not
+      // a silently-truncated SUCCESS as this test originally asserted before that fix).
       const input = buildInput({
         contractStartDayKey: '2026-01-10',
         contractDeadlineDayKey: '2026-01-24',
@@ -393,7 +490,8 @@ describe('deterministicPlanGenerator', () => {
 
       const result = generateDeterministicPlan(input);
 
-      expect(result.status).toBe('SUCCESS');
+      expect(result.status).toBe('PARTIAL');
+      expect(result.capacityViolation?.availableBlocks).toBe(8);
       expect(result.proposedBlocks.length).toBeGreaterThan(0);
 
       // Even with tight constraints, iterations remain small relative to 50k cap

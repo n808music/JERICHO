@@ -53,6 +53,12 @@ export type ProposedBlock = {
   kind: 'PLANNING' | 'CORE' | 'VERIFICATION';
   durationMinutes: number;
   order: number;
+  // Opaque pass-through, not interpreted by this generic generator (2026-07-13 unified
+  // schedule generation design, §6/§3) — set when the deliverable traces back to a Master
+  // Grid matrix Project, so the canonical ScheduledBlock builder can resolve
+  // entityId/laneId. Undefined for manually-authored causal chains and the generic
+  // 3-tier fallback.
+  sourceProjectId?: string;
 };
 
 export type AutoDeliverable = {
@@ -60,12 +66,30 @@ export type AutoDeliverable = {
   title: string;
   kind: 'PLANNING' | 'CORE' | 'VERIFICATION';
   requiredBlocks: number;
+  sourceProjectId?: string;
+};
+
+/**
+ * Capacity violation payload (2026-07-13 unified schedule generation design, §5).
+ *
+ * Prior behavior: `targetBlocks = Math.min(totalBlocksRequired, maxBlocksForPeriod)` capped
+ * silently and still reported `status: 'SUCCESS'` — whatever didn't fit just never appeared,
+ * with no error, no reason code, nothing surfaced to the operator. This is the "quiet data
+ * loss" shape flagged in the design doc. `PARTIAL` + this payload replaces that: the blocks
+ * that DID fit are still real and schedulable, but the shortfall is named, not hidden.
+ */
+export type CapacityViolation = {
+  requiredBlocks: number;
+  availableBlocks: number;
+  overageMinutes: number;
+  cutSteps: Array<{ deliverableId: string; deliverableTitle: string }>;
 };
 
 export type DeterministicPlanResult = {
-  status: 'SUCCESS' | 'INFEASIBLE';
+  status: 'SUCCESS' | 'PARTIAL' | 'INFEASIBLE';
   proposedBlocks: ProposedBlock[];
   autoDeliverables: AutoDeliverable[];
+  capacityViolation?: CapacityViolation;
   error?: {
     code:
       | 'NO_ELIGIBLE_DAYS'
@@ -99,7 +123,7 @@ export interface DeterministicGenInput {
  * Returns deterministic deliverables ordered by sequence
  */
 export function buildAutoDeliverables(
-  causalChainSteps?: Array<{ sequence: number; description: string }>
+  causalChainSteps?: Array<{ sequence: number; description: string; projectId?: string }>
 ): AutoDeliverable[] {
   // If causal chain provided and non-empty, use it
   if (causalChainSteps && causalChainSteps.length > 0) {
@@ -109,6 +133,7 @@ export function buildAutoDeliverables(
       title: step.description,
       kind: idx < 1 ? 'PLANNING' : idx < sorted.length - 1 ? 'CORE' : 'VERIFICATION',
       requiredBlocks: 1,
+      sourceProjectId: step.projectId,
     }));
   }
 
@@ -291,6 +316,7 @@ export function generateDeterministicPlan(input: DeterministicGenInput): Determi
         deliverableTitle: deliv.title,
         kind: deliv.kind,
         order: idx,
+        sourceProjectId: deliv.sourceProjectId,
       }))
   );
 
@@ -335,6 +361,7 @@ export function generateDeterministicPlan(input: DeterministicGenInput): Determi
           kind: block.kind,
           durationMinutes: 60,
           order: block.order,
+          sourceProjectId: block.sourceProjectId,
         });
 
         dailyCount[dayKey] = dailyCount_ + 1;
@@ -358,6 +385,35 @@ export function generateDeterministicPlan(input: DeterministicGenInput): Determi
       error: {
         code: 'NO_ELIGIBLE_DAYS',
         message: 'Failed to allocate blocks despite eligible days',
+      },
+    };
+  }
+
+  // Capacity violation contract (2026-07-13, §5): if what actually got allocated is less
+  // than what the causal chain / auto-deliverables required, this is PARTIAL, not SUCCESS.
+  // Name what got cut instead of letting it disappear silently.
+  if (proposedBlocks.length < totalBlocksRequired) {
+    const allocatedByDeliverable: Record<string, number> = {};
+    proposedBlocks.forEach((b) => {
+      allocatedByDeliverable[b.deliverableId] = (allocatedByDeliverable[b.deliverableId] || 0) + 1;
+    });
+    const cutSteps: CapacityViolation['cutSteps'] = [];
+    deliverables.forEach((deliv) => {
+      const allocated = allocatedByDeliverable[deliv.id] || 0;
+      if (allocated < deliv.requiredBlocks) {
+        cutSteps.push({ deliverableId: deliv.id, deliverableTitle: deliv.title });
+      }
+    });
+    const shortfall = totalBlocksRequired - proposedBlocks.length;
+    return {
+      status: 'PARTIAL',
+      proposedBlocks,
+      autoDeliverables: deliverables,
+      capacityViolation: {
+        requiredBlocks: totalBlocksRequired,
+        availableBlocks: maxBlocksForPeriod,
+        overageMinutes: shortfall * 60,
+        cutSteps,
       },
     };
   }

@@ -48,7 +48,9 @@ describe('BlockDetailsPanel hierarchy display', () => {
       screen.getByText((_, node) => node?.textContent === 'Block: Clarify launch-blocker requirements')
     ).toBeInTheDocument();
     expect(screen.getByText(/What this means/i)).toBeInTheDocument();
-    expect(screen.getByText(/Clarify launch-blocker requirements\./i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Translate Clarify launch-blocker requirements into plain operator work with a concrete result and observable completion standard\./i)
+    ).toBeInTheDocument();
     expect(screen.getByText(/Formal title:/i)).toBeInTheDocument();
   });
 
@@ -142,7 +144,11 @@ describe('BlockDetailsPanel hierarchy display', () => {
     expect(screen.getByText(/Test Jericho onboarding and login behavior enough to clear the current launch blocker/i)).toBeInTheDocument();
     expect(screen.getByText(/Open the app as a user/i)).toBeInTheDocument();
     expect(screen.getByText(/Produces:/i)).toBeInTheDocument();
-    expect(screen.getByText(/Jericho System progress note/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        (_, node) => node?.textContent === 'Produces: Run unit and integration tests with handoff record'
+      )
+    ).toBeInTheDocument();
     expect(screen.getByText(/Original May 2026 review window · Current June 2026 Operating Cycle/i)).toBeInTheDocument();
   });
 
@@ -171,6 +177,80 @@ describe('BlockDetailsPanel hierarchy display', () => {
     );
 
     expect(screen.getByText((_, node) => node?.textContent === 'Lane: Global State Systems')).toBeInTheDocument();
+    expect(screen.getByText((_, node) => node?.textContent === 'Entity: Global State Systems')).toBeInTheDocument();
     expect(screen.queryByText((_, node) => node?.textContent === 'Lane: Missing')).not.toBeInTheDocument();
+  });
+
+  it('renders hard-anchor protection work with concrete explanation, validation work type, and completed artifact language', () => {
+    render(
+      <BlockDetailsPanel
+        blockId="blk-1"
+        blocks={[
+          sampleBlock({
+            laneId: 'brand',
+            laneLabel: 'Operation Endgame studio operations system',
+            title: 'Validate Operation Endgame hard-anchor protection rules',
+            label: 'Validate Operation Endgame hard-anchor protection rules',
+          }),
+        ]}
+        hierarchyContext={{ operatingCycle: 'June 2026 Operating Cycle' }}
+        enterpriseContext={{
+          intakeSignals: {
+            goalText: 'Coordinate Operation Endgame across product, media, operations, revenue, capital, institution, and civic pathways.',
+            declaredLaneIds: ['brand'],
+          },
+        }}
+        onEdit={noop}
+      />
+    );
+
+    expect(screen.getByText(/keep fixed Operation Endgame anchors from moving/i)).toBeInTheDocument();
+    expect(screen.getByText((_, node) => node?.textContent === 'Lane: Operation Endgame studio operations system')).toBeInTheDocument();
+    expect(screen.getByText((_, node) => node?.textContent === 'Entity: Global State Solutions')).toBeInTheDocument();
+    expect(screen.getAllByText((_, node) => node?.textContent === 'Work type: Validation').length).toBeGreaterThan(0);
+    expect(screen.getByText((_, node) => node?.textContent === 'Produces: Validated hard-anchor rule set')).toBeInTheDocument();
+  });
+
+  it('renders launch asset inventory work with non-repetitive detail language', () => {
+    render(
+      <BlockDetailsPanel
+        blockId="blk-1"
+        blocks={[
+          sampleBlock({
+            laneLabel: 'Operation Endgame media narrative pipeline',
+            title: 'Document album, app, and podcast launch asset inventory',
+            label: 'Document album, app, and podcast launch asset inventory',
+          }),
+        ]}
+        hierarchyContext={{ operatingCycle: 'June 2026 Operating Cycle' }}
+        onEdit={noop}
+      />
+    );
+
+    expect(screen.getByText(/which .* launch assets already exist/i)).toBeInTheDocument();
+    expect(screen.getByText(/List every album, app, and podcast launch asset/i)).toBeInTheDocument();
+    expect(screen.getByText((_, node) => node?.textContent === 'Produces: Documented launch asset inventory with status and ownership map')).toBeInTheDocument();
+    expect(screen.getAllByText((_, node) => node?.textContent === 'Work type: Planning').length).toBeGreaterThan(0);
+  });
+
+  it('shows explicit P1 justification for future-phase prerequisite governance work', () => {
+    render(
+      <BlockDetailsPanel
+        blockId="blk-1"
+        blocks={[
+          sampleBlock({
+            title: 'Define timing-slip non-negotiables',
+            label: 'Define timing-slip non-negotiables',
+          }),
+        ]}
+        hierarchyContext={{ operatingCycle: 'June 2026 Operating Cycle' }}
+        onEdit={noop}
+      />
+    );
+
+    expect(screen.getByText((_, node) => node?.textContent === 'Lane: Operation Endgame studio operations system')).toBeInTheDocument();
+    expect(screen.getByText((_, node) => node?.textContent === 'Entity: Global State Solutions')).toBeInTheDocument();
+    expect(screen.getByText((_, node) => node?.textContent === 'Project/Program: Operating System')).toBeInTheDocument();
+    expect(screen.getAllByText((_, node) => node?.textContent === 'P1 justification: Hard-anchor protection').length).toBeGreaterThan(0);
   });
 });

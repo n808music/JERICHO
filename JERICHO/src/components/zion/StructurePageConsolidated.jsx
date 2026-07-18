@@ -20,8 +20,7 @@ import {
   getCanonicalLongHorizonPlanMetadata,
   getCanonicalProposedBlocks,
 } from '../../state/cycleSelectors.js';
-import GoalAdmissionPage from '../../ui/goalAdmission/GoalAdmissionPage.tsx';
-import MasterPlanIntake from '../../ui/masterPlan/MasterPlanIntake.jsx';
+import MatrixIntake from '../../ui/masterPlan/MatrixIntake.jsx';
 import { computeContractHash } from '../../domain/goal/GoalAdmissionPolicy.ts';
 import { requiresCoreMissionContract } from '../../domain/goal/planningTierClassifier.ts';
 import { buildGoalIntakeContract } from '../../domain/goal/GoalIntakeContract.ts';
@@ -35,6 +34,7 @@ import { isCanonicalBlankState } from '../../state/identityCompute.js';
 import { describeBlockMeaning } from '../zion/blockMeaning.js';
 import CycleTransitionModal from './CycleTransitionModal.jsx';
 import ExportFullScheduleButton from './ExportFullScheduleButton.jsx';
+import SaveProgressButton from './SaveProgressButton.jsx';
 import HorizonResolutionPanel from './HorizonResolutionPanel.jsx';
 import WorkWindowsEditor from './WorkWindowsEditor.tsx';
 import {
@@ -309,6 +309,7 @@ function MasterPlanStructureSection({
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <SaveProgressButton />
               <ExportFullScheduleButton />
               <button
                 type="button"
@@ -320,9 +321,7 @@ function MasterPlanStructureSection({
             </div>
           </div>
         </>
-      ) : (
-        <MasterPlanIntake />
-      )}
+      ) : null}
     </div>
   );
 }
@@ -686,19 +685,12 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   const activeProfile = activeProfileId ? store?.profilesById?.[activeProfileId] || null : null;
   const activeMasterPlanId = activeProfile?.activeMasterPlanId || null;
   const activeMasterPlan = activeMasterPlanId ? store?.masterPlansById?.[activeMasterPlanId] || null : null;
-  const masterPlanIntake = store?.masterPlanIntake || null;
   const hasActiveMasterPlan = Boolean(activeProfile?.activeMasterPlanId);
   const activeMissionId = activeProfile?.activeCoreMissionContractId || null;
   const activeMissionContract = activeMissionId
     ? store?.coreMissionContractsById?.[activeMissionId] || null
     : null;
-  const activePlanningTier = String(pendingOnboardingInputs?.goalPlanningTier || '').trim().toLowerCase();
   const isBlankStructureState = isCanonicalBlankState(store);
-  const showMasterPlanFlow =
-    masterPlanIntake?.status === 'in-progress' ||
-    masterPlanIntake?.status === 'complete' ||
-    hasActiveMasterPlan ||
-    activePlanningTier === 'master_plan';
   const [isCycleTransitionModalOpen, setCycleTransitionModalOpen] = useState(false);
   const [constraintsSaveState, setConstraintsSaveState] = useState('idle');
   const activeCycle = activeCycleId ? cyclesById[activeCycleId] : null;
@@ -720,6 +712,24 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   const hasValidActiveExecutionCycle = Boolean(activeCycle?.id && cycleStatus !== 'ended' && cycleStatus !== 'archived');
   const isCycleReadOnly = cycleStatus === 'ended' || cycleStatus === 'archived';
   const hasAdmittedGoal = Boolean(activeCycle?.goalContract);
+  // Set to true by MatrixIntake's onSurveyStarted callback (fired before admission
+  // dispatch so both updates batch together). Debug-bridge admission never calls it,
+  // so external admission correctly falls through to MODULE 2.
+  const [intakeSessionActive, setIntakeSessionActive] = useState(false);
+  // Refresh-mid-intake (2026-07-10 defect): intakeSessionActive is component
+  // state and dies with the page, but the resumable session lives in the store
+  // (persisted on every step + pushed by Save Progress). If one exists for the
+  // active cycle, the survey is genuinely in-flight — mount MODULE 1 so
+  // MatrixIntake's resume path can rehydrate it. Sessions are retired on
+  // MARK_MATRIX_INTAKE_COMPLETE, so a present snapshot means unfinished intake.
+  // External/debug-bridge admission never writes a session → still falls
+  // through to MODULE 2 (test-safe).
+  const persistedIntakeSession = activeCycleId
+    ? store?.intakeSessionByCycleId?.[activeCycleId] || null
+    : null;
+  const hasResumableIntake = Boolean(
+    persistedIntakeSession?.engineSnapshot && persistedIntakeSession?.currentSlotId
+  );
   const hasGoalDraftRecovery =
     String(planRecovery?.required || '')
       .trim()
@@ -739,8 +749,14 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   const hasExecutableMasterPlan = Boolean(
     activeMasterPlan?.id && Array.isArray(activeMasterPlan?.laneIds) && activeMasterPlan.laneIds.length > 0
   );
+  const canonicalProposedInput = useMemo(() => {
+    if (Array.isArray(proposedBlocks) && proposedBlocks.length > 0) {
+      return proposedBlocks;
+    }
+    return Array.isArray(activeCycle?.proposedBlocks) ? activeCycle.proposedBlocks : [];
+  }, [proposedBlocks, activeCycle?.proposedBlocks]);
   const canonicalProposedChartBlocks = useMemo(() => {
-    const canonicalProposed = getCanonicalProposedBlocks(proposedBlocks, suggestedBlocks);
+    const canonicalProposed = getCanonicalProposedBlocks(canonicalProposedInput, suggestedBlocks);
     return (Array.isArray(canonicalProposed) ? canonicalProposed : [])
       .filter((block) => {
         if (
@@ -760,7 +776,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
         return true;
       })
       .sort((a, b) => String(a?.start || a?.startISO || '').localeCompare(String(b?.start || b?.startISO || '')));
-  }, [proposedBlocks, suggestedBlocks, activeCycleId, activeGoalId]);
+  }, [canonicalProposedInput, suggestedBlocks, activeCycleId, activeGoalId]);
   const canonicalExecutionBlocks = useMemo(() => {
     const cycleEvents = Array.isArray(activeCycle?.executionEvents) ? activeCycle.executionEvents : [];
     if (cycleEvents.length === 0) {
@@ -933,7 +949,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   const semanticSummary = useMemo(
     () =>
       deriveStructureSchedulingSemanticSummary({
-        proposedBlocks,
+        proposedBlocks: canonicalProposedInput,
         suggestedBlocks,
         deliverables: workspace?.deliverables || [],
         workspace,
@@ -946,7 +962,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
         activePlanSummary: activeCycle?.autoAsanaPlan?.summary || activeCycle?.lastResolvedPlanSummary || null,
       }),
     [
-      proposedBlocks,
+      canonicalProposedInput,
       suggestedBlocks,
       workspace,
       activeCycle?.executionEvents,
@@ -987,6 +1003,13 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
     setConstraintsSaveState((prev) => (prev === 'saving' ? 'saving' : 'dirty'));
   }, [workWindows, canonicalWorkWindows]);
 
+  useEffect(() => {
+    console.log('[StructurePage] hasAdmittedGoal changed:', hasAdmittedGoal,
+      '| intakeSessionActive:', intakeSessionActive,
+      '| hasResumableIntake:', hasResumableIntake,
+      '| rendering MODULE:', (!hasAdmittedGoal || intakeSessionActive || hasResumableIntake) ? '1 (intake)' : '2 (plan view)');
+  }, [hasAdmittedGoal, intakeSessionActive, hasResumableIntake]);
+
   const appNowISO = appTime?.nowISO || new Date().toISOString();
   const appCurrentDayKey = toDayKey(appNowISO);
   const [admissionDraft, setAdmissionDraft] = useState(() =>
@@ -1024,30 +1047,27 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
     clearPlanRecovery?.();
   }, [hasAdmittedGoal, hasGoalDraftRecovery, clearPlanRecovery]);
 
-  useEffect(() => {
-    if (!showMasterPlanFlow || hasActiveMasterPlan) {
-      return;
-    }
-    if (!activeProfileId) {
-      return;
-    }
-    if (masterPlanIntake?.status !== 'idle') {
-      return;
-    }
-    store?.masterPlanIntakeStart?.(activeProfileId);
-  }, [showMasterPlanFlow, hasActiveMasterPlan, activeProfileId, masterPlanIntake?.status, store]);
 
-  const handleClearGoal = () => {
+  const handleClearGoal = async () => {
     if (
       window.confirm(
         'Clear the current goal? This deletes the goal, Master Plan, Operating Cycle, schedule, and evidence and returns Jericho to blank state.'
       )
     ) {
-      resetIdentity?.();
+      if (typeof store?.hardResetIdentity === 'function') {
+        await store.hardResetIdentity();
+      } else {
+        resetIdentity?.();
+      }
       try {
         window.location.hash = '#/structure';
       } catch {
         // ignore hash routing failures
+      }
+      try {
+        window.location.reload?.();
+      } catch {
+        // ignore reload failures
       }
     }
   };
@@ -1099,54 +1119,14 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   };
 
   // ============================================================================
-  // MODULE 1: Pre-admission (no admitted goal contract)
+  // MODULE 1: Intake flow — no admitted goal, OR admitted in this session but
+  // survey not yet finished. intakeSessionActive is false by default; MatrixIntake
+  // sets it to true via onSurveyStarted (called before admission dispatch) so both
+  // updates land in the same React batch — keeping MatrixIntake mounted through
+  // the full survey. Debug-bridge / external admission never calls onSurveyStarted,
+  // so intakeSessionActive stays false → MODULE 2 shows immediately (test-safe).
   // ============================================================================
-  if (!hasAdmittedGoal) {
-    if (showMasterPlanFlow) {
-      return (
-        <div className="space-y-6">
-          <div className="border-b border-line/40 pb-4">
-            <h1 className="text-2xl font-bold text-jericho-text mb-2">Structure</h1>
-            <p className="text-sm text-muted">Master Plan Establishment</p>
-          </div>
-
-          {hasPersistenceRecovery ? <PersistenceRecoveryNotice planRecovery={planRecovery} /> : null}
-
-          <MasterPlanStructureSection
-            hasActiveMasterPlan={hasActiveMasterPlan}
-            masterPlanIntakeStatus={masterPlanIntake?.status || 'idle'}
-            activeMasterPlan={activeMasterPlan}
-            activeCycle={activeCycle}
-            scheduleLifecycle={normalizedScheduleLifecycle || 'no_schedule'}
-            onClearGoal={handleClearGoal}
-          />
-
-          {hasActiveMasterPlan ? (
-            <CycleManagementSection
-              activeCycleId={hasValidActiveExecutionCycle ? activeCycleId : null}
-              hasActiveMasterPlan={hasActiveMasterPlan}
-              activeCycle={hasValidActiveExecutionCycle ? activeCycle : null}
-              scheduleLifecycle={normalizedScheduleLifecycle || 'no_schedule'}
-              onCompleteReassessment={handleCompleteCycleReassessment}
-              onStartNewCycleRequest={() => {
-                handleStartNewCycle();
-              }}
-              onArchiveCycle={() => {
-                if (!hasValidActiveExecutionCycle || !activeCycleId) {
-                  return;
-                }
-                if (window.confirm('Archive the active Operating Cycle and move it to review mode?')) {
-                  store.endCycle?.(activeCycleId);
-                }
-              }}
-              onResetCycle={handleResetActiveCycle}
-              onDeleteCycle={handleDeleteActiveCycle}
-            />
-          ) : null}
-        </div>
-      );
-    }
-
+  if (!hasAdmittedGoal || intakeSessionActive || hasResumableIntake) {
     const draftStartDayKey = toDayKey(
       admissionDraft?.startDayKey || admissionDraft?.startDateISO || admissionDraft?.startDate || ''
     );
@@ -1156,9 +1136,14 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
       : null;
     return (
       <div className="space-y-6">
-        <div className="border-b border-line/40 pb-4">
-          <h1 className="text-2xl font-bold text-jericho-text mb-2">Structure</h1>
-          <p className="text-sm text-muted">Contract Admission</p>
+        <div className="border-b border-line/40 pb-4 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-jericho-text mb-2">Structure</h1>
+            <p className="text-sm text-muted">Contract Admission</p>
+          </div>
+          {/* Mid-intake durable save — answers persist to the store on every
+              step transition, so this pushes the in-flight session too. */}
+          <SaveProgressButton />
         </div>
 
         {hasPersistenceRecovery ? <PersistenceRecoveryNotice planRecovery={planRecovery} /> : null}
@@ -1186,98 +1171,42 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
           </div>
         ) : null}
 
-        {isBlankStructureState ? (
-          <div className="rounded-lg border border-line/60 bg-jericho-surface/90 p-4 space-y-1">
-            <p className="text-sm font-semibold text-jericho-text">No goal established yet.</p>
-            <p className="text-xs text-muted">Describe a goal to begin structure intake.</p>
-          </div>
-        ) : null}
+        {hasActiveMasterPlan ? (
+          // Master plan exists but no active cycle — control mode (no intake form)
+          <MasterPlanStructureSection
+            hasActiveMasterPlan={hasActiveMasterPlan}
+            masterPlanIntakeStatus="idle"
+            activeMasterPlan={activeMasterPlan}
+            activeCycle={activeCycle}
+            scheduleLifecycle={normalizedScheduleLifecycle || 'no_schedule'}
+            onClearGoal={handleClearGoal}
+          />
+        ) : (
+          // No master plan yet — run the matrix intake survey
+          <MatrixIntake
+            onSurveyStarted={() => setIntakeSessionActive(true)}
+            onComplete={() => setIntakeSessionActive(false)}
+          />
+        )}
 
-        {activeMissionContract ? (
-          <MissionContextBanner contract={activeMissionContract} />
+        {hasActiveMasterPlan ? (
+          <CycleManagementSection
+            activeCycleId={hasValidActiveExecutionCycle ? activeCycleId : null}
+            hasActiveMasterPlan={hasActiveMasterPlan}
+            activeCycle={hasValidActiveExecutionCycle ? activeCycle : null}
+            scheduleLifecycle={normalizedScheduleLifecycle || 'no_schedule'}
+            onCompleteReassessment={handleCompleteCycleReassessment}
+            onStartNewCycleRequest={() => { handleStartNewCycle(); }}
+            onArchiveCycle={() => {
+              if (!hasValidActiveExecutionCycle || !activeCycleId) return;
+              if (window.confirm('Archive the active Operating Cycle and move it to review mode?')) {
+                store.endCycle?.(activeCycleId);
+              }
+            }}
+            onResetCycle={handleResetActiveCycle}
+            onDeleteCycle={handleDeleteActiveCycle}
+          />
         ) : null}
-
-        <GoalAdmissionPage
-          contract={admissionDraft}
-          onContractChange={persistAdmissionDraft}
-          onPlanningTierRouted={({ planningTier, goalDescription, goalArchitecture }) => {
-            const nextPending = {
-              ...(pendingOnboardingInputs || {}),
-              goalPlanningTier: planningTier,
-              goalText: goalDescription,
-              goalArchitecture,
-              goalDraftV2: {
-                ...((pendingOnboardingInputs || {}).goalDraftV2 || {}),
-                goalText: goalDescription,
-                goalLabel: goalDescription,
-              },
-            };
-            updatePendingOnboardingInputs?.(nextPending);
-            if (requiresCoreMissionContract(planningTier, goalDescription)) {
-              const existingMissionId = activeProfile?.activeCoreMissionContractId || null;
-              if (!existingMissionId && activeProfileId) {
-                store.createCoreMissionContract?.({
-                  profileId: activeProfileId,
-                  durableObjective: goalDescription,
-                  currentPhase: 'foundation',
-                  horizonYears: 3,
-                });
-              }
-            }
-            if (activeProfileId && masterPlanIntake?.status === 'idle') {
-              store.masterPlanIntakeStart?.(activeProfileId);
-              store.masterPlanIntakeAnswer?.(goalDescription);
-              if (goalArchitecture?.laneComposition?.length) {
-                store.masterPlanIntakeSetLanes?.(goalArchitecture.laneComposition);
-              }
-            } else if (masterPlanIntake?.status === 'in-progress' && masterPlanIntake?.step === 1) {
-              store.masterPlanIntakeAnswer?.(goalDescription);
-              if (goalArchitecture?.laneComposition?.length) {
-                store.masterPlanIntakeSetLanes?.(goalArchitecture.laneComposition);
-              }
-            }
-          }}
-          onExecutionTypeChange={(executionType) => {
-            if ((admissionDraft?.executionType || null) === (executionType || null)) {
-              return;
-            }
-            persistAdmissionDraft({
-              ...admissionDraft,
-              executionType,
-            });
-          }}
-          onAdmit={(submittedContract) => {
-            const draftForSubmit = synchronizeAdmissionContract(submittedContract || admissionDraft);
-            const intakeContractForAdmit =
-              draftForSubmit?.goalIntakeContract || deriveAdmissionIntakeContract(draftForSubmit, pendingOnboardingInputs);
-            if (!intakeContractForAdmit.readiness.isReadyForPlanning) {
-              setAdmissionAttemptFeedback({
-                rejectionCodes: [
-                  intakeContractForAdmit.requiredContextQuestions[0]?.reasonCode || 'INTAKE_BOUNDARY_AMBIGUOUS',
-                ],
-                rejectionReason:
-                  intakeContractForAdmit.requiredContextQuestions[0]?.prompt ||
-                  'Goal intake is not ready for planning.',
-              });
-              return;
-            }
-            persistAdmissionDraft(draftForSubmit);
-            const result = store.attemptGoalAdmission?.({
-              contract: draftForSubmit,
-              goalDraftV2: draftForSubmit?.goalDraftV2 || null,
-            });
-            if (result?.status === 'REJECTED') {
-              setAdmissionAttemptFeedback(result);
-              return;
-            }
-            setAdmissionAttemptFeedback(null);
-          }}
-          onAspire={() => {
-            finishOnboardingGate?.(null);
-          }}
-          existingGoalOutcomes={existingGoalOutcomes}
-          appTimeISO={appNowISO}
-        />
       </div>
     );
   }
@@ -1426,14 +1355,14 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
         </div>
       )}
 
-      {showMasterPlanFlow && activeMissionContract ? (
+      {activeMissionContract ? (
         <MissionContextBanner contract={activeMissionContract} />
       ) : null}
 
-      {showMasterPlanFlow ? (
+      {hasActiveMasterPlan ? (
         <MasterPlanStructureSection
           hasActiveMasterPlan={hasActiveMasterPlan}
-          masterPlanIntakeStatus={masterPlanIntake?.status || 'idle'}
+          masterPlanIntakeStatus="idle"
           activeMasterPlan={activeMasterPlan}
           activeCycle={activeCycle}
           scheduleLifecycle={normalizedScheduleLifecycle || 'no_schedule'}

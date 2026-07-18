@@ -114,7 +114,9 @@ describe('Elicitation Engine — Project slot (§9 worked trace, Law 2 proving g
     engine = result.engine.refreshMatrix(state.matrix);
     const step = engine.nextStep();
     expect(step.probe.fieldName).toBe('owningEntityId');
-    expect(step.probe.spine).toMatch(/which part of your operation owns this/i);
+    // 2026-07-10: spine carries the 'this project' binder token, so with the
+    // name captured the question binds to the item — "owns Romance Riot?".
+    expect(step.probe.spine).toMatch(/which part of your operation owns Romance Riot/i);
     expect(step.probe.pickSet?.kind).toBe('declaredEntities');
     expect(step.probe.pickSet?.items.map((item) => item.id)).toContain('node-gs-corp');
   });

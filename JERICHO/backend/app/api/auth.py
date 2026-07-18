@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from app.core.database import get_db
 from app.core.security import create_access_token, verify_password, get_password_hash, verify_token
-from app.schemas.auth import UserCreate, UserLogin, UserResponse, Token, TokenData, DeviceAuthRequest
+from app.schemas.auth import UserCreate, UserLogin, UserResponse, Token, TokenData
 from app.models.user import User
 
 router = APIRouter()
@@ -45,12 +45,16 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
 
 
 @router.post("/device", response_model=Token)
-async def device_auth(payload: DeviceAuthRequest, db: Session = Depends(get_db)):
-    """Auto-register or login a device account. device_id is the credential."""
-    if not payload.device_id or len(payload.device_id) < 8:
+async def device_auth(device_id: str, db: Session = Depends(get_db)):
+    """Auto-register or login a device account. device_id is the credential.
+
+    Read from the query string (not a JSON body) so the browser issues a
+    CORS-simple POST with no application/json preflight.
+    """
+    if not device_id or len(device_id) < 8:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid device_id")
 
-    email = f"device-{payload.device_id}@jericho.local"
+    email = f"device-{device_id}@jericho.local"
     user = db.query(User).filter(User.email == email).first()
     if not user:
         user = User(email=email, password_hash="", is_active=True)

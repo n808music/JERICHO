@@ -533,7 +533,65 @@ type MaterializedDay = {
   practices: any[];
 };
 
-export function materializeBlocksFromEvents(events: ExecutionEvent[] = [], { todayISO }: { todayISO?: string } = {}) {
+// Canonical identity / artifact / dependency fields that the proposal phase
+// populates but execution events do not carry. When materializing blocks from
+// events, these must be carried over from the canonical block store so that
+// BlockDetailsPanel detail authority continues to recognize the lane context
+// after a status transition (COMPLETE, MISSED, RESCHEDULE) rebuilds the block.
+const CANONICAL_BLOCK_CONTEXT_FIELDS = [
+  'laneId',
+  'laneLabel',
+  'entityId',
+  'entityLabel',
+  'phaseId',
+  'phaseLabel',
+  'workType',
+  'masterPlanId',
+  'masterPlanLaneId',
+  'masterCalendarId',
+  'coreMissionContractId',
+  'initiativeLabel',
+  'projectLabel',
+  'milestoneType',
+  'derivedFrom',
+  'derivationReason',
+  'placementBasis',
+  'phaseJustification',
+  'producesArtifact',
+  'expectedOutput',
+  'passEvidence',
+  'acceptanceEvidence',
+  'missConsequence',
+  'completionAssertion',
+  'consumedBy',
+  'consumedByRef',
+  'directDependencyIds',
+  'directDependencyDetails',
+  'owner',
+  'executionOwner',
+  'displayTitle',
+  // Attestation contract — operator verifies, Jericho does not. The canonical
+  // triple must survive every materialization boundary so that the panel can
+  // always show Target / Source / Attestation directly from the block.
+  'target',
+  'verificationSource',
+  'operatorAttestation',
+] as const;
+
+function mergeCanonicalContext(block: any, source: any): any {
+  if (!block || !source) return block;
+  CANONICAL_BLOCK_CONTEXT_FIELDS.forEach((field) => {
+    if (block[field] == null && source[field] != null) {
+      block[field] = source[field];
+    }
+  });
+  return block;
+}
+
+export function materializeBlocksFromEvents(
+  events: ExecutionEvent[] = [],
+  { todayISO, canonicalBlocks = null }: { todayISO?: string; canonicalBlocks?: Record<string, any> | null } = {}
+) {
   const byId = new Map<string, any>();
   const completedIds = new Set<string>();
   const deletedIds = new Set<string>();
@@ -584,12 +642,18 @@ export function materializeBlocksFromEvents(events: ExecutionEvent[] = [], { tod
       return;
     }
 
-    const fallback = byId.get(event.blockId);
+    const fallback = byId.get(event.blockId) || (canonicalBlocks ? canonicalBlocks[event.blockId] : null) || null;
     if (!fallback && event.kind && event.kind !== 'create' && event.kind !== 'complete') {
       return;
     }
 
     let block = fallback ? { ...fallback } : buildBlockFromEvent(event);
+    // Preserve canonical identity context from the canonical block store, even
+    // when starting from an event-derived block. Events do not carry lane /
+    // master plan / artifact context; the block store is the canonical source.
+    if (canonicalBlocks && canonicalBlocks[event.blockId]) {
+      mergeCanonicalContext(block, canonicalBlocks[event.blockId]);
+    }
     if (event.canonicalTitle || event.rawLabel) {
       const preferredTitle = event.canonicalTitle || event.rawLabel;
       block.label = preferredTitle;

@@ -10,11 +10,11 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { buildMasterPlanOperationalDescriptors } from '../identityCompute.js';
+import { buildMasterPlanOperationalDescriptors, resolveFirstCycleScheduleStart } from '../identityCompute.js';
 
 function stateOf(today, planOverrides = {}) {
   return {
-    appTime: { timeZone: 'America/Chicago' },
+    appTime: { timeZone: 'America/Chicago', activeDayKey: today },
     today: { date: today },
     profilesById: { 'profile-1': { id: 'profile-1', masterCalendarId: null } },
     masterCalendarsById: {},
@@ -63,5 +63,58 @@ describe('buildMasterPlanOperationalDescriptors cycle rebase', () => {
     const descriptors = buildMasterPlanOperationalDescriptors(stateOf(today), planOf(undefined));
     expect(descriptors).not.toBeNull();
     expect(descriptors.startDayKey).toBe(today);
+  });
+
+  it('prefers live appTime over stale today when rebasing the first-cycle floor', () => {
+    const state = stateOf('2026-06-14');
+    state.today.date = '2026-05-19';
+
+    const resolved = resolveFirstCycleScheduleStart(state, {
+      plan: planOf('2026-05-19'),
+    });
+    const descriptors = buildMasterPlanOperationalDescriptors(state, planOf('2026-05-19'));
+
+    expect(resolved.candidateStartDayKey).toBe('2026-06-14');
+    expect(resolved.resolvedStartDayKey).toBe('2026-06-15');
+    expect(descriptors).not.toBeNull();
+    expect(descriptors.todayDayKey).toBe('2026-06-14');
+    expect(descriptors.startDayKey).toBe('2026-06-15');
+  });
+
+  it('resolves to the next available workday when saved availability starts later', () => {
+    const state = stateOf('2026-06-04');
+    state.availabilityPolicy = {
+      workWindows: {
+        mon: [{ start: '09:00', end: '15:00' }],
+        tue: [{ start: '09:00', end: '15:00' }],
+        wed: [],
+        thu: [],
+        fri: [],
+        sat: [],
+        sun: [],
+      },
+    };
+    const resolved = resolveFirstCycleScheduleStart(state, {
+      plan: planOf('2026-05-19'),
+    });
+    expect(resolved.resolvedStartDayKey).toBe('2026-06-08');
+    expect(resolved.reasonCode).toBe('NO_AVAILABILITY_BEFORE_DATE');
+  });
+
+  it('preserves an occupied active cycle window instead of rebasing over it', () => {
+    const state = stateOf('2026-06-04');
+    state.cyclesById = {
+      'masterplan-cycle:plan-1': {
+        id: 'masterplan-cycle:plan-1',
+        startedAtDayKey: '2026-08-04',
+        scheduleLifecycle: 'active_schedule',
+        executionEvents: [{ id: 'evt-1' }],
+        goalContract: { startDayKey: '2026-08-04', endDayKey: '2026-10-17' },
+      },
+    };
+    const descriptors = buildMasterPlanOperationalDescriptors(state, planOf('2026-05-19'));
+    expect(descriptors).not.toBeNull();
+    expect(descriptors.startDayKey).toBe('2026-08-04');
+    expect(descriptors.startDateReasonCode).toBe('ACTIVE_CYCLE_OCCUPANCY');
   });
 });

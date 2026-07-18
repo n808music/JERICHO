@@ -7,10 +7,13 @@ import { ACTION_VERB_SET, isActionableTitleVerb } from './actionVerbs';
  * actionability check rejects, only after confirming those verbs are
  * genuinely imperative.
  *
- * These 11 verbs were drift-discovered in the Operation Endgame fixture
+ * These verbs were drift-discovered in the Operation Endgame fixture
  * after the 2026-06-03 canonical-verbs work; 90 OE blocks tripped
  * BLOCK_TITLE_NOT_ACTIONABLE, which cascaded into balance-dimension
  * downgrades that pushed fullHorizonPlanQuality off 'trusted'.
+ *
+ * 're-clarify' was removed 2026-07-17 (Gate 6): the two generator titles it
+ * served were redesigned to start with 'Revise', a canonical verb.
  */
 const OE_SCHEDULER_VERBS = [
   'author',
@@ -20,7 +23,6 @@ const OE_SCHEDULER_VERBS = [
   'groom',
   'log',
   'qualify',
-  're-clarify',
   'source',
   'summarize',
   'triage',

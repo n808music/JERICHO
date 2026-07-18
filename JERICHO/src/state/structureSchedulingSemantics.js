@@ -82,17 +82,21 @@ export function deriveStructureSchedulingSemanticSummary({
   const normalizedLastPlanErrorCode = String(lastPlanError?.code || '')
     .trim()
     .toUpperCase();
-  const scheduleStatus = lastPlanError?.code
+  const hasDraftSchedule = scopedProposedCalendarBlocks.length > 0;
+  const hasAppliedReviewSchedule = normalizedScheduleLifecycle === 'applied_review' || reviewCalendarBlockCount > 0;
+  const hasActiveSchedule = normalizedScheduleLifecycle === 'active_schedule' || committedCalendarBlockCount > 0;
+  const hasCanonicalScheduleSurface = hasDraftSchedule || hasAppliedReviewSchedule || hasActiveSchedule;
+  const scheduleStatus = !hasCanonicalScheduleSurface && lastPlanError?.code
     ? normalizedLastPlanErrorCode === 'HORIZON_INSUFFICIENT'
       ? 'horizon_insufficient'
       : 'unknown'
     : normalizedPlanStatus === 'VALID_BUT_HORIZON_INSUFFICIENT'
       ? 'horizon_insufficient'
-    : normalizedScheduleLifecycle === 'active_schedule' || committedCalendarBlockCount > 0
+    : hasActiveSchedule
       ? 'active_schedule'
-      : normalizedScheduleLifecycle === 'applied_review' || reviewCalendarBlockCount > 0
+      : hasAppliedReviewSchedule
         ? 'applied_review'
-        : scopedProposedCalendarBlocks.length > 0
+        : hasDraftSchedule
           ? 'draft_schedule_ready'
           : normalizedScheduleLifecycle === 'stale_draft_invalidated'
             ? 'stale_draft_invalidated'

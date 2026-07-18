@@ -11,15 +11,16 @@ import {
   deriveExecutionTruthClassification,
 } from './engine/todayAuthority.ts';
 import { appendFrictionEvent, buildFrictionEvent } from './engine/profileExecutionContainment.ts';
-import { addDays, dayKeyFromDate, dayKeyFromISO, nowDayKey } from './time/time.ts';
+import { APP_TIME_ZONE, addDays, dayKeyFromDate, dayKeyFromISO, nowDayKey } from './time/time.ts';
 import { assertEngineAuthority } from './invariants/engineAuthority.ts';
-import { validateGoalAdmission } from '../domain/goal/GoalAdmissionPolicy.ts';
 import { GoalRejectionCode } from '../domain/goal/GoalRejectionCode.ts';
-import { buildAutoDeliverablesFromGoalContract, detectCompoundGoal } from '../domain/autoStrategy.ts';
+import { buildAutoDeliverablesFromGoalContract } from '../domain/autoStrategy.ts';
+import { hasDefiniteEndState } from '../domain/planQuality/hasDefiniteEndState.ts';
 import { buildGoalIntakeContract, getIntakeGateCode } from '../domain/goal/GoalIntakeContract.ts';
 import { createGeneratePlanWithLLM } from './storeLLMActions.ts';
 import { getCanonicalCycleActions } from './cycleSelectors.js';
 import { IS_PRODUCTION } from '../utils/runtimeEnv.js';
+import { resolveEffectiveExecutableStartDayKey } from '../domain/product/resolveEffectiveExecutableStartDayKey.js';
 import {
   applyMasterPlanAction,
   buildMasterPlanStateFields,
@@ -47,6 +48,7 @@ const DERIVED_PERSISTENCE_KEYS = [
   'fullHorizonBlockQuality',
   'fullHorizonRenderTruthAudit',
   'fullHorizonCoverageFailureCodes',
+  '__fullHorizonMemoKey',
 ];
 
 const IdentityContext = createContext(null);
@@ -168,6 +170,21 @@ function normalizeProfileIdentity(profile = {}, options = {}) {
     label: String(profile?.label || fallbackDisplayName).trim() || fallbackDisplayName,
     roleLabel: roleLabel || null,
   };
+}
+
+// The old MissionSetupFlow wrote "Name / PlanTitle" into profile.displayName.
+// Strip the plan-title suffix on goal-clear so only the user's name survives.
+export function stripEmbeddedPlanTitle(displayName, masterPlansById) {
+  const str = String(displayName || '').trim();
+  const sepIdx = str.lastIndexOf(' / ');
+  if (sepIdx <= 0) return str;
+  const candidateSuffix = str.slice(sepIdx + 3).trim();
+  if (!candidateSuffix) return str;
+  const matchesPlan = Object.values(masterPlansById || {}).some((p) => {
+    const t = String(p?.title || p?.coreMission || '').trim();
+    return t && t === candidateSuffix;
+  });
+  return matchesPlan ? str.slice(0, sepIdx).trim() : str;
 }
 
 function buildProfileAccessState({ profilesById = {}, activeProfileId = null, status = null, nowISO = null } = {}) {
@@ -341,11 +358,7 @@ function buildRecoveredGoalArtifacts({ goalId, startDayKey, endDayKey, goalText,
 const seedState = buildInitialIdentityState();
 
 export function buildBlankIdentityState(options = {}) {
-  const deviceTimeZone =
-    options.timeZone ||
-    (typeof Intl !== 'undefined' && Intl.DateTimeFormat().resolvedOptions
-      ? Intl.DateTimeFormat().resolvedOptions().timeZone
-      : 'UTC');
+  const deviceTimeZone = options.timeZone || APP_TIME_ZONE;
   const nowISO = options.nowISO || new Date().toISOString();
   const todayDate = options.todayDate || dayKeyFromISO(nowISO, deviceTimeZone);
   const requestedProfileId = String(options.activeProfileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
@@ -445,12 +458,45 @@ export function buildBlankIdentityState(options = {}) {
     currentWeek: { weekStart: todayDate, days: [], metrics: {} },
     cycle: [],
     blockStore: { blocks: {} },
+    // MATRIX v2 (Truth Representation contract). The matrix is the canonical
+    // source of truth populated by the intake survey. Schedule, milestones,
+    // dependencies, and the enterprise graph are downstream projections of
+    // this state — never the other way around.
+    //   Section 1A — verificationSourcesById   (every external system the
+    //                                            operator can verify against)
+    //   Section 2  — entitiesById               (Nodes / businesses)
+    //   Section 3  — initiativesById            (missions)
+    //   Section 4  — systemsById                (recurring engines)
+    //   Section 5  — projectsById               (finite outcomes)
+    //   Section 6  — artifactsById              (physical outputs)
+    //   Section 7  — dependenciesById           (upstream/downstream edges)
+    //   Section 8  — convergenceEdgesById       (cross-lane convergence)
+    //   Section 9  — resourceProfilesById       (per-initiative gap grid), bindingConstraint
+    //   Section 10 — bootstrap                  (where execution can begin)
+    matrix: {
+      verificationSourcesById: {},
+      entitiesById: {},
+      initiativesById: {},
+      systemsById: {},
+      projectsById: {},
+      artifactsById: {},
+      dependenciesById: {},
+      convergenceEdgesById: {},
+      resourceProfilesById: {},
+      bindingConstraint: null,
+      bootstrap: { candidates: [], selectedNodeId: null },
+    },
     goalPolicyByGoalId: {},
     masterPlanPolicyByPlanId: {},
     planQualityGateByGoal: {},
     systemShotClockByGoal: {},
     executionCorrectionByGoal: {},
     cycleDynamicsByCycleId: {},
+    // In-flight matrix-intake session, persisted per cycle so the survey can
+    // resume at the exact slot with all captured answers after a route change,
+    // refresh, or accidental back-gesture (Defect B). Cleared on completion and
+    // on goal clear (a resumable session for a dead goal is the Gap 4 class).
+    intakeSessionByCycleId: {},
     viewDate: todayDate,
     selectedHorizonMode: 'current_cycle',
     calendarDisplayBlocks: [],
@@ -500,11 +546,177 @@ export function buildBlankIdentityState(options = {}) {
   return blankState;
 }
 
+function repairPersistedExecutionFloors(state) {
+  if (!state?.cyclesById || typeof state.cyclesById !== 'object') {
+    return state;
+  }
+
+  Object.values(state.cyclesById).forEach((cycle) => {
+    if (!cycle || !isLiveCycleStatus(cycle?.status || cycle?.state)) {
+      return;
+    }
+
+    const repairedExecutionStartDayKey = resolveEffectiveExecutableStartDayKey({
+      executionStartDayKey: cycle?.executionStartDayKey || null,
+      reassessmentCompletedAtISO: cycle?.reassessmentCompletedAtISO || null,
+      scheduleGeneratedAtISO: cycle?.scheduleGeneratedAtISO || cycle?.autoAsanaPlan?.audit?.generatedAtISO || null,
+      fallbackStartDayKey:
+        cycle?.startedAtDayKey ||
+        cycle?.goalGovernanceContract?.activeFromISO ||
+        cycle?.goalContract?.startDayKey ||
+        cycle?.goalContract?.startDateISO ||
+        cycle?.goalContract?.startDate ||
+        state?.goalExecutionContract?.startDayKey ||
+        state?.goalExecutionContract?.startDateISO ||
+        state?.goalExecutionContract?.startDate ||
+        null,
+    });
+
+    if (repairedExecutionStartDayKey) {
+      cycle.executionStartDayKey = repairedExecutionStartDayKey;
+    }
+  });
+
+  return state;
+}
+
+function normalizePersistedDayKey(value) {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return null;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return normalized;
+  }
+  return normalized.slice(0, 10) || null;
+}
+
+function normalizePersistedActiveBlockFromEvent(event = {}) {
+  const startISO = String(event?.startISO || event?.start || '').trim();
+  const endISO = String(event?.endISO || event?.end || '').trim();
+  const startDayKey = normalizePersistedDayKey(event?.dateISO || startISO || event?.dayKey);
+  const endDayKey = normalizePersistedDayKey(endISO || startISO || event?.dateISO || event?.dayKey);
+  const durationMinutes =
+    Number(event?.durationMinutes) ||
+    Number(event?.minutes) ||
+    (startISO && endISO ? Math.max(1, Math.round((Date.parse(endISO) - Date.parse(startISO)) / 60000)) : 30);
+
+  return {
+    id: event?.blockId || event?.id || null,
+    cycleId: event?.cycleId || null,
+    goalId: event?.goalId || null,
+    title: event?.canonicalTitle || event?.rawLabel || event?.title || event?.label || 'Carry-forward block',
+    label: event?.label || event?.canonicalTitle || event?.rawLabel || event?.title || 'Carry-forward block',
+    startISO,
+    endISO,
+    start: startISO,
+    end: endISO,
+    startDayKey,
+    endDayKey,
+    dayKey: startDayKey,
+    durationMinutes,
+    origin: 'schedule_review',
+    status: 'planned',
+    requiredSystemBlock: Boolean(event?.requiredSystemBlock),
+    practice: event?.practice || event?.domain || null,
+    domain: event?.domain || event?.practice || null,
+  };
+}
+
+function rebasePersistedActiveScheduleIfNeeded(state) {
+  const cycleId = state?.activeCycleId || null;
+  const cycle = cycleId ? state?.cyclesById?.[cycleId] || null : null;
+  if (!cycle) {
+    return state;
+  }
+
+  const lifecycle = String(cycle?.scheduleLifecycle || '').trim().toLowerCase();
+  const executionStartDayKey = normalizePersistedDayKey(cycle?.executionStartDayKey);
+  if (lifecycle !== 'active_schedule' || !executionStartDayKey) {
+    return state;
+  }
+
+  const cycleEvents = Array.isArray(cycle?.executionEvents) ? cycle.executionEvents : [];
+  const stateEvents = Array.isArray(state?.executionEvents) ? state.executionEvents : [];
+  const events = cycleEvents.length > 0 ? cycleEvents : stateEvents;
+  if (!events.length) {
+    return state;
+  }
+
+  const outcomeBlockIds = new Set(
+    events
+      .filter((event) => ['complete', 'completed', 'missed', 'skipped', 'backfill'].includes(String(event?.kind || '').trim().toLowerCase()))
+      .map((event) => String(event?.blockId || '').trim())
+      .filter(Boolean)
+  );
+
+  const pendingBlocks = events
+    .filter((event) => String(event?.kind || '').trim().toLowerCase() === 'create')
+    .filter((event) => {
+      const blockId = String(event?.blockId || '').trim();
+      return blockId && !outcomeBlockIds.has(blockId);
+    })
+    .map(normalizePersistedActiveBlockFromEvent)
+    .filter((block) => block?.id);
+
+  const hasPreFloorDebt = pendingBlocks.some((block) => {
+    const dayKey = normalizePersistedDayKey(block?.dayKey || block?.startDayKey || block?.startISO);
+    return Boolean(dayKey && dayKey < executionStartDayKey);
+  });
+
+  if (!hasPreFloorDebt) {
+    return state;
+  }
+
+  cycle.scheduleReviewBlocks = pendingBlocks;
+  cycle.scheduleLifecycle = 'applied_review';
+  cycle.activationDelayAssessment = {
+    status: 'ready_to_rebase',
+    appliedAtISO: cycle?.scheduleAppliedAtISO || null,
+    activationRequestedAtISO: state?.appTime?.nowISO || null,
+    appliedStartDayKey: pendingBlocks.map((block) => block?.dayKey).filter(Boolean).sort()[0] || null,
+    requestedExecutionStartDayKey: executionStartDayKey,
+    workHappenedDuringDelay: 'none',
+    selectedResolution: 'rebase',
+    pastDatedBlockCount: pendingBlocks.filter((block) => String(block?.dayKey || '') < executionStartDayKey).length,
+    scheduleDebtMinutes: pendingBlocks
+      .filter((block) => String(block?.dayKey || '') < executionStartDayKey)
+      .reduce((sum, block) => sum + Number(block?.durationMinutes || 0), 0),
+    reasonCodes: ['DELAY_WINDOW_REBASE_SELECTED', 'PERSISTED_ACTIVE_SCHEDULE_REBASE_REQUIRED'],
+  };
+
+  const pendingBlockIds = new Set(pendingBlocks.map((block) => String(block?.id || '').trim()).filter(Boolean));
+  const retainedEvents = events.filter((event) => {
+    const blockId = String(event?.blockId || '').trim();
+    const kind = String(event?.kind || '').trim().toLowerCase();
+    if (!pendingBlockIds.has(blockId)) {
+      return true;
+    }
+    return kind !== 'create';
+  });
+  cycle.executionEvents = retainedEvents;
+  state.executionEvents = retainedEvents;
+  state.scheduleReviewBlocks = pendingBlocks;
+  state.scheduleLifecycle = 'applied_review';
+  state.scheduleApplied = true;
+  state.pendingPlanConfirmation = false;
+
+  return computeDerivedState(state, {
+    type: 'REBASE_SCHEDULE',
+    payload: {
+      cycleId: cycle.id,
+      executionStartDayKey,
+      activationDelayResolution: 'rebase',
+      workHappenedDuringDelay: 'none',
+    },
+  });
+}
+
 export function rehydratePersistedState(persisted) {
   if (!persisted || persisted.meta?.version !== STATE_VERSION) {
     return null;
   }
-  const withTemplates = ensureTemplates(persisted);
+  const withTemplates = rebasePersistedActiveScheduleIfNeeded(repairPersistedExecutionFloors(ensureTemplates(persisted)));
   withTemplates.profileAccess =
     withTemplates.profileAccess && typeof withTemplates.profileAccess === 'object'
       ? withTemplates.profileAccess
@@ -567,6 +779,14 @@ export function buildPersistableIdentityState(state) {
     snapshot.activeCycleId = null;
   }
 
+  // Never persist an in-flight intake session for a cycle that is no longer
+  // retained (Defect B / Gap 4 class: no resumable survey for a dead goal).
+  snapshot.intakeSessionByCycleId = Object.fromEntries(
+    Object.entries(snapshot?.intakeSessionByCycleId || {}).filter(
+      ([cycleId]) => Boolean(retainedCyclesById[cycleId])
+    )
+  );
+
   Object.values(snapshot?.goalsById || {}).forEach((goal) => {
     if (!goal) {
       return;
@@ -588,10 +808,7 @@ function buildInitialIdentityState() {
     return hydrated;
   }
 
-  const deviceTimeZone =
-    typeof Intl !== 'undefined' && Intl.DateTimeFormat().resolvedOptions
-      ? Intl.DateTimeFormat().resolvedOptions().timeZone
-      : 'UTC';
+  const deviceTimeZone = APP_TIME_ZONE;
   const nowISO = new Date().toISOString();
   const todayDate = dayKeyFromISO(nowISO, deviceTimeZone);
   const activeDayKey = dayKeyFromISO(nowISO, deviceTimeZone);
@@ -996,7 +1213,10 @@ function identityReducer(state, action) {
     const activeProfileId = String(state?.activeProfileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
     const currentProfile = state?.profilesById?.[activeProfileId] || {};
     const profileLabel = currentProfile?.label || DEFAULT_PROFILE_LABEL;
-    const profileDisplayName = currentProfile?.displayName || profileLabel || DEFAULT_PROFILE_DISPLAY_NAME;
+    const profileDisplayName = stripEmbeddedPlanTitle(
+      currentProfile?.displayName || profileLabel || DEFAULT_PROFILE_DISPLAY_NAME,
+      state?.masterPlansById
+    );
     const roleLabel = currentProfile?.roleLabel || null;
     const sanitizedProfiles = {
       [activeProfileId]: {
@@ -1140,7 +1360,7 @@ function identityReducer(state, action) {
   if (action.type === 'JUMP_TO_TODAY') {
     const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
     const timeZone = draft.appTime?.timeZone || 'UTC';
-    const nowISO = draft.appTime?.nowISO || new Date().toISOString();
+    const nowISO = new Date().toISOString();
     const activeDayKey = dayKeyFromISO(nowISO, timeZone);
     draft.appTime = {
       ...(draft.appTime || {}),
@@ -1542,8 +1762,15 @@ export function IdentityProvider({ children, initialState }) {
       if (!resolvedCycleId) {
         return Promise.resolve();
       }
+      // GENERATE_SCHEDULE (2026-07-13 unified schedule generation design, §6.2): routes to
+      // generatePlan first (unchanged behavior for every cycle that already works today),
+      // falling back to the matrix-driven generateColdPlanForCycle only when generatePlan
+      // itself reports NO_ACTION_GRAPH (no admitted goal/action graph yet) — see
+      // routeGenerateSchedule in identityCompute.js. Strict improvement over dispatching
+      // GENERATE_PLAN directly: a matrix-only cycle with no admitted goal now produces a
+      // real schedule instead of dead-ending on NO_ACTION_GRAPH.
       dispatch({
-        type: 'GENERATE_PLAN',
+        type: 'GENERATE_SCHEDULE',
         payload: {
           cycleId: resolvedCycleId,
           anchorDayKey: payload?.anchorDayKey || null,
@@ -1625,6 +1852,59 @@ export function IdentityProvider({ children, initialState }) {
     dispatch({ type: 'UPDATE_BLOCK', payload: { ...(payload || {}), id: `blk-${proposalId}` } });
   }, []);
   const resetIdentity = useCallback(() => dispatch({ type: 'RESET_IDENTITY' }), []);
+  const hardResetIdentity = useCallback(async () => {
+    const current = stateRef.current;
+    const activeProfileId = String(current?.activeProfileId || DEFAULT_PROFILE_ID).trim() || DEFAULT_PROFILE_ID;
+    const currentProfile = current?.profilesById?.[activeProfileId] || {};
+    const profileLabel = currentProfile?.label || DEFAULT_PROFILE_LABEL;
+    const profileDisplayName = stripEmbeddedPlanTitle(
+      currentProfile?.displayName || profileLabel || DEFAULT_PROFILE_DISPLAY_NAME,
+      current?.masterPlansById
+    );
+    const roleLabel = currentProfile?.roleLabel || null;
+    const sanitizedProfiles = {
+      [activeProfileId]: {
+        id: activeProfileId,
+        ...normalizeProfileIdentity(
+          {
+            label: profileLabel,
+            displayName: profileDisplayName,
+            roleLabel,
+          },
+          {
+            profileLabel,
+            displayName: profileDisplayName,
+            roleLabel,
+          }
+        ),
+        masterCalendarId: currentProfile?.masterCalendarId || `calendar-${activeProfileId}`,
+        strategicClusterIds: [],
+        goalIds: [],
+        activeGoalId: null,
+        status: currentProfile?.status || 'active',
+      },
+    };
+    const blankNextState = computeDerivedState(
+      buildBlankIdentityState({
+        activeProfileId,
+        profileLabel,
+        displayName: profileDisplayName,
+        roleLabel,
+        profilesById: sanitizedProfiles,
+        profileAccess: {
+          status: 'profile_selected',
+          selectedProfileId: activeProfileId,
+          lastSelectedAtISO: current?.appTime?.nowISO || new Date().toISOString(),
+        },
+        timeZone: current?.appTime?.timeZone || APP_TIME_ZONE,
+      }),
+      { type: 'NO_OP' }
+    );
+    persistState(blankNextState);
+    await syncPush(buildPersistableIdentityState(blankNextState));
+    dispatch({ type: 'APPLY_NEXT_STATE', nextState: blankNextState });
+    return blankNextState;
+  }, []);
   const selectProfile = useCallback((profileId) => dispatch({ type: 'SELECT_PROFILE', profileId }), []);
   const upsertProfileDetails = useCallback(
     (payload = {}) => dispatch({ type: 'UPSERT_PROFILE_DETAILS', ...payload }),
@@ -1649,6 +1929,35 @@ export function IdentityProvider({ children, initialState }) {
       return result;
     },
     [state]
+  );
+  const markMatrixIntakeComplete = useCallback(() => {
+    const cycleId = state.activeCycleId;
+    if (!cycleId) return;
+    // Pure reducer action (not a stale-closure APPLY_NEXT_STATE full-replace,
+    // which could roll back records committed after this callback's snapshot).
+    // The reducer applies to CURRENT state and guards session retirement so
+    // uncommitted answers are never silently discarded.
+    dispatch({ type: 'MARK_MATRIX_INTAKE_COMPLETE', payload: { cycleId } });
+  }, [state.activeCycleId]);
+
+  // Persist / retire the in-flight matrix-intake session so it survives a route
+  // change, refresh, or back-gesture and can resume at the exact slot (Defect B).
+  const setIntakeSession = useCallback((cycleId, session) => {
+    if (!cycleId || !session) return;
+    dispatch({ type: 'SET_INTAKE_SESSION', payload: { cycleId, session } });
+  }, []);
+  const clearIntakeSession = useCallback((cycleId) => {
+    if (!cycleId) return;
+    dispatch({ type: 'CLEAR_INTAKE_SESSION', payload: { cycleId } });
+  }, []);
+
+  const matrixDispatch = useCallback((action) => dispatch(action), []);
+
+  // Explicit, user-triggered durable save to the backend. Returns the push result
+  // ({ ok, status? } / { ok:false, error }) so the UI can show a visible status.
+  const saveProgress = useCallback(
+    () => syncPush(buildPersistableIdentityState(stateRef.current)),
+    []
   );
 
   React.useEffect(() => {
@@ -1752,6 +2061,7 @@ export function IdentityProvider({ children, initialState }) {
     assignSuggestionLink,
     compileGoalEquation,
     resetIdentity,
+    hardResetIdentity,
     selectProfile,
     upsertProfileDetails,
     restoreOperationEndgameProfile,
@@ -1760,6 +2070,11 @@ export function IdentityProvider({ children, initialState }) {
     setAim,
     setPatternTargets,
     attemptGoalAdmission,
+    markMatrixIntakeComplete,
+    setIntakeSession,
+    clearIntakeSession,
+    matrixDispatch,
+    saveProgress,
     archiveAndCloneCycle,
     ...coreMissionContractActions,
   };
@@ -2048,10 +2363,7 @@ export function ensureTemplates(state) {
     state.goalDirective = null;
   }
   if (!state.appTime) {
-    const deviceTimeZone =
-      typeof Intl !== 'undefined' && Intl.DateTimeFormat().resolvedOptions
-        ? Intl.DateTimeFormat().resolvedOptions().timeZone
-        : 'UTC';
+    const deviceTimeZone = APP_TIME_ZONE;
     const nowISO = new Date().toISOString();
     state.appTime = {
       timeZone: deviceTimeZone,
@@ -2061,10 +2373,7 @@ export function ensureTemplates(state) {
     };
   } else {
     if (!state.appTime.timeZone) {
-      state.appTime.timeZone =
-        typeof Intl !== 'undefined' && Intl.DateTimeFormat().resolvedOptions
-          ? Intl.DateTimeFormat().resolvedOptions().timeZone
-          : 'UTC';
+      state.appTime.timeZone = APP_TIME_ZONE;
     }
     if (!state.appTime.nowISO) {
       state.appTime.nowISO = new Date().toISOString();
@@ -2289,80 +2598,96 @@ export function attemptGoalAdmissionPure(state, admissionInput) {
     };
   }
 
-  const activeCycles = Object.values(draft.cyclesById || {}).filter((cycle) => cycle?.status === 'Active');
-  const existingOutcomes = activeCycles
-    .map((c) => c?.goalContract?.terminalOutcome?.text || c?.definiteGoal?.outcome || '')
-    .filter(Boolean);
-  const activeGoalSignatures = activeCycles
-    .map((c) => c?.goalHash || c?.goalContract?.inscription?.contractHash)
-    .filter(Boolean);
-
-  // Check for compound goal (multiple outcomes) - POLICY ENFORCEMENT
-  const compoundCheck = detectCompoundGoal(contract);
-  if (compoundCheck.isCompound) {
-    // Reject compound goals with specific code
-    const validation = {
-      status: 'REJECTED',
-      rejectionCodes: ['MULTIPLE_OUTCOMES_DETECTED'],
-    };
-
+  // Duplicate detection: reject if identical contract hash OR identical outcome text already active.
+  // Structural check only — prevents double-admission, not a quality judgement.
+  const activeCyclesForDupe = Object.values(draft.cyclesById || {}).filter(c => c?.status === 'Active');
+  const activeGoalHashes = activeCyclesForDupe.map(c => c?.goalHash || c?.goalContract?.inscription?.contractHash).filter(Boolean);
+  const activeOutcomeTexts = activeCyclesForDupe.map(c => (c?.goalContract?.terminalOutcome?.text || '').trim().toLowerCase()).filter(Boolean);
+  const incomingHash = contract?.inscription?.contractHash;
+  const incomingOutcomeText = (contract?.terminalOutcome?.text || '').trim().toLowerCase();
+  const isDuplicate = (incomingHash && activeGoalHashes.includes(incomingHash)) ||
+    (incomingOutcomeText && activeOutcomeTexts.includes(incomingOutcomeText));
+  if (isDuplicate) {
     const aspirationId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
     const aspiration = {
       id: aspirationId,
       createdAtISO: nowISO,
       contractDraft: structuredClone ? structuredClone(contract) : JSON.parse(JSON.stringify(contract)),
-      rejectionCodes: validation.rejectionCodes || [],
-      rejectionReason: `Goal contains multiple outcomes: ${compoundCheck.outcomes.join('; ')}. Please choose one primary objective for this cycle.`,
+      rejectionCodes: ['DUPLICATE_ACTIVE'],
+      rejectionReason: 'This goal is already active. Archive or complete the existing cycle first.',
     };
-
     draft.aspirations = draft.aspirations || [];
     draft.aspirations.push(aspiration);
-
-    if (!draft.aspirationsByCycleId) {
-      draft.aspirationsByCycleId = {};
-    }
-    const forCycle = draft.activeCycleId || 'global';
-    draft.aspirationsByCycleId[forCycle] = draft.aspirationsByCycleId[forCycle] || [];
-    draft.aspirationsByCycleId[forCycle].push(aspiration);
-
-    const nextState = computeDerivedState(draft, { type: 'NO_OP' });
+    if (!draft.aspirationsByCycleId) draft.aspirationsByCycleId = {};
+    const forCycleDupe = draft.activeCycleId || 'global';
+    draft.aspirationsByCycleId[forCycleDupe] = draft.aspirationsByCycleId[forCycleDupe] || [];
+    draft.aspirationsByCycleId[forCycleDupe].push(aspiration);
+    const nextStateDupe = computeDerivedState(draft, { type: 'NO_OP' });
     return {
-      nextState,
-      result: {
-        status: 'REJECTED',
-        aspirationId: aspiration.id,
-        rejectionCodes: validation.rejectionCodes,
-        rejectionReason: aspiration.rejectionReason,
-      },
+      nextState: nextStateDupe,
+      result: { status: 'REJECTED', aspirationId: aspiration.id, rejectionCodes: aspiration.rejectionCodes, rejectionReason: aspiration.rejectionReason },
     };
   }
 
-  const validation = validateGoalAdmission(contract, nowISO, existingOutcomes, activeGoalSignatures);
+  // Admission doctrine: presence of (1) a discernible objective and (2) a deadline.
+  // Gate is blind to scope, multiplicity, and ambition — those are the elicitation
+  // engine's domain. Multiplicity IS the matrix: decompose downstream, never block at the door.
+  const rawObjectiveText = String(
+    goalDraftV2?.goalText ||
+      goalDraftV2?.goalLabel ||
+      contract?.goalText ||
+      contract?.goalLabel ||
+      contract?.terminalOutcome?.text ||
+      ''
+  ).trim();
 
-  if (validation.status === 'REJECTED') {
+  if (!hasDefiniteEndState(rawObjectiveText)) {
     const aspirationId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
     const aspiration = {
       id: aspirationId,
       createdAtISO: nowISO,
       contractDraft: structuredClone ? structuredClone(contract) : JSON.parse(JSON.stringify(contract)),
-      rejectionCodes: validation.rejectionCodes || [],
+      rejectionCodes: ['NO_DEFINITE_END_STATE'],
+      rejectionReason: 'What specifically would be true if you achieved this? Name the recognizable outcome — the thing you\'d point to and say "done."',
     };
-
     draft.aspirations = draft.aspirations || [];
     draft.aspirations.push(aspiration);
-
-    // Maintain per-cycle aspirations mapping if available
-    if (!draft.aspirationsByCycleId) {
-      draft.aspirationsByCycleId = {};
-    }
-    const forCycle = draft.activeCycleId || 'global';
-    draft.aspirationsByCycleId[forCycle] = draft.aspirationsByCycleId[forCycle] || [];
-    draft.aspirationsByCycleId[forCycle].push(aspiration);
-
-    const nextState = computeDerivedState(draft, { type: 'NO_OP' });
+    if (!draft.aspirationsByCycleId) draft.aspirationsByCycleId = {};
+    const forCycle0 = draft.activeCycleId || 'global';
+    draft.aspirationsByCycleId[forCycle0] = draft.aspirationsByCycleId[forCycle0] || [];
+    draft.aspirationsByCycleId[forCycle0].push(aspiration);
+    const nextState0 = computeDerivedState(draft, { type: 'NO_OP' });
     return {
-      nextState,
-      result: { status: 'REJECTED', aspirationId: aspiration.id, rejectionCodes: validation.rejectionCodes },
+      nextState: nextState0,
+      result: { status: 'REJECTED', aspirationId: aspiration.id, rejectionCodes: aspiration.rejectionCodes, rejectionReason: aspiration.rejectionReason },
+    };
+  }
+
+  const deadlineDayKeyForGate =
+    contract?.deadline?.dayKey ||
+    contract?.endDayKey ||
+    contract?.deadlineISO ||
+    (typeof contract?.deadline === 'string' ? contract.deadline : null);
+
+  if (!deadlineDayKeyForGate) {
+    const aspirationId = crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+    const aspiration = {
+      id: aspirationId,
+      createdAtISO: nowISO,
+      contractDraft: structuredClone ? structuredClone(contract) : JSON.parse(JSON.stringify(contract)),
+      rejectionCodes: ['INTAKE_DEADLINE_MISSING'],
+      rejectionReason: 'Provide a target deadline — by when do you want to achieve this?',
+    };
+    draft.aspirations = draft.aspirations || [];
+    draft.aspirations.push(aspiration);
+    if (!draft.aspirationsByCycleId) draft.aspirationsByCycleId = {};
+    const forCycle1 = draft.activeCycleId || 'global';
+    draft.aspirationsByCycleId[forCycle1] = draft.aspirationsByCycleId[forCycle1] || [];
+    draft.aspirationsByCycleId[forCycle1].push(aspiration);
+    const nextState1 = computeDerivedState(draft, { type: 'NO_OP' });
+    return {
+      nextState: nextState1,
+      result: { status: 'REJECTED', aspirationId: aspiration.id, rejectionCodes: aspiration.rejectionCodes, rejectionReason: aspiration.rejectionReason },
     };
   }
 
@@ -2491,6 +2816,7 @@ export function attemptGoalAdmissionPure(state, admissionInput) {
   newCycle.goalId = normalizedGoalContract?.goalId || newCycle.goalId || null;
   newCycle.goalContract = normalizedGoalContract;
   newCycle.goalDraftV2 = goalDraftV2 || null;
+  newCycle.matrixIntakeComplete = false;
   newCycle.goalHash = contract?.inscription?.contractHash || null;
   const deadlineDayKey =
     normalizedGoalContract?.deadline?.dayKey ||

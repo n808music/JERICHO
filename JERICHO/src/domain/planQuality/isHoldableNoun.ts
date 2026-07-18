@@ -26,6 +26,9 @@ const GERUND_ARTICLE_RE = new RegExp(
 
 // "[verb]ed/[verb]en word" = past-participle phrase. Requires ≥2 base chars so
 // short adjectives ("red", "led") don't fire.
+// Only fires on short strings (≤ 3 words) — the shell pattern is a bare label
+// with nothing after the verb. Longer strings are prose where a leading
+// participle is grammatically normal ("mastered and live on DSPs").
 const PARTICIPLE_RE = /^[a-z]{2,}(ed|en)\s+\S/i;
 
 export function isHoldableNoun(str: string): boolean {
@@ -33,6 +36,6 @@ export function isHoldableNoun(str: string): boolean {
   if (!s) return false;
   if (IMPERATIVE_VERB_RE.test(s)) return false;
   if (GERUND_ARTICLE_RE.test(s)) return false;
-  if (PARTICIPLE_RE.test(s)) return false;
+  if (s.split(/\s+/).length <= 3 && PARTICIPLE_RE.test(s)) return false;
   return true;
 }

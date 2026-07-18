@@ -1,0 +1,46 @@
+import { describe, expect, it } from 'vitest';
+import { buildOperationEndgameReferenceState } from '../../src/dev/operationEndgameRestore.js';
+
+const WEEK_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+function countWindows(workWindows = {}) {
+  return WEEK_DAYS.reduce(
+    (sum, day) => sum + (Array.isArray(workWindows?.[day]) ? workWindows[day].length : 0),
+    0
+  );
+}
+
+describe('Operation Endgame restore — capacity seed', () => {
+  it('produces an availabilityPolicy with confirmed work windows and approved constraints', () => {
+    const state = buildOperationEndgameReferenceState();
+    const policy = state?.availabilityPolicy || {};
+
+    // At least one weekday must carry a work window so workWindowCount > 0.
+    expect(countWindows(policy.workWindows)).toBeGreaterThan(0);
+
+    // Source must NOT be 'system_inferred' (that would close hasConfirmedWorkWindows).
+    expect(policy.workWindowsSource).toBeDefined();
+    expect(policy.workWindowsSource).not.toBe('system_inferred');
+
+    // constraintsStatus must be in the positive set (the dashboard rejects
+    // 'unsaved' | 'stale' | 'insufficient' when computing hasApprovedCapacity).
+    expect(['approved']).toContain(policy.constraintsStatus);
+  });
+
+  it('seeds work window rows with the canonical { start, end } HH:MM shape', () => {
+    const state = buildOperationEndgameReferenceState();
+    const windows = state?.availabilityPolicy?.workWindows || {};
+
+    let inspected = 0;
+    for (const day of WEEK_DAYS) {
+      const rows = Array.isArray(windows[day]) ? windows[day] : [];
+      for (const row of rows) {
+        expect(row.start).toMatch(/^\d{2}:\d{2}$/);
+        expect(row.end).toMatch(/^\d{2}:\d{2}$/);
+        expect(row.start < row.end).toBe(true);
+        inspected += 1;
+      }
+    }
+    expect(inspected).toBeGreaterThan(0);
+  });
+});

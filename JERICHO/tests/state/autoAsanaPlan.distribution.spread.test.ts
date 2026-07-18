@@ -108,6 +108,64 @@ describe('autoAsanaPlan deterministic day distribution', () => {
     expect(plan.horizonBlocks[0].dayKey).toBe('2026-03-09');
   });
 
+  it('never emits a generated block before the live runtime day', () => {
+    const plan = compileAutoAsanaPlan({
+      goalId: 'goal-runtime-floor-1',
+      cycleId: 'cycle-runtime-floor-1',
+      planProof: {
+        workableDaysRemaining: 5,
+        totalRequiredUnits: 2,
+        requiredPacePerDay: 1,
+        maxPerDay: 10,
+        maxPerWeek: 50,
+        slackUnits: 0,
+        slackRatio: 0,
+        intensityRatio: 0.25,
+      },
+      constraints: {
+        timezone: 'America/Chicago',
+        weeklyWindows: {
+          MON: [{ startHHMM: '09:00', endHHMM: '15:00' }],
+          TUE: [{ startHHMM: '09:00', endHHMM: '15:00' }],
+          WED: [{ startHHMM: '09:00', endHHMM: '15:00' }],
+          THU: [{ startHHMM: '09:00', endHHMM: '15:00' }],
+          FRI: [{ startHHMM: '09:00', endHHMM: '15:00' }],
+        },
+        cycleStartDayKey: '2026-06-15',
+        cycleEndDayKey: '2026-06-30',
+      },
+      nowISO: '2026-06-17T16:00:00.000Z',
+      horizonDays: 14,
+      acceptedBlocks: [],
+      sessionPlan: [
+        {
+          date: '2026-06-16',
+          startTime: '09:00',
+          durationMinutes: 60,
+          actionSteps: ['Map stakeholders'],
+          completionCondition: 'Stakeholder map complete',
+          deliverableId: 'deliv-1',
+          actionId: 'act-1',
+          title: 'Yesterday target',
+        },
+        {
+          date: '2026-06-17',
+          startTime: '09:00',
+          durationMinutes: 60,
+          actionSteps: ['Ship distribution push'],
+          completionCondition: 'Distribution push shipped',
+          deliverableId: 'deliv-2',
+          actionId: 'act-2',
+          title: 'Today target',
+        },
+      ],
+    });
+
+    expect(plan.horizonBlocks).toHaveLength(2);
+    expect(plan.horizonBlocks.every((block) => String(block.dayKey || '') >= '2026-06-17')).toBe(true);
+    expect(plan.horizonBlocks.some((block) => String(block.dayKey || '') < '2026-06-17')).toBe(false);
+  });
+
   it('keeps all sessions on one day when only one day is legal', () => {
     const plan = compileAutoAsanaPlan({
       goalId: 'goal-spread-3',
@@ -170,6 +228,52 @@ describe('autoAsanaPlan deterministic day distribution', () => {
     expect(plan.horizonBlocks).toHaveLength(3);
     expect(new Set(plan.horizonBlocks.map((block) => block.dayKey)).size).toBe(1);
     expect(plan.horizonBlocks.every((block) => block.dayKey === '2026-03-09')).toBe(true);
+  });
+
+  it('spreads packed sessions across the full workweek instead of front-loading adjacent weekdays', () => {
+    const plan = compileAutoAsanaPlan({
+      goalId: 'goal-spread-4',
+      cycleId: 'cycle-spread-4',
+      planProof: {
+        workableDaysRemaining: 5,
+        totalRequiredUnits: 3,
+        requiredPacePerDay: 1,
+        maxPerDay: 10,
+        maxPerWeek: 50,
+        slackUnits: 0,
+        slackRatio: 0,
+        intensityRatio: 0.25,
+      },
+      constraints: {
+        timezone: 'UTC',
+        weeklyWindows: {
+          MON: [{ startHHMM: '09:00', endHHMM: '10:00' }],
+          TUE: [{ startHHMM: '09:00', endHHMM: '10:00' }],
+          WED: [{ startHHMM: '09:00', endHHMM: '10:00' }],
+          THU: [{ startHHMM: '09:00', endHHMM: '10:00' }],
+          FRI: [{ startHHMM: '09:00', endHHMM: '10:00' }],
+        },
+        cycleStartDayKey: '2026-03-09',
+        cycleEndDayKey: '2026-03-13',
+      },
+      nowISO: '2026-03-09T12:00:00.000Z',
+      horizonDays: 5,
+      acceptedBlocks: [],
+      actionSequence: Array.from({ length: 3 }, (_, index) => ({
+        id: `action-${index + 1}`,
+        title: `Week spread action ${index + 1}`,
+        estimateMin: 60,
+        deliverableId: `deliverable-${index + 1}`,
+        deliverableTitle: `Week spread deliverable ${index + 1}`,
+      })),
+    });
+
+    expect(plan.horizonBlocks).toHaveLength(3);
+    expect(plan.horizonBlocks.map((block) => block.dayKey)).toEqual([
+      '2026-03-09',
+      '2026-03-11',
+      '2026-03-13',
+    ]);
   });
 
   it('spreads sparse long-horizon action sequences beyond the opening months', () => {
