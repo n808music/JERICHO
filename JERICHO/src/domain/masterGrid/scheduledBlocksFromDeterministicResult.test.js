@@ -98,7 +98,11 @@ describe('buildScheduledBlocksFromDeterministicResult', () => {
       initiativeId: 'i1',
       laneId: 'i1',
       laneLabel: 'Launch Initiative',
+      // Gate 8: the project id is carried onto the block (not just the entity/initiative it
+      // resolves), so the calendar scope toggle can isolate by Project on real blocks.
+      sourceProjectId: 'p1',
     });
+    expect(blocks[1].sourceProjectId).toBe('p2');
     // p2 has no owningInitiativeId -> laneId/laneLabel null, but entity still resolves.
     expect(blocks[1]).toMatchObject({
       entityId: 'e1',

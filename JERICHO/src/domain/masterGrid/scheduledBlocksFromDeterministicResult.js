@@ -100,6 +100,10 @@ export function buildScheduledBlocksFromDeterministicResult({
       status: 'proposed',
       deliverableId: block.deliverableId,
       deliverableTitle: block.deliverableTitle,
+      // Carry the project id through (not just the entity/initiative it resolves) so the
+      // calendar scope toggle can isolate by Project — Gate 8. Without this the Project
+      // category is structurally unfilterable on real scheduled blocks.
+      sourceProjectId: block.sourceProjectId || null,
       entityId,
       entityLabel: entityId ? entitiesById[entityId]?.name || null : null,
       initiativeId,
