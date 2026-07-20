@@ -68,6 +68,9 @@ function savedAtReadbackState() {
                 successMetric: '1.0 App and Behavioral Execution Engine non-provisional patent',
                 verificationSource: 'USPTO and application store',
                 verificationSourceId: 'vs-registry',
+                // §5 phase attestation (Wave 2 Gate 1) — captured so the resumed engine lands on
+                // the readback (all project gates satisfied), not the phase probe.
+                phase: '2',
               },
               completed: false,
               lastFailureCode: null,

@@ -1,8 +1,10 @@
 /**
  * phaseFromDependencies.js
  *
- * Phase (beginning/middle/end) is not entered — it's derived from the dependency graph,
- * per the 2026-07-13 phase/sequencing design. The operator declares "what must happen
+ * Phase (beginning/middle/end) is raw-attested at intake (the §5 project phase probe, Wave 2
+ * Gate 1); this module derives phase from the dependency graph for scheduling ORDER and to fill
+ * gaps where raw attestation is absent (Gate 5 precedence: raw-first display, derived-first
+ * scheduling). The operator also declares "what must happen
  * before what" (DECLARE_DEPENDENCY, generalized to Project/Initiative nodes); this module
  * turns that graph into a Phase 1/2/3 classification per CONFIRMED Project, and separately
  * flags where the graph is too thin or self-contradictory to trust — "reorganization

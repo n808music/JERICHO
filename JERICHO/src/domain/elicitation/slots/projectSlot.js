@@ -1,9 +1,10 @@
 import { REPROBES } from '../reprobes.js';
 import { isHoldableNoun } from '../../planQuality/isHoldableNoun';
 import { isQuantifiableMetric } from '../../planQuality/isQuantifiableMetric';
+import { classifyPhase } from '../../masterGrid/phaseClassification.js';
 
 // Section 5 (Projects) slot contract.
-// Required declaration fields: id, name, owningEntityId, successMetric, verificationSourceId.
+// Required declaration fields: id, name, owningEntityId, successMetric, verificationSourceId, phase.
 // Field order matches gate order — first failure wins gives a natural probe sequence.
 
 export const PROJECT_SLOT_ID = 'slot:project';
@@ -13,7 +14,7 @@ export const PROJECT_SLOT = {
   section: 5,
   matrixBinding: {
     action: 'DECLARE_PROJECT',
-    fields: ['name', 'owningEntityId', 'successMetric', 'verificationSourceId'],
+    fields: ['name', 'owningEntityId', 'successMetric', 'verificationSourceId', 'phase'],
   },
   dependsOn: [],
   // Field-by-field gate ladder. Each entry is a pure detector over the
@@ -53,6 +54,33 @@ export const PROJECT_SLOT = {
       // Detect via the resolved verificationSourceId — set after spawn.
       detect: (captured) => !captured?.verificationSourceId,
     },
+    {
+      // §5 raw-phase attestation (Wave 2, Gate 1). Fires when the operator hasn't yet stated
+      // which stage toward the terminal this project sits in. Required at intake — a phase-
+      // attested node is the point of the gate; absent phase only survives on non-intake paths
+      // (existing/derived), where it drops to the residual bucket.
+      code: 'PROJECT_PHASE_UNATTESTED',
+      fieldName: 'phase',
+      detect: (captured) => captured?.phase == null || String(captured.phase).trim() === '',
+    },
+    {
+      // Present-but-invalid phase is rejected at ANSWER time through the SINGLE shared validator
+      // (Gate 5's classifyPhase) — no second validation path. classifyPhase throws on anything
+      // outside {1,2,3}; we translate that throw into a gate failure so the operator re-answers
+      // while still in the conversation instead of the store persisting corruption until render.
+      code: 'PROJECT_PHASE_NON_CANONICAL',
+      fieldName: 'phase',
+      detect: (captured) => {
+        const raw = captured?.phase;
+        if (raw == null || String(raw).trim() === '') return false; // absence handled above
+        try {
+          classifyPhase(raw, captured?.name);
+          return false;
+        } catch {
+          return true;
+        }
+      },
+    },
   ],
 };
 
@@ -76,5 +104,8 @@ export function buildProjectDeclarePayload(captured) {
     owningEntityId: captured.owningEntityId,
     successMetric: captured.successMetric,
     verificationSourceId: captured.verificationSourceId,
+    // classifyPhase returns the canonical number (the gate guaranteed 1/2/3 or absent);
+    // never a second validator, always the shared one.
+    phase: classifyPhase(captured.phase, captured.name),
   };
 }

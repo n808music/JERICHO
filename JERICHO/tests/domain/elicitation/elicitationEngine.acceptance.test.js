@@ -130,15 +130,18 @@ describe('Elicitation Engine — Project slot (§9 worked trace, Law 2 proving g
         { owningEntityId: 'node-gs-corp' },
         { successMetric: '10,000 first-week streams' },
         { verificationSource: 'Spotify for Artists', domain: 'Music streams' },
+        // §5 phase attestation (Wave 2 Gate 1) — required project gate, asked after the source.
+        { phase: '2' },
       ],
       { goalType: 'musician' }
     );
-    // Probe sequence matches §9
+    // Probe sequence matches §9, extended with the §5 phase attestation gate.
     expect(probes.map((p) => p.fieldName)).toEqual([
       'name',
       'owningEntityId',
       'successMetric',
       'verificationSource',
+      'phase',
     ]);
     // Section 1A spawned and declared
     expect(dispatchedActions.find((a) => a.type === 'DECLARE_VERIFICATION_SOURCE')).toBeTruthy();
@@ -173,6 +176,7 @@ describe('Elicitation Engine — acceptance criterion #1: deterministic replay',
       { owningEntityId: 'node-gs-corp' },
       { successMetric: '10,000 first-week streams' },
       { verificationSource: 'Spotify for Artists', domain: 'Music streams' },
+      { phase: '2' }, // §5 phase attestation (Wave 2 Gate 1) — required project gate.
     ];
     const a = runScript(buildSeededMatrixState(), script, { goalType: 'musician' });
     const b = runScript(buildSeededMatrixState(), script, { goalType: 'musician' });
@@ -232,6 +236,7 @@ describe('Elicitation Engine — acceptance criterion #4: extract-not-recall', (
         { owningEntityId: 'node-gs-corp' },
         { successMetric: '10,000 first-week streams' },
         { verificationSource: 'Spotify for Artists', domain: 'Music streams' },
+        { phase: '2' }, // §5 phase attestation (Wave 2 Gate 1) — required project gate.
       ],
       { goalType: 'musician' }
     );

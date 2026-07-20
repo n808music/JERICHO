@@ -76,6 +76,24 @@ export const REPROBES = {
       generic: 'e.g. Google Analytics, your CRM, your bank account',
     },
   },
+  // §5 phase attestation (Wave 2, Gate 1). Disclosure Standard: rule cited (residual-bucket
+  // consequence), gap in plain words (unattested → unplaceable), compliant example shown.
+  // Carries the "this project" subject token so the attestation binds to the right node.
+  PROJECT_PHASE_UNATTESTED: {
+    spine:
+      "Which stage toward the terminal is this project — beginning (1), middle (2), or end (3)? Phase orders the whole grid toward the finish; a project with no attested phase can't be placed and drops to the residual bucket. Answer 1, 2, or 3.",
+    examples: {
+      musician: 'e.g. 1 = the release you ship first · 2 = the follow-ups · 3 = the catalog/endgame',
+      founder: 'e.g. 1 = MVP/beta · 2 = growth · 3 = scale or exit',
+      writer: 'e.g. 1 = the draft you write first · 2 = revisions/sequels · 3 = the finished series',
+      generic: 'e.g. 1 = beginning · 2 = middle · 3 = end',
+    },
+  },
+  PROJECT_PHASE_NON_CANONICAL: {
+    spine:
+      "Phase is exactly one of 1, 2, or 3 — beginning, middle, or end toward the terminal. That answer isn't one of them; give me 1, 2, or 3 for this project.",
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
   VERIFICATION_SOURCE_SOURCE_MISSING: {
     spine:
       "Name the place you'll actually open to check this — the tool, app, screen, or record.",

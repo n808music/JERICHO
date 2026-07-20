@@ -42,6 +42,8 @@ function driveToReadback({ metric, source }) {
     // VS spawn sub-slot fields:
     source,
     domain: 'filings',
+    // §5 phase attestation (Wave 2 Gate 1) — required project gate, asked before readback.
+    phase: '2',
   };
   let step = engine.nextStep();
   let guard = 0;
@@ -81,6 +83,7 @@ describe('project readback — reopening verificationSource re-asks it', () => {
       verificationSource: 'USPTO and application store',
       source: 'USPTO and application store',
       domain: 'filings',
+      phase: '2', // §5 phase attestation (Wave 2 Gate 1) — required project gate.
     };
     let s = engine.nextStep();
     let guard = 0;

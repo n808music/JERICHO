@@ -34,6 +34,9 @@ function driveToReadback(seedState) {
     { owningEntityId: 'node-gs-corp' },
     { successMetric: '10,000 first-week streams' },
     { verificationSource: 'Spotify for Artists', domain: 'Music streams' },
+    // §5 phase attestation (Wave 2 Gate 1) — now a required project gate; supply it so the
+    // engine reaches the read-back step instead of halting at PROJECT_PHASE_UNATTESTED.
+    { phase: '2' },
   ];
   for (const answer of answers) {
     const result = engine.consumeAnswer(answer);
