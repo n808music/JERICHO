@@ -25,7 +25,9 @@ export function matrixCalendarBlocksForCycle(cycle) {
 export function resolveCommittedCalendarSource({ cutoverEnabled = false, cycle = null, fallbackItems = [] } = {}) {
   if (cutoverEnabled) {
     const matrixBlocks = matrixCalendarBlocksForCycle(cycle);
-    if (matrixBlocks.length > 0) return matrixBlocks;
+    if (matrixBlocks.length > 0) {
+      return matrixBlocks;
+    }
   }
   return Array.isArray(fallbackItems) ? fallbackItems : [];
 }

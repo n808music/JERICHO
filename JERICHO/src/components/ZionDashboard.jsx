@@ -13,6 +13,9 @@ import { StructurePageConsolidated } from './zion/StructurePageConsolidated.jsx'
 import { MasterGridTab } from './zion/MasterGridTab.jsx';
 import { filterCalendarBlocksByScope, availableBlockScopes, BLOCK_SCOPE_KINDS } from '../domain/masterGrid/filterCalendarBlocksByScope.js';
 import { CalendarScopeToggle } from './zion/CalendarScopeToggle.jsx';
+import CalendarSourceCutoverControl from './zion/CalendarSourceCutoverControl.jsx';
+import { resolveCommittedCalendarSource, describeCalendarSource } from '../domain/masterGrid/calendarSourceCutover.js';
+import { isRuntimeEnvFlagEnabled } from '../utils/runtimeEnv.js';
 import { CapacityConfirmPanel } from './zion/CapacityConfirmPanel.jsx';
 import CycleTransitionModal from './zion/CycleTransitionModal.jsx';
 import ProfileHistoryMenu from './zion/ProfileHistoryMenu.jsx';
@@ -1859,7 +1862,21 @@ export default function ZionDashboard({
     isInterCycle,
     timeZone,
   ]);
-  const scheduleDisplayItemsAllResolved = scheduleDisplayFallbackItemsAll;
+  // Gate 2 cutover (dormant, default OFF): a dev flag enables the matrix calendar source for
+  // testing; the operator flips matrixCalendarCutoverOn in production (no earlier than the rerun).
+  // OFF → resolveCommittedCalendarSource returns the existing fallback unchanged (identical behavior).
+  const [matrixCalendarCutoverOn, setMatrixCalendarCutoverOn] = useState(false);
+  const matrixCalendarCutoverEnabled =
+    matrixCalendarCutoverOn || isRuntimeEnvFlagEnabled('JERICHO_MATRIX_CALENDAR_CUTOVER');
+  const scheduleDisplayItemsAllResolved = resolveCommittedCalendarSource({
+    cutoverEnabled: matrixCalendarCutoverEnabled,
+    cycle: activeCycle,
+    fallbackItems: scheduleDisplayFallbackItemsAll,
+  });
+  const calendarSourceInfo = describeCalendarSource({
+    cutoverEnabled: matrixCalendarCutoverEnabled,
+    cycle: activeCycle,
+  });
   const hasVisibleScheduleBlocks = scheduleDisplayItemsAllResolved.length > 0;
   const scheduleDisplayDayKeys = useMemo(
     () =>
@@ -3713,6 +3730,12 @@ export default function ZionDashboard({
                 options={calendarScopeOptions}
                 scope={calendarScope}
                 onScope={setCalendarScope}
+              />
+
+              <CalendarSourceCutoverControl
+                label={calendarSourceInfo.label}
+                enabled={matrixCalendarCutoverEnabled}
+                onToggle={setMatrixCalendarCutoverOn}
               />
 
               {zionView === 'day' || zionView === 'today' ? (
