@@ -29,9 +29,19 @@ export function filterCalendarBlocksByScope(blocks = [], scope = 'full', matrix 
       const ownerEntityId = (matrix.systemsById || {})[id]?.owningEntityId || null;
       return ownerEntityId ? blocks.filter((b) => b.entityId === ownerEntityId) : [];
     }
+    case 'Unowned':
+      // Gate 2 contract: blocks with no Entity/Initiative/Project identity (e.g. fullHorizon
+      // forecast blocks) get an explicit bucket so a node-scoped filter never silently drops
+      // them. Deliverable identity is separate (still reachable via Deliverable scope).
+      return blocks.filter((b) => b.entityId == null && b.initiativeId == null && b.sourceProjectId == null);
     default:
       return blocks;
   }
+}
+
+// True when a block carries no matrix node identity on the entity/initiative/project axes.
+function isUnownedBlock(b) {
+  return b.entityId == null && b.initiativeId == null && b.sourceProjectId == null;
 }
 
 // Enumerate, per class, the specific nodes that actually have blocks — so the toggle only
@@ -73,5 +83,11 @@ export function availableBlockScopes(blocks = [], matrix = {}) {
       unowned: !s.owningEntityId,
       count: s.owningEntityId ? entityCounts.get(s.owningEntityId) || 0 : 0,
     })),
+    // Gate 2: identity-less blocks get their own explicit bucket (offered only when present),
+    // so isolating by a node never makes them silently disappear from the calendar.
+    Unowned: (() => {
+      const count = blocks.filter(isUnownedBlock).length;
+      return count > 0 ? [{ id: 'unowned', label: 'Unowned / forecast', count }] : [];
+    })(),
   };
 }

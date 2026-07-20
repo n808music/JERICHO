@@ -70,4 +70,28 @@ describe('filterCalendarBlocksByScope (Gate 8 — isolate calendar blocks per ca
     expect(opts.System.find((o) => o.id === 's1')).toMatchObject({ count: 2, unowned: false }); // music → e1
     expect(opts.System.find((o) => o.id === 's3')).toMatchObject({ count: 0, unowned: true });  // Marketing flywheel — no owner
   });
+
+  // Gate 2 contract (graceful degradation): identity-less blocks (fullHorizon forecast carries
+  // no entity/initiative/project identity) must NOT silently vanish under a node-scoped filter —
+  // they surface as an explicit Unowned bucket, the same "unowned is a real bucket" pattern as
+  // unowned Systems.
+  it('Unowned scope surfaces blocks with no Entity/Initiative/Project identity', () => {
+    expect(filterCalendarBlocksByScope(blocks, { kind: 'Unowned', id: 'unowned' }, matrix).map((b) => b.id)).toEqual(['b4']);
+  });
+
+  it('a node-scoped filter excludes the identity-less block, but it stays reachable via Unowned (no silent loss)', () => {
+    const inEntity = filterCalendarBlocksByScope(blocks, { kind: 'Entity', id: 'e1' }, matrix).map((b) => b.id);
+    expect(inEntity).not.toContain('b4'); // correctly not e1's
+    const inUnowned = filterCalendarBlocksByScope(blocks, { kind: 'Unowned', id: 'unowned' }, matrix).map((b) => b.id);
+    expect(inUnowned).toContain('b4'); // but not vanished — surfaced in its own bucket
+  });
+
+  it('availableBlockScopes reports an Unowned bucket with a count (never silently dropped)', () => {
+    expect(availableBlockScopes(blocks, matrix).Unowned).toEqual([
+      { id: 'unowned', label: expect.any(String), count: 1 },
+    ]);
+    // No identity-less blocks → no bucket offered.
+    const allOwned = blocks.filter((b) => b.id !== 'b4');
+    expect(availableBlockScopes(allOwned, matrix).Unowned).toEqual([]);
+  });
 });
