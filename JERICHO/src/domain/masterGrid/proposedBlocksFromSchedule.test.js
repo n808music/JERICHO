@@ -14,6 +14,7 @@ const SAMPLE_SCHEDULED_BLOCKS = [
     status: 'proposed',
     deliverableId: 'deliv-causal-1',
     deliverableTitle: 'Foundation Project',
+    sourceProjectId: 'p1',
     entityId: 'e1',
     entityLabel: 'F8 Energy',
     initiativeId: 'i1',
@@ -34,6 +35,7 @@ const SAMPLE_SCHEDULED_BLOCKS = [
     status: 'proposed',
     deliverableId: 'deliv-causal-2',
     deliverableTitle: 'Finish Project',
+    sourceProjectId: 'p2',
     entityId: 'e1',
     entityLabel: 'F8 Energy',
     initiativeId: null,
@@ -68,6 +70,14 @@ describe('buildProposedBlocksFromSchedule', () => {
     const proposals = buildProposedBlocksFromSchedule(SAMPLE_SCHEDULED_BLOCKS);
     expect(proposals[0]).toMatchObject({ entityId: 'e1', entityLabel: 'F8 Energy', laneId: 'i1', laneLabel: 'Launch Initiative' });
     expect(proposals[1]).toMatchObject({ entityId: 'e1', laneId: null, laneLabel: null });
+  });
+
+  it('carries initiativeId and sourceProjectId through (Project/Initiative isolation identity — Gate 2)', () => {
+    const proposals = buildProposedBlocksFromSchedule(SAMPLE_SCHEDULED_BLOCKS);
+    // Both are needed so the calendar scope toggle can isolate by Initiative AND Project on
+    // matrix-derived blocks; the adapter previously dropped both.
+    expect(proposals[0]).toMatchObject({ initiativeId: 'i1', sourceProjectId: 'p1' });
+    expect(proposals[1]).toMatchObject({ initiativeId: null, sourceProjectId: 'p2' });
   });
 
   it('carries cycleId/goalId/deliverableId through for lineage', () => {

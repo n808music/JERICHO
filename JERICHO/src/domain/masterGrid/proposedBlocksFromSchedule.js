@@ -45,6 +45,11 @@ export function buildProposedBlocksFromSchedule(scheduledBlocks = [], { domain =
     laneLabel: block.laneLabel ?? null,
     entityId: block.entityId ?? null,
     entityLabel: block.entityLabel ?? null,
+    // Gate 2: carry Initiative + Project identity so the calendar scope toggle can isolate by
+    // Initiative and Project on matrix-derived blocks (previously dropped here). laneId already
+    // mirrors initiativeId, but the explicit fields are what filterCalendarBlocksByScope reads.
+    initiativeId: block.initiativeId ?? null,
+    sourceProjectId: block.sourceProjectId ?? null,
     deliverableId: block.deliverableId ?? null,
     actionId: null,
     blockType: 'execution',
