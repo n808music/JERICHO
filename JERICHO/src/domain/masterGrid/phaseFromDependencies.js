@@ -17,6 +17,8 @@
  * module defends against one anyway rather than trusting that invariant blindly.
  */
 
+import { classifyPhase, NonCanonicalPhaseError } from './phaseClassification.js';
+
 const ORDERING_TYPES = new Set(['hard_gate', 'directional']);
 
 function confirmedProjectIds(matrix) {
@@ -208,18 +210,57 @@ export function buildPhaseReorganizationRecommendations(matrix = {}) {
       continue;
     }
 
-    const declaredPhase = project?.phase != null ? Number(project.phase) : null;
+    // Gate 3: validate declared phase via classifyPhase. Advisory never blocks on bad data —
+    // if phase is corrupted, flag it and continue checking other recommendations.
+    let declaredPhase = null;
+    if (project?.phase != null) {
+      try {
+        declaredPhase = classifyPhase(project.phase, name);
+      } catch (err) {
+        if (err instanceof NonCanonicalPhaseError) {
+          recommendations.push({
+            code: 'PHASE_DATA_CORRUPTED',
+            projectId: id,
+            projectName: name,
+            message: `"${name}" has invalid phase data: "${project.phase}". Phase must be 1 (beginning), 2 (middle), or 3 (end). Correct the value before scheduling.`,
+          });
+          declaredPhase = null; // treat as unattested, continue checking
+        } else {
+          throw err; // re-throw unexpected errors
+        }
+      }
+    }
+
     const derivedPhase = derivedPhases[id];
     if (declaredPhase != null && Number.isFinite(declaredPhase) && derivedPhase != null && declaredPhase !== derivedPhase) {
       recommendations.push({
         code: 'DECLARED_PHASE_CONTRADICTS_DEPENDENCIES',
         projectId: id,
         projectName: name,
-        message: `"${name}" is manually marked phase ${declaredPhase}, but its declared dependencies place it in phase ${derivedPhase}. Resolve the order before this can schedule correctly.`,
+        message: `"${name}" is attested phase ${declaredPhase} (raw §5), but its declared dependencies order it to phase ${derivedPhase} (derived §5). Choose: correct the manual phase to ${derivedPhase}, or re-check the dependencies.`,
       });
     }
 
-    const initiativePhase = initiativeHasDeclaredPhase ? Number(owningInitiative.phase) : null;
+    // Gate 3: validate initiative phase via classifyPhase.
+    let initiativePhase = null;
+    if (initiativeHasDeclaredPhase) {
+      try {
+        initiativePhase = classifyPhase(owningInitiative.phase, owningInitiative.name || project.owningInitiativeId);
+      } catch (err) {
+        if (err instanceof NonCanonicalPhaseError) {
+          recommendations.push({
+            code: 'PHASE_DATA_CORRUPTED',
+            projectId: project.owningInitiativeId,
+            projectName: owningInitiative.name || project.owningInitiativeId,
+            message: `Initiative "${owningInitiative.name || project.owningInitiativeId}" has invalid phase data: "${owningInitiative.phase}". Phase must be 1 (beginning), 2 (middle), or 3 (end). Correct the value before scheduling.`,
+          });
+          initiativePhase = null; // treat as unattested, continue checking
+        } else {
+          throw err;
+        }
+      }
+    }
+
     if (
       initiativePhase != null &&
       Number.isFinite(initiativePhase) &&
@@ -230,7 +271,7 @@ export function buildPhaseReorganizationRecommendations(matrix = {}) {
         code: 'PROJECT_PHASE_CONTRADICTS_INITIATIVE',
         projectId: id,
         projectName: name,
-        message: `"${name}"'s declared dependencies place it in phase ${derivedPhase}, but its owning initiative "${owningInitiative.name || project.owningInitiativeId}" is declared phase ${initiativePhase}. Resolve the order, or re-check the initiative's phase.`,
+        message: `"${name}" is ordered to phase ${derivedPhase} by its dependencies, but owning initiative "${owningInitiative.name || project.owningInitiativeId}" is attested phase ${initiativePhase} (Gate 1 §5). Initiative phase must encompass all its projects. Correct the initiative to phase ${derivedPhase}, or re-order "${name}"'s dependencies.`,
       });
     }
   }

@@ -298,4 +298,29 @@ describe('buildPhaseReorganizationRecommendations', () => {
     const recs = buildPhaseReorganizationRecommendations(matrix);
     expect(recs.filter((r) => r.code === 'INITIATIVE_NO_PHASE_DECLARED')).toHaveLength(0);
   });
+
+  it('flags corrupted phases with PHASE_DATA_CORRUPTED rather than crashing (advisory never blocks)', () => {
+    const matrix = {
+      projectsById: {
+        p1: project('p1', { name: 'Valid', phase: '2', owningInitiativeId: 'i2' }),
+        p2: project('p2', { name: 'Corrupted', phase: '7', owningInitiativeId: 'i2' }), // invalid phase, participates via edge
+        p3: project('p3', { name: 'Also Valid', phase: '1', owningInitiativeId: 'i2' }),
+      },
+      initiativesById: {
+        i1: initiative('i1', { name: 'Bad Initiative', phase: 'banana' }), // invalid phase
+        i2: initiative('i2', { name: 'Valid Initiative', phase: '2' }),
+      },
+      dependenciesById: {
+        d1: edge('d1', 'p1', 'p2'), // p2 requires p1 — makes both participate
+      },
+    };
+    const recs = buildPhaseReorganizationRecommendations(matrix);
+    const corrupted = recs.filter((r) => r.code === 'PHASE_DATA_CORRUPTED');
+    expect(corrupted).toHaveLength(1);
+    expect(corrupted[0].projectName).toBe('Corrupted');
+    // The corruption flag names the node and raw bad value
+    expect(corrupted[0].message).toContain('7');
+    // Other valid phases still generate recommendations (advisory never blocks)
+    expect(recs.filter((r) => r.code !== 'PHASE_DATA_CORRUPTED').length).toBeGreaterThan(0);
+  });
 });
