@@ -152,4 +152,62 @@ describe('MasterGridTab (phase-grouped, D1/D2)', () => {
     // Jericho (collapses the app lane) + Patent (promoted, parent already claimed) both starred.
     expect(screen.getAllByTestId('mastergrid-milestone-star').length).toBe(2);
   });
+
+  it('Gate 3: surfaces phase disagreement recommendations when present (advisory never blocks)', () => {
+    // Projects with a dependency that declares one phase but dependency graph orders differently.
+    const matrix = {
+      ...emptyMatrix(),
+      projectsById: {
+        p1: { id: 'p1', name: 'Valid', phase: '1', reviewStatus: 'CONFIRMED' },
+        p2: { id: 'p2', name: 'Mislabeled', phase: '1', reviewStatus: 'CONFIRMED' }, // declares phase 1, but depends on p1 (makes it phase 3)
+      },
+      dependenciesById: {
+        d1: { id: 'd1', upstreamId: 'p1', downstreamId: 'p2', type: 'hard_gate' },
+      },
+    };
+    setStore(matrix);
+    render(<MasterGridTab onOpenNode={() => {}} />);
+    // Recommendations panel appears with the DECLARED_PHASE_CONTRADICTS_DEPENDENCIES recommendation.
+    const recsPanel = screen.getByTestId('mastergrid-phase-recommendations');
+    expect(recsPanel).toBeTruthy();
+    expect(recsPanel.textContent).toContain('DECLARED_PHASE_CONTRADICTS_DEPENDENCIES');
+    expect(recsPanel.textContent).toContain('Mislabeled');
+  });
+
+  it('Gate 3: does not render recommendations panel when matrix has no phase disagreements', () => {
+    // A matrix with projects that all belong to an initiative (so NO_DECLARED_SEQUENCE won't fire)
+    const matrix = {
+      ...emptyMatrix(),
+      initiativesById: { i1: { id: 'i1', name: 'Initiative 1', phase: '1', reviewStatus: 'CONFIRMED' } },
+      projectsById: {
+        p1: { id: 'p1', name: 'Project 1', phase: '1', owningInitiativeId: 'i1', reviewStatus: 'CONFIRMED' },
+        p2: { id: 'p2', name: 'Project 2', phase: '1', owningInitiativeId: 'i1', reviewStatus: 'CONFIRMED' },
+      },
+    };
+    setStore(matrix);
+    render(<MasterGridTab onOpenNode={() => {}} />);
+    // No recommendations: both projects belong to the initiative, no dependencies, no corruption
+    expect(screen.queryByTestId('mastergrid-phase-recommendations')).toBeNull();
+  });
+
+  it('Gate 3: handles corrupted phase data gracefully (PHASE_DATA_CORRUPTED never crashes advisory panel)', () => {
+    // A project with a corrupted phase value and a dependency that makes it participate.
+    const matrix = {
+      ...emptyMatrix(),
+      projectsById: {
+        p1: { id: 'p1', name: 'Valid', phase: '1', reviewStatus: 'CONFIRMED' },
+        p2: { id: 'p2', name: 'Corrupted', phase: '7', reviewStatus: 'CONFIRMED' }, // invalid phase
+      },
+      dependenciesById: {
+        d1: { id: 'd1', upstreamId: 'p1', downstreamId: 'p2', type: 'hard_gate' },
+      },
+    };
+    setStore(matrix);
+    render(<MasterGridTab onOpenNode={() => {}} />);
+    // Advisory panel renders with the corruption flag; component does not crash.
+    const recsPanel = screen.getByTestId('mastergrid-phase-recommendations');
+    expect(recsPanel).toBeTruthy();
+    expect(recsPanel.textContent).toContain('PHASE_DATA_CORRUPTED');
+    expect(recsPanel.textContent).toContain('Corrupted');
+  });
 });

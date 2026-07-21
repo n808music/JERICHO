@@ -110,24 +110,32 @@ describe('phaseGridFromStore — phase classification at ingest', () => {
     expect(r.questions.some((q) => q.code === 'RESIDUAL-PHASE')).toBe(true);
   });
 
-  it('present-but-invalid phase ("7") → typed ingest rejection naming the node and value', () => {
+  it('present-but-invalid phase ("7") → treated as absent (null), grid renders without throwing', () => {
+    // Gate 3: corrupted phases are handled gracefully in phaseGridFromStore so the grid still
+    // renders and the advisory panel can flag it via buildPhaseReorganizationRecommendations.
+    // This keeps the grid robust while surfacing data integrity issues.
     const m = matrix();
     const someId = Object.keys(m.projectsById)[0];
     const nodeName = m.projectsById[someId].name;
     m.projectsById[someId] = { ...m.projectsById[someId], phase: '7' };
-    expect(() => phaseGridFromStore(m)).toThrow(/non-canonical phase/i);
-    let caught;
-    try { phaseGridFromStore(m); } catch (e) { caught = e; }
-    expect(caught.code).toBe('NON_CANONICAL_PHASE');
-    expect(caught.rawPhase).toBe('7');
-    expect(caught.nodeName).toBe(nodeName);
+    // Must NOT throw — the component renders even with corruption
+    const { gridTitles, matrix: mtx } = phaseGridFromStore(m);
+    const r = sortByPhase(gridTitles, mtx);
+    // Node still appears in the grid (via derived phase, initiative, or residual as fallback)
+    const allNodes = [...r.phases.get(1), ...r.phases.get(2), ...r.phases.get(3), ...r.residual];
+    expect(allNodes.some((p) => p.fixtureTitle === nodeName)).toBe(true);
   });
 
-  it('present-but-invalid phase ("banana") → typed ingest rejection', () => {
+  it('present-but-invalid phase ("banana") → treated as absent, grid renders without throwing', () => {
     const m = matrix();
     const someId = Object.keys(m.projectsById)[0];
+    const nodeName = m.projectsById[someId].name;
     m.projectsById[someId] = { ...m.projectsById[someId], phase: 'banana' };
-    expect(() => phaseGridFromStore(m)).toThrow(/non-canonical phase/i);
+    const { gridTitles, matrix: mtx } = phaseGridFromStore(m); // must NOT throw
+    const r = sortByPhase(gridTitles, mtx);
+    // Node still appears in the grid
+    const allNodes = [...r.phases.get(1), ...r.phases.get(2), ...r.phases.get(3), ...r.residual];
+    expect(allNodes.some((p) => p.fixtureTitle === nodeName)).toBe(true);
   });
 });
 
@@ -158,10 +166,16 @@ describe('phaseGridFromStore — delegates to derived phase for real (raw-null) 
     expect(r.questions.filter((q) => q.code === 'RESIDUAL-PHASE').length).toBe(0);
   });
 
-  it('corruption is rejected FIRST — a present-but-invalid raw phase throws even when edges could derive one', () => {
+  it('present-but-invalid raw phase treated as absent, grid renders even when edges could derive one', () => {
+    // Gate 3: corrupted phases no longer throw. Instead they are treated as absent (null),
+    // allowing the grid to render while the advisory panel flags the corruption.
     const m = realStore();
     m.projectsById.a = { ...m.projectsById.a, phase: '7' };
-    expect(() => phaseGridFromStore(m)).toThrow(/non-canonical phase/i);
+    const { gridTitles, matrix: mtx } = phaseGridFromStore(m); // must NOT throw
+    const r = sortByPhase(gridTitles, mtx);
+    // Node 'a' is placed via derived phase (edges still work), not residual. The advisory panel flags the corruption.
+    const allNodes = [...r.phases.get(1), ...r.phases.get(2), ...r.phases.get(3), ...r.residual];
+    expect(allNodes.some((p) => p.fixtureTitle === 'Foundations')).toBe(true);
   });
 
   it('genuinely unphasable (raw null, no ordering edges, no initiative phase) still buckets residual', () => {

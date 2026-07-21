@@ -3,6 +3,7 @@ import { useIdentityStore } from '../../state/identityStore.js';
 import { phaseGridFromStore } from '../../domain/masterGrid/phaseGridFromStore.js';
 import { sortByPhase } from '../../domain/masterGrid/phaseSort.js';
 import { selectMasterGridRows, countByClass, CLASS_ORDER } from '../../domain/masterGrid/masterGridSelectors.js';
+import { buildPhaseReorganizationRecommendations } from '../../domain/masterGrid/phaseFromDependencies.js';
 
 const PHASE_LABEL = { 1: 'Phase 1', 2: 'Phase 2', 3: 'Phase 3' };
 const STATUS_COLOR = { CONFIRMED: '#16a34a', NEEDS_REVIEW: '#ca8a04', DRAFT: '#6b7280' };
@@ -49,6 +50,7 @@ export function MasterGridTab({ onOpenNode } = {}) {
 
 // Phase-execution scope: execution tier as three phase groups, within-phase deadline order.
 // ★ marks milestone lanes; residual questions render where the census prompts used to be.
+// Gate 3: phasing reorganization recommendations surface phase disagreements (ADVISORY, never blocks).
 function PhaseScopeView({ matrix, onOpenNode }) {
   const { gridTitles, matrix: gridMatrix } = phaseGridFromStore(matrix);
   const r = sortByPhase(gridTitles, gridMatrix);
@@ -58,6 +60,10 @@ function PhaseScopeView({ matrix, onOpenNode }) {
   // like an ordinary to-do list. If EVERY node bucketed residual, surface a distinct warning.
   const residualCount = r.residual?.length || 0;
   const ingestMismatch = total === 0 && residualCount > 0;
+
+  // Gate 3: derive phase-disagreement recommendations from canonical matrix. ADVISORY surfaces
+  // them without blocking execution — if one corrupted phase is detected, the others still render.
+  const phaseRecommendations = buildPhaseReorganizationRecommendations(matrix);
 
   return (
     <div className="space-y-4" data-testid="mastergrid-phasegroups">
@@ -111,6 +117,18 @@ function PhaseScopeView({ matrix, onOpenNode }) {
           {r.questions.map((q, i) => (
             <div key={i} data-testid="mastergrid-residual-q" className="text-xs text-jericho-text">
               [{q.code}] {q.probe}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {phaseRecommendations.length > 0 && (
+        <div data-testid="mastergrid-phase-recommendations" className="space-y-2 rounded-lg border border-blue-200/70 bg-blue-50/50 p-3">
+          <div className="text-xs uppercase tracking-[0.14em] text-muted">Phase organization recommendations</div>
+          {phaseRecommendations.map((rec, i) => (
+            <div key={i} data-testid="mastergrid-phase-rec" className="text-xs text-jericho-text">
+              <div className="font-medium">[{rec.code}] {rec.projectName}</div>
+              <div className="mt-0.5 text-xs text-muted">{rec.message}</div>
             </div>
           ))}
         </div>

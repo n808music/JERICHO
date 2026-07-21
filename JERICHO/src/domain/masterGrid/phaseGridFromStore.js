@@ -109,9 +109,21 @@ export function phaseGridFromStore(matrix = {}) {
 
   const rowById = {};
   for (const n of gridNodes) {
-    // Reject corruption FIRST: a present-but-non-canonical raw phase throws here, before any
-    // resolution can launder it. classifyPhase returns the canonical number, or null (absent).
-    const canonicalRaw = classifyPhase(n.phase, n.name);
+    // Validate raw phase via classifyPhase. If corrupted, treat as absent (null) so the grid
+    // still renders and the advisory panel can flag it. This keeps the grid robust against
+    // data integrity issues while surfacing them via recommendations.
+    let canonicalRaw = null;
+    if (n.phase != null) {
+      try {
+        canonicalRaw = classifyPhase(n.phase, n.name);
+      } catch (err) {
+        if (err instanceof NonCanonicalPhaseError) {
+          canonicalRaw = null; // treat corrupted phase as absent, grid renders
+        } else {
+          throw err; // re-throw unexpected errors
+        }
+      }
+    }
     const phase = resolveNodePhase(n, canonicalRaw, derivedEffective, projects, initiatives);
     rowById[n.id] = { title: n.name, phase, target: n.targetDate ?? 'TBD', targetNote: null, links: [] };
   }
