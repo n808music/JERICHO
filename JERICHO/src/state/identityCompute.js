@@ -244,6 +244,30 @@ const DEFAULT_PROFILE_LABEL = 'Local Profile';
  * @typedef {{ type: 'BEGIN_BLOCK'; id: string } | { type: 'COMPLETE_BLOCK'; id: string } | { type: 'RESCHEDULE_BLOCK'; id: string; start: string; end: string } | { type: 'APPLY_LENSES'; lenses: Partial<LensesConfig> } | { type: 'SET_VIEW_DATE'; date: string } | { type: 'REBALANCE_TODAY'; mode?: 'CLEAR_AFTERNOON' } | { type: 'COMPLETE_ONBOARDING'; onboarding: any } | { type: 'UPDATE_PENDING_ONBOARDING_INPUTS'; onboarding: any } | { type: 'START_NEW_CYCLE'; payload: any } | { type: 'START_NEW_CYCLE_WITH_DECISION'; payload: { mode: 'archive' | 'delete' } } | { type: 'END_CYCLE'; cycleId: string } | { type: 'ARCHIVE_AND_CLONE_CYCLE'; cycleId: string; overrides?: any } | { type: 'SET_ACTIVE_CYCLE'; cycleId: string } | { type: 'DELETE_CYCLE'; cycleId: string } | { type: 'HARD_DELETE_CYCLE'; cycleId: string } | { type: 'ADD_TRUTH_ENTRY'; payload: any } | { type: 'CREATE_BLOCK'; payload: any } | { type: 'UPDATE_BLOCK'; payload: any } | { type: 'DELETE_BLOCK'; id: string } | { type: 'ADD_RECURRING_PATTERN'; pattern: any } | { type: 'SET_PRIMARY_OBJECTIVE'; objectiveId: string | null } | { type: 'SET_CALIBRATION_DAYS'; daysPerWeek: number; uncertain?: boolean } | { type: 'GENERATE_PLAN' } | { type: 'APPLY_PLAN' } | { type: 'ACTIVATE_SCHEDULE' } | { type: 'REBASE_SCHEDULE'; payload?: any } | { type: 'ACCEPT_SUGGESTED_BLOCK'; proposalId: string } | { type: 'REJECT_SUGGESTED_BLOCK'; proposalId: string; reason: string } | { type: 'IGNORE_SUGGESTED_BLOCK'; proposalId: string } | { type: 'DISMISS_SUGGESTED_BLOCK'; proposalId: string } | { type: 'CREATE_DELIVERABLE'; payload: any } | { type: 'UPDATE_DELIVERABLE'; payload: any } | { type: 'DELETE_DELIVERABLE'; payload: any } | { type: 'CREATE_CRITERION'; payload: any } | { type: 'TOGGLE_CRITERION_DONE'; payload: any } | { type: 'DELETE_CRITERION'; payload: any } | { type: 'LINK_BLOCK_TO_DELIVERABLE'; payload: any } | { type: 'ASSIGN_SUGGESTION_LINK'; payload: any } | { type: 'SET_STRATEGY'; payload: any } | { type: 'GENERATE_COLD_PLAN'; payload?: any } | { type: 'REBASE_COLD_PLAN'; payload?: any } | { type: 'SET_DEFINITE_GOAL'; outcome: string; deadlineDayKey: string } | { type: 'COMPILE_GOAL_EQUATION'; payload: any } | { type: 'APPLY_RENEGOTIATION_OPTION'; payload?: any }} Action
  */
 
+// Part D: Backfill confirmation provenance on all existing CONFIRMED nodes
+export function normalizeConfirmationProvenance(state) {
+  if (!state.matrix) return;
+  const nodeArrays = [
+    state.matrix.entitiesById,
+    state.matrix.initiativesById,
+    state.matrix.projectsById,
+    state.matrix.deliverablesById,
+    state.matrix.artifactsById,
+    state.matrix.systemsById,
+    state.matrix.capacityById,
+  ];
+  for (const nodeMap of nodeArrays) {
+    if (!nodeMap || typeof nodeMap !== 'object') continue;
+    for (const node of Object.values(nodeMap)) {
+      if (node && node.reviewStatus === 'CONFIRMED' && !node.confirmedAt) {
+        node.confirmedAt = null;
+        node.confirmedBy = 'legacy-unattested';
+        node.confirmationSource = 'legacy-unknown';
+      }
+    }
+  }
+}
+
 export function computeDerivedState(state, action) {
   /** @type {IdentityState} */
   let next = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
@@ -2730,7 +2754,14 @@ function confirmCapacity(state, payload = {}) {
   if (!id || !state.matrix?.capacityById) return;
   const row = state.matrix.capacityById[id];
   if (!row || row.reviewStatus === 'CONFIRMED') return;
-  state.matrix.capacityById[id] = { ...row, reviewStatus: 'CONFIRMED' };
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  state.matrix.capacityById[id] = {
+    ...row,
+    reviewStatus: 'CONFIRMED',
+    confirmedAt: payload?.confirmedAt || nowISO,
+    confirmedBy: String(payload?.confirmedBy || '').trim() || 'operator',
+    confirmationSource: String(payload?.confirmationSource || '').trim() || null,
+  };
 }
 
 function bootstrapCycleActionsFromDeliverables(state, cycleId, deliverables = []) {
@@ -15889,6 +15920,9 @@ function declareEntity(state, payload = {}) {
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
     source: 'operator_declared',
+    confirmedAt: payload?.confirmedAt || null,
+    confirmedBy: String(payload?.confirmedBy || '').trim() || null,
+    confirmationSource: String(payload?.confirmationSource || '').trim() || null,
   };
   if (payload?.doneWhen) entry.doneWhen = String(payload.doneWhen).trim();
   state.matrix.entitiesById[id] = entry;
@@ -15948,6 +15982,9 @@ function declareInitiative(state, payload = {}) {
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
     source: 'operator_declared',
+    confirmedAt: payload?.confirmedAt || null,
+    confirmedBy: String(payload?.confirmedBy || '').trim() || null,
+    confirmationSource: String(payload?.confirmationSource || '').trim() || null,
   };
 }
 
@@ -16024,6 +16061,9 @@ function declareSystem(state, payload = {}) {
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
     source: 'operator_declared',
+    confirmedAt: payload?.confirmedAt || null,
+    confirmedBy: String(payload?.confirmedBy || '').trim() || null,
+    confirmationSource: String(payload?.confirmationSource || '').trim() || null,
   };
   if (payload?.activationCondition) entry.activationCondition = String(payload.activationCondition).trim();
   state.matrix.systemsById[id] = entry;
@@ -16091,6 +16131,9 @@ function declareProject(state, payload = {}) {
     roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
+    confirmedAt: payload?.confirmedAt || null,
+    confirmedBy: String(payload?.confirmedBy || '').trim() || null,
+    confirmationSource: String(payload?.confirmationSource || '').trim() || null,
   };
 }
 
@@ -16202,6 +16245,9 @@ function declareMatrixDeliverable(state, payload = {}) {
     targetDate: String(payload?.targetDate || '').trim() || null,
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
+    confirmedAt: payload?.confirmedAt || null,
+    confirmedBy: String(payload?.confirmedBy || '').trim() || null,
+    confirmationSource: String(payload?.confirmationSource || '').trim() || null,
   };
 }
 
@@ -16301,6 +16347,9 @@ function declareArtifact(state, payload = {}) {
     roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
+    confirmedAt: payload?.confirmedAt || null,
+    confirmedBy: String(payload?.confirmedBy || '').trim() || null,
+    confirmationSource: String(payload?.confirmationSource || '').trim() || null,
   };
 }
 

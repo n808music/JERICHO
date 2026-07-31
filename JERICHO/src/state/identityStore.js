@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
 import { pushState as syncPush, pullState as syncPull } from '../services/syncService.js';
 import structuredClone from '@ungap/structured-clone';
-import { appendTransitionTrace, computeDerivedState } from './identityCompute.js';
+import { appendTransitionTrace, computeDerivedState, normalizeConfirmationProvenance } from './identityCompute.js';
 import { canEmitExecutionEvent } from './engine/executionContract.ts';
 import {
   appendExternalEvidenceEvent,
@@ -1624,6 +1624,10 @@ function identityReducer(state, action) {
 
 export function IdentityProvider({ children, initialState }) {
   const [state, dispatch] = useReducer(identityReducer, initialState || seedState);
+  // Part D: Backfill confirmation provenance once at app initialization
+  React.useMemo(() => {
+    normalizeConfirmationProvenance(state);
+  }, []);
   const [activePractice, setActivePractice] = React.useState(null);
   const [activeLens, setActiveLens] = React.useState(null);
   const stateRef = React.useRef(state);
