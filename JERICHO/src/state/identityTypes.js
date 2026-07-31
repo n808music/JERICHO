@@ -798,6 +798,18 @@
  *   ledger?: LedgerEntry[];
  *   executionEvents?: ExecutionEvent[];
  *   deliverableDemands?: Record<string, number>;
+ *   deliverableUrgencyRanking?: Record<string, {
+ *     id: string;
+ *     name: string;
+ *     urgencyBand: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+ *     daysToDeadline: number;
+ *     chainDepth: number;
+ *     blockedItems: string[];
+ *     demandMinutes: number;
+ *     owningInitiativeId: string;
+ *     owningProjectId: string;
+ *     rank: number;
+ *   }>;
  * }} IdentityState
  */
 

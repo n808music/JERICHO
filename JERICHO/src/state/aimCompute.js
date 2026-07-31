@@ -257,3 +257,201 @@ export function computeAllDeliverableDemands(state) {
   }
   return result;
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Blocking-Chain Urgency Ranking (Task 2: cross-lane transitive closure)
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * BFS traversal to find all Deliverables downstream from a given Deliverable
+ * (i.e., what depends on this item, what is blocked waiting for it).
+ * @param {string} deliverableId - Starting Deliverable ID
+ * @param {Record<string, object>} dependenciesById - Dependency edges from matrix
+ * @returns {string[]} List of downstream Deliverable IDs
+ */
+function traverseBlockedItems(deliverableId, dependenciesById = {}) {
+  if (!deliverableId || !dependenciesById) return [];
+
+  const visited = new Set();
+  const queue = [deliverableId];
+  const blocked = [];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (visited.has(current)) continue;
+    visited.add(current);
+
+    // Find all dependencies where 'current' is the blocker (upstream)
+    for (const dep of Object.values(dependenciesById)) {
+      if (!dep) continue;
+      if (dep.blockerId === current && dep.blockedId && !visited.has(dep.blockedId)) {
+        queue.push(dep.blockedId);
+        blocked.push(dep.blockedId);
+      }
+    }
+  }
+
+  return blocked;
+}
+
+/**
+ * Find the owning Initiative of a Deliverable (through its Project).
+ * @param {string} itemId - Deliverable ID
+ * @param {object} matrix - State matrix containing deliverables, projects, initiatives
+ * @returns {string | null} Initiative ID or null
+ */
+function findOwningInitiativeForDeliverable(itemId, matrix = {}) {
+  const deliverable = matrix.deliverablesById?.[itemId];
+  if (!deliverable) return null;
+  return deliverable.owningInitiativeId || null;
+}
+
+/**
+ * Get the macro-deadline for an Initiative (from its linked Lane's milestones/laneEnd).
+ * @param {string} initiativeId - Initiative ID
+ * @param {object} state - Full state with matrix and masterPlan data
+ * @returns {string | null} ISO date string or null
+ */
+function getMacroDeadlineForInitiative(initiativeId, state = {}) {
+  if (!initiativeId) return null;
+
+  const initiative = state.matrix?.initiativesById?.[initiativeId];
+  if (!initiative || !initiative.laneId) return null;
+
+  const lane = state.masterPlanLanesById?.[initiative.laneId];
+  if (!lane) return null;
+
+  // Prefer milestone dates if available
+  const milestones = Object.values(state.masterPlanMilestonesById || {})
+    .filter((m) => m?.laneIds?.includes(initiative.laneId))
+    .map((m) => m.date)
+    .filter(Boolean)
+    .sort();
+
+  if (milestones.length > 0) {
+    return milestones[milestones.length - 1]; // Latest milestone
+  }
+
+  return lane.laneEnd || null; // Fallback to lane end
+}
+
+/**
+ * Compute urgency band for a single Deliverable based on blocking chains and macro-deadlines.
+ * @param {object} deliverable - Deliverable from matrix
+ * @param {object} state - Full state with dependencies, initiatives, lanes, masterPlan
+ * @returns {object} Urgency info: band, daysToDeadline, chainDepth, blockedItems, demandMinutes
+ */
+function computeBlockingChainUrgency(deliverable, state = {}) {
+  if (!deliverable) {
+    return {
+      urgencyBand: 'LOW',
+      daysToDeadline: Infinity,
+      chainDepth: 0,
+      blockedItems: [],
+      demandMinutes: 0,
+    };
+  }
+
+  // Find all downstream Deliverables that depend on this one
+  const blockedItems = traverseBlockedItems(
+    deliverable.id,
+    state.matrix?.dependenciesById
+  );
+
+  // Find unique Initiatives owning blocked items
+  const initiatives = new Set();
+  for (const itemId of blockedItems) {
+    const ownerId = findOwningInitiativeForDeliverable(itemId, state.matrix);
+    if (ownerId) initiatives.add(ownerId);
+  }
+
+  // Get macro-deadlines for all initiatives in the blocked chain
+  const deadlines = Array.from(initiatives)
+    .map((initId) => getMacroDeadlineForInitiative(initId, state))
+    .filter(Boolean)
+    .sort();
+
+  const demand = computeDeliverableDemand(deliverable.id, state);
+  const now = new Date(state.appTime?.nowISO || new Date().toISOString());
+
+  if (deadlines.length === 0) {
+    return {
+      urgencyBand: 'LOW',
+      daysToDeadline: Infinity,
+      chainDepth: blockedItems.length,
+      blockedItems,
+      demandMinutes: demand,
+    };
+  }
+
+  const nearestDeadline = new Date(deadlines[0]);
+  const daysRemaining = (nearestDeadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+
+  let urgencyBand;
+  if (daysRemaining <= 7) urgencyBand = 'CRITICAL';
+  else if (daysRemaining <= 21) urgencyBand = 'HIGH';
+  else if (daysRemaining <= 60) urgencyBand = 'MEDIUM';
+  else urgencyBand = 'LOW';
+
+  return {
+    urgencyBand,
+    daysToDeadline: Math.max(0, daysRemaining),
+    chainDepth: blockedItems.length,
+    blockedItems,
+    demandMinutes: demand,
+  };
+}
+
+/**
+ * Rank all Deliverables by blocking-chain urgency for the operator.
+ * @param {object} state - Full state
+ * @returns {Record<string, object>} Ranked deliverables with urgency metadata
+ */
+export function computeDeliverableUrgencyRanking(state = {}) {
+  const deliverables = state.matrix?.deliverablesById || {};
+  const scored = {};
+
+  // Compute urgency for each CONFIRMED deliverable
+  for (const id of Object.keys(deliverables)) {
+    const deliverable = deliverables[id];
+    if (deliverable.reviewStatus !== 'CONFIRMED') continue;
+
+    const urgency = computeBlockingChainUrgency(deliverable, state);
+    scored[id] = {
+      id,
+      name: deliverable.name,
+      urgencyBand: urgency.urgencyBand,
+      daysToDeadline: urgency.daysToDeadline,
+      chainDepth: urgency.chainDepth,
+      blockedItems: urgency.blockedItems,
+      demandMinutes: urgency.demandMinutes,
+      owningInitiativeId: deliverable.owningInitiativeId,
+      owningProjectId: deliverable.owningProjectId,
+    };
+  }
+
+  // Sort by urgency band (CRITICAL > HIGH > MEDIUM > LOW)
+  // then by demand within band
+  const bandOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+  const sortedIds = Object.keys(scored).sort((a, b) => {
+    const aEntry = scored[a];
+    const bEntry = scored[b];
+
+    const bandDiff = bandOrder[aEntry.urgencyBand] - bandOrder[bEntry.urgencyBand];
+    if (bandDiff !== 0) return bandDiff;
+
+    // Within same band, higher demand first
+    return bEntry.demandMinutes - aEntry.demandMinutes;
+  });
+
+  // Assign rank and build final result
+  const result = {};
+  sortedIds.forEach((id, index) => {
+    result[id] = {
+      ...scored[id],
+      rank: index + 1, // 1-indexed
+    };
+  });
+
+  return result;
+}

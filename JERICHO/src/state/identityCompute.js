@@ -19,7 +19,7 @@ import { admitGoal, isAdmitted } from './goalAdmission.ts';
 import { compileAutoAsanaPlan } from './engine/autoAsanaPlan.ts';
 import { buildAssumptionsHash, normalizeDeliverables, normalizeRouteOption } from './strategy.ts';
 import { buildAutoDeliverablesFromGoalContract } from '../domain/autoStrategy.ts';
-import { computeAllDeliverableDemands } from './aimCompute.js';
+import { computeAllDeliverableDemands, computeDeliverableUrgencyRanking } from './aimCompute.js';
 import { inferHorizonYearsFromText } from '../domain/masterPlan/masterPlanIntakeEngine.js';
 import { expandFullHorizonSchedule } from '../domain/masterPlan/fullHorizonScheduleExpansion.js';
 import { auditFullHorizonCoverage } from '../domain/masterPlan/fullHorizonCoverageAudit.js';
@@ -1263,6 +1263,7 @@ export function computeDerivedState(state, action) {
   enforceActiveCycleTodayBlocks(next, hadCycleRecords);
   enforceExecutionStartBoundary(next);
   next.deliverableDemands = computeAllDeliverableDemands(next);
+  next.deliverableUrgencyRanking = computeDeliverableUrgencyRanking(next);
   return next;
 }
 
@@ -15682,6 +15683,7 @@ function ensureMatrixSlot(state) {
       initiativesById: {},
       systemsById: {},
       projectsById: {},
+      deliverablesById: {},
       artifactsById: {},
       dependenciesById: {},
       convergenceEdgesById: {},
@@ -15699,6 +15701,7 @@ function ensureMatrixSlot(state) {
   if (!state.matrix.initiativesById) state.matrix.initiativesById = {};
   if (!state.matrix.systemsById) state.matrix.systemsById = {};
   if (!state.matrix.projectsById) state.matrix.projectsById = {};
+  if (!state.matrix.deliverablesById) state.matrix.deliverablesById = {};
   if (!state.matrix.artifactsById) state.matrix.artifactsById = {};
   if (!state.matrix.dependenciesById) state.matrix.dependenciesById = {};
   if (!state.matrix.convergenceEdgesById) state.matrix.convergenceEdgesById = {};
@@ -15987,6 +15990,7 @@ function declareInitiative(state, payload = {}) {
     confirmedAt: payload?.confirmedAt || null,
     confirmedBy: String(payload?.confirmedBy || '').trim() || null,
     confirmationSource: String(payload?.confirmationSource || '').trim() || null,
+    laneId: String(payload?.laneId || '').trim() || null,
   };
 }
 
