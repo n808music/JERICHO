@@ -19,6 +19,7 @@ import { admitGoal, isAdmitted } from './goalAdmission.ts';
 import { compileAutoAsanaPlan } from './engine/autoAsanaPlan.ts';
 import { buildAssumptionsHash, normalizeDeliverables, normalizeRouteOption } from './strategy.ts';
 import { buildAutoDeliverablesFromGoalContract } from '../domain/autoStrategy.ts';
+import { computeAllDeliverableDemands } from './aimCompute.js';
 import { inferHorizonYearsFromText } from '../domain/masterPlan/masterPlanIntakeEngine.js';
 import { expandFullHorizonSchedule } from '../domain/masterPlan/fullHorizonScheduleExpansion.js';
 import { auditFullHorizonCoverage } from '../domain/masterPlan/fullHorizonCoverageAudit.js';
@@ -1261,6 +1262,7 @@ export function computeDerivedState(state, action) {
   persistActiveCycleState(next);
   enforceActiveCycleTodayBlocks(next, hadCycleRecords);
   enforceExecutionStartBoundary(next);
+  next.deliverableDemands = computeAllDeliverableDemands(next);
   return next;
 }
 

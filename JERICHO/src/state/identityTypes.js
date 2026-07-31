@@ -797,6 +797,7 @@
  *   nextSuggestion?: NextSuggestion | null;
  *   ledger?: LedgerEntry[];
  *   executionEvents?: ExecutionEvent[];
+ *   deliverableDemands?: Record<string, number>;
  * }} IdentityState
  */
 
