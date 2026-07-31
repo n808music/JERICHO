@@ -12,6 +12,7 @@ const matrix = {
   projectsById: {
     p1: { id: 'p1', name: 'OUR FEARLESS LEADER 3', owningEntityId: 'e1', owningInitiativeId: 'i1', reviewStatus: 'DRAFT', phase: '1', roleTags: [] },
   },
+  deliverablesById: {},
   artifactsById: {
     a1: { id: 'a1', name: 'OFL 3: Romance Riot — tape/album', producingProjectId: 'p1', producedByEntityId: 'e2', reviewStatus: 'CONFIRMED', phase: '1', roleTags: [] },
   },
@@ -25,12 +26,12 @@ describe('selectMasterGridRows', () => {
     expect(rows).toHaveLength(5);
   });
 
-  it('labels artifact rows as Deliverable', () => {
+  it('labels artifact rows as Artifact', () => {
     const rows = selectMasterGridRows(matrix);
-    expect(rows.find((r) => r.id === 'a1').primaryClass).toBe('Deliverable');
+    expect(rows.find((r) => r.id === 'a1').primaryClass).toBe('Artifact');
   });
 
-  it('resolves Deliverable ownerParentLabel as producer-entity / parent-project', () => {
+  it('resolves Artifact ownerParentLabel as producer-entity / producing-project', () => {
     const rows = selectMasterGridRows(matrix);
     expect(rows.find((r) => r.id === 'a1').ownerParentLabel)
       .toBe('Global State Productions / OUR FEARLESS LEADER 3');
@@ -56,6 +57,7 @@ describe('selectMasterGridRows', () => {
         i1: { id: 'i1', name: 'Expand Footprint', owningEntityId: 'e1', roleTags: [], reviewStatus: 'DRAFT', phase: null },
       },
       projectsById: {},
+      deliverablesById: {},
       artifactsById: {},
       systemsById: {
         s1: { id: 's1', name: 'Billing Pipeline', owningEntityId: 'e1', roleTags: [], reviewStatus: 'DRAFT', phase: null },
@@ -74,12 +76,12 @@ describe('selectMasterGridRows', () => {
 
   it('default sort: class order then name', () => {
     const rows = selectMasterGridRows(matrix);
-    expect(rows.map((r) => r.primaryClass)).toEqual(['Entity', 'Entity', 'Initiative', 'Project', 'Deliverable']);
+    expect(rows.map((r) => r.primaryClass)).toEqual(['Entity', 'Entity', 'Initiative', 'Project', 'Artifact']);
   });
 
   it('countByClass returns per-class totals', () => {
     expect(countByClass(selectMasterGridRows(matrix)))
-      .toEqual({ total: 5, Entity: 2, Initiative: 1, Project: 1, Deliverable: 1, System: 0 });
+      .toEqual({ total: 5, Entity: 2, Initiative: 1, Project: 1, Deliverable: 0, Artifact: 1, System: 0 });
   });
 
   it('sorts phases numerically within a class (10 after 2, not before)', () => {
@@ -91,6 +93,7 @@ describe('selectMasterGridRows', () => {
         p10: { id: 'p10', name: 'Phase Ten', reviewStatus: 'DRAFT', phase: '10', roleTags: [] },
         p1: { id: 'p1', name: 'Phase One', reviewStatus: 'DRAFT', phase: '1', roleTags: [] },
       },
+      deliverablesById: {},
       artifactsById: {},
       systemsById: {},
     };
@@ -105,6 +108,7 @@ describe('selectMasterGridRows', () => {
       },
       initiativesById: {},
       projectsById: {},
+      deliverablesById: {},
       artifactsById: {},
       systemsById: {},
       capacityById: {

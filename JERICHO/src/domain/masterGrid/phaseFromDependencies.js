@@ -204,7 +204,7 @@ export function buildPhaseReorganizationRecommendations(matrix = {}) {
           code: 'NO_DECLARED_SEQUENCE',
           projectId: id,
           projectName: name,
-          message: `"${name}" has no declared relationship to any other CONFIRMED project. Does it run in parallel, or does something gate it (or does it gate something else)?`,
+          message: `"${name}" has no declared dependency relationship to any other CONFIRMED project, and its owning initiative has no declared phase (§5). Either: declare a dependency edge to sequence it relative to another project, or assign the initiative a phase (1=beginning, 2=middle, 3=end) so this project inherits. Deferred: dedicated sequencing UI is not yet available; use dependency declaration modal.`,
         });
       }
       continue;
@@ -222,7 +222,7 @@ export function buildPhaseReorganizationRecommendations(matrix = {}) {
             code: 'PHASE_DATA_CORRUPTED',
             projectId: id,
             projectName: name,
-            message: `"${name}" has invalid phase data: "${project.phase}". Phase must be 1 (beginning), 2 (middle), or 3 (end). Correct the value before scheduling.`,
+            message: `"${name}" has invalid phase data: "${project.phase}" (violates §5 canonical rule). Phase must be exactly 1 (beginning), 2 (middle), or 3 (end). Correct to one of these values before scheduling. Example: set phase to 2 for a middle-of-timeline project.`,
           });
           declaredPhase = null; // treat as unattested, continue checking
         } else {
@@ -252,7 +252,7 @@ export function buildPhaseReorganizationRecommendations(matrix = {}) {
             code: 'PHASE_DATA_CORRUPTED',
             projectId: project.owningInitiativeId,
             projectName: owningInitiative.name || project.owningInitiativeId,
-            message: `Initiative "${owningInitiative.name || project.owningInitiativeId}" has invalid phase data: "${owningInitiative.phase}". Phase must be 1 (beginning), 2 (middle), or 3 (end). Correct the value before scheduling.`,
+            message: `Initiative "${owningInitiative.name || project.owningInitiativeId}" has invalid phase data: "${owningInitiative.phase}" (violates §5 canonical rule). Phase must be exactly 1 (beginning), 2 (middle), or 3 (end). Correct to one of these values before scheduling. Example: set phase to 1 for an early-timeline initiative.`,
           });
           initiativePhase = null; // treat as unattested, continue checking
         } else {
@@ -286,7 +286,7 @@ export function buildPhaseReorganizationRecommendations(matrix = {}) {
         code: 'UNRESOLVABLE_SEQUENCE',
         projectId: id,
         projectName: projects[id]?.name || id,
-        message: `"${projects[id]?.name || id}" is part of a dependency chain that could not be fully resolved — check for a cycle.`,
+        message: `"${projects[id]?.name || id}" is part of a circular dependency — its dependencies (directly or transitively) form a cycle, preventing phase resolution. Deferred: cycle visualization UI is not yet available. Manually inspect declared dependencies and remove or redirect one edge to break the cycle.`,
       });
     }
   }
@@ -306,7 +306,7 @@ export function buildPhaseReorganizationRecommendations(matrix = {}) {
         code: 'INITIATIVE_NO_PHASE_DECLARED',
         projectId: initiativeId,
         projectName: initiative.name || initiativeId,
-        message: `"${initiative.name || initiativeId}" has CONFIRMED projects under it but no declared phase. Set beginning/middle/end once for the initiative so its projects can schedule in order.`,
+        message: `Initiative "${initiative.name || initiativeId}" has ${[...confirmed].filter(id => projects[id]?.owningInitiativeId === initiativeId).length} CONFIRMED projects but no declared phase (§5). Set phase to 1 (beginning), 2 (middle), or 3 (end) so all projects under it inherit a consistent phase and schedule together.`,
       });
     }
   }

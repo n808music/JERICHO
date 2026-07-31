@@ -110,30 +110,30 @@ export function sortByPhase(gridTitles, matrix) {
     if (residualSet.has(p)) {
       questions.push({
         code: 'RESIDUAL-PHASE',
-        probe: `"${p.fixtureTitle}" has no attested phase (raw: ${p.phase === null || p.phase === undefined ? 'absent' : JSON.stringify(p.phase)}). Assign phase 1, 2, or 3, or confirm it stays in the residual bucket.`,
+        probe: `"${p.fixtureTitle}" has no attested phase (§5 project phase probe: raw is ${p.phase === null || p.phase === undefined ? 'absent' : JSON.stringify(p.phase)}). Assign phase 1 (beginning), 2 (middle), or 3 (end) per §5 attestation, or confirm it belongs in the residual bucket.`,
       });
       continue;
     }
     if (p.crossTab) questions.push({
       code: 'FIXTURE-DISCREPANCY',
-      probe: `"${p.fixtureTitle}": PROJECTS target is ${p.target}, DELIVERABLES target is ${p.crossTab.deliverablesTarget}. Which does the fixture attest? (${p.provenance})`,
+      probe: `"${p.fixtureTitle}": PROJECTS target is ${p.target}, but DELIVERABLES target is ${p.crossTab.deliverablesTarget}. These targets must align per the master fixture. Correct one to match the other. (${p.provenance})`,
     });
     else if (p.tbd) questions.push({
       code: 'RESIDUAL-DATE',
-      probe: `"${p.fixtureTitle}" is phase ${p.phase} with target TBD${p.targetNote ? ` (${p.targetNote})` : ''}. Attest a target or confirm it sorts to phase-${p.phase} bottom.`,
+      probe: `"${p.fixtureTitle}" is phase ${p.phase} with target TBD${p.targetNote ? ` (${p.targetNote})` : ''}. Attest a specific deadline per §5 or confirm it sorts to phase-${p.phase} bottom.`,
     });
   }
   for (const [key, names] of gridToFixture) {
     if (names.length > 1) questions.push({
       code: 'GRID-PHANTOM',
-      probe: `Grid rows ${names.join(' and ')} both resolve to fixture node "${rows.get(key).title}". Reconcile the grid.`,
+      probe: `Grid rows ${names.join(' and ')} both resolve to fixture node "${rows.get(key).title}". This is a duplicate reference (two rows → one canonical node). Deferred: grid row merge/delete affordance is not yet available in the UI. See GRID-PHANTOM findings.`,
     });
   }
   for (const m of milestones) {
     for (const lane of m.lanes) {
       if (!lane.present) questions.push({
         code: 'MILESTONE-LANE-MISSING',
-        probe: `Milestone "${m.name}" (${m.date}) names lane "${lane.title}" but no grid node resolves to it. Add the node or correct the milestone.`,
+        probe: `Milestone "${m.name}" (${m.date}) references lane "${lane.title}", but no grid row resolves to this fixture node. Either add a grid row that maps to the fixture node, or correct the milestone to reference an existing lane.`,
       });
     }
   }

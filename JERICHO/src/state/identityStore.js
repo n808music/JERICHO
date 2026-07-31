@@ -479,6 +479,7 @@ export function buildBlankIdentityState(options = {}) {
       initiativesById: {},
       systemsById: {},
       projectsById: {},
+      deliverablesById: {},
       artifactsById: {},
       dependenciesById: {},
       convergenceEdgesById: {},

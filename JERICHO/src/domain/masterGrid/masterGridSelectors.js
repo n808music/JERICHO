@@ -1,12 +1,14 @@
 // Capacity is NOT a matrix class (operator ruling). matrix.capacityById is a
 // separate store namespace (constraints/computed availability), never a grid row.
-export const CLASS_ORDER = ['Entity', 'Initiative', 'Project', 'Deliverable', 'System'];
+// Deliverable and Artifact are two distinct, visible classes — never collapsed.
+export const CLASS_ORDER = ['Entity', 'Initiative', 'Project', 'Deliverable', 'Artifact', 'System'];
 
 const SLICES = [
   ['entitiesById', 'Entity'],
   ['initiativesById', 'Initiative'],
   ['projectsById', 'Project'],
-  ['artifactsById', 'Deliverable'],
+  ['deliverablesById', 'Deliverable'],
+  ['artifactsById', 'Artifact'],
   ['systemsById', 'System'],
 ];
 
@@ -24,10 +26,16 @@ function ownerParentLabel(matrix, primaryClass, node) {
     const parent = nameOf(initiatives, node.owningInitiativeId) || '—';
     return `${owner} / ${parent}`;
   }
-  // Deliverable
-  const producer = nameOf(entities, node.producedByEntityId) || '—';
-  const parentProject = nameOf(projects, node.producingProjectId) || '—';
-  return `${producer} / ${parentProject}`;
+  // Deliverable: show owning initiative and project
+  if (primaryClass === 'Deliverable') {
+    const initiative = nameOf(initiatives, node.owningInitiativeId) || '—';
+    const project = nameOf(projects, node.owningProjectId) || '—';
+    return `${initiative} / ${project}`;
+  }
+  // Artifact: show producing project (and entity if present)
+  const producer = node.producedByEntityId ? nameOf(entities, node.producedByEntityId) : null;
+  const project = nameOf(projects, node.producingProjectId) || '—';
+  return producer ? `${producer} / ${project}` : project;
 }
 
 export function selectMasterGridRows(matrix = {}) {
@@ -67,7 +75,7 @@ export function selectMasterGridRows(matrix = {}) {
 }
 
 export function countByClass(rows) {
-  const out = { total: rows.length, Entity: 0, Initiative: 0, Project: 0, Deliverable: 0, System: 0 };
-  for (const r of rows) out[r.primaryClass] += 1;
+  const out = { total: rows.length, Entity: 0, Initiative: 0, Project: 0, Deliverable: 0, Artifact: 0, System: 0 };
+  for (const r of rows) out[r.primaryClass] = (out[r.primaryClass] || 0) + 1;
   return out;
 }

@@ -963,6 +963,12 @@ export function computeDerivedState(state, action) {
     case 'REMOVE_PROJECT':
       removeProject(next, action.payload || {});
       break;
+    case 'DECLARE_DELIVERABLE':
+      declareMatrixDeliverable(next, action.payload || {});
+      break;
+    case 'REMOVE_DELIVERABLE':
+      removeMatrixDeliverable(next, action.payload || {});
+      break;
     case 'DECLARE_ARTIFACT':
       declareArtifact(next, action.payload || {});
       break;
@@ -16140,6 +16146,70 @@ function removeProject(state, payload = {}) {
   const id = String(payload?.id || '').trim();
   if (!id) return;
   delete state.matrix.projectsById[id];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  MATRIX v2 — Section 5.5 (Deliverables)
+//  Work scope that produces artifacts. Links to a Project (owningProjectId)
+//  and an Initiative (owningInitiativeId). Blocks link via deliverableId
+//  to aggregate Demand for urgency ranking (Task 2).
+// ─────────────────────────────────────────────────────────────────────────
+
+function declareMatrixDeliverable(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const name = String(payload?.name || '').trim();
+  const owningProjectId = String(payload?.owningProjectId || '').trim();
+  const owningInitiativeId = String(payload?.owningInitiativeId || '').trim();
+  if (!id || !name || !owningProjectId || !owningInitiativeId) {
+    state.lastPlanError = {
+      code: 'DELIVERABLE_INVALID',
+      reason:
+        'Deliverable requires id, name, owningProjectId, and owningInitiativeId.',
+      meta: {
+        id,
+        hasName: Boolean(name),
+        hasProject: Boolean(owningProjectId),
+        hasInitiative: Boolean(owningInitiativeId),
+      },
+    };
+    return;
+  }
+  if (!state.matrix.projectsById[owningProjectId]) {
+    state.lastPlanError = {
+      code: 'DELIVERABLE_OWNING_PROJECT_UNKNOWN',
+      reason: `Deliverable owningProjectId "${owningProjectId}" is not declared in matrix.projectsById. Declare the project first.`,
+      meta: { id, owningProjectId },
+    };
+    return;
+  }
+  if (!state.matrix.initiativesById[owningInitiativeId]) {
+    state.lastPlanError = {
+      code: 'DELIVERABLE_OWNING_INITIATIVE_UNKNOWN',
+      reason: `Deliverable owningInitiativeId "${owningInitiativeId}" is not declared in matrix.initiativesById. Declare the initiative first.`,
+      meta: { id, owningInitiativeId },
+    };
+    return;
+  }
+  const nowISO = new Date().toISOString();
+  state.matrix.deliverablesById[id] = {
+    id,
+    name,
+    owningProjectId,
+    owningInitiativeId,
+    phase: String(payload?.phase || '').trim() || null,
+    successCriteria: String(payload?.successCriteria || '').trim() || null,
+    targetDate: String(payload?.targetDate || '').trim() || null,
+    reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
+    declaredAtISO: nowISO,
+  };
+}
+
+function removeMatrixDeliverable(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  if (!id) return;
+  delete state.matrix.deliverablesById[id];
 }
 
 // ─────────────────────────────────────────────────────────────────────────

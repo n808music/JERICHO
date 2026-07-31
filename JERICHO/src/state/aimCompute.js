@@ -221,3 +221,39 @@ function candidateOrder(a, b) {
   const bId = b.blockId || '';
   return aId.localeCompare(bId);
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Demand Computation (Task 1: supporting data input to urgency ranking)
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Compute raw Demand (aggregated block duration) for a single Deliverable.
+ * Supporting data input for Task 2's urgency ranking — not the operator-facing sort order.
+ * @param {string} deliverableId - Deliverable ID to compute demand for
+ * @param {object} state - Full identity state
+ * @returns {number} Total minutes of blocks linked to this deliverable
+ */
+export function computeDeliverableDemand(deliverableId, state) {
+  if (!deliverableId || !state?.planBlocks) {
+    return 0;
+  }
+  const blocks = Object.values(state.planBlocks || {});
+  const totalMinutes = blocks
+    .filter((b) => b.deliverableId === deliverableId)
+    .reduce((sum, b) => sum + (b.durationMinutes || 0), 0);
+  return totalMinutes;
+}
+
+/**
+ * Compute Demand for all Deliverables in state.
+ * @param {object} state - Full identity state
+ * @returns {Record<string, number>} Map of deliverable ID to total demand minutes
+ */
+export function computeAllDeliverableDemands(state) {
+  const deliverables = state?.matrix?.deliverablesById || {};
+  const result = {};
+  for (const id of Object.keys(deliverables)) {
+    result[id] = computeDeliverableDemand(id, state);
+  }
+  return result;
+}
