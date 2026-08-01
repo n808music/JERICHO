@@ -28,7 +28,7 @@ const defaultConfig = {
   }
 };
 
-let activeConfig = structuredClone(defaultConfig);
+let activeConfig = JSON.parse(JSON.stringify(defaultConfig));
 
 function deepMerge(target, source) {
   const output = Array.isArray(target) ? [...target] : { ...target };
@@ -52,7 +52,7 @@ export function setConfig(overrides = {}) {
 }
 
 export function resetConfig() {
-  activeConfig = structuredClone(defaultConfig);
+  activeConfig = JSON.parse(JSON.stringify(defaultConfig));
   return activeConfig;
 }
 
