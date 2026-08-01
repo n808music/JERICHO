@@ -59,15 +59,21 @@ export function scoreCandidate(candidate, goalProfile, blocksForToday = [], urge
     const urgency = urgencyRanking[deliverableId];
     urgencyBand = urgency.urgencyBand;
 
-    if (urgencyBand === 'CRITICAL' || urgencyBand === 'HIGH') {
+    if (urgencyBand === 'CRITICAL') {
       const TODO_CALIBRATE_CRITICAL_BOOST = 25;
       score += TODO_CALIBRATE_CRITICAL_BOOST;
-      rationale.push(`Blocks urgent chain (${urgencyBand})`);
-      claimType = 'CONSTRAINT'; // CRITICAL and HIGH both map to CONSTRAINT
+      rationale.push('Blocks urgent chain (CRITICAL)');
+      claimType = 'CONSTRAINT';
+    } else if (urgencyBand === 'HIGH') {
+      const TODO_CALIBRATE_HIGH_BOOST = 15;
+      score += TODO_CALIBRATE_HIGH_BOOST;
+      rationale.push('Blocks urgent chain (HIGH)');
+      claimType = 'CONSTRAINT';
     } else if (urgencyBand === 'MEDIUM') {
       claimType = 'INTENT';
       rationale.push('Advances important deliverable');
     }
+    // LOW urgency: claimType remains null, no key added to return
   }
 
   if (candidate.kind === 'scheduled_block') {
@@ -89,7 +95,13 @@ export function scoreCandidate(candidate, goalProfile, blocksForToday = [], urge
     score -= 20;
     rationale.push('Duration too long');
   }
-  return { score, rationale, claimType, urgencyBand, deliverableId };
+
+  // Build result object, conditionally including claimType only when assigned
+  const result = { score, rationale, urgencyBand, deliverableId };
+  if (claimType !== null) {
+    result.claimType = claimType;
+  }
+  return result;
 }
 
 export function computeNextBestMove(goal, deadlineISO, blocks = [], history = [], todayKey, urgencyRanking = {}) {
@@ -122,14 +134,15 @@ export function computeNextBestMove(goal, deadlineISO, blocks = [], history = []
 
   const ordered = [...candidates].sort(candidateOrder);
   const scored = ordered.map((c) => {
-    const { score, rationale, claimType, urgencyBand, deliverableId } = scoreCandidate(
+    const scoredObj = scoreCandidate(
       c,
       profile,
       todayBlocks,
       urgencyRanking,
       c.deliverableId
     );
-    return { candidate: c, score, rationale, claimType, urgencyBand, deliverableId };
+    // Preserve the scored object structure (claimType only present if assigned by scoreCandidate)
+    return { candidate: c, ...scoredObj };
   });
 
   scored.sort((a, b) => {
@@ -154,29 +167,35 @@ export function computeNextBestMove(goal, deadlineISO, blocks = [], history = []
   const rationale = top.rationale.slice(0, 3);
 
   if (c.kind === 'scheduled_block') {
-    return {
+    const executeResult = {
       type: 'execute',
       domain: toTitle(c.domain),
       durationMinutes: c.durationMinutes,
       blockId: c.blockId,
       rationale,
       doneWhen: 'When the referenced block is completed today.',
-      claimType: top.claimType,
       deliverableId: top.deliverableId,
       urgencyBand: top.urgencyBand,
     };
+    if ('claimType' in top) {
+      executeResult.claimType = top.claimType;
+    }
+    return executeResult;
   }
 
-  return {
+  const scheduleResult = {
     type: 'schedule',
     domain: toTitle(c.domain),
     durationMinutes: 30,
     rationale,
     doneWhen: 'When a block of this domain and duration is completed today.',
-    claimType: top.claimType,
     deliverableId: top.deliverableId,
     urgencyBand: top.urgencyBand,
   };
+  if ('claimType' in top) {
+    scheduleResult.claimType = top.claimType;
+  }
+  return scheduleResult;
 }
 
 // --- helpers ---

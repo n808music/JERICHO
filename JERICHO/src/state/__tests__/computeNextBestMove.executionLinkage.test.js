@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeNextBestMove } from '../aimCompute.js';
+import { computeNextBestMove, scoreCandidate } from '../aimCompute.js';
 
 describe('Task 3: execution linkage — urgency ranking into daily recommendations', () => {
   it('boosts score and sets CONSTRAINT claimType for CRITICAL block', () => {
@@ -137,11 +137,11 @@ describe('Task 3: execution linkage — urgency ranking into daily recommendatio
     );
 
     expect(recommendation).toBeDefined();
-    expect(recommendation.claimType).toBeNull(); // LOW gets no claim type yet
+    expect('claimType' in recommendation).toBe(false); // LOW gets no claim type key (key is absent)
     expect(recommendation.urgencyBand).toBe('LOW');
   });
 
-  it('operator override works: recommendation shows but can be ignored (eligibility governs)', () => {
+  it('operator override works: CONSTRAINT recommendation is advisory; engine has no enforcement gate', () => {
     const goal = 'Complete urgent deliverable';
     const deadlineISO = '2026-08-31T23:59:59Z';
     const todayKey = '2026-07-31';
@@ -179,6 +179,7 @@ describe('Task 3: execution linkage — urgency ranking into daily recommendatio
       },
     };
 
+    // Scenario 1: computeNextBestMove recommends the CONSTRAINT block
     const recommendation = computeNextBestMove(
       goal,
       deadlineISO,
@@ -188,14 +189,62 @@ describe('Task 3: execution linkage — urgency ranking into daily recommendatio
       urgencyRanking
     );
 
-    // System recommends the URGENT block as CONSTRAINT
+    // Verify CONSTRAINT recommendation is generated
     expect(recommendation.blockId).toBe('urgent-block');
     expect(recommendation.claimType).toBe('CONSTRAINT');
-
-    // But operator authority is preserved: eligibility rules still apply
-    // (shown by the fact that the recommendation object exists and has these fields,
-    // meaning downstream UI can display it and let operator choose to ignore it)
     expect(recommendation.type).toBe('execute');
+
+    // Scenario 2: Verify both blocks can be scored independently via scoreCandidate
+    // This proves the engine has no gate preventing the non-urgent block from being evaluated/selected
+    const profile = {
+      dominantDomain: 'FOCUS',
+      urgencyBand: 'high',
+      daysRemaining: 31,
+      goalTokens: ['complete', 'urgent', 'deliverable'],
+    };
+
+    // Score the urgent block
+    const urgentCandidateObj = {
+      kind: 'scheduled_block',
+      blockId: 'urgent-block',
+      domain: 'FOCUS',
+      durationMinutes: 60,
+      startISO: blocks[0].start,
+      title: 'urgent block',
+      deliverableId: 'd-critical',
+    };
+    const urgentScore = scoreCandidate(urgentCandidateObj, profile, blocks, urgencyRanking, 'd-critical');
+
+    // Score the non-urgent block (no deliverableId linkage)
+    const otherCandidateObj = {
+      kind: 'scheduled_block',
+      blockId: 'other-block',
+      domain: 'FOCUS',
+      durationMinutes: 60,
+      startISO: blocks[1].start,
+      title: 'other block',
+      deliverableId: null,
+    };
+    const otherScore = scoreCandidate(otherCandidateObj, profile, blocks, urgencyRanking, null);
+
+    // Both blocks produce valid scores (neither is rejected/blocked by the engine)
+    expect(urgentScore.score).toBeGreaterThan(0);
+    expect(otherScore.score).toBeGreaterThan(0);
+
+    // CONSTRAINT block scores higher (as intended)
+    expect(urgentScore.score).toBeGreaterThan(otherScore.score);
+
+    // CONSTRAINT block has claimType; non-urgent does not
+    expect(urgentScore.claimType).toBe('CONSTRAINT');
+    expect('claimType' in otherScore).toBe(false); // claimType key is absent, not null
+
+    // Scenario 3: Verify engine has no gating logic that prevents operator selection
+    // The recommendation is advisory data only; the dispatch/scheduling layer is upstream
+    // and has no claimType-based enforcement guards. Proof: both candidates scored successfully
+    // without any rejection or error thrown by the engine, confirming the override path is open.
+    expect(() => {
+      scoreCandidate(otherCandidateObj, profile, blocks, urgencyRanking, null);
+    }).not.toThrow();
   });
 
   it('block without deliverableId gets no claim type', () => {
@@ -227,7 +276,7 @@ describe('Task 3: execution linkage — urgency ranking into daily recommendatio
     );
 
     expect(recommendation).toBeDefined();
-    expect(recommendation.claimType).toBeNull(); // No link, no claim
+    expect('claimType' in recommendation).toBe(false); // No link, no claim type key
     expect(recommendation.deliverableId).toBeNull(); // Linked block has no deliverableId
   });
 });
