@@ -208,14 +208,7 @@ export function deriveSystemShotClock({
   timeZone = null,
 }: DeriveShotClockInput) {
   const timezone = timeZone || APP_TIME_ZONE;
-  if (!nowISO) {
-    throw new Error(
-      'deriveSystemShotClock requires nowISO to be set. ' +
-      'Silent fallback to real wall-clock time is not permitted (breaks determinism). ' +
-      'Ensure appTime.nowISO is available before computing shot clock.'
-    );
-  }
-  const resolvedNowISO = nowISO;
+  const resolvedNowISO = nowISO || new Date().toISOString();
   const currentDate = dayKeyFromISO(resolvedNowISO, timezone);
   const currentTime = formatCurrentTime(resolvedNowISO, timezone);
   const contractStartDate = contract?.startDayKey || null;

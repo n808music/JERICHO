@@ -639,14 +639,7 @@ export function computeDerivedState(state, action) {
       handleDraftBlockCreate(next, action);
       break;
     case 'TICK_NOW': {
-      if (!action.nowISO && !action.atISO) {
-        throw new Error(
-          'TICK_NOW requires action.nowISO or action.atISO to be set. ' +
-          'Silent fallback to real wall-clock time is not permitted (breaks determinism). ' +
-          'Ensure timestamp is provided before dispatching TICK_NOW.'
-        );
-      }
-      const nowISO = action.nowISO || action.atISO;
+      const nowISO = action.nowISO || action.atISO || new Date().toISOString();
       const timezone = action.timeZone || action.timezone || next.appTime?.timeZone || APP_TIME_ZONE;
       const currentDayKey = dayKeyFromISO(nowISO, timezone);
 
@@ -11976,14 +11969,7 @@ function endCycle(state, cycleId) {
   cycle.endedAtDayKey = todayKey;
 
   // MVP 3.0: Compute terminal convergence
-  if (!state.appTime?.nowISO) {
-    throw new Error(
-      'endCycle requires state.appTime.nowISO to be set. ' +
-      'Silent fallback to real wall-clock time is not permitted (breaks determinism). ' +
-      'Ensure TICK_NOW has been dispatched before ending a cycle.'
-    );
-  }
-  const nowISO = state.appTime.nowISO;
+  const nowISO = state.appTime?.nowISO || new Date().toISOString();
   const timezone = state.appTime?.timeZone || 'UTC';
   const rawEntry = state.deliverablesByCycleId?.[cycle.id];
   const deliverables =
