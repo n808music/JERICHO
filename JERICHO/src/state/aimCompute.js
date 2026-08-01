@@ -34,13 +34,17 @@ export function getTodayCandidates(blocks = [], todayKey) {
     durationMinutes: b.durationMinutes || estimateDuration(b),
     startISO: b.start,
     title: b.label || `${b.practice || b.domain || 'Block'}`,
+    deliverableId: b.deliverableId, // Task 3: preserve deliverable linkage for urgency scoring
   }));
   return candidates;
 }
 
-export function scoreCandidate(candidate, goalProfile, blocksForToday = []) {
+export function scoreCandidate(candidate, goalProfile, blocksForToday = [], urgencyRanking = {}, deliverableId = null) {
   let score = 0;
   const rationale = [];
+  let claimType = null;
+  let urgencyBand = null;
+
   if (candidate.domain === goalProfile.dominantDomain) {
     score += 40;
     rationale.push('Domain matches goal');
@@ -49,6 +53,23 @@ export function scoreCandidate(candidate, goalProfile, blocksForToday = []) {
       rationale.push('High urgency');
     }
   }
+
+  // Task 3: Boost score for blocks linked to urgent Deliverables
+  if (deliverableId && urgencyRanking[deliverableId]) {
+    const urgency = urgencyRanking[deliverableId];
+    urgencyBand = urgency.urgencyBand;
+
+    if (urgencyBand === 'CRITICAL' || urgencyBand === 'HIGH') {
+      const TODO_CALIBRATE_CRITICAL_BOOST = 25;
+      score += TODO_CALIBRATE_CRITICAL_BOOST;
+      rationale.push(`Blocks urgent chain (${urgencyBand})`);
+      claimType = 'CONSTRAINT'; // CRITICAL and HIGH both map to CONSTRAINT
+    } else if (urgencyBand === 'MEDIUM') {
+      claimType = 'INTENT';
+      rationale.push('Advances important deliverable');
+    }
+  }
+
   if (candidate.kind === 'scheduled_block') {
     const status = findBlockStatus(blocksForToday, candidate.blockId);
     if (status === 'pending') {
@@ -68,10 +89,10 @@ export function scoreCandidate(candidate, goalProfile, blocksForToday = []) {
     score -= 20;
     rationale.push('Duration too long');
   }
-  return { score, rationale };
+  return { score, rationale, claimType, urgencyBand, deliverableId };
 }
 
-export function computeNextBestMove(goal, deadlineISO, blocks = [], history = [], todayKey) {
+export function computeNextBestMove(goal, deadlineISO, blocks = [], history = [], todayKey, urgencyRanking = {}) {
   const profile = computeGoalProfile(goal, deadlineISO, todayKey);
   const todayBlocks = blocks.filter((b) => (b.start || '').slice(0, 10) === todayKey);
   const candidates = getTodayCandidates(blocks, todayKey);
@@ -101,8 +122,14 @@ export function computeNextBestMove(goal, deadlineISO, blocks = [], history = []
 
   const ordered = [...candidates].sort(candidateOrder);
   const scored = ordered.map((c) => {
-    const { score, rationale } = scoreCandidate(c, profile, todayBlocks);
-    return { candidate: c, score, rationale };
+    const { score, rationale, claimType, urgencyBand, deliverableId } = scoreCandidate(
+      c,
+      profile,
+      todayBlocks,
+      urgencyRanking,
+      c.deliverableId
+    );
+    return { candidate: c, score, rationale, claimType, urgencyBand, deliverableId };
   });
 
   scored.sort((a, b) => {
@@ -134,6 +161,9 @@ export function computeNextBestMove(goal, deadlineISO, blocks = [], history = []
       blockId: c.blockId,
       rationale,
       doneWhen: 'When the referenced block is completed today.',
+      claimType: top.claimType,
+      deliverableId: top.deliverableId,
+      urgencyBand: top.urgencyBand,
     };
   }
 
@@ -143,6 +173,9 @@ export function computeNextBestMove(goal, deadlineISO, blocks = [], history = []
     durationMinutes: 30,
     rationale,
     doneWhen: 'When a block of this domain and duration is completed today.',
+    claimType: top.claimType,
+    deliverableId: top.deliverableId,
+    urgencyBand: top.urgencyBand,
   };
 }
 

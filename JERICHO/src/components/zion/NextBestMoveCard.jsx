@@ -13,11 +13,29 @@ export default function NextBestMoveCard({ directive, eligibility, onSelectBlock
     ? `Schedule ${directive.domain} — ${directive.durationMinutes}m`
     : `Execute ${directive.domain}${directive.title ? `: ${directive.title}` : ''}`;
 
+  // Task 3: Display claim type tags (CONSTRAINT/INTENT)
+  const getClaimTypeStyle = (claimType) => {
+    if (claimType === 'CONSTRAINT') {
+      return 'bg-red-500/20 text-red-600 border border-red-500/50';
+    }
+    if (claimType === 'INTENT') {
+      return 'bg-yellow-500/20 text-yellow-700 border border-yellow-500/50';
+    }
+    return '';
+  };
+
   return (
     <div
       className={`rounded-lg border border-line/60 bg-jericho-surface/90 p-3 text-xs space-y-1 ${isEligible ? '' : 'opacity-60'}`}
     >
-      <p className="text-muted font-semibold">{header}</p>
+      <div className="flex items-center justify-between">
+        <p className="text-muted font-semibold">{header}</p>
+        {directive.claimType ? (
+          <span className={`px-2 py-0.5 rounded text-xs font-semibold ${getClaimTypeStyle(directive.claimType)}`}>
+            {directive.claimType}
+          </span>
+        ) : null}
+      </div>
       <p className="text-jericho-text font-semibold">{line}</p>
       {!isEligible && eligibility?.reasons?.length ? (
         <p className="text-muted">Not eligible: {eligibility.reasons.join(' · ')}</p>
