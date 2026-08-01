@@ -531,7 +531,15 @@ function computeBlockingChainUrgency(deliverable, state = {}) {
     .sort();
 
   const demand = computeDeliverableDemand(deliverable.id, state);
-  const now = new Date(state.appTime?.nowISO || new Date().toISOString());
+
+  if (!state.appTime?.nowISO) {
+    throw new Error(
+      'computeBlockingChainUrgency requires state.appTime.nowISO to be set. ' +
+      'Silent fallback to real wall-clock time is not permitted (breaks determinism). ' +
+      'Ensure appTime is initialized in the state before computing urgency.'
+    );
+  }
+  const now = new Date(state.appTime.nowISO);
 
   if (deadlines.length === 0) {
     return {
