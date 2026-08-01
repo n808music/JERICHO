@@ -3,9 +3,11 @@ import react from '@vitejs/plugin-react';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 export default defineConfig({
   plugins: [react()],
-  root: '.',
+  root: __dirname,
   server: {
     port: 5183,
     strictPort: true,
@@ -41,7 +43,10 @@ export default defineConfig({
     threads: false,
     globals: true,
     environment: 'jsdom',
-    setupFiles: ['./tests/setup.ts'],
-    include: ['src/**/*.{test,spec}.{js,jsx,ts,tsx}', 'tests/**/*.{test,spec}.{js,jsx,ts,tsx}'],
+    setupFiles: [path.join(__dirname, 'tests/setup.ts')],
+    include: [
+      path.join(__dirname, 'src/**/*.{test,spec}.{js,jsx,ts,tsx}'),
+      path.join(__dirname, 'tests/**/*.{test,spec}.{js,jsx,ts,tsx}'),
+    ],
   },
 });
