@@ -104,9 +104,28 @@ export function scoreCandidate(candidate, goalProfile, blocksForToday = [], urge
   return result;
 }
 
-export function computeNextBestMove(goal, deadlineISO, blocks = [], history = [], todayKey, urgencyRanking = {}) {
+export function computeNextBestMove(
+  goal,
+  deadlineISO,
+  blocks = [],
+  history = [],
+  todayKey,
+  urgencyRanking = {},
+  deliverablesById = {},
+  longLeadThresholdDays = 90
+) {
   const profile = computeGoalProfile(goal, deadlineISO, todayKey);
-  const todayBlocks = blocks.filter((b) => (b.start || '').slice(0, 10) === todayKey);
+  let todayBlocks = blocks.filter((b) => (b.start || '').slice(0, 10) === todayKey);
+
+  // Task 4: Apply non-domination filter for long-lead items
+  todayBlocks = applyNonDominationFilter(
+    todayBlocks,
+    deliverablesById,
+    urgencyRanking,
+    longLeadThresholdDays,
+    todayKey
+  );
+
   const candidates = getTodayCandidates(blocks, todayKey);
 
   // gap_fill if no block in dominant domain today
@@ -272,6 +291,94 @@ function candidateOrder(a, b) {
   const aId = a.blockId || '';
   const bId = b.blockId || '';
   return aId.localeCompare(bId);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Task 4: Long-Horizon Item Distribution
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Determine if a block is long-lead for filtering purposes.
+ * @param {object} block - Block with scheduledDate
+ * @param {number} longLeadThresholdDays - Threshold (default 90)
+ * @param {string} baseDate - ISO date to measure from (today)
+ * @returns {boolean} True if block's scheduled date is >threshold days away
+ */
+export function isLongLeadForFilter(block, longLeadThresholdDays = 90, baseDate = null) {
+  if (!block?.scheduledDate) return false;
+  const base = baseDate ? new Date(baseDate) : new Date();
+  const scheduled = new Date(block.scheduledDate);
+  const daysUntil = (scheduled.getTime() - base.getTime()) / (1000 * 60 * 60 * 24);
+  return daysUntil > longLeadThresholdDays;
+}
+
+/**
+ * Determine if a Deliverable is long-lead for allocation purposes.
+ * @param {object} deliverable - Deliverable with targetDate
+ * @param {number} longLeadThresholdDays - Threshold (default 90)
+ * @param {string} baseDate - ISO date to measure from (today)
+ * @returns {boolean} True if Deliverable's targetDate is >threshold days away
+ */
+export function isLongLeadForAllocation(deliverable, longLeadThresholdDays = 90, baseDate = null) {
+  if (!deliverable?.targetDate) return false;
+  const base = baseDate ? new Date(baseDate) : new Date();
+  const target = new Date(deliverable.targetDate);
+  const daysUntil = (target.getTime() - base.getTime()) / (1000 * 60 * 60 * 24);
+  return daysUntil > longLeadThresholdDays;
+}
+
+/**
+ * Check if all CRITICAL/HIGH urgency chains are satisfied (cleared from ranking).
+ * @param {Record<string, object>} urgencyRanking - Task 2's urgency ranking output
+ * @returns {boolean} True if no CRITICAL or HIGH items currently ranked
+ */
+export function areUrgentChainsCleared(urgencyRanking = {}) {
+  return !Object.values(urgencyRanking).some(
+    (item) => item?.urgencyBand === 'CRITICAL' || item?.urgencyBand === 'HIGH'
+  );
+}
+
+/**
+ * Apply non-domination hard rule: exclude long-lead blocks from recommendations.
+ * @param {Array} todayBlocks - Blocks available today
+ * @param {Record<string, object>} deliverablesById - Matrix deliverables
+ * @param {Record<string, object>} urgencyRanking - Task 2 urgency ranking
+ * @param {number} longLeadThresholdDays - Threshold (default 90)
+ * @param {string} todayKey - Today's date (ISO)
+ * @returns {Array} Filtered blocks (excluding long-lead unless override/chains cleared)
+ */
+export function applyNonDominationFilter(
+  todayBlocks = [],
+  deliverablesById = {},
+  urgencyRanking = {},
+  longLeadThresholdDays = 90,
+  todayKey = null
+) {
+  const baseDate = todayKey ? `${todayKey}T00:00:00Z` : null;
+  const urgentCleared = areUrgentChainsCleared(urgencyRanking);
+
+  return todayBlocks.filter((block) => {
+    // If block has no deliverableId, allow it (not part of long-lead filtering)
+    if (!block.deliverableId) return true;
+
+    const deliverable = deliverablesById[block.deliverableId];
+    if (!deliverable) return true; // Allow if deliverable not found
+
+    // Check if block is long-lead
+    if (isLongLeadForFilter(block, longLeadThresholdDays, baseDate)) {
+      // Allow if:
+      // 1. Operator has added CONSTRAINT override (checked via deliverable flag)
+      // 2. OR all CRITICAL/HIGH chains are cleared (urgent work done)
+      const hasOverride = deliverable._hasConstraintOverride === true;
+      if (hasOverride || urgentCleared) {
+        return true;
+      }
+      // Otherwise, filter out (suppress long-lead)
+      return false;
+    }
+
+    return true; // Allow non-long-lead blocks
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────
