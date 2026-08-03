@@ -88,6 +88,15 @@ describe('Project slot — requiresLegalFormation field capture', () => {
       }
     }
 
+    // After all answers, engine is at readback — confirm to dispatch DECLARE_PROJECT
+    if (step.readback && !step.done) {
+      const result = engine.confirmReadback({ confirmed: true });
+      engine = result.engine;
+      for (const action of result.dispatches || []) {
+        state = computeDerivedState(state, action);
+      }
+    }
+
     const projects = Object.values(state.matrix.projectsById);
     expect(projects.length).toBeGreaterThan(0);
     expect(projects[0].requiresLegalFormation).toBe(true);
@@ -141,6 +150,15 @@ describe('Project slot — requiresLegalFormation field capture', () => {
         }
         engine = engine.refreshMatrix(state.matrix);
         step = engine.nextStep();
+      }
+    }
+
+    // After all answers, engine is at readback — confirm to dispatch DECLARE_PROJECT
+    if (step.readback && !step.done) {
+      const result = engine.confirmReadback({ confirmed: true });
+      engine = result.engine;
+      for (const action of result.dispatches || []) {
+        state = computeDerivedState(state, action);
       }
     }
 

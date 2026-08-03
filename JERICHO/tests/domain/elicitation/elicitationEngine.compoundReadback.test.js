@@ -27,7 +27,7 @@ function seededState() {
 }
 
 function driveToReadback({ metric, source }) {
-  const state = seededState();
+  let state = seededState();
   let engine = createElicitationEngine({
     goalType: 'founder',
     matrixSnapshot: state.matrix,
@@ -54,7 +54,12 @@ function driveToReadback({ metric, source }) {
     const value = script[field];
     if (value === undefined) break;
     const res = engine.consumeAnswer({ [field]: value });
-    engine = res.engine.refreshMatrix(state.matrix);
+    engine = res.engine;
+    // Apply dispatches to state so matrix is updated with spawned entities (e.g., VS)
+    for (const action of res.dispatches || []) {
+      state = computeDerivedState(state, action);
+    }
+    engine = engine.refreshMatrix(state.matrix);
     step = engine.nextStep();
     guard += 1;
   }
@@ -71,7 +76,7 @@ describe('project readback — reopening verificationSource re-asks it', () => {
     // Reopen the source — the gate keys off verificationSourceId; without the
     // cascade this produced a mangled readback ('Open  and confirm ...')
     // instead of re-asking (2026-07-10).
-    const state = seededState();
+    let state = seededState();
     let engine = createElicitationEngine({
       goalType: 'founder',
       matrixSnapshot: state.matrix,
@@ -86,6 +91,7 @@ describe('project readback — reopening verificationSource re-asks it', () => {
       source: 'USPTO and application store',
       domain: 'filings',
       phase: '2', // §5 phase attestation (Wave 2 Gate 1) — required project gate.
+      requiresLegalFormation: false, // Legal formation gate — not required for this tech company project
     };
     let s = engine.nextStep();
     let guard = 0;
@@ -93,7 +99,12 @@ describe('project readback — reopening verificationSource re-asks it', () => {
       const f = s.probe.fieldName;
       if (script[f] === undefined) break;
       const r = engine.consumeAnswer({ [f]: script[f] });
-      engine = r.engine.refreshMatrix(state.matrix);
+      engine = r.engine;
+      // Apply dispatches to state so matrix is updated with spawned entities (e.g., VS)
+      for (const action of r.dispatches || []) {
+        state = computeDerivedState(state, action);
+      }
+      engine = engine.refreshMatrix(state.matrix);
       s = engine.nextStep();
       guard += 1;
     }
