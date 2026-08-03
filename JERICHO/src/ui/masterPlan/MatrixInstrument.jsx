@@ -15,20 +15,18 @@ export const ROLE_TAG_DISPLAY_LABELS = {
   initiative: 'Campaign leader',
   project:    'Project operator',
   system:     'System custodian',
-  function:   'Enterprise function',
 };
 
 // ─── Formation state ladder ────────────────────────────────────────────────────
-// Color encodes maturity: dim=not-formed → bright green=legally-formed
+// Color encodes maturity: dim=not-formed → bright green=functioning
+// Legal status (legallyFormed boolean) rendered separately as a badge, not part of this ladder.
 
 const FORMATION_CONFIG = {
   'not-formed':     { label: 'not formed',     bg: '#18181b', color: '#71717a', border: '#3f3f46' },
   'named-only':     { label: 'named only',     bg: '#27272a', color: '#a1a1aa', border: '#52525b' },
   'conceptual':     { label: 'conceptual',     bg: '#1e293b', color: '#94a3b8', border: '#334155' },
-  'half-built':     { label: 'half built',     bg: '#1c1007', color: '#fbbf24', border: '#78350f' },
   'in-development': { label: 'in dev',         bg: '#0c1a2e', color: '#60a5fa', border: '#1e3a5f' },
   'functioning':    { label: 'functioning',    bg: '#052e16', color: '#34d399', border: '#064e3b' },
-  'legally-formed': { label: 'legally formed', bg: '#022c22', color: '#6ee7b7', border: '#047857' },
 };
 
 const DIMENSIONS = ['money', 'time', 'skills', 'tech'];
@@ -84,6 +82,44 @@ function FormationPill({ state }) {
       className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-mono tracking-wider flex-shrink-0"
     >
       {cfg.label}
+    </span>
+  );
+}
+
+function LegalStatusBadge({ formed }) {
+  if (formed === undefined) return null;
+  // Three distinct states: null (not yet asked), false (confirmed no), true (confirmed yes)
+  const isNull = formed === null;
+  const isTrue = formed === true;
+  const isFalse = formed === false;
+
+  let bg, color, border, text;
+  if (isNull) {
+    // Neutral gray: not yet asked
+    bg = '#27272a';
+    color = '#a1a1aa';
+    border = '#52525b';
+    text = '? legal status not yet asked';
+  } else if (isTrue) {
+    // Green: confirmed legally formed
+    bg = '#064e3b';
+    color = '#6ee7b7';
+    border = '#047857';
+    text = '✓ legally formed';
+  } else {
+    // Red: confirmed not yet legal
+    bg = '#7c2d12';
+    color = '#fda29b';
+    border = '#b45309';
+    text = '✗ not yet legal';
+  }
+
+  return (
+    <span
+      style={{ background: bg, color: color, border: `1px solid ${border}` }}
+      className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-mono tracking-wider flex-shrink-0"
+    >
+      {text}
     </span>
   );
 }
@@ -205,6 +241,7 @@ function EntitySpineSection({ matrix }) {
               <div className="flex items-start gap-2 flex-wrap">
                 <span className="text-sm font-semibold" style={{ color: '#e4e4e7' }}>{entity.name}</span>
                 <FormationPill state={entity.formationState} />
+                <LegalStatusBadge formed={entity.legallyFormed} />
                 <RoleTagChips tags={entity.roleTags} />
               </div>
               {entity.purpose && (

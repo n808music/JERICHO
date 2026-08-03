@@ -4,7 +4,7 @@ import { isQuantifiableMetric } from '../../planQuality/isQuantifiableMetric';
 import { classifyPhase } from '../../masterGrid/phaseClassification.js';
 
 // Section 5 (Projects) slot contract.
-// Required declaration fields: id, name, owningEntityId, successMetric, verificationSourceId, phase.
+// Required declaration fields: id, name, owningEntityId, successMetric, verificationSourceId, phase, requiresLegalFormation.
 // Field order matches gate order — first failure wins gives a natural probe sequence.
 
 export const PROJECT_SLOT_ID = 'slot:project';
@@ -14,7 +14,7 @@ export const PROJECT_SLOT = {
   section: 5,
   matrixBinding: {
     action: 'DECLARE_PROJECT',
-    fields: ['name', 'owningEntityId', 'successMetric', 'verificationSourceId', 'phase'],
+    fields: ['name', 'owningEntityId', 'successMetric', 'verificationSourceId', 'phase', 'requiresLegalFormation'],
   },
   dependsOn: [],
   // Field-by-field gate ladder. Each entry is a pure detector over the
@@ -81,6 +81,13 @@ export const PROJECT_SLOT = {
         }
       },
     },
+    // ── legal formation prerequisite ────────────────────────────────────
+    {
+      code: 'PROJECT_LEGAL_FORMATION_MISSING',
+      fieldName: 'requiresLegalFormation',
+      detect: (captured) => captured?.requiresLegalFormation === undefined || captured?.requiresLegalFormation === null,
+      pickSet: 'yesNoOptions',
+    },
   ],
 };
 
@@ -107,5 +114,6 @@ export function buildProjectDeclarePayload(captured) {
     // classifyPhase returns the canonical number (the gate guaranteed 1/2/3 or absent);
     // never a second validator, always the shared one.
     phase: classifyPhase(captured.phase, captured.name),
+    requiresLegalFormation: captured.requiresLegalFormation !== undefined ? Boolean(captured.requiresLegalFormation) : false,
   };
 }

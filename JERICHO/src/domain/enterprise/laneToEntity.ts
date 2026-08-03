@@ -17,10 +17,6 @@ const LANE_TO_CATEGORY: Record<string, string> = {
   ops: 'Project Management',
   brand: 'Project Management',
   company: 'Project Management',
-  capital: 'Capital / Revenue',
-  revenue: 'Capital / Revenue',
-  income: 'Capital / Revenue',
-  runway: 'Capital / Revenue',
   civic: 'Real Estate',
   district: 'Real Estate',
   real_estate: 'Real Estate',
@@ -59,10 +55,6 @@ const ENTITY_ALIAS_RULES: Array<{ entityDisplayName: string; pattern: RegExp }> 
     entityDisplayName: 'Global State Academy',
     pattern: /\b(institution|education|school|academy|apprenticeship|global state academy)\b/i,
   },
-  {
-    entityDisplayName: 'Capital Path or Revenue Engine',
-    pattern: /\b(capital|funding|investor|monetization|runway|capital stack|services revenue bridge|revenue bridge|buyer outreach|first offer)\b/i,
-  },
 ];
 
 const CATEGORY_KEYWORDS: Array<[string, RegExp]> = [
@@ -70,7 +62,6 @@ const CATEGORY_KEYWORDS: Array<[string, RegExp]> = [
   ['Record Label', /\b(creative|album|music|record label|release engine|global state corp)\b/i],
   ['Production', /\b(media|podcast|broadcast|narrative|global state productions)\b/i],
   ['Project Management', /\b(operations|brand|operator|operating system|project management|global state solutions)\b/i],
-  ['Capital / Revenue', /\b(capital|revenue|income|runway|funding|monetization|capital path)\b/i],
   ['Real Estate', /\b(civic|district|corridor|real estate|property|site control|global state holdings)\b/i],
   ['Private Schools', /\b(institution|education|school|academy|global state academy)\b/i],
   ['Energy Gym', /\b(energy gym|f8|fate|energy co)\b/i],

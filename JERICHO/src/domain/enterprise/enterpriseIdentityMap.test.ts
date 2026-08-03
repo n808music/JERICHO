@@ -7,8 +7,8 @@ import {
 } from './enterpriseIdentityMap';
 
 describe('enterpriseIdentityMap', () => {
-  it('contains all 8 paper-map entities', () => {
-    expect(ENTERPRISE_IDENTITY_MAP).toHaveLength(8);
+  it('contains all 7 paper-map entities', () => {
+    expect(ENTERPRISE_IDENTITY_MAP).toHaveLength(7);
   });
 
   it('uses F8 Energy Co. for the Energy Gym company', () => {

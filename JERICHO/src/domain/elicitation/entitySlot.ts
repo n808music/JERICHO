@@ -27,7 +27,7 @@ export const ENTITY_SLOT = {
   section: 2,
   matrixBinding: {
     action: 'DECLARE_ENTITY',
-    fields: ['name', 'roleTags', 'purpose', 'formationState', 'statusEvidence', 'doneWhen'],
+    fields: ['name', 'roleTags', 'purpose', 'formationState', 'statusEvidence', 'legallyFormed', 'doneWhen'],
   },
   dependsOn: [],
   // First-failure-wins gate ladder. Field order = probe order.
@@ -104,6 +104,13 @@ export const ENTITY_SLOT = {
         Boolean(captured?.statusEvidence) &&
         !hasAuthoredSubstance(String(captured.statusEvidence)),
     },
+    // ── legal status: independently tracked boolean ─
+    {
+      code: 'ENTITY_LEGAL_STATUS_MISSING',
+      fieldName: 'legallyFormed',
+      detect: (captured) => captured?.legallyFormed === undefined || captured?.legallyFormed === null,
+      pickSet: 'yesNoOptions',
+    },
     // ── doneWhen: OPTIONAL — no presence gate; validity only when present ─
     {
       code: 'ENTITY_DONEWHEN_NOT_VERIFIABLE',
@@ -131,6 +138,7 @@ export function buildEntityDeclarePayload(captured) {
     purpose: captured.purpose,
     formationState: captured.formationState,
     statusEvidence: captured.statusEvidence,
+    legallyFormed: captured.legallyFormed !== undefined ? Boolean(captured.legallyFormed) : false,
   };
   // doneWhen is optional — include only when authored.
   if (captured?.doneWhen) payload.doneWhen = captured.doneWhen;

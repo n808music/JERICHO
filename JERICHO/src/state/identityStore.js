@@ -484,6 +484,7 @@ export function buildBlankIdentityState(options = {}) {
       dependenciesById: {},
       convergenceEdgesById: {},
       resourceProfilesById: {},
+      barriersById: {},
       bindingConstraint: null,
       bootstrap: { candidates: [], selectedNodeId: null },
     },

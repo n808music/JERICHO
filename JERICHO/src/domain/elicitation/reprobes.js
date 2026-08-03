@@ -94,6 +94,13 @@ export const REPROBES = {
       "Phase is exactly one of 1, 2, or 3 — beginning, middle, or end toward the terminal. That answer isn't one of them; give me 1, 2, or 3 for this project.",
     examples: { musician: '', founder: '', writer: '', generic: '' },
   },
+  // ── legal formation prerequisite ────────────────────────────────────
+  PROJECT_LEGAL_FORMATION_MISSING: {
+    spine:
+      'Does this project require the owning entity to be legally formed (LLC, corporation, etc.) before work can proceed?',
+    pickSet: 'yesNoOptions',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
   VERIFICATION_SOURCE_SOURCE_MISSING: {
     spine:
       "Name the place you'll actually open to check this — the tool, app, screen, or record.",

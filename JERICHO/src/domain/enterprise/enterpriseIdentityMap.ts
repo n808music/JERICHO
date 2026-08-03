@@ -92,13 +92,6 @@ export const ENTERPRISE_IDENTITY_MAP: ReadonlyArray<EnterpriseIdentityEntity> = 
     typeLabel: 'Music / record label / artist business',
     phaseScope: 'P1-P3',
   },
-  {
-    displayName: 'Capital Path or Revenue Engine',
-    companyCategory: 'Capital / Revenue',
-    products: ['Runway', 'Funding', 'First revenue', 'Monetization'],
-    typeLabel: 'Financing / income / commercial proof',
-    phaseScope: 'P1-P3',
-  },
 ];
 
 /**

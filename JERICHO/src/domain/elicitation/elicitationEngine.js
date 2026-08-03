@@ -169,6 +169,15 @@ function buildPickSet(kind, matrixSnapshot) {
       items: [...FORMATION_STATES].map((v) => ({ id: v, label: v })),
     };
   }
+  if (kind === 'yesNoOptions') {
+    return {
+      kind,
+      items: [
+        { id: true, label: 'Yes, legally formed (registered)' },
+        { id: false, label: 'No, not yet legally formed' },
+      ],
+    };
+  }
   if (kind === 'initiativeOwnerOptions') {
     // ALL declared entities are offered (2026-07-10). The old [initiative]
     // role-tag filter turned a §2 under-tag into a structural trap: the

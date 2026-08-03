@@ -13,6 +13,7 @@ import {
   BINDING_CONSTRAINT_SLOT_ID,
   BOOTSTRAP_SLOT_ID,
 } from '../../domain/elicitation/elicitationEngine.js';
+import { RoleTagGlossaryButton } from './RoleTagGlossaryPanel';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1576,6 +1577,7 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
         <>
           {isMulti && <div style={{ fontSize: 11, color: '#71717a' }}>Select all that apply</div>}
           <PickSetInput pickSet={probe.pickSet} selected={selected} onChange={setSelected} />
+          {probe.pickSet.kind === 'roleTagOptions' && <RoleTagGlossaryButton />}
         </>
       ) : !probe.pickSet ? (
         <TextInput value={inputValue} onChange={setInputValue} onEnter={handleSubmit} />

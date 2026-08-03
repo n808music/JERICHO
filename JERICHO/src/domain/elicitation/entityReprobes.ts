@@ -98,6 +98,12 @@ export const ENTITY_REPROBES = {
       generic: "e.g. 'LLC filed, 1 client signed', not 'going well so far'",
     },
   },
+  // ── legal status: independent boolean ──────────────────────────────────
+  ENTITY_LEGAL_STATUS_MISSING: {
+    spine: 'Is this entity formally registered? (LLC, corporation, other legal entity)',
+    pickSet: 'yesNoOptions',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
   // ── doneWhen (OPTIONAL — validity only) ───────────────────────────────
   ENTITY_DONEWHEN_NOT_VERIFIABLE: {
     spine:

@@ -31,9 +31,9 @@ describe('mapLaneToEntity', () => {
     expect(mapLaneToEntity('operations')?.displayName).toBe('Global State Solutions');
   });
 
-  it('maps capital and revenue to Capital Path or Revenue Engine', () => {
-    expect(mapLaneToEntity('capital')?.displayName).toBe('Capital Path or Revenue Engine');
-    expect(mapLaneToEntity('revenue')?.displayName).toBe('Capital Path or Revenue Engine');
+  it('returns null for capital and revenue lanes (not business entities)', () => {
+    expect(mapLaneToEntity('capital')).toBeNull();
+    expect(mapLaneToEntity('revenue')).toBeNull();
   });
 
   it('maps energy_gym to F8 Energy Co.', () => {

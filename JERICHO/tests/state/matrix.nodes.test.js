@@ -11,11 +11,11 @@ import { ENTERPRISE_IDENTITY_MAP } from '../../src/domain/enterprise/enterpriseI
  * system / function) must be declared once in state.matrix.entitiesById and
  * carry its purpose, current status, desired future state, and role tags.
  *
- * A reusable seed action — SEED_CANONICAL_ENTITIES — populates the 8
+ * A reusable seed action — SEED_CANONICAL_ENTITIES — populates the 7
  * canonical Operation Endgame entities (Global State Solutions, GS Corp.,
- * GS Productions, GS Systems, GS Holdings, GS Academy, F8 Energy Co.,
- * Capital Path or Revenue Engine) from ENTERPRISE_IDENTITY_MAP. The seed
- * is idempotent and never overwrites operator-declared nodes.
+ * GS Productions, GS Systems, GS Holdings, GS Academy, F8 Energy Co.)
+ * from ENTERPRISE_IDENTITY_MAP. The seed is idempotent and never overwrites
+ * operator-declared nodes.
  *
  * The molecular gate emits UNDECLARED_NODE when a block claims membership
  * in an entity (block.entityId) that does not exist in the registry. Soft
