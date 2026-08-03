@@ -48,14 +48,6 @@ describe('Barrier message format — PROOF', () => {
     expect(barrier).toBeDefined();
     expect(barrier.message).toBeDefined();
 
-    // Print the actual barrier object for visual inspection
-    console.log('\n=== ACTUAL BARRIER OBJECT ===');
-    console.log(JSON.stringify(barrier, null, 2));
-    console.log('\n=== ACTUAL MESSAGE STRING ===');
-    console.log(barrier.message);
-    console.log('\n=== EXPECTED FORMAT ===');
-    console.log('BARRIER — TechStart Inc: not legally formed. Banking Integration requires legal formation to proceed. This step cannot proceed until resolved.');
-
     // Verify exact match
     const expectedMessage = 'BARRIER — TechStart Inc: not legally formed. Banking Integration requires legal formation to proceed. This step cannot proceed until resolved.';
     expect(barrier.message).toBe(expectedMessage);
