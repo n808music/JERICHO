@@ -71,6 +71,8 @@ function savedAtReadbackState() {
                 // §5 phase attestation (Wave 2 Gate 1) — captured so the resumed engine lands on
                 // the readback (all project gates satisfied), not the phase probe.
                 phase: '2',
+                // Legal formation gate — not required for this tech project
+                requiresLegalFormation: false,
               },
               completed: false,
               lastFailureCode: null,
