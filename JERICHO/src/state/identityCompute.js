@@ -1264,6 +1264,7 @@ export function computeDerivedState(state, action) {
   enforceExecutionStartBoundary(next);
   next.deliverableDemands = computeAllDeliverableDemands(next);
   next.deliverableUrgencyRanking = computeDeliverableUrgencyRanking(next);
+  computeLegalFormationBarriers(next);
   return next;
 }
 
@@ -15905,6 +15906,7 @@ function declareEntity(state, payload = {}) {
   const purpose = String(payload?.purpose || '').trim();
   const formationState = String(payload?.formationState || '').trim();
   const statusEvidence = String(payload?.statusEvidence || '').trim();
+  const legallyFormed = payload?.legallyFormed !== undefined ? Boolean(payload.legallyFormed) : null;
   if (!id || !name || roleTags.length === 0 || !purpose || !formationState || !statusEvidence) {
     state.lastPlanError = {
       code: 'ENTITY_INVALID',
@@ -15921,6 +15923,7 @@ function declareEntity(state, payload = {}) {
     purpose,
     formationState,
     statusEvidence,
+    legallyFormed,
     phase: String(payload?.phase || '').trim() || null,
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
@@ -16121,6 +16124,7 @@ function declareProject(state, payload = {}) {
     return;
   }
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  const requiresLegalFormation = payload?.requiresLegalFormation !== undefined ? Boolean(payload.requiresLegalFormation) : false;
   state.matrix.projectsById[id] = {
     id,
     name,
@@ -16134,6 +16138,7 @@ function declareProject(state, payload = {}) {
     evidenceProduced: String(payload?.evidenceProduced || '').trim() || null,
     notes: String(payload?.notes || '').trim() || null,
     phase: String(payload?.phase || '').trim() || null,
+    requiresLegalFormation,
     roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
@@ -16195,6 +16200,63 @@ function removeProject(state, payload = {}) {
   const id = String(payload?.id || '').trim();
   if (!id) return;
   delete state.matrix.projectsById[id];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  BARRIER DETECTION — Legal Formation Prerequisites
+//  Scans for unformed entities (legallyFormed !== true) that own projects
+//  with requiresLegalFormation === true, and emits CONSTRAINT barriers.
+// ─────────────────────────────────────────────────────────────────────────
+
+function computeLegalFormationBarriers(state) {
+  if (!state?.matrix) return;
+  if (!state.matrix.entitiesById || !state.matrix.projectsById) return;
+
+  state.matrix.barriersById = state.matrix.barriersById || {};
+
+  // Clear previous legal-formation barriers (recompute from scratch)
+  for (const id of Object.keys(state.matrix.barriersById)) {
+    if (state.matrix.barriersById[id]?.type === 'legalFormation') {
+      delete state.matrix.barriersById[id];
+    }
+  }
+
+  // Scan: for each unformed entity, find projects that require formation
+  const entities = state.matrix.entitiesById;
+  const projects = state.matrix.projectsById;
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+
+  for (const [entityId, entity] of Object.entries(entities)) {
+    if (!entity) continue;
+    // Skip formed entities
+    if (entity.legallyFormed === true) continue;
+    // Skip incomplete entities (must have name to emit a barrier message)
+    if (!entity.name) continue;
+
+    // Find all projects owned by this entity that require legal formation
+    for (const [projectId, project] of Object.entries(projects)) {
+      if (!project) continue;
+      if (project.owningEntityId !== entityId) continue;
+      if (project.requiresLegalFormation !== true) continue;
+      // Skip incomplete projects (must have name to emit a barrier message)
+      if (!project.name) continue;
+
+      // Barrier found: unformed entity owns a project that requires formation
+      const barrierId = `barrier-legal-${entityId}-${projectId}`;
+      const message = `BARRIER — ${entity.name}: not legally formed. ${project.name} requires legal formation to proceed. This step cannot proceed until resolved.`;
+
+      state.matrix.barriersById[barrierId] = {
+        id: barrierId,
+        type: 'legalFormation',
+        entityId,
+        projectId,
+        resolutionType: 'prerequisite',
+        claimType: 'CONSTRAINT',
+        message,
+        detectedAt: nowISO,
+      };
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────
