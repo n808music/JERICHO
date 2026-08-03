@@ -20,6 +20,8 @@ const ANSWER_BY_CODE = {
   VERIFICATION_SOURCE_SOURCE_MISSING: { source: 'Spotify for Artists' },
   VERIFICATION_SOURCE_DOMAIN_MISSING: { domain: 'streams' },
   PROJECT_PHASE_UNATTESTED: { phase: '2' },
+  // Legal formation gate — music projects typically don't require legal formation
+  PROJECT_LEGAL_FORMATION_MISSING: { requiresLegalFormation: false },
 };
 
 function driveProjectSlot() {

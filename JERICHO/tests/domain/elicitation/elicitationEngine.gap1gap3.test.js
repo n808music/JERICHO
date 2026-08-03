@@ -86,7 +86,6 @@ describe('GAP 3 — roleTagOptions chip labels do not collide with section names
     expect(ids).toContain('project');
     expect(ids).toContain('system');
     expect(ids).toContain('business');
-    expect(ids).toContain('function');
   });
 
   it('colliding tags have distinct display labels', () => {
@@ -101,11 +100,10 @@ describe('GAP 3 — roleTagOptions chip labels do not collide with section names
     const pickSet = getRoleTagPickSet();
     const byId = Object.fromEntries(pickSet.items.map((i) => [i.id, i.label]));
     expect(byId['business']).toBe('Business');
-    expect(byId['function']).toBe('Enterprise function');
   });
 
-  it('all 5 role tags are present in the pickSet', () => {
+  it('all 4 role tags are present in the pickSet', () => {
     const pickSet = getRoleTagPickSet();
-    expect(pickSet.items).toHaveLength(5);
+    expect(pickSet.items).toHaveLength(4);
   });
 });

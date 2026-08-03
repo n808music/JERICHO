@@ -44,6 +44,8 @@ function driveToReadback({ metric, source }) {
     domain: 'filings',
     // §5 phase attestation (Wave 2 Gate 1) — required project gate, asked before readback.
     phase: '2',
+    // Legal formation gate — not required for this tech company project
+    requiresLegalFormation: false,
   };
   let step = engine.nextStep();
   let guard = 0;

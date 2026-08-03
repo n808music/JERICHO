@@ -37,6 +37,8 @@ function driveToReadback(seedState) {
     // §5 phase attestation (Wave 2 Gate 1) — now a required project gate; supply it so the
     // engine reaches the read-back step instead of halting at PROJECT_PHASE_UNATTESTED.
     { phase: '2' },
+    // Legal formation gate — added to project slot; default to false (not required)
+    { requiresLegalFormation: false },
   ];
   for (const answer of answers) {
     const result = engine.consumeAnswer(answer);

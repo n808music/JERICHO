@@ -32,6 +32,7 @@ function answerFor(fieldName, entity) {
     case 'purpose': return entity.purpose;
     case 'formationState': return FORMATION;
     case 'statusEvidence': return entity.statusEvidence;
+    case 'legallyFormed': return false;
     default: return null;
   }
 }

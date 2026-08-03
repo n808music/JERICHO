@@ -45,6 +45,7 @@ const F8_SCRIPT = [
   { purpose: 'Energy and focus supplement company, a healthier alternative to energy drinks' },
   { formationState: 'named-only' },
   { statusEvidence: 'Brand name only, formula and product not yet developed' },
+  { legallyFormed: false },
 ];
 
 // ── 1. Gate ladder ────────────────────────────────────────────────────────────
@@ -63,7 +64,7 @@ describe('Elicitation Engine — Entity slot: gate ladder', () => {
     expect(first.probe.code).toBe('ENTITY_NAME_MISSING');
   });
 
-  it('drives the full gate sequence name→roleTags→purpose→formationState→statusEvidence', () => {
+  it('drives the full gate sequence name→roleTags→purpose→formationState→statusEvidence→legallyFormed', () => {
     const { probes } = runEntityScript(F8_SCRIPT);
     expect(probes.map((p) => p.fieldName)).toEqual([
       'name',
@@ -71,6 +72,7 @@ describe('Elicitation Engine — Entity slot: gate ladder', () => {
       'purpose',
       'formationState',
       'statusEvidence',
+      'legallyFormed',
     ]);
   });
 
@@ -112,12 +114,11 @@ describe('Elicitation Engine — Entity slot: pickSet resolution', () => {
       'initiative',
       'project',
       'system',
-      'function',
     ]);
     expect(step.probe.dependencyGap).toBe(false);
   });
 
-  it('formationStateOptions pickSet returns the seven formation states', () => {
+  it('formationStateOptions pickSet returns the five formation states', () => {
     let state = buildBlankIdentityState({});
     let engine = createElicitationEngine({
       goalType: 'founder',
@@ -142,10 +143,8 @@ describe('Elicitation Engine — Entity slot: pickSet resolution', () => {
       'not-formed',
       'named-only',
       'conceptual',
-      'half-built',
       'in-development',
       'functioning',
-      'legally-formed',
     ]);
     expect(step.probe.dependencyGap).toBe(false);
   });
@@ -173,8 +172,8 @@ describe('Elicitation Engine — Entity slot: optional doneWhen', () => {
       { roleTags: ['business', 'system'] },
       { purpose: 'Energy and focus supplement company, a healthier alternative to energy drinks' },
       { formationState: 'named-only' },
-      // doneWhen volunteered alongside statusEvidence — engine merges all fields
-      { statusEvidence: 'Brand name only, formula and product not yet developed',
+      { statusEvidence: 'Brand name only, formula and product not yet developed' },
+      { legallyFormed: false,
         doneWhen: 'Gum manufactured, on shelves, generating recurring revenue' },
     ];
     const { probes, dispatchedActions } = runEntityScript(scriptWithDoneWhen);
@@ -197,8 +196,9 @@ describe('Elicitation Engine — Entity slot: optional doneWhen', () => {
       { roleTags: ['business'] },
       { purpose: 'Energy and focus supplement company, a healthier alternative to energy drinks' },
       { formationState: 'named-only' },
+      { statusEvidence: 'Brand name only, formula and product not yet developed' },
       // "Marked complete" is an attestation breach — isExternallyVerifiable rejects it
-      { statusEvidence: 'Brand name only, formula and product not yet developed',
+      { legallyFormed: false,
         doneWhen: 'Marked complete' },
     ];
     for (const answer of answers) {
