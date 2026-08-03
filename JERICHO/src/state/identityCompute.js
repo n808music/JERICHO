@@ -9422,7 +9422,17 @@ function applyGoalDirective(state) {
       eligibilityByGoal[ctx.goalId] = { allowed: false, reasons: [resolution.reasonCode], contractId: null };
       return;
     }
-    const directive = computeGoalDirective(ctx.goalText, ctx.deadlineISO, ctx.blocks, [], nowISO);
+    const directive = computeGoalDirective(
+      ctx.goalText,
+      ctx.deadlineISO,
+      ctx.blocks,
+      [],
+      nowISO,
+      {},
+      state.matrix?.deliverablesById || {},
+      90,
+      state.matrix?.barriersById || {}
+    );
     if (!directive) {
       eligibilityByGoal[ctx.goalId] = {
         allowed: false,

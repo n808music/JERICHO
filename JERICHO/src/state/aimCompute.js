@@ -112,7 +112,8 @@ export function computeNextBestMove(
   todayKey,
   urgencyRanking = {},
   deliverablesById = {},
-  longLeadThresholdDays = 90
+  longLeadThresholdDays = 90,
+  barriersById = {}
 ) {
   const profile = computeGoalProfile(goal, deadlineISO, todayKey);
   let todayBlocks = blocks.filter((b) => (b.start || '').slice(0, 10) === todayKey);
@@ -126,7 +127,37 @@ export function computeNextBestMove(
     todayKey
   );
 
-  const candidates = getTodayCandidates(blocks, todayKey);
+  // Step 4: Apply barrier hard-filter (exclude blocks tied to projects with CONSTRAINT barriers)
+  todayBlocks = applyBarrierHardFilter(
+    todayBlocks,
+    barriersById,
+    deliverablesById
+  );
+
+  let candidates = getTodayCandidates(blocks, todayKey);
+  const unfilteredCandidatesCount = candidates.filter((c) => c.kind === 'scheduled_block').length;
+
+  // Filter candidates to exclude those tied to projects with CONSTRAINT barriers
+  candidates = candidates.filter((c) => {
+    if (c.kind !== 'scheduled_block') return true; // Keep gap_fill and first_move
+    if (!c.deliverableId) return true; // Keep if no deliverable
+    const deliverable = deliverablesById[c.deliverableId];
+    if (!deliverable) return true; // Keep if deliverable unknown
+    // Check if deliverable's project is blocked
+    const blockedProjectIds = new Set();
+    for (const barrier of Object.values(barriersById)) {
+      if (barrier && barrier.type === 'legalFormation' && barrier.claimType === 'CONSTRAINT' && barrier.projectId) {
+        blockedProjectIds.add(barrier.projectId);
+      }
+    }
+    return !blockedProjectIds.has(deliverable.owningProjectId);
+  });
+
+  // If barriers filtered out all scheduled blocks, return null (hard constraint)
+  const filteredScheduledBlocksCount = candidates.filter((c) => c.kind === 'scheduled_block').length;
+  if (unfilteredCandidatesCount > 0 && filteredScheduledBlocksCount === 0) {
+    return null;
+  }
 
   // gap_fill if no block in dominant domain today
   const hasDominant = todayBlocks.some((b) => (b.practice || b.domain || '').toUpperCase() === profile.dominantDomain);
@@ -378,6 +409,43 @@ export function applyNonDominationFilter(
     }
 
     return true; // Allow non-long-lead blocks
+  });
+}
+
+/**
+ * Step 4 Barrier Hard-Filter: Exclude blocks tied to projects with CONSTRAINT-level barriers.
+ * A block is excluded if its deliverable links to a project that has an active legal-formation barrier.
+ * @param {array} todayBlocks - Blocks scheduled for today
+ * @param {object} barriersById - Matrix barriers, keyed by ID
+ * @param {object} deliverablesById - Matrix deliverables, keyed by ID
+ * @returns {array} Filtered blocks (excludes those tied to blocked projects)
+ */
+export function applyBarrierHardFilter(todayBlocks = [], barriersById = {}, deliverablesById = {}) {
+  // Build a set of project IDs that have active CONSTRAINT barriers
+  const blockedProjectIds = new Set();
+  for (const barrier of Object.values(barriersById)) {
+    if (barrier && barrier.type === 'legalFormation' && barrier.claimType === 'CONSTRAINT' && barrier.projectId) {
+      blockedProjectIds.add(barrier.projectId);
+    }
+  }
+
+  if (blockedProjectIds.size === 0) {
+    return todayBlocks; // No barriers, return all blocks
+  }
+
+  return todayBlocks.filter((block) => {
+    // Blocks without deliverable ID pass through (not linked to a project)
+    if (!block.deliverableId) return true;
+
+    const deliverable = deliverablesById[block.deliverableId];
+    if (!deliverable) return true; // Allow if deliverable not found
+
+    // Exclude if deliverable's owning project is in the blocked set
+    if (deliverable.owningProjectId && blockedProjectIds.has(deliverable.owningProjectId)) {
+      return false; // Filter out: project is blocked by a barrier
+    }
+
+    return true; // Allow: project is not blocked
   });
 }
 
