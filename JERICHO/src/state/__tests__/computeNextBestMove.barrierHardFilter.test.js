@@ -276,4 +276,89 @@ describe('Step 4: Barrier Hard-Filter — exclude blocks tied to projects with C
     expect(filtered.some(b => b.id === 'b2')).toBe(true);
     expect(filtered.some(b => b.id === 'b3')).toBe(true);
   });
+
+  it('dynamically clears barrier filter when entity becomes legally formed (computed-on-read)', () => {
+    const goal = 'Complete project setup';
+    const deadlineISO = '2026-08-31T23:59:59Z';
+    const todayKey = '2026-08-03';
+
+    const entity = {
+      id: 'entity-1',
+      name: 'My Company',
+      legallyFormed: false, // Initially unformed
+    };
+
+    const project = {
+      id: 'project-1',
+      name: 'Revenue Engine',
+      owningEntityId: 'entity-1',
+      requiresLegalFormation: true,
+    };
+
+    const deliverable = {
+      id: 'deliv-1',
+      name: 'Setup Deliverable',
+      owningProjectId: 'project-1',
+      owningInitiativeId: 'init-1',
+    };
+
+    const barrier = {
+      id: 'barrier-legal-entity-1-project-1',
+      type: 'legalFormation',
+      entityId: 'entity-1',
+      projectId: 'project-1',
+      claimType: 'CONSTRAINT',
+      message: 'BARRIER — My Company: not legally formed. Revenue Engine requires legal formation to proceed. This step cannot proceed until resolved.',
+      resolutionType: 'prerequisite',
+    };
+
+    const blocks = [
+      {
+        id: 'block-1',
+        start: '2026-08-03T09:00:00Z',
+        end: '2026-08-03T10:00:00Z',
+        durationMinutes: 60,
+        domain: 'FOCUS',
+        practice: 'FOCUS',
+        deliverableId: 'deliv-1',
+      },
+    ];
+
+    const deliverablesById = { 'deliv-1': deliverable };
+
+    // BEFORE: entity is unformed, barrier exists
+    const recommendationBefore = computeNextBestMove(
+      goal,
+      deadlineISO,
+      blocks,
+      [],
+      todayKey,
+      {}, // urgencyRanking
+      deliverablesById,
+      90, // longLeadThresholdDays
+      { 'barrier-legal-entity-1-project-1': barrier } // barrier active
+    );
+
+    // Block is filtered out by barrier
+    expect(recommendationBefore).toBeNull();
+
+    // AFTER: entity becomes legally formed (barrier no longer emitted by computeLegalFormationBarriers)
+    // So barriersById is now empty (barrier was only emitted while entity was unformed)
+    const recommendationAfter = computeNextBestMove(
+      goal,
+      deadlineISO,
+      blocks,
+      [],
+      todayKey,
+      {}, // urgencyRanking
+      deliverablesById,
+      90, // longLeadThresholdDays
+      {} // no barriers (entity now legally formed)
+    );
+
+    // Block should now be recommended (barrier no longer active)
+    expect(recommendationAfter).toBeDefined();
+    expect(recommendationAfter.type).toBe('execute');
+    expect(recommendationAfter.blockId).toBe('block-1');
+  });
 });

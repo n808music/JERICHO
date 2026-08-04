@@ -1677,6 +1677,38 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
         </div>
       </details>
 
+      {/* BLOCKING ISSUES — Legal Formation Barriers */}
+      {(() => {
+        const barriersById = store?.matrix?.barriersById || {};
+        const blockingBarriers = Object.values(barriersById).filter(
+          (b) => b && b.type === 'legalFormation' && b.claimType === 'CONSTRAINT'
+        );
+
+        if (blockingBarriers.length === 0) {
+          return null;
+        }
+
+        return (
+          <details className="rounded-xl border border-amber-700/40 bg-amber-700/5 p-4 open">
+            <summary className="cursor-pointer flex items-center gap-2">
+              <p className="text-xs uppercase tracking-[0.14em] text-amber-700">
+                ⚠ Blocking Issues
+              </p>
+            </summary>
+            <div className="mt-3 space-y-2">
+              {blockingBarriers.map((barrier) => (
+                <div
+                  key={barrier.id}
+                  className="rounded border border-amber-700/30 bg-amber-700/10 p-2 text-xs text-amber-900"
+                >
+                  <p className="font-mono text-amber-900/90">{barrier.message}</p>
+                </div>
+              ))}
+            </div>
+          </details>
+        );
+      })()}
+
       {/* Advisory Constraints (Work Windows + Blackout) */}
       <details className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4">
         <summary className="cursor-pointer flex items-center gap-2">
