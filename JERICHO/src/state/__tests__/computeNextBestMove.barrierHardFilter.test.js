@@ -36,7 +36,7 @@ describe('Step 4: Barrier Hard-Filter — exclude blocks tied to projects with C
       type: 'legalFormation',
       entityId: 'entity-1',
       projectId: 'project-1',
-      claimType: 'CONSTRAINT',
+      severity: 'HARD',
       message: 'BARRIER — My Company: not legally formed. Revenue Engine requires legal formation to proceed. This step cannot proceed until resolved.',
       resolutionType: 'prerequisite',
     };
@@ -101,7 +101,7 @@ describe('Step 4: Barrier Hard-Filter — exclude blocks tied to projects with C
       id: 'barrier-legal-entity-1-project-1',
       type: 'legalFormation',
       projectId: 'project-1',
-      claimType: 'CONSTRAINT',
+      severity: 'HARD',
     };
 
     // Block with no deliverable ID (not linked to any project)
@@ -146,7 +146,7 @@ describe('Step 4: Barrier Hard-Filter — exclude blocks tied to projects with C
       id: 'barrier-legal-entity-1-project-2',
       type: 'legalFormation',
       projectId: 'project-2', // Different project!
-      claimType: 'CONSTRAINT',
+      severity: 'HARD',
     };
 
     // Deliverable linked to project-1 (NOT project-2)
@@ -208,7 +208,7 @@ describe('Step 4: Barrier Hard-Filter — exclude blocks tied to projects with C
       id: 'barrier-info',
       type: 'legalFormation',
       projectId: 'project-1',
-      claimType: 'INFO', // Not CONSTRAINT
+      severity: 'SOFT', // Not HARD
     };
 
     const blocks = [
@@ -254,7 +254,7 @@ describe('Step 4: Barrier Hard-Filter — exclude blocks tied to projects with C
       id: 'barrier-1',
       type: 'legalFormation',
       projectId: 'project-blocked',
-      claimType: 'CONSTRAINT',
+      severity: 'HARD',
     };
 
     const blocks = [
@@ -307,7 +307,7 @@ describe('Step 4: Barrier Hard-Filter — exclude blocks tied to projects with C
       type: 'legalFormation',
       entityId: 'entity-1',
       projectId: 'project-1',
-      claimType: 'CONSTRAINT',
+      severity: 'HARD',
       message: 'BARRIER — My Company: not legally formed. Revenue Engine requires legal formation to proceed. This step cannot proceed until resolved.',
       resolutionType: 'prerequisite',
     };

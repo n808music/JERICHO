@@ -16261,7 +16261,7 @@ function computeLegalFormationBarriers(state) {
         entityId,
         projectId,
         resolutionType: 'prerequisite',
-        claimType: 'CONSTRAINT',
+        severity: 'HARD',
         message,
         detectedAt: nowISO,
       };

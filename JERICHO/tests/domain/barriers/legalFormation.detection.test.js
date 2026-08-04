@@ -67,7 +67,7 @@ describe('Barrier detection — legal formation prerequisites', () => {
     expect(barrier.entityId).toBe('ent-startup');
     expect(barrier.projectId).toBe('proj-banking-api');
     expect(barrier.resolutionType).toBe('prerequisite');
-    expect(barrier.claimType).toBe('CONSTRAINT');
+    expect(barrier.severity).toBe('HARD');
     expect(barrier.message).toMatch(/TechCorp Startup.*not legally formed/);
     expect(barrier.message).toMatch(/Banking API Integration.*requires legal formation/);
   });
