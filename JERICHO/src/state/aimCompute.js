@@ -146,7 +146,7 @@ export function computeNextBestMove(
     // Check if deliverable's project is blocked
     const blockedProjectIds = new Set();
     for (const barrier of Object.values(barriersById)) {
-      if (barrier && barrier.type === 'legalFormation' && barrier.severity === 'HARD' && barrier.projectId) {
+      if (barrier && barrier.type === 'legalFormation' && barrier.claimType === 'CONSTRAINT' && barrier.projectId) {
         blockedProjectIds.add(barrier.projectId);
       }
     }
@@ -424,7 +424,7 @@ export function applyBarrierHardFilter(todayBlocks = [], barriersById = {}, deli
   // Build a set of project IDs that have active CONSTRAINT barriers
   const blockedProjectIds = new Set();
   for (const barrier of Object.values(barriersById)) {
-    if (barrier && barrier.type === 'legalFormation' && barrier.severity === 'HARD' && barrier.projectId) {
+    if (barrier && barrier.type === 'legalFormation' && barrier.claimType === 'CONSTRAINT' && barrier.projectId) {
       blockedProjectIds.add(barrier.projectId);
     }
   }

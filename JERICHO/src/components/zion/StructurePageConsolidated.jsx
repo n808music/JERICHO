@@ -1681,7 +1681,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
       {(() => {
         const barriersById = store?.matrix?.barriersById || {};
         const blockingBarriers = Object.values(barriersById).filter(
-          (b) => b && b.type === 'legalFormation' && b.severity === 'HARD'
+          (b) => b && b.type === 'legalFormation' && b.claimType === 'CONSTRAINT'
         );
 
         if (blockingBarriers.length === 0) {
