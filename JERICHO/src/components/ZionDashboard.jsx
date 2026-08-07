@@ -46,6 +46,7 @@ import {
   getCanonicalProposedBlocks,
 } from '../state/cycleSelectors.js';
 import { getContractStartDayKey, getContractDeadlineDayKey } from '../state/suggestionFilters.js';
+import { buildConvergenceCandidateAdvisory } from '../state/convergenceCandidateAdvisory.js';
 import { traceAction, traceNoop } from '../dev/uiWiringTrace.ts';
 import {
   buildWindowSpec,
@@ -62,6 +63,7 @@ import { deriveDailyCheckIn } from '../domain/live/dailyCheckIn.ts';
 import { deriveMasterPlanPhaseModel } from '../domain/masterPlan/masterPlanPhaseModel.js';
 import { resolveEffectiveExecutableStartDayKey } from '../domain/product/resolveEffectiveExecutableStartDayKey.js';
 import { resolveOperatingLifecycleState } from '../domain/product/resolveOperatingLifecycleState.ts';
+import { buildConvergenceCandidateAdvisory } from '../state/convergenceCandidateAdvisory.js';
 
 const DOMAIN_ENUM = ['BODY', 'RESOURCES', 'CREATION', 'FOCUS'];
 
@@ -1281,7 +1283,7 @@ export default function ZionDashboard({
       : `Started ${formatDayKeyLabel(startDayKey)}`
     : 'Dates pending';
   const learningUpdatesCount = profileLearning?.cycleCount ?? 0;
-  const learningUpdatedAt = readOnlyCycle?.convergenceReport?.updatedAtISO || 'Pending';
+  const learningUpdatedAt = readOnlyCycle?.fidelityVerdictReport?.updatedAtISO || 'Pending';
   const bannerTitle =
     readOnlyCycle?.status === 'ended' || readOnlyCycleEntry?.state === 'Ended'
       ? 'Operating Cycle ended — Read only'
@@ -5302,6 +5304,48 @@ export default function ZionDashboard({
             <MasterPlanTimeline />
           )}
         </div>
+
+        {(() => {
+          const convergenceAdvisory = buildConvergenceCandidateAdvisory(state);
+          return convergenceAdvisory ? (
+            <div className="space-y-3 p-4 bg-jericho-surface/50 border border-line/40 rounded-lg">
+              <div>
+                <h3 className="text-sm font-semibold text-jericho-text">{convergenceAdvisory.title}</h3>
+                <p className="text-xs text-muted mt-1">{convergenceAdvisory.description}</p>
+              </div>
+              <div className="space-y-2">
+                {convergenceAdvisory.questions.map(question => (
+                  <div key={question.id} className="flex items-start justify-between gap-3 p-2 bg-jericho-surface rounded border border-line/30">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-jericho-text">{question.label}</p>
+                      <p className="text-xs text-muted">{question.targetDate}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      {question.actions.map(action => (
+                        <button
+                          key={action.type}
+                          className="text-xs px-2 py-1 rounded border border-line/40 hover:bg-jericho-surface hover:border-line/60 text-muted hover:text-jericho-text transition-colors"
+                          onClick={() =>
+                            dispatch({
+                              type: 'RESPOND_CONVERGENCE_DETECTION_QUESTION',
+                              payload: {
+                                questionId: question.id,
+                                disposition: action.type
+                              }
+                            })
+                          }
+                          title={action.description}
+                        >
+                          {action.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null;
+        })()}
 
         {pendingPlacement ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
