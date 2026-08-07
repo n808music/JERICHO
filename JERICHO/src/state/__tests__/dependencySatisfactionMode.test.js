@@ -103,29 +103,58 @@ describe('Dependency Satisfaction Mode', () => {
     expect(truth.dependencyRelation).toBe('dependency_suspicious');
   });
 
-  it('Mixed mode: ANY_ONE edge takes precedence', () => {
-    // If there's at least one ANY_ONE edge, use ANY_ONE logic
+  it('Mixed mode: ALL-mode edges independently required, ANY_ONE-mode needs at least one', () => {
+    // Mixed scenario: A and C are ALL-mode (each required), B is ANY_ONE-mode (any one of B group)
+    // Action should only be satisfied if: A is complete AND C is complete AND (B is complete)
     const canonicalActions = [
-      { id: 'action1', dependencies: ['dep1', 'dep2'] }
+      { id: 'action1', dependencies: ['depA', 'depB', 'depC'] }
     ];
     const dependenciesById = {
-      'edge1': { id: 'edge1', upstreamId: 'dep1', downstreamId: 'action1', satisfactionMode: 'ANY_ONE' },
-      'edge2': { id: 'edge2', upstreamId: 'dep2', downstreamId: 'action1', satisfactionMode: 'ALL' },
+      'edgeA': { id: 'edgeA', upstreamId: 'depA', downstreamId: 'action1', satisfactionMode: 'ALL' },
+      'edgeB': { id: 'edgeB', upstreamId: 'depB', downstreamId: 'action1', satisfactionMode: 'ANY_ONE' },
+      'edgeC': { id: 'edgeC', upstreamId: 'depC', downstreamId: 'action1', satisfactionMode: 'ALL' },
     };
 
-    const futureDate = '2026-08-08'; // Future date so temporalRelation is 'future_claim'
-    const truth = deriveExecutionTruthClassification({
+    const futureDate = '2026-08-08';
+
+    // Case 1: Only B complete — should NOT be satisfied (A and C are still required)
+    const truth1 = deriveExecutionTruthClassification({
+      block: { id: 'block1', actionId: 'action1', date: futureDate },
+      nowISO: NOW_ISO,
+      activeDayKey: baseDayKey,
+      executionEvents: [{ kind: 'complete', actionId: 'depB' }],
+      canonicalActions,
+      dependenciesById,
+    });
+    expect(truth1.dependencyRelation).toBe('dependency_suspicious', 'B alone should not satisfy when A,C are required');
+
+    // Case 2: A and C complete, B not complete — should NOT be satisfied (ANY_ONE group needs at least one)
+    const truth2 = deriveExecutionTruthClassification({
       block: { id: 'block1', actionId: 'action1', date: futureDate },
       nowISO: NOW_ISO,
       activeDayKey: baseDayKey,
       executionEvents: [
-        { kind: 'complete', actionId: 'dep1' },
+        { kind: 'complete', actionId: 'depA' },
+        { kind: 'complete', actionId: 'depC' },
       ],
       canonicalActions,
       dependenciesById,
     });
+    expect(truth2.dependencyRelation).toBe('dependency_suspicious', 'A,C complete but B missing from ANY_ONE group');
 
-    // dep1 (ANY_ONE edge) is complete, so satisfied
-    expect(truth.dependencyRelation).toBe('dependency_clear');
+    // Case 3: A, B, and C all complete — should be satisfied
+    const truth3 = deriveExecutionTruthClassification({
+      block: { id: 'block1', actionId: 'action1', date: futureDate },
+      nowISO: NOW_ISO,
+      activeDayKey: baseDayKey,
+      executionEvents: [
+        { kind: 'complete', actionId: 'depA' },
+        { kind: 'complete', actionId: 'depB' },
+        { kind: 'complete', actionId: 'depC' },
+      ],
+      canonicalActions,
+      dependenciesById,
+    });
+    expect(truth3.dependencyRelation).toBe('dependency_clear', 'All requirements met');
   });
 });

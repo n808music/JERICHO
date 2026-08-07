@@ -288,28 +288,35 @@ export function deriveExecutionTruthClassification({
         dependencyRelation = 'dependency_clear';
       }
     } else {
-      // Dependency satisfaction mode: 'ALL' (all dependencies must complete) or 'ANY_ONE' (any one can satisfy).
+      // Dependency satisfaction mode: per-edge evaluation
+      // - ALL-mode edges: each upstream must be complete
+      // - ANY_ONE-mode edges: at least one upstream among them must be complete
       // Phase ordering (phaseFromDependencies) uses ALL-semantics for depth calculation, which is
       // conservative-but-correct: may place later than necessary but won't break execution ordering.
       // This is documented in Phase Ordering Limitation section of todayAuthority.ts spec.
 
-      // Determine if there are any ANY_ONE edges in the dependency set
-      const hasAnyOneEdge = dependencyIds.some((depId) => {
+      // Partition dependencies into ALL-mode and ANY_ONE-mode groups
+      const allModeDeps: string[] = [];
+      const anyOneModeDeps: string[] = [];
+
+      for (const depId of dependencyIds) {
         const edge = Object.values(dependenciesById).find(
           (e: any) => e?.upstreamId === depId && e?.downstreamId === actionId
         );
-        return edge?.satisfactionMode === 'ANY_ONE';
-      });
-
-      // Check satisfaction based on mode
-      let isSatisfied = false;
-      if (hasAnyOneEdge) {
-        // If any edge is ANY_ONE mode, at least one upstream dependency must be complete
-        isSatisfied = dependencyIds.some((depId) => completedActionIds.has(depId));
-      } else {
-        // Default (ALL mode): all dependencies must be complete
-        isSatisfied = dependencyIds.every((depId) => completedActionIds.has(depId));
+        const mode = edge?.satisfactionMode === 'ANY_ONE' ? 'ANY_ONE' : 'ALL';
+        if (mode === 'ANY_ONE') {
+          anyOneModeDeps.push(depId);
+        } else {
+          allModeDeps.push(depId);
+        }
       }
+
+      // Check satisfaction: ALL-mode edges each required, ANY_ONE-mode edges need at least one
+      const allModesSatisfied = allModeDeps.every((depId) => completedActionIds.has(depId));
+      const anyOneGroupSatisfied =
+        anyOneModeDeps.length === 0 || anyOneModeDeps.some((depId) => completedActionIds.has(depId));
+
+      const isSatisfied = allModesSatisfied && anyOneGroupSatisfied;
 
       if (isSatisfied) {
         dependencyRelation = 'dependency_clear';
