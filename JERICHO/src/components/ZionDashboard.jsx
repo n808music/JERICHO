@@ -63,7 +63,6 @@ import { deriveDailyCheckIn } from '../domain/live/dailyCheckIn.ts';
 import { deriveMasterPlanPhaseModel } from '../domain/masterPlan/masterPlanPhaseModel.js';
 import { resolveEffectiveExecutableStartDayKey } from '../domain/product/resolveEffectiveExecutableStartDayKey.js';
 import { resolveOperatingLifecycleState } from '../domain/product/resolveOperatingLifecycleState.ts';
-import { buildConvergenceCandidateAdvisory } from '../state/convergenceCandidateAdvisory.js';
 
 const DOMAIN_ENUM = ['BODY', 'RESOURCES', 'CREATION', 'FOCUS'];
 
@@ -882,6 +881,7 @@ function useZionState() {
     scheduleLifecycleState,
     setSelectedHorizonMode,
     setViewDate,
+    respondConvergenceDetectionQuestion,
     matrix,
   } = useIdentityStore();
   return {
@@ -983,6 +983,7 @@ function useZionState() {
       addFrictionEvent,
       completeCycleReassessment,
       setSelectedHorizonMode,
+      respondConvergenceDetectionQuestion,
     },
   };
 }
@@ -5306,7 +5307,7 @@ export default function ZionDashboard({
         </div>
 
         {(() => {
-          const convergenceAdvisory = buildConvergenceCandidateAdvisory(state);
+          const convergenceAdvisory = buildConvergenceCandidateAdvisory({ matrix: calendarScopeMatrix });
           return convergenceAdvisory ? (
             <div className="space-y-3 p-4 bg-jericho-surface/50 border border-line/40 rounded-lg">
               <div>
@@ -5326,12 +5327,9 @@ export default function ZionDashboard({
                           key={action.type}
                           className="text-xs px-2 py-1 rounded border border-line/40 hover:bg-jericho-surface hover:border-line/60 text-muted hover:text-jericho-text transition-colors"
                           onClick={() =>
-                            dispatch({
-                              type: 'RESPOND_CONVERGENCE_DETECTION_QUESTION',
-                              payload: {
-                                questionId: question.id,
-                                disposition: action.type
-                              }
+                            actions.respondConvergenceDetectionQuestion({
+                              questionId: question.id,
+                              disposition: action.type
                             })
                           }
                           title={action.description}

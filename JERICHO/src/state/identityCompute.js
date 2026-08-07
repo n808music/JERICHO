@@ -363,10 +363,15 @@ export function updateConvergenceDetectionState(state, candidates) {
     pendingQuestions: [...validQuestions, ...newQuestions],
     answered, // Preserve — operator dispositions are permanent
     lastComputedFrom: {
-      deliverablesById: stableHashObject(matrix.deliverablesById),
-      artifactsById: stableHashObject(matrix.artifactsById),
-      dependenciesById: stableHashObject(matrix.dependenciesById),
-      convergenceEdgesById: stableHashObject(matrix.convergenceEdgesById),
+      // stableHashObject()/simpleStringHash() (Task 1, not modified here)
+      // dereference `.length` on JSON.stringify()'s result, which is the
+      // bare value `undefined` — not the string `"undefined"` — when given
+      // an undefined input. Default each registry to {} defensively so a
+      // partially-populated matrix (e.g. test fixtures) never crashes here.
+      deliverablesById: stableHashObject(matrix.deliverablesById || {}),
+      artifactsById: stableHashObject(matrix.artifactsById || {}),
+      dependenciesById: stableHashObject(matrix.dependenciesById || {}),
+      convergenceEdgesById: stableHashObject(matrix.convergenceEdgesById || {}),
     },
   };
 
@@ -1502,11 +1507,17 @@ export function computeDerivedState(state, action) {
   // since the last detection pass. Otherwise leave pendingQuestions /
   // answered untouched — cheap no-op on every unrelated mutation.
   if (next.matrix) {
+    // Default each registry to {} before hashing: stableHashObject()
+    // (Task 1, not modified here) calls JSON.stringify() then dereferences
+    // `.length` on the result, which is the bare value `undefined` (not
+    // the string "undefined") when the input itself is undefined. Matrix
+    // fixtures that populate only some registries would otherwise crash
+    // this guard on every computeDerivedState() call.
     const currentConvergenceHashes = {
-      deliverablesById: stableHashObject(next.matrix.deliverablesById),
-      artifactsById: stableHashObject(next.matrix.artifactsById),
-      dependenciesById: stableHashObject(next.matrix.dependenciesById),
-      convergenceEdgesById: stableHashObject(next.matrix.convergenceEdgesById),
+      deliverablesById: stableHashObject(next.matrix.deliverablesById || {}),
+      artifactsById: stableHashObject(next.matrix.artifactsById || {}),
+      dependenciesById: stableHashObject(next.matrix.dependenciesById || {}),
+      convergenceEdgesById: stableHashObject(next.matrix.convergenceEdgesById || {}),
     };
     const lastConvergenceHashes = next.matrix.convergenceDetectionState?.lastComputedFrom || {};
     const convergenceDataChanged =
