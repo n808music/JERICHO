@@ -1620,6 +1620,43 @@ function identityReducer(state, action) {
     return { ...state, selectedHorizonMode: action.mode };
   }
 
+  if (action.type === 'RESPOND_CONVERGENCE_DETECTION_QUESTION') {
+    const { questionId, disposition } = action.payload || {};
+    if (!questionId) return state;
+
+    const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
+
+    const question = draft.matrix.convergenceDetectionState.pendingQuestions
+      .find(q => q.id === questionId);
+    if (!question) return state;
+
+    // Record operator's answer (permanent — never re-ask this question)
+    draft.matrix.convergenceDetectionState.answered[questionId] = {
+      disposition,
+      recordedAtISO: draft.appTime?.nowISO || new Date().toISOString()
+    };
+
+    // Remove from pending
+    draft.matrix.convergenceDetectionState.pendingQuestions =
+      draft.matrix.convergenceDetectionState.pendingQuestions
+        .filter(q => q.id !== questionId);
+
+    // If operator chose "Declared": navigate to forward-declaration UI
+    if (disposition === 'Declared') {
+      draft.ui = draft.ui || {};
+      draft.ui.navigationIntent = {
+        route: '#/forward-declaration',
+        prefilledConvergence: {
+          sourceIds: question.sourceIds,
+          targetDate: question.targetDate,
+          detectionQuestionId: questionId
+        }
+      };
+    }
+
+    return computeDerivedState(draft, { type: 'NO_OP' });
+  }
+
   return computeDerivedState(state, action);
 }
 
