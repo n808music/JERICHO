@@ -288,6 +288,98 @@ export function detectConvergenceCandidates(matrix) {
   return clusters;
 }
 
+/**
+ * Immutable state updater for convergence detection.
+ *
+ * Takes the output of `detectConvergenceCandidates()` and reconciles it
+ * against the existing `matrix.convergenceDetectionState` registry:
+ *  - Stale pending questions (referencing a source that no longer exists,
+ *    or whose targetDate has moved) are pruned outright (never marked
+ *    'orphaned' — Option B).
+ *  - Answered dispositions are carried forward untouched; the operator's
+ *    disposition is permanent and this function never rewrites it.
+ *  - New candidate clusters become pending questions, keyed by the
+ *    deterministic `generateQuestionId(sourceIds, targetDate)` — clusters
+ *    that already have an answered disposition, or that are already
+ *    pending, are not re-added.
+ *  - `lastComputedFrom` is refreshed to the current registry hashes so the
+ *    memoization guard in `computeDerivedState()` can skip redundant runs.
+ *
+ * Pure/immutable: `state` is never mutated; a deep-cloned draft is
+ * returned instead.
+ *
+ * @param {object} state - Full identity state (must contain `state.matrix`)
+ * @param {Array<{ sourceIds: string[], targetDate: string }>} candidates
+ * @returns {object} New state object with updated `matrix.convergenceDetectionState`
+ */
+export function updateConvergenceDetectionState(state, candidates) {
+  const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
+  const matrix = draft.matrix;
+  if (!matrix) return draft;
+
+  const now = draft.appTime?.nowISO || new Date().toISOString();
+  const existing = matrix.convergenceDetectionState || {
+    pendingQuestions: [],
+    answered: {},
+    lastComputedFrom: {
+      deliverablesById: null,
+      artifactsById: null,
+      dependenciesById: null,
+      convergenceEdgesById: null,
+    },
+  };
+  const answered = existing.answered || {};
+
+  // Prune stale questions: every sourceId must still exist as a
+  // Deliverable/Artifact AND still carry the same targetDate the
+  // question was raised against.
+  const validQuestions = (existing.pendingQuestions || []).filter((q) => {
+    if (!q || !Array.isArray(q.sourceIds) || q.sourceIds.length === 0) return false;
+    return q.sourceIds.every((id) => {
+      const node = matrix.deliverablesById?.[id] || matrix.artifactsById?.[id];
+      return node && node.targetDate === q.targetDate;
+    });
+  });
+
+  // Rebuild pending questions from the freshly detected candidate clusters.
+  const newQuestions = [];
+  (Array.isArray(candidates) ? candidates : []).forEach((cluster) => {
+    if (!cluster || !Array.isArray(cluster.sourceIds) || !cluster.targetDate) return;
+    const qId = generateQuestionId(cluster.sourceIds, cluster.targetDate);
+    const alreadyAnswered = Boolean(answered[qId]);
+    const alreadyPending = validQuestions.some((q) => q.id === qId) ||
+      newQuestions.some((q) => q.id === qId);
+    if (!alreadyAnswered && !alreadyPending) {
+      newQuestions.push({
+        id: qId,
+        sourceIds: cluster.sourceIds,
+        targetDate: cluster.targetDate,
+        detectedAtISO: now,
+      });
+    }
+  });
+
+  matrix.convergenceDetectionState = {
+    pendingQuestions: [...validQuestions, ...newQuestions],
+    answered, // Preserve — operator dispositions are permanent
+    lastComputedFrom: {
+      deliverablesById: stableHashObject(matrix.deliverablesById),
+      artifactsById: stableHashObject(matrix.artifactsById),
+      dependenciesById: stableHashObject(matrix.dependenciesById),
+      convergenceEdgesById: stableHashObject(matrix.convergenceEdgesById),
+    },
+  };
+
+  return draft;
+}
+
+/**
+ * Internal function registry, exported for test spying (Task 8).
+ * Allows `vi.spyOn(_internal, 'detectConvergenceCandidates')` to prove
+ * the memoization guard in `computeDerivedState()` skips redundant runs.
+ */
+export const _internal = { detectConvergenceCandidates };
+
 export function applyEnterpriseIdentityAudit(next) {
   if (!next || typeof next !== 'object') return;
   const profile = next.profilesById?.[next.activeProfileId] || null;
@@ -1403,6 +1495,28 @@ export function computeDerivedState(state, action) {
   next.deliverableDemands = computeAllDeliverableDemands(next);
   next.deliverableUrgencyRanking = computeDeliverableUrgencyRanking(next);
   computeLegalFormationBarriers(next);
+
+  // Task 4: Convergence detection memoization guard.
+  // Only re-run detection when the source registries (deliverables,
+  // artifacts, dependencies, convergence edges) have actually changed
+  // since the last detection pass. Otherwise leave pendingQuestions /
+  // answered untouched — cheap no-op on every unrelated mutation.
+  if (next.matrix) {
+    const currentConvergenceHashes = {
+      deliverablesById: stableHashObject(next.matrix.deliverablesById),
+      artifactsById: stableHashObject(next.matrix.artifactsById),
+      dependenciesById: stableHashObject(next.matrix.dependenciesById),
+      convergenceEdgesById: stableHashObject(next.matrix.convergenceEdgesById),
+    };
+    const lastConvergenceHashes = next.matrix.convergenceDetectionState?.lastComputedFrom || {};
+    const convergenceDataChanged =
+      JSON.stringify(currentConvergenceHashes) !== JSON.stringify(lastConvergenceHashes);
+    if (convergenceDataChanged) {
+      const convergenceCandidates = _internal.detectConvergenceCandidates(next.matrix);
+      next = updateConvergenceDetectionState(next, convergenceCandidates);
+    }
+  }
+
   return next;
 }
 
