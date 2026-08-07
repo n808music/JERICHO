@@ -116,11 +116,13 @@ export function buildDependencyDeclarePayload(captured: unknown) {
   const downstreamId = String(c?.downstreamId || '').trim();
   const upstreamId = String(c?.upstreamId || '').trim();
   const id = `dep-${upstreamId}-to-${downstreamId}`.slice(0, 80);
+  const satisfactionMode = String(c?.satisfactionMode || 'ALL').trim();
   return {
     id,
     downstreamId,
     upstreamId,
     type: String(c?.type || '').trim(),
     label: String(c?.label || '').trim() || null,
+    satisfactionMode: (satisfactionMode === 'ANY_ONE' ? 'ANY_ONE' : 'ALL') as 'ALL' | 'ANY_ONE',
   };
 }

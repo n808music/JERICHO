@@ -47,6 +47,7 @@ describe('DECLARE_DEPENDENCY — generalized to Project/Initiative nodes', () =>
       upstreamId: 'p1',
       type: 'hard_gate',
       label: null,
+      satisfactionMode: 'ALL',
       declaredAtISO: NOW_ISO,
     });
   });

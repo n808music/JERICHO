@@ -215,6 +215,7 @@ export function deriveExecutionTruthClassification({
   timeZone = 'UTC',
   executionEvents = [],
   canonicalActions = [],
+  dependenciesById = {},
   source = 'user_action',
   reasonCode = null,
   note = null,
@@ -225,6 +226,7 @@ export function deriveExecutionTruthClassification({
   timeZone?: string;
   executionEvents?: ExecutionEvent[];
   canonicalActions?: any[];
+  dependenciesById?: Record<string, any>;
   source?: ExecutionEvent['source'];
   reasonCode?: string | null;
   note?: string | null;
@@ -286,10 +288,33 @@ export function deriveExecutionTruthClassification({
         dependencyRelation = 'dependency_clear';
       }
     } else {
-      const unmetDependencyIds = dependencyIds.filter((dependencyId) => !completedActionIds.has(dependencyId));
-      if (unmetDependencyIds.length === 0) {
+      // Dependency satisfaction mode: 'ALL' (all dependencies must complete) or 'ANY_ONE' (any one can satisfy).
+      // Phase ordering (phaseFromDependencies) uses ALL-semantics for depth calculation, which is
+      // conservative-but-correct: may place later than necessary but won't break execution ordering.
+      // This is documented in Phase Ordering Limitation section of todayAuthority.ts spec.
+
+      // Determine if there are any ANY_ONE edges in the dependency set
+      const hasAnyOneEdge = dependencyIds.some((depId) => {
+        const edge = Object.values(dependenciesById).find(
+          (e: any) => e?.upstreamId === depId && e?.downstreamId === actionId
+        );
+        return edge?.satisfactionMode === 'ANY_ONE';
+      });
+
+      // Check satisfaction based on mode
+      let isSatisfied = false;
+      if (hasAnyOneEdge) {
+        // If any edge is ANY_ONE mode, at least one upstream dependency must be complete
+        isSatisfied = dependencyIds.some((depId) => completedActionIds.has(depId));
+      } else {
+        // Default (ALL mode): all dependencies must be complete
+        isSatisfied = dependencyIds.every((depId) => completedActionIds.has(depId));
+      }
+
+      if (isSatisfied) {
         dependencyRelation = 'dependency_clear';
       } else {
+        const unmetDependencyIds = dependencyIds.filter((dependencyId) => !completedActionIds.has(dependencyId));
         const unmetIsHardGate = unmetDependencyIds.some((dependencyId) =>
           dependencyDetails.some(
             (detail) => detail.actionId === dependencyId && String(detail.dependencyType || '').toLowerCase() === 'hard_gate'

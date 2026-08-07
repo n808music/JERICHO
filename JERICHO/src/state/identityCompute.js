@@ -661,6 +661,7 @@ export function computeDerivedState(state, action) {
           timeZone: next.appTime?.timeZone || 'UTC',
           executionEvents: next.executionEvents || [],
           canonicalActions: getCanonicalCycleActions(next.cyclesById?.[completedBlock?.cycleId || next.activeCycleId] || null),
+          dependenciesById: next.matrix?.dependenciesById || {},
           source: action.source || 'user_action',
           reasonCode: action.reasonCode || null,
           note: action.note || null,
@@ -16925,12 +16926,14 @@ function declareDependency(state, payload = {}) {
     return;
   }
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  const satisfactionMode = payload?.satisfactionMode === 'ANY_ONE' ? 'ANY_ONE' : 'ALL';
   state.matrix.dependenciesById[id] = {
     id,
     downstreamId,
     upstreamId,
     type,
     label: String(payload?.label || '').trim() || null,
+    satisfactionMode,
     declaredAtISO: nowISO,
   };
 }
