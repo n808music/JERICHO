@@ -74,7 +74,7 @@ import { computeNextBestMove as computeGoalDirective } from './aimCompute.js';
 import { generateSuggestions } from './suggestions.ts';
 import { summarizeCycle } from './cycleSummary.ts';
 import { computeProfileLearning } from './learning.ts';
-import { computeTerminalConvergence } from './convergenceTerminal.ts';
+import { computeTerminalFidelityVerdict } from './convergenceTerminal.ts';
 import { rolloverAtMidnight, shouldRollover } from '../core/engine/rollover.ts';
 import { buildPolicyAndQualityDiagnostics } from './draftSchedule.js';
 import { IS_PRODUCTION, isRuntimeEnvFlagEnabled } from '../utils/runtimeEnv.js';
@@ -1009,6 +1009,35 @@ export function computeDerivedState(state, action) {
     case 'DECLARE_CONVERGENCE':
       declareConvergence(next, action.payload || {});
       break;
+    case 'UPDATE_CONVERGENCE_STATUSES': {
+      // Step 4: Evaluate all convergence edges at a given date
+      const evaluationDate = String(action.payload?.evaluationDate || '').trim() || null;
+      updateConvergenceStatuses(next, evaluationDate);
+      break;
+    }
+    case 'PROCESS_MISSED_CONVERGENCE': {
+      // Step 4: Handle a MISSED convergence via reschedule or close
+      const edgeId = String(action.payload?.edgeId || '').trim();
+      const edge = next.matrix?.convergenceEdgesById?.[edgeId];
+      if (!edge) {
+        next.lastPlanError = {
+          code: 'CONVERGENCE_EDGE_NOT_FOUND',
+          reason: `Convergence edge "${edgeId}" not found.`,
+          meta: { edgeId },
+        };
+        break;
+      }
+      const actionPayload = action.payload?.action || {};
+      processMissedEdge(next, edge, actionPayload);
+      break;
+    }
+    case 'COMPLETE_REASSESSMENT': {
+      // Step 3 Piece 2: Operator submits per-source dispositions (Satisfied/Needs Redo/Removed)
+      const reassessmentSessionId = String(action.payload?.reassessmentSessionId || '').trim();
+      const sourceDispositions = action.payload?.sourceDispositions || {};
+      completeReassessment(next, reassessmentSessionId, sourceDispositions);
+      break;
+    }
     case 'DECLARE_MATRIX_LINK':
       declareMatrixLink(next, action.payload || {});
       break;
@@ -11985,7 +12014,7 @@ function endCycle(state, cycleId) {
   const rawEntry = state.deliverablesByCycleId?.[cycle.id];
   const deliverables =
     (Array.isArray(rawEntry) ? rawEntry : Array.isArray(rawEntry?.deliverables) ? rawEntry.deliverables : []) || [];
-  const convergenceReport = computeTerminalConvergence({
+  const fidelityVerdictReport = computeTerminalFidelityVerdict({
     cycle,
     planProof: cycle?.goalPlan?.planProof || null,
     events: cycle?.executionEvents || state.executionEvents || [],
@@ -11999,7 +12028,7 @@ function endCycle(state, cycleId) {
     cycleId: cycle.id,
     goalId: cycle?.goalContract?.goalId || cycle?.goalGovernanceContract?.goalId || cycle?.contract?.goalId || null,
     moduleName: 'endCycle',
-    stepName: 'computeTerminalConvergence',
+    stepName: 'computeTerminalFidelityVerdict',
     status: 'ok',
     inputSummary: {
       cycleStatus: cycle.status || null,
@@ -12010,17 +12039,17 @@ function endCycle(state, cycleId) {
       deadlineDayKey: cycle?.definiteGoal?.deadlineDayKey || null,
     },
     outputSummary: {
-      verdict: convergenceReport?.verdict || null,
-      reasons: convergenceReport?.reasons || [],
-      pEndIds: (convergenceReport?.P_end?.deliverables || []).map((d) => d.deliverableId),
-      eEndIds: (convergenceReport?.E_end?.deliverables || []).map((d) => d.deliverableId),
-      eEndCounts: (convergenceReport?.E_end?.deliverables || []).map((d) => d.completedBlocks),
-      completedUnits: convergenceReport?.E_end?.completedUnits ?? 0,
-      unlinkedActivityBlocks: convergenceReport?.E_end?.unlinkedActivityBlocks ?? 0,
+      verdict: fidelityVerdictReport?.verdict || null,
+      reasons: fidelityVerdictReport?.reasons || [],
+      pEndIds: (fidelityVerdictReport?.P_end?.deliverables || []).map((d) => d.deliverableId),
+      eEndIds: (fidelityVerdictReport?.E_end?.deliverables || []).map((d) => d.deliverableId),
+      eEndCounts: (fidelityVerdictReport?.E_end?.deliverables || []).map((d) => d.completedBlocks),
+      completedUnits: fidelityVerdictReport?.E_end?.completedUnits ?? 0,
+      unlinkedActivityBlocks: fidelityVerdictReport?.E_end?.unlinkedActivityBlocks ?? 0,
     },
     reasonCodes: [],
   });
-  cycle.convergenceReport = convergenceReport;
+  cycle.fidelityVerdictReport = fidelityVerdictReport;
 
   cycle.summary = summarizeCycle(cycle);
   const historySignals = collectCycleHistorySignals(state, cycle);
@@ -15917,14 +15946,22 @@ function declareEntity(state, payload = {}) {
   const formationState = String(payload?.formationState || '').trim();
   const statusEvidence = String(payload?.statusEvidence || '').trim();
   const legallyFormed = payload?.legallyFormed !== undefined ? Boolean(payload.legallyFormed) : null;
-  if (!id || !name || roleTags.length === 0 || !purpose || !formationState || !statusEvidence) {
+  const namedOnlyConfirmed = payload?.namedOnlyConfirmed === true;
+
+  // For named-only entities, statusEvidence is not required (the state itself is
+  // self-proving: name exists, nothing built). For other states, statusEvidence
+  // is mandatory — it proves the stated formation state.
+  const statusEvidenceRequired = formationState !== 'named-only';
+  if (!id || !name || roleTags.length === 0 || !purpose || !formationState ||
+      (statusEvidenceRequired && !statusEvidence)) {
     state.lastPlanError = {
       code: 'ENTITY_INVALID',
-      reason: 'Entity requires id, name, roleTags, purpose, formationState, and statusEvidence.',
+      reason: 'Entity requires id, name, roleTags, purpose, and formationState. statusEvidence required except for named-only entities.',
       meta: { id, name, roleTagCount: roleTags.length, purpose, formationState, statusEvidence },
     };
     return;
   }
+
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
   const entry = {
     id,
@@ -15932,8 +15969,9 @@ function declareEntity(state, payload = {}) {
     roleTags,
     purpose,
     formationState,
-    statusEvidence,
+    statusEvidence: statusEvidence || null,
     legallyFormed,
+    namedOnlyConfirmed,
     phase: String(payload?.phase || '').trim() || null,
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
@@ -15993,6 +16031,9 @@ function declareInitiative(state, payload = {}) {
     owningEntityIds,
     crossCutting: Boolean(payload?.crossCutting),
     purpose,
+    purposeFor: String(payload?.purposeFor || '').trim() || null,
+    purposeCompletion: String(payload?.purposeCompletion || '').trim() || null,
+    purposeOngoing: String(payload?.purposeOngoing || '').trim() || null,
     classification,
     doneWhen,
     phase: String(payload?.phase || '').trim() || null,
@@ -16593,69 +16634,713 @@ function declareDependency(state, payload = {}) {
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+//  MATRIX v2 — Section 8 Step 3 (Convergence Forward Declaration)
+//  Validates sources are not sequentially dependent (hard block if violated),
+//  walks to owned Deliverables/Artifacts, assigns shared targetDate.
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * BFS to check if any two items in sourceIds are sequentially dependent.
+ * Returns { isSequential: boolean, violatingPair: [sourceId1, sourceId2] | null }
+ * Reuses Task 2's BFS pattern for dependency traversal.
+ *
+ * @param {string[]} sourceIds - Source node IDs to check
+ * @param {object} dependenciesById - Matrix dependenciesById
+ * @returns {object} { isSequential, violatingPair }
+ */
+function validateSourcesNotSequentiallyDependent(sourceIds = [], dependenciesById = {}) {
+  if (!sourceIds || sourceIds.length < 2) {
+    return { isSequential: false, violatingPair: null };
+  }
+
+  const sourceSet = new Set(sourceIds);
+
+  for (const sourceId of sourceIds) {
+    // BFS from this source to find all reachable nodes
+    const visited = new Set();
+    const queue = [sourceId];
+    const reachable = [];
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (visited.has(current)) continue;
+      visited.add(current);
+
+      // Find all dependencies where 'current' is upstream
+      for (const dep of Object.values(dependenciesById || {})) {
+        if (!dep) continue;
+        if (dep.upstreamId === current && dep.downstreamId && !visited.has(dep.downstreamId)) {
+          queue.push(dep.downstreamId);
+          reachable.push(dep.downstreamId);
+        }
+      }
+    }
+
+    // Check if any other source is reachable from this one (sequential dependency)
+    for (const otherSourceId of sourceIds) {
+      if (otherSourceId === sourceId) continue;
+      if (reachable.includes(otherSourceId)) {
+        return {
+          isSequential: true,
+          violatingPair: [sourceId, otherSourceId],
+        };
+      }
+    }
+  }
+
+  return { isSequential: false, violatingPair: null };
+}
+
+/**
+ * Find all Deliverables owned by an entity, initiative, or system.
+ *
+ * @param {string} nodeId - Entity/Initiative/System ID
+ * @param {object} matrix - State matrix
+ * @returns {string[]} Array of Deliverable IDs
+ */
+function findDeliverablesByOwner(nodeId, matrix = {}) {
+  const deliverables = matrix.deliverablesById || {};
+  const projects = matrix.projectsById || {};
+  const initiatives = matrix.initiativesById || {};
+
+  // Direct deliverables owned by nodeId
+  const directOwned = Object.values(deliverables)
+    .filter((d) => d && d.owningInitiativeId === nodeId)
+    .map((d) => d.id);
+
+  // Deliverables through projects owned by this entity
+  const projectsOwnedByNode = Object.values(projects)
+    .filter((p) => p && p.owningEntityId === nodeId)
+    .map((p) => p.id);
+
+  const deliverablesThroughProjects = Object.values(deliverables)
+    .filter((d) => d && projectsOwnedByNode.includes(d.owningProjectId || d.owningInitiativeId))
+    .map((d) => d.id);
+
+  return [...new Set([...directOwned, ...deliverablesThroughProjects])];
+}
+
+/**
+ * Find all Artifacts produced by a project.
+ *
+ * @param {string} projectId - Project ID
+ * @param {object} matrix - State matrix
+ * @returns {string[]} Array of Artifact IDs
+ */
+function findArtifactsByProducer(projectId, matrix = {}) {
+  const artifacts = matrix.artifactsById || {};
+  return Object.values(artifacts)
+    .filter((a) => a && a.producingProjectId === projectId)
+    .map((a) => a.id);
+}
+
 function declareConvergence(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
-  const fromNodeId = String(payload?.fromNodeId || '').trim();
   const toNodeId = String(payload?.toNodeId || '').trim();
   const gives = String(payload?.gives || '').trim();
-  if (!id || !fromNodeId || !toNodeId || !gives) {
+  const name = String(payload?.name || '').trim();
+  const targetDate = String(payload?.targetDate || '').trim() || null;
+  const reassessmentSessionId = String(payload?.reassessmentSessionId || '').trim();
+
+  // Step 3 Piece 3: Handle reassessment session (automatic linking)
+  let triggeringEdgeId = null;
+  if (reassessmentSessionId) {
+    const session = state.reassessmentSessions?.[reassessmentSessionId];
+    if (!session) {
+      state.lastPlanError = {
+        code: 'REASSESSMENT_SESSION_NOT_FOUND',
+        reason: `Reassessment session "${reassessmentSessionId}" not found.`,
+        meta: { sessionId: reassessmentSessionId },
+      };
+      return;
+    }
+    triggeringEdgeId = session.triggeringEdgeId;
+  }
+
+  // Step 3: Validate required fields for forward declaration
+  if (!id || !toNodeId || !gives) {
     state.lastPlanError = {
       code: 'CONVERGENCE_INVALID',
-      reason: 'Convergence edge requires id, fromNodeId, toNodeId, and gives.',
-      meta: { id, fromNodeId, toNodeId, gives },
+      reason: 'Convergence edge requires id, toNodeId, and gives.',
+      meta: { id, toNodeId, gives },
     };
     return;
   }
-  const REGISTRIES = ['entitiesById', 'initiativesById', 'systemsById', 'projectsById', 'artifactsById'];
+
+  if (!name) {
+    state.lastPlanError = {
+      code: 'CONVERGENCE_NAME_REQUIRED',
+      reason: 'Convergence edge requires a name (operator-chosen, editable). Example: "Oct 17 2026 Convergence".',
+      meta: { id },
+    };
+    return;
+  }
+
+  const REGISTRIES = ['entitiesById', 'initiativesById', 'systemsById', 'projectsById', 'artifactsById', 'deliverablesById'];
   const allIds = new Set();
   for (const reg of REGISTRIES) {
     for (const nodeId of Object.keys(state.matrix[reg] || {})) {
       allIds.add(nodeId);
     }
   }
-  if (!allIds.has(fromNodeId)) {
+
+  // Normalize fromNodeId/fromNodeIds to a source list
+  const fromNodeId = String(payload?.fromNodeId || '').trim();
+  let fromNodeIds = (Array.isArray(payload?.fromNodeIds) ? payload.fromNodeIds : (fromNodeId ? [fromNodeId] : []))
+    .map((v) => String(v || '').trim())
+    .filter(Boolean);
+
+  if (!fromNodeIds.length) {
     state.lastPlanError = {
-      code: 'CONVERGENCE_FROM_UNKNOWN',
-      reason: `Convergence fromNodeId "${fromNodeId}" is not in any declared-node registry.`,
-      meta: { id, fromNodeId },
+      code: 'CONVERGENCE_SOURCES_EMPTY',
+      reason: 'Convergence edge requires at least one source (fromNodeId or fromNodeIds).',
+      meta: { id },
     };
     return;
   }
+
+  // Validate all sources exist
+  for (const sourceId of fromNodeIds) {
+    if (!allIds.has(sourceId)) {
+      state.lastPlanError = {
+        code: 'CONVERGENCE_SOURCE_UNKNOWN',
+        reason: `Convergence source "${sourceId}" is not in any declared-node registry.`,
+        meta: { id, sourceId },
+      };
+      return;
+    }
+  }
+
+  // Validate destination exists
   if (!allIds.has(toNodeId)) {
     state.lastPlanError = {
       code: 'CONVERGENCE_TO_UNKNOWN',
-      reason: `Convergence toNodeId "${toNodeId}" is not in any declared-node registry.`,
+      reason: `Convergence destination toNodeId "${toNodeId}" is not in any declared-node registry.`,
       meta: { id, toNodeId },
     };
     return;
   }
-  if (fromNodeId === toNodeId) {
+
+  // Filter out toNodeId from sources (no self-edges to self)
+  fromNodeIds = fromNodeIds.filter((v) => v !== toNodeId);
+
+  if (!fromNodeIds.length) {
     state.lastPlanError = {
-      code: 'CONVERGENCE_SELF_EDGE',
-      reason: `Convergence cannot have fromNodeId === toNodeId: "${fromNodeId}".`,
-      meta: { id, fromNodeId },
+      code: 'CONVERGENCE_SOURCES_EXCLUDE_DEST',
+      reason: `Convergence sources must not include the destination. All sources were excluded because they matched toNodeId "${toNodeId}".`,
+      meta: { id, toNodeId },
     };
     return;
   }
-  // NOTE: No cycle guard. Loops are valid in Section 8 (convergence).
-  // Multi-source (2026-07-10): fromNodeIds carries every feeding node; the
-  // legacy scalar fromNodeId stays as the first source. Sources that are not
-  // declared nodes are dropped (same rule the scalar path enforces above).
-  const fromNodeIds = (Array.isArray(payload?.fromNodeIds) ? payload.fromNodeIds : [fromNodeId])
-    .map((v) => String(v || '').trim())
-    .filter((v) => v && allIds.has(v) && v !== toNodeId);
+
+  // Hard block: sources must not be sequentially dependent
+  const depCheck = validateSourcesNotSequentiallyDependent(fromNodeIds, state.matrix.dependenciesById);
+  if (depCheck.isSequential) {
+    state.lastPlanError = {
+      code: 'CONVERGENCE_SOURCES_SEQUENTIAL',
+      reason: `Convergence sources must be genuinely parallel, not sequentially dependent. Sources "${depCheck.violatingPair[0]}" and "${depCheck.violatingPair[1]}" show sequential dependency.`,
+      meta: { id, violatingPair: depCheck.violatingPair },
+    };
+    return;
+  }
+
+  // Step 3: Walk sources to find owned deliverables/artifacts
+  const sourceDeliverableIds = [];
+  const sourceArtifactIds = [];
+
+  for (const sourceId of fromNodeIds) {
+    // Find deliverables owned by this source
+    const ownedDeliverables = findDeliverablesByOwner(sourceId, state.matrix);
+    sourceDeliverableIds.push(...ownedDeliverables);
+
+    // Find artifacts (if source is a project)
+    const project = state.matrix.projectsById?.[sourceId];
+    if (project) {
+      const producedArtifacts = findArtifactsByProducer(sourceId, state.matrix);
+      sourceArtifactIds.push(...producedArtifacts);
+    }
+  }
+
+  // Remove duplicates
+  const uniqueDeliverableIds = [...new Set(sourceDeliverableIds)];
+  const uniqueArtifactIds = [...new Set(sourceArtifactIds)];
+
+  // Step 3: Assign targetDate to discovered deliverables/artifacts
+  if (targetDate) {
+    for (const delivId of uniqueDeliverableIds) {
+      const deliv = state.matrix.deliverablesById[delivId];
+      if (deliv) {
+        deliv.convergenceTargetDate = targetDate;
+      }
+    }
+    for (const artId of uniqueArtifactIds) {
+      const art = state.matrix.artifactsById[artId];
+      if (art) {
+        art.convergenceTargetDate = targetDate;
+      }
+    }
+  }
+
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+
+  // Step 3 Piece 3: Automatic linking from reassessment session
+  // When this edge is declared from a reassessment, automatically set supersedes/supersededBy
+  // WITHOUT requiring the operator to enter edge IDs manually.
+  const supersedes = triggeringEdgeId || null;
+
+  // Step 3 Piece 4: Copy sourceDispositions from reassessment session to new edge
+  let sourceDispositions = null;
+  if (reassessmentSessionId) {
+    const session = state.reassessmentSessions?.[reassessmentSessionId];
+    if (session && session.finalDispositions) {
+      sourceDispositions = { ...session.finalDispositions };
+    }
+  }
+
   state.matrix.convergenceEdgesById[id] = {
     id,
-    fromNodeId: fromNodeIds[0] || fromNodeId,
-    fromNodeIds: fromNodeIds.length ? fromNodeIds : [fromNodeId],
+    name, // Step 3: operator-chosen name (editable)
+    fromNodeId: fromNodeIds[0],
+    fromNodeIds,
     toNodeId,
     gives,
+    targetDate, // Step 3: shared deadline for sources
+    status: 'PENDING', // Step 3: computed at deadline evaluation
+    sourceDeliverableIds: uniqueDeliverableIds, // Step 3: actual converging units
+    sourceArtifactIds: uniqueArtifactIds, // Step 3: actual converging units
+    sourceDispositions, // Step 3 Piece 4: Satisfied sources carry forward unaltered
+    supersedes, // Step 3 Piece 3: auto-linked if from reassessment
+    supersededBy: null, // Step 4: links to subsequent edge if superseded
     broken: Boolean(payload?.broken) || false,
     label: String(payload?.label || '').trim() || null,
     declaredAtISO: nowISO,
   };
+
+  // Step 3 Piece 3: Update triggering edge to point back to this new edge
+  if (triggeringEdgeId) {
+    const triggeringEdge = state.matrix.convergenceEdgesById[triggeringEdgeId];
+    if (triggeringEdge) {
+      triggeringEdge.supersededBy = id;
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// STEP 4: CONVERGENCE STATUS COMPUTATION AND RESCHEDULE LOGIC
+// ─────────────────────────────────────────────────────────────────────────
+// Evaluates convergence edges at their targetDate:
+// - CONVERGED: all sources completed → write Milestone
+// - PARTIAL: some sources completed → surface per-source disclosure
+// - MISSED: deadline passed without completion → route to reschedule/close
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Evaluate whether a convergence edge's sources have converged.
+ * Returns { status, completedSourceIds, missedSourceIds }
+ *
+ * Step 3 Piece 4: Recognizes Satisfied sources as already-met without re-evaluation.
+ * - Satisfied: original completion carries forward unaltered (not re-evaluated)
+ * - Needs Redo: evaluated normally against new deadline
+ * - Removed: skipped (not part of this edge)
+ *
+ * @param {Object} edge - convergence edge
+ * @param {Object} matrix - matrix state
+ * @param {string} evaluationDate - ISO date string (e.g., "2026-09-20")
+ * @returns {Object} { status: 'CONVERGED'|'PARTIAL'|'MISSED', completedSourceIds: [], missedSourceIds: [] }
+ */
+function evaluateConvergenceStatus(edge = {}, matrix = {}, evaluationDate = null) {
+  if (!evaluationDate) {
+    return { status: 'PENDING', completedSourceIds: [], missedSourceIds: [] };
+  }
+
+  const sourceDeliverableIds = edge.sourceDeliverableIds || [];
+  const sourceArtifactIds = edge.sourceArtifactIds || [];
+  const sourceDispositions = edge.sourceDispositions || {};
+
+  const completedSourceIds = [];
+  const missedSourceIds = [];
+
+  // Check deliverables for completion
+  for (const delivId of sourceDeliverableIds) {
+    // Step 3 Piece 4: Skip if source was marked as Removed (decoupled)
+    if (sourceDispositions[delivId] === 'Removed') {
+      continue;
+    }
+
+    // Step 3 Piece 4: If marked Satisfied, original completion carries forward unaltered
+    if (sourceDispositions[delivId] === 'Satisfied') {
+      completedSourceIds.push(delivId);
+      continue;
+    }
+
+    const deliv = (matrix.deliverablesById || {})[delivId];
+    if (deliv) {
+      // For Needs Redo sources (or sources without disposition): evaluate normally
+      // A deliverable is "completed" if it has a completionEvidence set and
+      // its completion date is on or before the evaluation date
+      const isCompleted = deliv.completionEvidence &&
+                          (!deliv.completedOnISO || String(deliv.completedOnISO).substring(0, 10) <= evaluationDate);
+      if (isCompleted) {
+        completedSourceIds.push(delivId);
+      } else {
+        missedSourceIds.push(delivId);
+      }
+    }
+  }
+
+  // Check artifacts for completion
+  for (const artId of sourceArtifactIds) {
+    // Step 3 Piece 4: Skip if source was marked as Removed (decoupled)
+    if (sourceDispositions[artId] === 'Removed') {
+      continue;
+    }
+
+    // Step 3 Piece 4: If marked Satisfied, original completion carries forward unaltered
+    if (sourceDispositions[artId] === 'Satisfied') {
+      completedSourceIds.push(artId);
+      continue;
+    }
+
+    const art = (matrix.artifactsById || {})[artId];
+    if (art) {
+      // For Needs Redo sources (or sources without disposition): evaluate normally
+      // An artifact is "completed" if it has completionEvidence and is attested
+      const isCompleted = art.completionEvidence && art.attestedAtISO;
+      if (isCompleted) {
+        completedSourceIds.push(artId);
+      } else {
+        missedSourceIds.push(artId);
+      }
+    }
+  }
+
+  // Step 3 Piece 4: Account for Removed sources in total count
+  // Removed sources don't count against the convergence requirement
+  const totalSources = sourceDeliverableIds.length + sourceArtifactIds.length -
+    Object.values(sourceDispositions).filter(d => d === 'Removed').length;
+
+  let status = 'MISSED'; // default: nothing completed
+
+  if (completedSourceIds.length === totalSources && totalSources > 0) {
+    status = 'CONVERGED'; // all non-removed sources completed
+  } else if (completedSourceIds.length > 0) {
+    status = 'PARTIAL'; // some (but not all) sources completed
+  }
+
+  return { status, completedSourceIds, missedSourceIds };
+}
+
+/**
+ * Process a CONVERGED edge: all sources completed on time.
+ * Writes a Milestone record marking the convergence.
+ *
+ * @param {Object} state - identity state
+ * @param {Object} edge - convergence edge
+ * @param {string} evaluationDate - ISO date when convergence occurred
+ */
+function processConvergedEdge(state, edge = {}, evaluationDate = null) {
+  if (!evaluationDate) {
+    return;
+  }
+
+  ensureMatrixSlot(state);
+
+  // Create milestone for this convergence
+  const milestoneId = `milestone-${edge.id}-${Date.now()}`;
+  const milestoneName = `${edge.name} (Converged)`;
+
+  // Milestone includes all source deliverables/artifacts as "lanes"
+  const laneIds = [
+    ...(edge.sourceDeliverableIds || []),
+    ...(edge.sourceArtifactIds || []),
+  ];
+
+  state.matrix.milestonesById[milestoneId] = {
+    id: milestoneId,
+    name: milestoneName,
+    date: evaluationDate,
+    laneIds,
+    convergenceEdgeId: edge.id,
+    status: 'achieved',
+    declaredAtISO: state?.appTime?.nowISO || new Date().toISOString(),
+  };
+
+  // Update edge status
+  state.matrix.convergenceEdgesById[edge.id].status = 'CONVERGED';
+}
+
+/**
+ * Process a PARTIAL edge: some sources completed, others missed.
+ * Surfaces per-source disclosure showing which sources succeeded.
+ *
+ * @param {Object} state - identity state
+ * @param {Object} edge - convergence edge
+ * @param {Array} completedSourceIds - IDs that completed
+ * @param {Array} missedSourceIds - IDs that didn't complete
+ */
+function processPartialEdge(state, edge = {}, completedSourceIds = [], missedSourceIds = []) {
+  ensureMatrixSlot(state);
+
+  // Create disclosure record for this partial convergence
+  const disclosureId = `disclosure-${edge.id}-${Date.now()}`;
+
+  state.matrix.convergenceEdgesById[edge.id].status = 'PARTIAL';
+  state.matrix.convergenceEdgesById[edge.id].disclosure = {
+    id: disclosureId,
+    completedSourceIds,
+    missedSourceIds,
+    recordedAtISO: state?.appTime?.nowISO || new Date().toISOString(),
+  };
+}
+
+/**
+ * Create a reassessment session for a MISSED or PARTIAL convergence edge.
+ * Pre-populates sources (both completed and missed) for operator review.
+ * Operator will assign per-source dispositions: Satisfied, Needs Redo, or Removed.
+ *
+ * @param {Object} edge - convergence edge
+ * @param {Object} completionState - { completed: [], missed: [] }
+ * @returns {Object} reassessment session with pre-populated sources
+ */
+function createReassessmentSession(edge = {}, completionState = {}) {
+  const sourceDeliverableIds = edge.sourceDeliverableIds || [];
+  const sourceArtifactIds = edge.sourceArtifactIds || [];
+  const allSources = [...sourceDeliverableIds, ...sourceArtifactIds];
+  const completed = completionState.completed || [];
+  const missed = completionState.missed || [];
+
+  const prePopulatedSources = allSources.map((sourceId) => ({
+    id: sourceId,
+    priorCompletion: completed.includes(sourceId),
+    priorMissed: missed.includes(sourceId),
+    disposition: null, // Operator assigns: 'Satisfied' | 'Needs Redo' | 'Removed'
+  }));
+
+  return {
+    sessionId: `reassess-${edge.id}-${Date.now()}`,
+    triggeringEdgeId: edge.id,
+    triggeringEdgeName: edge.name,
+    triggeringEdgeDestination: edge.toNodeId,
+    triggeringEdgeGives: edge.gives,
+    prePopulatedSources,
+    createdAtISO: new Date().toISOString(),
+  };
+}
+
+/**
+ * Complete a reassessment session: operator has assigned per-source dispositions.
+ * Validates that dispositions are semantically correct given prior state.
+ * Stores dispositions on the edge for use by auto-linking (Piece 3).
+ *
+ * Validation rules:
+ * - Satisfied: only valid for sources with priorCompletion: true
+ * - Needs Redo: valid for both priorCompletion and priorMissed sources
+ * - Removed: valid for both priorCompletion and priorMissed sources
+ *
+ * @param {Object} state - identity state
+ * @param {string} reassessmentSessionId - ID of the reassessment session
+ * @param {Object} sourceDispositions - { sourceId: 'Satisfied'|'Needs Redo'|'Removed', ... }
+ */
+function completeReassessment(state, reassessmentSessionId = '', sourceDispositions = {}) {
+  if (!reassessmentSessionId || !state.reassessmentSessions?.[reassessmentSessionId]) {
+    state.lastPlanError = {
+      code: 'REASSESSMENT_SESSION_NOT_FOUND',
+      reason: `Reassessment session "${reassessmentSessionId}" not found.`,
+      meta: { sessionId: reassessmentSessionId },
+    };
+    return;
+  }
+
+  const session = state.reassessmentSessions[reassessmentSessionId];
+  const triggeringEdge = state.matrix.convergenceEdgesById?.[session.triggeringEdgeId];
+
+  if (!triggeringEdge) {
+    state.lastPlanError = {
+      code: 'TRIGGERING_EDGE_NOT_FOUND',
+      reason: `Triggering edge "${session.triggeringEdgeId}" not found.`,
+      meta: { edgeId: session.triggeringEdgeId },
+    };
+    return;
+  }
+
+  // Validate dispositions against prior state
+  const validDispositions = ['Satisfied', 'Needs Redo', 'Removed'];
+  for (const source of session.prePopulatedSources) {
+    const sourceId = source.id;
+    const disposition = sourceDispositions[sourceId];
+
+    if (!disposition) {
+      state.lastPlanError = {
+        code: 'REASSESSMENT_MISSING_DISPOSITION',
+        reason: `Missing disposition for source "${sourceId}". All sources must be explicitly disposed.`,
+        meta: { sessionId: reassessmentSessionId, sourceId },
+      };
+      return;
+    }
+
+    if (!validDispositions.includes(disposition)) {
+      state.lastPlanError = {
+        code: 'REASSESSMENT_INVALID_DISPOSITION',
+        reason: `Invalid disposition "${disposition}" for source "${sourceId}". Must be one of: Satisfied, Needs Redo, Removed.`,
+        meta: { sessionId: reassessmentSessionId, sourceId, disposition },
+      };
+      return;
+    }
+
+    // Hard validation: Satisfied only for sources with prior completion
+    if (disposition === 'Satisfied' && !source.priorCompletion) {
+      state.lastPlanError = {
+        code: 'REASSESSMENT_SATISFIED_INVALID',
+        reason: `Cannot mark source "${sourceId}" as Satisfied: it was never completed in the prior attempt (priorCompletion: false). Satisfied applies only to sources whose completion value still holds. Use "Needs Redo" or "Removed" instead.`,
+        meta: { sessionId: reassessmentSessionId, sourceId, priorCompletion: source.priorCompletion },
+      };
+      return;
+    }
+  }
+
+  // All dispositions valid: store them on the edge
+  triggeringEdge.sourceDispositions = sourceDispositions;
+  triggeringEdge.reassessmentCompletedAtISO = state?.appTime?.nowISO || new Date().toISOString();
+
+  // Mark session as completed (for auditability)
+  session.completedAtISO = state?.appTime?.nowISO || new Date().toISOString();
+  session.finalDispositions = sourceDispositions;
+}
+
+
+/**
+ * Process a MISSED edge: deadline passed without completion.
+ * Routes to reschedule/close decision point.
+ *
+ * For reschedule: creates a reassessment session with pre-populated sources.
+ * Operator reviews and assigns per-source dispositions (Satisfied/Needs Redo/Removed).
+ * For close: requires explicit disposition of all sources before allowing closure.
+ *
+ * @param {Object} state - identity state
+ * @param {Object} edge - convergence edge
+ * @param {Object} action - { type: 'RESCHEDULE'|'CLOSE', completionState?: {}, reason?: string }
+ */
+function processMissedEdge(state, edge = {}, action = {}) {
+  if (!action.type) {
+    state.lastPlanError = {
+      code: 'MISSED_EDGE_NO_ACTION',
+      reason: 'MISSED convergence edge requires explicit action: RESCHEDULE or CLOSE.',
+      meta: { edgeId: edge.id },
+    };
+    return;
+  }
+
+  ensureMatrixSlot(state);
+
+  if (action.type === 'RESCHEDULE') {
+    // Step 3 Reschedule: Create reassessment session with pre-populated sources.
+    // The session captures which sources were completed vs. missed in the prior attempt.
+    // Operator will review and assign per-source dispositions:
+    // - Satisfied: completion value still holds, carries forward as already-met
+    // - Needs Redo: either stale completed source or still-missed source, re-enters as active work
+    // - Removed: decoupled from this convergence, becomes ordinary Initiative-owned work
+
+    const completionState = action.completionState || { completed: [], missed: [] };
+    const reassessmentSession = createReassessmentSession(edge, completionState);
+
+    // Store reassessment session in state (keyed by sessionId for operator workflow)
+    if (!state.reassessmentSessions) {
+      state.reassessmentSessions = {};
+    }
+    state.reassessmentSessions[reassessmentSession.sessionId] = reassessmentSession;
+
+    // Mark original edge as awaiting reassessment
+    state.matrix.convergenceEdgesById[edge.id].status = 'MISSED';
+    state.matrix.convergenceEdgesById[edge.id].rescheduleReason = action.reason || null;
+    state.matrix.convergenceEdgesById[edge.id].reassessmentSessionId = reassessmentSession.sessionId;
+    state.matrix.convergenceEdgesById[edge.id].rescheduleSessionInitiatedAtISO =
+      state?.appTime?.nowISO || new Date().toISOString();
+
+    return;
+  }
+
+  if (action.type === 'CLOSE') {
+    // Closing a MISSED edge: HARD BLOCK until all sources have explicit disposition.
+    // Step 4 doctrine: "Block until all sources have explicit disposition"
+    // For multi-source edges, each source must be individually declared as:
+    // - "succeeded anyway" (mark completionEvidence)
+    // - "abandoned" (explicit reason in sourceDispositions record)
+    // - "replaced" (new source in reschedule attempt)
+
+    // HARD BLOCK: Check that all sources have disposition records before allowing close
+    const sourceDispositions = action.sourceDispositions || {};
+    const allSources = [...(edge.sourceDeliverableIds || []), ...(edge.sourceArtifactIds || [])];
+
+    if (allSources.length > 0) {
+      // Multi-source edge: verify all have disposition
+      const undisposedSources = allSources.filter((sourceId) => !sourceDispositions[sourceId]);
+      if (undisposedSources.length > 0) {
+        state.lastPlanError = {
+          code: 'CLOSE_MISSING_SOURCE_DISPOSITIONS',
+          reason:
+            'Cannot close MISSED convergence: not all sources have explicit disposition. ' +
+            `Undisposed sources: ${undisposedSources.join(', ')}. ` +
+            'Each source must be individually marked as succeeded, abandoned, or replaced.',
+          meta: { edgeId: edge.id, undisposedSources },
+        };
+        return;
+      }
+    }
+
+    // All sources disposed: allow close
+    state.matrix.convergenceEdgesById[edge.id].status = 'MISSED';
+    state.matrix.convergenceEdgesById[edge.id].closureReason = action.reason || null;
+    state.matrix.convergenceEdgesById[edge.id].sourceDispositions = sourceDispositions;
+    state.matrix.convergenceEdgesById[edge.id].closedAtISO = state?.appTime?.nowISO || new Date().toISOString();
+
+    return;
+  }
+
+  state.lastPlanError = {
+    code: 'INVALID_MISSED_ACTION',
+    reason: `Invalid action type "${action.type}" for MISSED edge. Must be RESCHEDULE or CLOSE.`,
+    meta: { edgeId: edge.id, actionType: action.type },
+  };
+}
+
+/**
+ * Evaluate all convergence edges and update their statuses based on evaluation date.
+ * This is the main dispatcher for Step 4.
+ *
+ * @param {Object} state - identity state
+ * @param {string} evaluationDate - ISO date (e.g., "2026-09-20")
+ */
+function updateConvergenceStatuses(state, evaluationDate = null) {
+  if (!evaluationDate) {
+    return; // No evaluation date, status remains PENDING
+  }
+
+  const edges = Object.values(state.matrix.convergenceEdgesById || {});
+
+  for (const edge of edges) {
+    // Only evaluate PENDING edges
+    if (edge.status !== 'PENDING') {
+      continue;
+    }
+
+    // Skip if edge has no targetDate or evaluation is before targetDate
+    if (!edge.targetDate || evaluationDate < edge.targetDate) {
+      continue;
+    }
+
+    const evaluation = evaluateConvergenceStatus(edge, state.matrix, evaluationDate);
+
+    if (evaluation.status === 'CONVERGED') {
+      processConvergedEdge(state, edge, evaluationDate);
+    } else if (evaluation.status === 'PARTIAL') {
+      processPartialEdge(state, edge, evaluation.completedSourceIds, evaluation.missedSourceIds);
+    } else if (evaluation.status === 'MISSED') {
+      // MISSED edges remain in MISSED state until explicitly rescheduled or closed
+      state.matrix.convergenceEdgesById[edge.id].status = 'MISSED';
+    }
+  }
 }
 
 // Attested relational link (ships_with / soundtrack_of / promotes / feeds / loop /
