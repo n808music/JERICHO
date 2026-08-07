@@ -217,6 +217,77 @@ export function stableHashObject(obj) {
   return simpleStringHash(sortedJSON);
 }
 
+/**
+ * Detect clusters of Deliverables/Artifacts sharing a targetDate that are
+ * candidates for convergence declaration.
+ *
+ * Pure function — no side effects, deterministic. Reuses the existing
+ * `validateSourcesNotSequentiallyDependent()` (defined later in this file;
+ * available here via function-declaration hoisting) to exclude clusters
+ * whose members are entirely sequentially dependent on each other.
+ *
+ * Algorithm:
+ *  1. Collect every Deliverable/Artifact id that has a targetDate.
+ *  2. Group those ids by targetDate.
+ *  3. For each date group with 2+ members, check whether at least one pair
+ *     is NOT sequentially dependent. If so, the entire group forms a single
+ *     cluster (clusters are never split per-pair). If every pair in the
+ *     group is sequentially dependent, the group is skipped entirely.
+ *  4. Each returned cluster's sourceIds are sorted alphabetically for
+ *     determinism.
+ *
+ * @param {object} matrix - State matrix: { deliverablesById, artifactsById,
+ *   dependenciesById, convergenceEdgesById }
+ * @returns {Array<{ sourceIds: string[], targetDate: string }>}
+ */
+export function detectConvergenceCandidates(matrix) {
+  if (!matrix || typeof matrix !== 'object') return [];
+
+  const targetDateById = {};
+
+  Object.values(matrix.deliverablesById || {}).forEach((d) => {
+    if (d?.id && d.targetDate) targetDateById[d.id] = d.targetDate;
+  });
+  Object.values(matrix.artifactsById || {}).forEach((a) => {
+    if (a?.id && a.targetDate) targetDateById[a.id] = a.targetDate;
+  });
+
+  const byDate = {};
+  Object.entries(targetDateById).forEach(([nodeId, targetDate]) => {
+    if (!byDate[targetDate]) byDate[targetDate] = [];
+    byDate[targetDate].push(nodeId);
+  });
+
+  const dependenciesById = matrix.dependenciesById || {};
+  const clusters = [];
+
+  Object.entries(byDate).forEach(([targetDate, nodeIds]) => {
+    if (!nodeIds || nodeIds.length < 2) return;
+
+    const sortedIds = [...nodeIds].sort();
+
+    // At least one pair in the group must NOT be sequentially dependent
+    // for the group to survive as a cluster (hard block reuse).
+    let hasValidPair = false;
+    for (let i = 0; i < sortedIds.length && !hasValidPair; i++) {
+      for (let j = i + 1; j < sortedIds.length; j++) {
+        const pair = [sortedIds[i], sortedIds[j]];
+        const depCheck = validateSourcesNotSequentiallyDependent(pair, dependenciesById);
+        if (!depCheck?.isSequential) {
+          hasValidPair = true;
+          break;
+        }
+      }
+    }
+
+    if (hasValidPair) {
+      clusters.push({ sourceIds: sortedIds, targetDate });
+    }
+  });
+
+  return clusters;
+}
+
 export function applyEnterpriseIdentityAudit(next) {
   if (!next || typeof next !== 'object') return;
   const profile = next.profilesById?.[next.activeProfileId] || null;
