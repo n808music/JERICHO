@@ -359,8 +359,37 @@ export function updateConvergenceDetectionState(state, candidates) {
     }
   });
 
+  // Prune valid questions that are subsets of newly-detected candidate clusters.
+  // A question is pruned if there exists a new question with the same targetDate
+  // where the old question's sourceIds are a strict subset of the new question's.
+  // This prevents duplicate advisor prompts when a cluster grows (e.g., dc1+dc2
+  // cluster exists, then dc3 joins to form dc1+dc2+dc3 cluster).
+  const prunedValidQuestions = validQuestions.filter((vq) => {
+    const isSubsumed = newQuestions.some((nq) => {
+      if (vq.targetDate !== nq.targetDate) return false;
+      if (vq.sourceIds.length >= nq.sourceIds.length) return false;
+      // vq's sourceIds must be a strict subset of nq's
+      return vq.sourceIds.every((id) => nq.sourceIds.includes(id));
+    });
+    return !isSubsumed;
+  });
+
+  // Also prune new questions that are subsets of other new questions in the same
+  // detection pass. This handles cases where a smaller cluster is detected before
+  // (and independently of) the larger cluster containing it.
+  const finalNewQuestions = newQuestions.filter((nq1) => {
+    const isSubsumed = newQuestions.some((nq2) => {
+      if (nq1.id === nq2.id) return false; // Skip self-comparison
+      if (nq1.targetDate !== nq2.targetDate) return false;
+      if (nq1.sourceIds.length >= nq2.sourceIds.length) return false;
+      // nq1's sourceIds must be a strict subset of nq2's
+      return nq1.sourceIds.every((id) => nq2.sourceIds.includes(id));
+    });
+    return !isSubsumed;
+  });
+
   matrix.convergenceDetectionState = {
-    pendingQuestions: [...validQuestions, ...newQuestions],
+    pendingQuestions: [...prunedValidQuestions, ...finalNewQuestions],
     answered, // Preserve — operator dispositions are permanent
     lastComputedFrom: {
       // stableHashObject()/simpleStringHash() (Task 1, not modified here)

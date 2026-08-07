@@ -355,4 +355,42 @@ describe('Convergence Detection Pass', () => {
     const countAfterSecond = s.matrix.convergenceDetectionState.pendingQuestions.length;
     expect(countAfterSecond).toBe(countAfterFirst);
   });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // SUPPLEMENTARY TEST 6: Cluster Supersession Pruning
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // When a cluster grows (e.g., dc1+dc2 exists, then dc3 joins to form
+  // dc1+dc2+dc3), the older smaller-cluster question should be pruned, not
+  // preserved as a duplicate. This test reproduces the issue discovered by
+  // the independent review subagent during Task 8 verification.
+
+  it('should prune smaller clusters when larger clusters with same members are detected', () => {
+    // SETUP: Create dc1 + dc2 sharing targetDate
+    let s = declarePrereqChain(state, 'super');
+    s = declareDeliverable(s, 'dc1', 'super', '2026-11-15');
+    s = declareDeliverable(s, 'dc2', 'super', '2026-11-15');
+
+    // STEP 1: Verify the 2-member cluster generates exactly one pending question
+    const pending1 = s.matrix.convergenceDetectionState.pendingQuestions;
+    expect(pending1).toHaveLength(1);
+    expect(pending1[0].sourceIds).toEqual(['dc1', 'dc2']);
+    const oldQuestionId = pending1[0].id;
+
+    // STEP 2: Add dc3 to the same targetDate
+    s = declareDeliverable(s, 'dc3', 'super', '2026-11-15');
+
+    // STEP 3: Verify the 3-member cluster is detected AND the 2-member
+    // question is pruned (not duplicated)
+    const pending2 = s.matrix.convergenceDetectionState.pendingQuestions;
+    expect(pending2).toHaveLength(1, 'Should have exactly 1 pending question, not 2');
+    expect(pending2[0].sourceIds).toEqual(['dc1', 'dc2', 'dc3']);
+
+    // STEP 4: Confirm the old 2-member question is completely gone (not just
+    // moved to answered)
+    const answerMap = s.matrix.convergenceDetectionState.answered || {};
+    expect(answerMap[oldQuestionId]).toBeUndefined(
+      'Old question should not be in answered (pruned outright, not marked as answered)'
+    );
+  });
 });
