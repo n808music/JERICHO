@@ -286,10 +286,41 @@ export function deriveExecutionTruthClassification({
         dependencyRelation = 'dependency_clear';
       }
     } else {
-      const unmetDependencyIds = dependencyIds.filter((dependencyId) => !completedActionIds.has(dependencyId));
-      if (unmetDependencyIds.length === 0) {
+      // Dependency satisfaction mode: 'ALL' (all must be complete) or 'ANY_ONE' (any one can satisfy).
+      // satisfactionMode is optional for backward compatibility; omitted defaults to 'ALL'.
+      // Note: phase ordering currently treats all dependencies as ALL-semantics for layering
+      // depth (longest path), regardless of declared satisfactionMode. This produces
+      // conservative but correct phase placement — ANY_ONE edges will not break ordering
+      // but may cause phases to compute deeper than functionally necessary.
+      const dependenciesById = action?.matrix?.dependenciesById || {};
+      const hasSatisfyingUpstream = dependencyIds.some((dependencyId) => {
+        if (!completedActionIds.has(dependencyId)) return false;
+        // Check satisfactionMode of the edge pointing to this action
+        const edge = Object.values(dependenciesById).find(
+          (e: any) => e?.upstreamId === dependencyId && e?.downstreamId === action?.id
+        );
+        return true; // If upstream is completed, it contributes to satisfaction
+      });
+
+      // For ALL mode: all dependencies must be complete
+      // For ANY_ONE mode: at least one dependency must be complete
+      const allDependenciesComplete = dependencyIds.every((dependencyId) => completedActionIds.has(dependencyId));
+      const anyOneDependencyComplete = hasSatisfyingUpstream;
+
+      // Determine which mode this action uses (default ALL for backward compatibility)
+      const satisfactionModes = dependencyIds.map((dependencyId) => {
+        const edge = Object.values(dependenciesById).find(
+          (e: any) => e?.upstreamId === dependencyId && e?.downstreamId === action?.id
+        );
+        return (edge as any)?.satisfactionMode || 'ALL';
+      });
+      const usesAnyOne = satisfactionModes.some((mode) => mode === 'ANY_ONE');
+
+      const isSatisfied = usesAnyOne ? anyOneDependencyComplete : allDependenciesComplete;
+      if (isSatisfied) {
         dependencyRelation = 'dependency_clear';
       } else {
+        const unmetDependencyIds = dependencyIds.filter((dependencyId) => !completedActionIds.has(dependencyId));
         const unmetIsHardGate = unmetDependencyIds.some((dependencyId) =>
           dependencyDetails.some(
             (detail) => detail.actionId === dependencyId && String(detail.dependencyType || '').toLowerCase() === 'hard_gate'
