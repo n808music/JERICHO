@@ -45,7 +45,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { buildBlankIdentityState, identityReducer } from '../identityStore.js';
-import { computeDerivedState, _internal } from '../identityCompute.js';
+import { computeDerivedState, _internal, generateQuestionId, updateConvergenceDetectionState, detectConvergenceCandidates } from '../identityCompute.js';
 
 // ── Shared setup helpers ────────────────────────────────────────────────
 // DECLARE_DELIVERABLE requires an existing owningProjectId AND owningInitiativeId
@@ -357,7 +357,7 @@ describe('Convergence Detection Pass', () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════
-  // SUPPLEMENTARY TEST 6: Cluster Supersession Pruning
+  // SUPPLEMENTARY TEST 6: Cluster Supersession Pruning (new candidate case)
   // ═══════════════════════════════════════════════════════════════════════
   //
   // When a cluster grows (e.g., dc1+dc2 exists, then dc3 joins to form
@@ -391,6 +391,79 @@ describe('Convergence Detection Pass', () => {
     const answerMap = s.matrix.convergenceDetectionState.answered || {};
     expect(answerMap[oldQuestionId]).toBeUndefined(
       'Old question should not be in answered (pruned outright, not marked as answered)'
+    );
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // SUPPLEMENTARY TEST 7: Cluster Supersession (pending-vs-pending case)
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // Edge case: two pending questions from prior passes where one is a strict
+  // subset of the other, with no NEW candidate detection this pass. Without
+  // pending-vs-pending pruning, the subset question survives indefinitely.
+  // This test manually seeds two existing questions and verifies the subset
+  // is pruned on the next detection pass (even with NO_OP, the pruning logic runs).
+
+  it('should prune pending questions that are subsets of other pending questions', () => {
+    // SETUP: Simulate a scenario where two pending questions exist from prior
+    // passes (one a subset of the other), with no new candidate detection this
+    // pass. Pruning should still occur within the validQuestions set itself.
+
+    let s = declarePrereqChain(state, 'pending-dedup');
+    // Create all three deliverables upfront
+    s = declareDeliverable(s, 'pq1', 'pending-dedup', '2026-12-01');
+    s = declareDeliverable(s, 'pq2', 'pending-dedup', '2026-12-01');
+    s = declareDeliverable(s, 'pq3', 'pending-dedup', '2026-12-01');
+
+    // Both the 2-member and 3-member clusters are detected
+    const pending_all = s.matrix.convergenceDetectionState.pendingQuestions;
+    expect(pending_all.length).toBeGreaterThanOrEqual(1); // At least one detected
+
+    // Manually prune to simulate: "imagine only the 2-member was detected on
+    // Pass N-1 (pq3 didn't exist yet), and only the 3-member was detected on
+    // Pass N-1 (pq3 was added later). Now both questions exist as pending."
+    const q1Id = generateQuestionId(['pq1', 'pq2'], '2026-12-01');
+    const q2Id = generateQuestionId(['pq1', 'pq2', 'pq3'], '2026-12-01');
+
+    // Manually set pendingQuestions to BOTH 2-member and 3-member as if both
+    // came from past detections
+    s.matrix.convergenceDetectionState.pendingQuestions = [
+      {
+        id: q1Id,
+        sourceIds: ['pq1', 'pq2'],
+        targetDate: '2026-12-01',
+        detectedAtISO: '2026-08-05T10:00:00Z',
+      },
+      {
+        id: q2Id,
+        sourceIds: ['pq1', 'pq2', 'pq3'],
+        targetDate: '2026-12-01',
+        detectedAtISO: '2026-08-05T11:00:00Z',
+      },
+    ];
+
+    // STEP 1: Verify both questions exist before pruning
+    const beforePrune = s.matrix.convergenceDetectionState.pendingQuestions;
+    expect(beforePrune).toHaveLength(2);
+    expect(beforePrune.map((q) => q.id).sort()).toEqual([q1Id, q2Id].sort());
+
+    // STEP 2: Call the pruning logic directly. Since no new candidates are
+    // detected (no new deliverables added), candidates = [], but the pruning
+    // logic still runs on validQuestions against themselves
+    const candidates = detectConvergenceCandidates(s.matrix);
+    s = updateConvergenceDetectionState(s, candidates);
+
+    // STEP 3: Verify the subset (2-member) question was pruned by the
+    // validQuestionsDeduped filter, even though no new candidate triggered it
+    const afterPrune = s.matrix.convergenceDetectionState.pendingQuestions;
+    expect(afterPrune).toHaveLength(1, 'Should prune the 2-member subset question');
+    expect(afterPrune[0].id).toBe(q2Id);
+    expect(afterPrune[0].sourceIds).toEqual(['pq1', 'pq2', 'pq3']);
+
+    // STEP 4: Confirm the subset question was deleted outright (not answered)
+    const answered = s.matrix.convergenceDetectionState.answered || {};
+    expect(answered[q1Id]).toBeUndefined(
+      'Subset question should be pruned outright, not marked as answered'
     );
   });
 });

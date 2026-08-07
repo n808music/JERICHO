@@ -359,12 +359,28 @@ export function updateConvergenceDetectionState(state, candidates) {
     }
   });
 
+  // Prune valid questions that are subsets of OTHER valid questions.
+  // This handles the case where two pending questions from prior passes exist,
+  // one a strict subset of the other, and no new candidate detection happens
+  // this pass to trigger comparison. Without this, subset questions survive
+  // indefinitely once their superset peer exists.
+  const validQuestionsDeduped = validQuestions.filter((vq1) => {
+    const isSubsumed = validQuestions.some((vq2) => {
+      if (vq1.id === vq2.id) return false; // Skip self-comparison
+      if (vq1.targetDate !== vq2.targetDate) return false;
+      if (vq1.sourceIds.length >= vq2.sourceIds.length) return false;
+      // vq1's sourceIds must be a strict subset of vq2's
+      return vq1.sourceIds.every((id) => vq2.sourceIds.includes(id));
+    });
+    return !isSubsumed;
+  });
+
   // Prune valid questions that are subsets of newly-detected candidate clusters.
   // A question is pruned if there exists a new question with the same targetDate
   // where the old question's sourceIds are a strict subset of the new question's.
   // This prevents duplicate advisor prompts when a cluster grows (e.g., dc1+dc2
   // cluster exists, then dc3 joins to form dc1+dc2+dc3 cluster).
-  const prunedValidQuestions = validQuestions.filter((vq) => {
+  const prunedValidQuestions = validQuestionsDeduped.filter((vq) => {
     const isSubsumed = newQuestions.some((nq) => {
       if (vq.targetDate !== nq.targetDate) return false;
       if (vq.sourceIds.length >= nq.sourceIds.length) return false;
