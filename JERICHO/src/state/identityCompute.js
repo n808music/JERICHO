@@ -179,6 +179,44 @@ function computeCoreContinuity(state) {
   };
 }
 
+/**
+ * Compute FNV-1a hash of a string.
+ * Returns hex string representation of 32-bit FNV-1a hash.
+ * Non-cryptographic, deterministic, distributes well over small input variations.
+ */
+export function simpleStringHash(str) {
+  const FNV_OFFSET_BASIS = 2166136261;
+  const FNV_PRIME = 16777619;
+
+  let hash = FNV_OFFSET_BASIS;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = (hash * FNV_PRIME) >>> 0; // Ensure 32-bit unsigned
+  }
+  return hash.toString(16);
+}
+
+/**
+ * Create deterministic, content-derived question ID.
+ * Sorts sourceIds alphabetically, concatenates with targetDate, then hashes.
+ * Same cluster always produces same ID across independent detection runs.
+ */
+export function generateQuestionId(sourceIds, targetDate) {
+  const sorted = [...sourceIds].sort();
+  const key = sorted.join('||') + '||' + targetDate;
+  return simpleStringHash(key);
+}
+
+/**
+ * Recursively compute stable hash of an object.
+ * Serializes object via JSON.stringify with sorted keys, then hashes.
+ * Used in memoization guard to detect changes in registry data.
+ */
+export function stableHashObject(obj) {
+  const sortedJSON = JSON.stringify(obj, Object.keys(obj || {}).sort(), 2);
+  return simpleStringHash(sortedJSON);
+}
+
 export function applyEnterpriseIdentityAudit(next) {
   if (!next || typeof next !== 'object') return;
   const profile = next.profilesById?.[next.activeProfileId] || null;
