@@ -15842,6 +15842,16 @@ function ensureMatrixSlot(state) {
       capacityById: {},
       bindingConstraint: null,
       bootstrap: { candidates: [], selectedNodeId: null },
+      convergenceDetectionState: {
+        pendingQuestions: [],
+        answered: {},
+        lastComputedFrom: {
+          deliverablesById: null,
+          artifactsById: null,
+          dependenciesById: null,
+          convergenceEdgesById: null
+        }
+      },
     };
     return;
   }
@@ -15860,6 +15870,18 @@ function ensureMatrixSlot(state) {
   if (!state.matrix.capacityById) state.matrix.capacityById = {};
   if (!('bindingConstraint' in state.matrix)) state.matrix.bindingConstraint = null;
   if (!state.matrix.bootstrap) state.matrix.bootstrap = { candidates: [], selectedNodeId: null };
+  if (!state.matrix.convergenceDetectionState) {
+    state.matrix.convergenceDetectionState = {
+      pendingQuestions: [],
+      answered: {},
+      lastComputedFrom: {
+        deliverablesById: null,
+        artifactsById: null,
+        dependenciesById: null,
+        convergenceEdgesById: null
+      }
+    };
+  }
 }
 
 function declareVerificationSource(state, payload = {}) {
