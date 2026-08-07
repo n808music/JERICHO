@@ -67,7 +67,7 @@ describe('Freeze: Manual Scheduling Pipeline', () => {
     const ended = computeDerivedState(state, { type: 'END_CYCLE', cycleId });
     const endedCycle = ended.cyclesById[cycleId];
 
-    expect(endedCycle.convergenceReport).toBeTruthy();
-    expect(endedCycle.convergenceReport.E_end.completedUnits).toBeGreaterThanOrEqual(1);
+    expect(endedCycle.fidelityVerdictReport).toBeTruthy();
+    expect(endedCycle.fidelityVerdictReport.E_end.completedUnits).toBeGreaterThanOrEqual(1);
   });
 });

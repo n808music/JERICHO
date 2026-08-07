@@ -124,9 +124,9 @@ describe('MVP 3.0 Invariants', () => {
       const ended = computeDerivedState(withCompletion, { type: 'END_CYCLE', cycleId });
       const endedCycle = ended.cyclesById[cycleId];
 
-      expect(endedCycle?.convergenceReport).toBeTruthy();
-      expect(endedCycle.convergenceReport.verdict).toBe('CONVERGED');
-      expect(endedCycle.convergenceReport.reasons.length).toBe(0);
+      expect(endedCycle?.fidelityVerdictReport).toBeTruthy();
+      expect(endedCycle.fidelityVerdictReport.verdict).toBe('CONVERGED');
+      expect(endedCycle.fidelityVerdictReport.reasons.length).toBe(0);
     });
   });
 
@@ -205,10 +205,10 @@ describe('MVP 3.0 Invariants', () => {
       const ended = computeDerivedState(withCompletion, { type: 'END_CYCLE', cycleId });
       const endedCycle = ended.cyclesById[cycleId];
 
-      expect(endedCycle?.convergenceReport).toBeTruthy();
-      expect(endedCycle.convergenceReport.verdict).toBe('INCOMPLETE');
-      expect(endedCycle.convergenceReport.reasons.length).toBeGreaterThan(0);
-      expect(endedCycle.convergenceReport.reasons[0]).toMatch(/deficit/i);
+      expect(endedCycle?.fidelityVerdictReport).toBeTruthy();
+      expect(endedCycle.fidelityVerdictReport.verdict).toBe('INCOMPLETE');
+      expect(endedCycle.fidelityVerdictReport.reasons.length).toBeGreaterThan(0);
+      expect(endedCycle.fidelityVerdictReport.reasons[0]).toMatch(/deficit/i);
     });
   });
 
@@ -287,10 +287,10 @@ describe('MVP 3.0 Invariants', () => {
       const endedCycle = ended.cyclesById[cycleId];
 
       // Should report INCOMPLETE because unlinked activity doesn't count
-      expect(endedCycle?.convergenceReport).toBeTruthy();
-      expect(endedCycle.convergenceReport.verdict).toBe('INCOMPLETE');
-      expect(endedCycle.convergenceReport.E_end.completedUnits).toBe(0);
-      expect(endedCycle.convergenceReport.E_end.unlinkedActivityBlocks).toBe(1);
+      expect(endedCycle?.fidelityVerdictReport).toBeTruthy();
+      expect(endedCycle.fidelityVerdictReport.verdict).toBe('INCOMPLETE');
+      expect(endedCycle.fidelityVerdictReport.E_end.completedUnits).toBe(0);
+      expect(endedCycle.fidelityVerdictReport.E_end.unlinkedActivityBlocks).toBe(1);
     });
   });
 
@@ -448,11 +448,11 @@ describe('MVP 3.0 Invariants', () => {
       const ended = computeDerivedState(onboarded, { type: 'END_CYCLE', cycleId });
       const cycle = ended.cyclesById[cycleId];
 
-      expect(cycle.convergenceReport).toBeTruthy();
-      expect(cycle.convergenceReport.verdict).toBeDefined();
-      expect(['CONVERGED', 'INCOMPLETE', 'FAILED']).toContain(cycle.convergenceReport.verdict);
-      expect(cycle.convergenceReport.P_end).toBeTruthy();
-      expect(cycle.convergenceReport.E_end).toBeTruthy();
+      expect(cycle.fidelityVerdictReport).toBeTruthy();
+      expect(cycle.fidelityVerdictReport.verdict).toBeDefined();
+      expect(['CONVERGED', 'INCOMPLETE', 'FAILED']).toContain(cycle.fidelityVerdictReport.verdict);
+      expect(cycle.fidelityVerdictReport.P_end).toBeTruthy();
+      expect(cycle.fidelityVerdictReport.E_end).toBeTruthy();
     });
   });
 });

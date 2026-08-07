@@ -161,11 +161,11 @@ describe('MVP 3.0 End-to-End Smoke Test', () => {
     const endedCycle = ended.cyclesById[cycleId];
 
     // Verify convergence was computed
-    expect(endedCycle.convergenceReport).toBeTruthy();
-    expect(endedCycle.convergenceReport.verdict).toBe('CONVERGED');
-    expect(endedCycle.convergenceReport.P_end.deliverables.length).toBe(2);
-    expect(endedCycle.convergenceReport.E_end.completedUnits).toBe(5);
-    expect(endedCycle.convergenceReport.reasons.length).toBe(0); // No deficits
+    expect(endedCycle.fidelityVerdictReport).toBeTruthy();
+    expect(endedCycle.fidelityVerdictReport.verdict).toBe('CONVERGED');
+    expect(endedCycle.fidelityVerdictReport.P_end.deliverables.length).toBe(2);
+    expect(endedCycle.fidelityVerdictReport.E_end.completedUnits).toBe(5);
+    expect(endedCycle.fidelityVerdictReport.reasons.length).toBe(0); // No deficits
 
     // Step 6: Verify learning only counts this cycle
     const learning = ended.profileLearning || {};
@@ -189,7 +189,7 @@ describe('MVP 3.0 End-to-End Smoke Test', () => {
     const cycle2 = ended2.cyclesById[cycle2Id];
 
     // This cycle should be INCOMPLETE (no deliverables completed)
-    expect(cycle2.convergenceReport.verdict).toBe('INCOMPLETE');
+    expect(cycle2.fidelityVerdictReport.verdict).toBe('INCOMPLETE');
 
     // Learning should still only count cycle 1 (because cycle 2 is INCOMPLETE)
     const learning2 = ended2.profileLearning || {};

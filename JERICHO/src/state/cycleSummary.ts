@@ -16,6 +16,6 @@ export function summarizeCycle(cycle: any): CycleSummary {
   return {
     completionCount,
     completionRate,
-    convergenceReport: cycle?.convergenceReport,
+    fidelityVerdictReport: cycle?.fidelityVerdictReport,
   };
 }

@@ -229,9 +229,9 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
       const cycle = ended.cyclesById[cycleId];
 
       // Verify: unlinked activity counted separately
-      expect(cycle.convergenceReport.E_end.completedUnits).toBe(0); // Unlinked doesn't count
-      expect(cycle.convergenceReport.E_end.unlinkedActivityBlocks).toBe(1); // But tracked
-      expect(cycle.convergenceReport.verdict).toBe('INCOMPLETE'); // Goal not met
+      expect(cycle.fidelityVerdictReport.E_end.completedUnits).toBe(0); // Unlinked doesn't count
+      expect(cycle.fidelityVerdictReport.E_end.unlinkedActivityBlocks).toBe(1); // But tracked
+      expect(cycle.fidelityVerdictReport.verdict).toBe('INCOMPLETE'); // Goal not met
     });
   });
 
@@ -310,8 +310,8 @@ describe('MVP 3.0 Linkage Integrity (Model B: Soft Allow + Hard Truth)', () => {
       const cycle = ended.cyclesById[cycleId];
 
       // Verify: linked activity counts toward convergence
-      expect(cycle.convergenceReport.E_end.completedUnits).toBe(1);
-      expect(cycle.convergenceReport.verdict).toBe('CONVERGED');
+      expect(cycle.fidelityVerdictReport.E_end.completedUnits).toBe(1);
+      expect(cycle.fidelityVerdictReport.verdict).toBe('CONVERGED');
     });
   });
 });

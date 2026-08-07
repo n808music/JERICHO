@@ -1,12 +1,14 @@
 /**
- * Terminal Convergence Types & Schemas
+ * Terminal Fidelity Verdict Types & Schemas
  *
- * Defines the structures for computing end-of-cycle convergence:
+ * Defines the structures for computing end-of-cycle fidelity (Plan vs Execution alignment):
  * - P_end: planned terminal state (from cold plan + deliverables)
  * - E_end: executed terminal state (from linked execution events)
  * - Verdict: CONVERGED | INCOMPLETE | FAILED
  *
  * All computations are deterministic given frozen nowISO and timezone.
+ * NOTE: This is "Fidelity Verdict" — end-of-cycle Plan↔Execution convergence,
+ * distinct from "Convergence" which refers to multiple lanes sharing a deadline.
  */
 
 /**
@@ -65,20 +67,20 @@
  */
 
 /**
- * Convergence verdict: summary of success/failure.
- * @typedef {'CONVERGED' | 'INCOMPLETE' | 'FAILED'} ConvergenceVerdict
+ * Fidelity Verdict: summary of Plan↔Execution alignment (success/failure).
+ * @typedef {'CONVERGED' | 'INCOMPLETE' | 'FAILED'} FidelityVerdict
  */
 
 /**
- * Full convergence report: grounds for learning update decision.
+ * Full Fidelity Verdict Report: grounds for learning update decision.
  * @typedef {{
- *   verdict: ConvergenceVerdict;
+ *   verdict: FidelityVerdict;
  *   reasons: string[];
  *   P_end: ColdPlanTerminalState;
  *   E_end: ExecutionTerminalState;
  *   tolerance: number;
  *   computedAtISO: string;
- * }} ConvergenceReport
+ * }} FidelityVerdictReport
  */
 
 /**
@@ -178,15 +180,15 @@ export function deriveExecutionTerminalState(executionEvents = [], deadlineDayKe
 }
 
 /**
- * Compute convergence verdict by comparing P_end vs E_end.
+ * Compute Fidelity Verdict by comparing P_end vs E_end.
  * Default tolerance is strict (0 deficit).
  *
  * @param {ColdPlanTerminalState} P_end
  * @param {ExecutionTerminalState} E_end
  * @param {number} tolerance
- * @returns {{verdict: ConvergenceVerdict, reasons: string[]}}
+ * @returns {{verdict: FidelityVerdict, reasons: string[]}}
  */
-export function computeConvergenceVerdict(P_end = {}, E_end = {}, tolerance = 0) {
+export function computeFidelityVerdict(P_end = {}, E_end = {}, tolerance = 0) {
   const reasons = [];
   const allDeliverablesMet = (P_end.deliverables || []).every((pReq) => {
     const eExec = (E_end.deliverables || []).find((e) => e.deliverableId === pReq.deliverableId);
@@ -218,11 +220,11 @@ export function computeConvergenceVerdict(P_end = {}, E_end = {}, tolerance = 0)
 }
 
 /**
- * Full convergence report builder.
+ * Full Fidelity Verdict Report builder.
  * @param {{cycle, planProof, events, nowISO, timezone, deliverables}} input
- * @returns {ConvergenceReport}
+ * @returns {FidelityVerdictReport}
  */
-export function buildConvergenceReport({
+export function buildFidelityVerdictReport({
   cycle = {},
   planProof = null,
   events = [],
@@ -232,7 +234,7 @@ export function buildConvergenceReport({
 }) {
   const P_end = derivePlanTerminalState(cycle, planProof, deliverables);
   const E_end = deriveExecutionTerminalState(events, cycle?.definiteGoal?.deadlineDayKey || '', deliverables);
-  const { verdict, reasons } = computeConvergenceVerdict(P_end, E_end, 0);
+  const { verdict, reasons } = computeFidelityVerdict(P_end, E_end, 0);
 
   return {
     verdict,
@@ -245,7 +247,7 @@ export function buildConvergenceReport({
 }
 
 /**
- * Main entry point for computing terminal convergence at cycle end.
+ * Main entry point for computing terminal Fidelity Verdict at cycle end.
  * Pure function: deterministic given same inputs + frozen nowISO.
  *
  * @param {{
@@ -255,9 +257,9 @@ export function buildConvergenceReport({
  *   nowISO?: string;
  *   timezone?: string;
  * }} input
- * @returns {ConvergenceReport}
+ * @returns {FidelityVerdictReport}
  */
-export function computeTerminalConvergence({
+export function computeTerminalFidelityVerdict({
   cycle = {},
   planProof = null,
   events = [],
@@ -274,7 +276,7 @@ export function computeTerminalConvergence({
     criteria: d.criteria || [],
   }));
 
-  // If no deliverables, cannot converge (goal was not formally structured)
+  // If no deliverables, goal was not formally structured
   if (!deliverables.length) {
     return {
       verdict: 'INCOMPLETE',
@@ -287,7 +289,7 @@ export function computeTerminalConvergence({
   }
 
   // Build full report
-  return buildConvergenceReport({
+  return buildFidelityVerdictReport({
     cycle,
     planProof,
     events,

@@ -35,12 +35,27 @@ export const INITIATIVE_OWNER_ENTITY_LESS = '__entity_less__';
 
 export const INITIATIVE_CLASSIFICATIONS = ['objective', 'constraint'] as const;
 
+// Initiative role-tags: system (ongoing) or project (bounded). Multi-select;
+// initiatives can be both (e.g., Jericho ships as a product AND becomes an
+// operational system). Determines which Purpose question variant fires.
+export const INITIATIVE_ROLE_TAGS = ['system', 'project'] as const;
+
 export const INITIATIVE_SLOT = {
   slotId: INITIATIVE_SLOT_ID,
   section: 3,
   matrixBinding: {
     action: 'DECLARE_INITIATIVE',
-    fields: ['name', 'owningEntityId', 'purpose', 'classification', 'doneWhen'],
+    fields: [
+      'name',
+      'owningEntityId',
+      'roleTags',
+      'purpose',
+      'purposeFor',
+      'purposeCompletion',
+      'purposeOngoing',
+      'classification',
+      'doneWhen',
+    ],
   },
   dependsOn: [],
   gate: [
@@ -71,7 +86,38 @@ export const INITIATIVE_SLOT = {
         (Array.isArray(captured.owningEntityId) && captured.owningEntityId.length === 0),
       pickSet: 'initiativeOwnerOptions',
     },
-    // ── purpose ─────────────────────────────────────────────────────────
+    // ── roleTags: multi-select system | project (or both) ─────────────────
+    // Multi-select (array): at least one must be chosen. Determines which
+    // Purpose question variant fires (system produces ongoing output; project
+    // accomplishes a completion goal).
+    {
+      code: 'INITIATIVE_ROLETAGS_MISSING',
+      fieldName: 'roleTags',
+      detect: (captured) =>
+        !captured?.roleTags ||
+        (Array.isArray(captured.roleTags) && captured.roleTags.length === 0),
+      pickSet: 'initiativeRoleTagOptions',
+    },
+    {
+      code: 'INITIATIVE_ROLETAGS_INVALID',
+      fieldName: 'roleTags',
+      detect: (captured) =>
+        Boolean(captured?.roleTags) &&
+        Array.isArray(captured.roleTags) &&
+        !captured.roleTags.every((tag) =>
+          (INITIATIVE_ROLE_TAGS as readonly string[]).includes(
+            String(tag).trim().toLowerCase(),
+          ),
+        ),
+      pickSet: 'initiativeRoleTagOptions',
+    },
+    // ── purpose: split into three conditional probes ─────────────────────
+    // All initiatives answer: "What does it do?" (INITIATIVE_PURPOSE_MISSING)
+    // and "What is it for?" (INITIATIVE_PURPOSE_FOR_MISSING).
+    // Additional probes depend on roleTags:
+    //   - "project" in roleTags → INITIATIVE_PURPOSE_COMPLETION_MISSING
+    //   - "system" in roleTags → INITIATIVE_PURPOSE_ONGOING_MISSING
+    // Both may fire if initiative is dual-tagged (non-redundant answers).
     {
       code: 'INITIATIVE_PURPOSE_MISSING',
       fieldName: 'purpose',
@@ -82,6 +128,76 @@ export const INITIATIVE_SLOT = {
       fieldName: 'purpose',
       detect: (captured) =>
         Boolean(captured?.purpose) && !hasAuthoredSubstance(String(captured.purpose)),
+    },
+    // "What is it for?" — orthogonal to mechanism, asked of all initiatives
+    {
+      code: 'INITIATIVE_PURPOSE_FOR_MISSING',
+      fieldName: 'purposeFor',
+      detect: (captured) => !captured?.purposeFor,
+    },
+    {
+      code: 'INITIATIVE_PURPOSE_FOR_NOT_SUBSTANTIVE',
+      fieldName: 'purposeFor',
+      detect: (captured) =>
+        Boolean(captured?.purposeFor) && !hasAuthoredSubstance(String(captured.purposeFor)),
+    },
+    // Conditional: "What does completing it accomplish?" (project-type initiatives)
+    {
+      code: 'INITIATIVE_PURPOSE_COMPLETION_MISSING',
+      fieldName: 'purposeCompletion',
+      detect: (captured) => {
+        const roleTags = captured?.roleTags || [];
+        const isProject = Array.isArray(roleTags) && roleTags.some((t) =>
+          String(t).trim().toLowerCase() === 'project',
+        );
+        // Only fail this gate if the initiative is project-type and purposeCompletion is missing
+        return isProject && !captured?.purposeCompletion;
+      },
+    },
+    {
+      code: 'INITIATIVE_PURPOSE_COMPLETION_NOT_SUBSTANTIVE',
+      fieldName: 'purposeCompletion',
+      detect: (captured) => {
+        const roleTags = captured?.roleTags || [];
+        const isProject = Array.isArray(roleTags) && roleTags.some((t) =>
+          String(t).trim().toLowerCase() === 'project',
+        );
+        // Only fail if project-type and purposeCompletion exists but is not substantive
+        return (
+          isProject &&
+          Boolean(captured?.purposeCompletion) &&
+          !hasAuthoredSubstance(String(captured.purposeCompletion))
+        );
+      },
+    },
+    // Conditional: "What does this produce while running?" (system-type initiatives)
+    {
+      code: 'INITIATIVE_PURPOSE_ONGOING_MISSING',
+      fieldName: 'purposeOngoing',
+      detect: (captured) => {
+        const roleTags = captured?.roleTags || [];
+        const isSystem = Array.isArray(roleTags) && roleTags.some((t) =>
+          String(t).trim().toLowerCase() === 'system',
+        );
+        // Only fail this gate if the initiative is system-type and purposeOngoing is missing
+        return isSystem && !captured?.purposeOngoing;
+      },
+    },
+    {
+      code: 'INITIATIVE_PURPOSE_ONGOING_NOT_SUBSTANTIVE',
+      fieldName: 'purposeOngoing',
+      detect: (captured) => {
+        const roleTags = captured?.roleTags || [];
+        const isSystem = Array.isArray(roleTags) && roleTags.some((t) =>
+          String(t).trim().toLowerCase() === 'system',
+        );
+        // Only fail if system-type and purposeOngoing exists but is not substantive
+        return (
+          isSystem &&
+          Boolean(captured?.purposeOngoing) &&
+          !hasAuthoredSubstance(String(captured.purposeOngoing))
+        );
+      },
     },
     // ── classification: objective | constraint (goal-relative ask) ──────
     {
@@ -141,6 +257,11 @@ export function buildInitiativeDeclarePayload(captured) {
   const owningEntityIds = rawOwners.filter(
     (id) => id && id !== INITIATIVE_OWNER_ENTITY_LESS,
   );
+  // Role-tags normalization: array input, normalized to lowercase.
+  const roleTags = Array.isArray(captured.roleTags)
+    ? captured.roleTags.map((tag) => String(tag).trim().toLowerCase())
+    : [];
+
   return {
     id: `initiative-${idSlug}`,
     name: captured.name,
@@ -148,7 +269,11 @@ export function buildInitiativeDeclarePayload(captured) {
     owningEntityId: owningEntityIds[0] || null,
     owningEntityIds,
     crossCutting,
+    roleTags,
     purpose: captured.purpose,
+    purposeFor: captured.purposeFor || null,
+    purposeCompletion: captured.purposeCompletion || null,
+    purposeOngoing: captured.purposeOngoing || null,
     classification: String(captured.classification).trim().toLowerCase(),
     doneWhen: captured.doneWhen,
   };

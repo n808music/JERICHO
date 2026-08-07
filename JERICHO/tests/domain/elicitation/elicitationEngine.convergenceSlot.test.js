@@ -323,6 +323,7 @@ describe('Convergence slot: loops are legal (inverse of dependency cycle guard)'
       fromNodeId: 'art-album',
       toNodeId: 'art-revenue',
       gives: 'creates audience that drives revenue',
+      name: 'Album-Revenue Convergence',
     });
     expect(state.matrix.convergenceEdgesById['conv-album-to-revenue']).toBeDefined();
     expect(state.lastPlanError).toBeFalsy();
@@ -333,6 +334,7 @@ describe('Convergence slot: loops are legal (inverse of dependency cycle guard)'
       fromNodeId: 'art-revenue',
       toNodeId: 'art-album',
       gives: 'funds the next release',
+      name: 'Revenue-Album Convergence',
     });
     expect(state.matrix.convergenceEdgesById['conv-revenue-to-album']).toBeDefined();
     expect(state.lastPlanError).toBeFalsy();
@@ -349,18 +351,21 @@ describe('Convergence slot: loops are legal (inverse of dependency cycle guard)'
       fromNodeId: 'art-album',
       toNodeId: 'art-podcast',
       gives: 'creates awareness',
+      name: 'Album-Podcast Convergence',
     });
     state = declareConvergence(state, {
       id: 'c2',
       fromNodeId: 'art-podcast',
       toNodeId: 'art-app',
       gives: 'deepens trust',
+      name: 'Podcast-App Convergence',
     });
     state = declareConvergence(state, {
       id: 'c3',
       fromNodeId: 'art-app',
       toNodeId: 'art-album',
       gives: 'drives revenue that funds the album',
+      name: 'App-Album Convergence',
     });
 
     expect(Object.keys(state.matrix.convergenceEdgesById)).toHaveLength(3);
@@ -377,12 +382,14 @@ describe('Convergence slot: loops are legal (inverse of dependency cycle guard)'
       fromNodeId: 'art-film',
       toNodeId: 'art-product',
       gives: 'product placement in the film',
+      name: 'Film-Product Convergence',
     });
     state = declareConvergence(state, {
       id: 'c-product-to-film',
       fromNodeId: 'art-product',
       toNodeId: 'art-film',
       gives: 'funds the film production',
+      name: 'Product-Film Convergence',
     });
 
     expect(state.matrix.convergenceEdgesById['c-film-to-product']).toBeDefined();
@@ -401,6 +408,7 @@ describe('Convergence slot: loops are legal (inverse of dependency cycle guard)'
       fromNodeId: 'art-a',
       toNodeId: 'art-b',
       gives: 'creates awareness for art-b',
+      name: 'A-B Convergence',
     });
 
     // Now run engine to declare B→A — no cycle gate should fire
@@ -435,6 +443,7 @@ describe('Convergence slot: broken edge is first-class', () => {
       toNodeId: 'art-email-list',
       gives: 'captured contacts from live audience',
       broken: true,
+      name: 'Broken Convergence',
     });
 
     const edge = state.matrix.convergenceEdgesById['c-broken'];
@@ -470,6 +479,7 @@ describe('Convergence slot: broken edge is first-class', () => {
       fromNodeId: 'art-x',
       toNodeId: 'art-y',
       gives: 'funds the next release',
+      name: 'Normal Convergence',
     });
 
     expect(state.matrix.convergenceEdgesById['c-normal']?.broken).toBe(false);
@@ -542,6 +552,7 @@ describe('DECLARE_CONVERGENCE reducer', () => {
       fromNodeId: 'art-album',
       toNodeId: 'art-podcast',
       gives: 'creates awareness for the podcast',
+      name: 'Album-Podcast Convergence', // Step 3: name required
     });
 
     const edge = state.matrix.convergenceEdgesById['c-test'];
@@ -563,6 +574,7 @@ describe('DECLARE_CONVERGENCE reducer', () => {
       fromNodeId: 'art-album',
       toNodeId: 'ent-1',
       gives: 'funds the entity operations',
+      name: 'Album-Entity Convergence', // Step 3: name required
     });
 
     expect(state.matrix.convergenceEdgesById['c-entity-endpoint']).toBeDefined();
@@ -579,6 +591,7 @@ describe('DECLARE_CONVERGENCE reducer', () => {
       fromNodeId: 'art-album',
       toNodeId: 'sys-jericho',
       gives: 'validates the system with real revenue',
+      name: 'Album-System Convergence', // Step 3: name required
     });
 
     expect(state.matrix.convergenceEdgesById['c-system-endpoint']).toBeDefined();
@@ -594,10 +607,11 @@ describe('DECLARE_CONVERGENCE reducer', () => {
       fromNodeId: 'ghost-node',
       toNodeId: 'art-b',
       gives: 'funds the release',
+      name: 'Test Convergence', // Step 3: name required
     });
 
     expect(state.matrix.convergenceEdgesById['c-bad']).toBeUndefined();
-    expect(state.lastPlanError?.code).toBe('CONVERGENCE_FROM_UNKNOWN');
+    expect(state.lastPlanError?.code).toBe('CONVERGENCE_SOURCE_UNKNOWN'); // Step 3: renamed from FROM_UNKNOWN to SOURCE_UNKNOWN
   });
 
   it('rejects unknown toNodeId', () => {
@@ -609,6 +623,7 @@ describe('DECLARE_CONVERGENCE reducer', () => {
       fromNodeId: 'art-a',
       toNodeId: 'ghost-node',
       gives: 'funds the release',
+      name: 'Test Convergence', // Step 3: name required
     });
 
     expect(state.matrix.convergenceEdgesById['c-bad']).toBeUndefined();
@@ -624,10 +639,11 @@ describe('DECLARE_CONVERGENCE reducer', () => {
       fromNodeId: 'art-a',
       toNodeId: 'art-a',
       gives: 'funds itself',
+      name: 'Test Convergence', // Step 3: name required
     });
 
     expect(state.matrix.convergenceEdgesById['c-self']).toBeUndefined();
-    expect(state.lastPlanError?.code).toBe('CONVERGENCE_SELF_EDGE');
+    expect(state.lastPlanError?.code).toBe('CONVERGENCE_SOURCES_EXCLUDE_DEST'); // Step 3: renamed from SELF_EDGE to SOURCES_EXCLUDE_DEST
   });
 
   it('rejects edge with missing gives', () => {

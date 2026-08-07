@@ -98,6 +98,22 @@ export const ENTITY_REPROBES = {
       generic: "e.g. 'LLC filed, 1 client signed', not 'going well so far'",
     },
   },
+  // ── formationState-specific: named-only confirmation (replaces evidence question) ──
+  // When an entity is in named-only state (a name exists, nothing built), the state
+  // itself is self-proving. We replace the open-ended evidence question with a simple
+  // yes/no confirmation of this fact, using the entity's already-known name.
+  ENTITY_NAMEDONLY_CONFIRMATION_MISSING: {
+    spine:
+      "Confirming: only the name 'this entity' currently exists right now, with nothing built yet — correct?",
+    pickSet: 'yesNoOptions',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
+  ENTITY_NAMEDONLY_CONFIRMATION_REJECTED: {
+    spine:
+      "If 'this entity' is more than a name, pick the formation state that matches its real status: conceptual (designed), in-development (actively being built), or functioning (operating).",
+    pickSet: 'formationStateOptions',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
   // ── legal status: independent boolean ──────────────────────────────────
   ENTITY_LEGAL_STATUS_MISSING: {
     spine: 'Is this entity formally registered? (LLC, corporation, other legal entity)',

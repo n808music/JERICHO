@@ -173,7 +173,7 @@ describe('Certification runner (artifacts)', () => {
 
     const planProofPayload = {
       planProof,
-      P_end: cycle?.convergenceReport?.P_end || null,
+      P_end: cycle?.fidelityVerdictReport?.P_end || null,
     };
 
     await writeArtifact('planProof.json', planProofPayload);

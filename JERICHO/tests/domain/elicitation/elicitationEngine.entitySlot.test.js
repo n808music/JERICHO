@@ -39,12 +39,14 @@ function runEntityScript(script, opts = {}) {
 }
 
 // Real F8 Energy Co. entity from Operation Endgame canonical matrix.
+// Note: when formationState is 'named-only', the system asks for confirmation
+// (namedOnlyConfirmed) instead of evidence, since the state itself is self-proving.
 const F8_SCRIPT = [
   { name: 'F8 Energy Co.' },
   { roleTags: ['business', 'system'] },
   { purpose: 'Energy and focus supplement company, a healthier alternative to energy drinks' },
   { formationState: 'named-only' },
-  { statusEvidence: 'Brand name only, formula and product not yet developed' },
+  { namedOnlyConfirmed: true },
   { legallyFormed: false },
 ];
 
@@ -64,14 +66,15 @@ describe('Elicitation Engine — Entity slot: gate ladder', () => {
     expect(first.probe.code).toBe('ENTITY_NAME_MISSING');
   });
 
-  it('drives the full gate sequence name→roleTags→purpose→formationState→statusEvidence→legallyFormed', () => {
+  it('drives the full gate sequence name→roleTags→purpose→formationState→[namedOnlyConfirmed or statusEvidence]→legallyFormed', () => {
     const { probes } = runEntityScript(F8_SCRIPT);
+    // For named-only entities, asks for confirmation (namedOnlyConfirmed) instead of evidence
     expect(probes.map((p) => p.fieldName)).toEqual([
       'name',
       'roleTags',
       'purpose',
       'formationState',
-      'statusEvidence',
+      'namedOnlyConfirmed',  // ← conditional on formationState being 'named-only'
       'legallyFormed',
     ]);
   });
@@ -172,7 +175,7 @@ describe('Elicitation Engine — Entity slot: optional doneWhen', () => {
       { roleTags: ['business', 'system'] },
       { purpose: 'Energy and focus supplement company, a healthier alternative to energy drinks' },
       { formationState: 'named-only' },
-      { statusEvidence: 'Brand name only, formula and product not yet developed' },
+      { namedOnlyConfirmed: true },  // ← changed from statusEvidence for named-only
       { legallyFormed: false,
         doneWhen: 'Gum manufactured, on shelves, generating recurring revenue' },
     ];
@@ -196,7 +199,7 @@ describe('Elicitation Engine — Entity slot: optional doneWhen', () => {
       { roleTags: ['business'] },
       { purpose: 'Energy and focus supplement company, a healthier alternative to energy drinks' },
       { formationState: 'named-only' },
-      { statusEvidence: 'Brand name only, formula and product not yet developed' },
+      { namedOnlyConfirmed: true },  // ← changed from statusEvidence for named-only
       // "Marked complete" is an attestation breach — isExternallyVerifiable rejects it
       { legallyFormed: false,
         doneWhen: 'Marked complete' },
@@ -224,7 +227,8 @@ describe('Elicitation Engine — Entity slot: DECLARE_ENTITY dispatch', () => {
         roleTags: ['business', 'system'],
         purpose: 'Energy and focus supplement company, a healthier alternative to energy drinks',
         formationState: 'named-only',
-        statusEvidence: 'Brand name only, formula and product not yet developed',
+        statusEvidence: null,  // named-only entities don't require evidence
+        namedOnlyConfirmed: true,
       }),
     );
   });
@@ -239,7 +243,9 @@ describe('Elicitation Engine — Entity slot: DECLARE_ENTITY dispatch', () => {
         roleTags: ['business', 'system'],
         purpose: 'Energy and focus supplement company, a healthier alternative to energy drinks',
         formationState: 'named-only',
-        statusEvidence: 'Brand name only, formula and product not yet developed',
+        statusEvidence: null,  // named-only entities don't require evidence
+        namedOnlyConfirmed: true,
+        legallyFormed: false,
       }),
     );
     // Declared via elicitation — not via canonical seed

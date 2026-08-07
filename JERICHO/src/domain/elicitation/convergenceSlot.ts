@@ -24,11 +24,12 @@ function normalizeSourceIds(value: unknown): string[] {
 export const CONVERGENCE_SLOT = {
   slotId: CONVERGENCE_SLOT_ID,
   section: 8,
-  // Destination-first (2026-07-10): a convergence has no name of its own, so
-  // asking for the sources first produced a subject-less question ("where
+  // Destination-first (2026-07-10): prior versions had no name field, so
+  // asking for sources first produced a subject-less question ("where
   // does THIS flow start?" — this what?). The destination is captured first
   // and becomes the subject every later question binds to ("What feeds
-  // Marketing flywheel?").
+  // Marketing flywheel?"). Step 3 (2026-08-06) adds required 'name' field,
+  // operator-chosen and editable, allowing full specification of the convergence.
   gate: [
     {
       code: 'CONVERGENCE_TO_MISSING',

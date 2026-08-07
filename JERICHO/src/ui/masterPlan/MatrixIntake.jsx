@@ -94,6 +94,7 @@ const BLOCKER_CODES = new Set(['BINDING_COVERAGE_INCOMPLETE']);
 const MULTI_SELECT_KINDS = new Set([
   'roleTagOptions',
   'initiativeOwnerOptions',
+  'initiativeRoleTagOptions',
   'convergenceSourceOptions',
 ]);
 

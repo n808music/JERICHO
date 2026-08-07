@@ -38,6 +38,7 @@ import {
   buildInitiativeDeclarePayload,
   INITIATIVE_OWNER_ENTITY_LESS,
   INITIATIVE_CLASSIFICATIONS,
+  INITIATIVE_ROLE_TAGS,
 } from './initiativeSlot';
 import {
   SYSTEM_SLOT,
@@ -200,6 +201,16 @@ function buildPickSet(kind, matrixSnapshot) {
     return {
       kind,
       items: [...INITIATIVE_CLASSIFICATIONS].map((v) => ({ id: v, label: LABELS[v] })),
+    };
+  }
+  if (kind === 'initiativeRoleTagOptions') {
+    const LABELS = {
+      system: 'system — ongoing, continuous operation',
+      project: 'project — bounded, has a completion',
+    };
+    return {
+      kind,
+      items: [...INITIATIVE_ROLE_TAGS].map((v) => ({ id: v, label: LABELS[v] || v })),
     };
   }
   if (kind === 'systemOwnerOptions') {

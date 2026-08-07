@@ -1996,6 +1996,11 @@ export function IdentityProvider({ children, initialState }) {
 
   const matrixDispatch = useCallback((action) => dispatch(action), []);
 
+  const respondConvergenceDetectionQuestion = useCallback(
+    (payload) => dispatch({ type: 'RESPOND_CONVERGENCE_DETECTION_QUESTION', payload }),
+    []
+  );
+
   // Explicit, user-triggered durable save to the backend. Returns the push result
   // ({ ok, status? } / { ok:false, error }) so the UI can show a visible status.
   const saveProgress = useCallback(
@@ -2117,6 +2122,7 @@ export function IdentityProvider({ children, initialState }) {
     setIntakeSession,
     clearIntakeSession,
     matrixDispatch,
+    respondConvergenceDetectionQuestion,
     saveProgress,
     archiveAndCloneCycle,
     ...coreMissionContractActions,

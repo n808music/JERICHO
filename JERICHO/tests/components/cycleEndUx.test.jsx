@@ -57,7 +57,7 @@ function buildEndedCycleState({ includeSummary = true } = {}) {
           dailyProjection: { forecastByDayKey: {} },
         },
         summary: includeSummary ? { completionCount: 5, completionRate: 0.85 } : undefined,
-        convergenceReport: includeSummary
+        fidelityVerdictReport: includeSummary
           ? { verdict: 'CONVERGED', updatedAtISO: '2026-01-31T15:00:00.000Z' }
           : undefined,
         executionEvents: [],
@@ -84,7 +84,7 @@ function buildEndedCycleState({ includeSummary = true } = {}) {
 
   if (!includeSummary) {
     delete base.cyclesById[cycleId].summary;
-    delete base.cyclesById[cycleId].convergenceReport;
+    delete base.cyclesById[cycleId].fidelityVerdictReport;
   }
 
   return base;

@@ -72,22 +72,28 @@ function buildMixedEntityState() {
   return state;
 }
 
-// Real Operation Endgame initiative: OFL release spine (owned)
+// Real Operation Endgame initiative: OFL release spine (owned, project-type)
 const OFL_SCRIPT = (owningEntityId) => [
   { name: 'OFL release spine' },
   { owningEntityId },
-  { purpose: '7 tapes released building audience to the terminal album and industry positioning' },
+  { roleTags: ['project'] },
+  { purpose: 'Consolidate the catalog into one release arc' },
+  { purposeFor: 'Grow the audience from loyal listeners to industry credibility' },
+  { purposeCompletion: '7 tapes released with 100k+ streams per episode' },
   { classification: 'objective' },
-  { doneWhen: '7 tapes produced and released under the OFL catalog' },
+  { doneWhen: 'All 7 tapes live on Spotify for Artists' },
 ];
 
-// Real Operation Endgame initiative: business funding (entity-less, constraint)
+// Real Operation Endgame initiative: business funding (entity-less, constraint, project-type)
 const FUNDING_SCRIPT = [
   { name: 'business funding' },
   { owningEntityId: INITIATIVE_OWNER_ENTITY_LESS },
-  { purpose: 'Secure the capital needed to activate the capital-heavy lanes of the plan' },
+  { roleTags: ['project'] },
+  { purpose: 'Secure the capital needed for the enterprise' },
+  { purposeFor: 'Activate the capital-heavy lanes of the plan' },
+  { purposeCompletion: '$500k in the bank' },
   { classification: 'constraint' },
-  { doneWhen: 'Funding closed and available in the bank account' },
+  { doneWhen: 'Funding closed with $500k in the bank account' },
 ];
 
 // ── 1. Gate ladder ────────────────────────────────────────────────────────────
@@ -106,7 +112,7 @@ describe('Elicitation Engine — Initiative slot: gate ladder', () => {
     expect(first.probe.code).toBe('INITIATIVE_NAME_MISSING');
   });
 
-  it('drives the full gate sequence name→owner→purpose→classification→doneWhen', () => {
+  it('drives the full gate sequence for project-type: name→owner→roleTags→purpose→purposeFor→purposeCompletion→classification→doneWhen', () => {
     const state = buildMixedEntityState();
     const { probes } = runInitiativeScript(
       OFL_SCRIPT('ent-gs-corp'),
@@ -115,7 +121,10 @@ describe('Elicitation Engine — Initiative slot: gate ladder', () => {
     expect(probes.map((p) => p.fieldName)).toEqual([
       'name',
       'owningEntityId',
+      'roleTags',
       'purpose',
+      'purposeFor',
+      'purposeCompletion',
       'classification',
       'doneWhen',
     ]);
@@ -200,9 +209,9 @@ describe('Elicitation Engine — Initiative slot: owner options (unfiltered, 202
     // the gate passes and must not fire again — only one occurrence in the sequence.
     const ownerProbes = probes.filter((p) => p.code === 'INITIATIVE_OWNER_UNRESOLVED');
     expect(ownerProbes).toHaveLength(1);
-    // And the probe that follows owner is purpose — not another owner probe
+    // And the probe that follows owner is roleTags — not another owner probe
     const ownerIdx = probes.findIndex((p) => p.code === 'INITIATIVE_OWNER_UNRESOLVED');
-    expect(probes[ownerIdx + 1]?.fieldName).toBe('purpose');
+    expect(probes[ownerIdx + 1]?.fieldName).toBe('roleTags');
   });
 });
 
@@ -220,7 +229,10 @@ describe('Elicitation Engine — Initiative slot: classificationOptions pickSet'
     for (const answer of [
       { name: 'the seed round' },
       { owningEntityId: INITIATIVE_OWNER_ENTITY_LESS },
-      { purpose: 'Prove the product with 100 paying users before the runway ends' },
+      { roleTags: ['project'] },
+      { purpose: 'Prove the product exists' },
+      { purposeFor: 'Establish product-market fit' },
+      { purposeCompletion: '100 paying users before runway ends' },
     ]) {
       const r = engine.consumeAnswer(answer);
       engine = r.engine.refreshMatrix(state.matrix);
@@ -249,7 +261,10 @@ describe('Elicitation Engine — Initiative slot: mandatory doneWhen', () => {
     const answers = [
       { name: 'the seed round' },
       { owningEntityId: INITIATIVE_OWNER_ENTITY_LESS },
-      { purpose: 'Prove the product with 100 paying users before the runway ends' },
+      { roleTags: ['project'] },
+      { purpose: 'Close seed funding' },
+      { purposeFor: 'Fund product development' },
+      { purposeCompletion: '100 paying users before the runway ends' },
       { classification: 'objective' },
       // doneWhen intentionally omitted — empty string is absent
       { doneWhen: '' },
@@ -274,7 +289,10 @@ describe('Elicitation Engine — Initiative slot: mandatory doneWhen', () => {
     const answers = [
       { name: 'the seed round' },
       { owningEntityId: INITIATIVE_OWNER_ENTITY_LESS },
-      { purpose: 'Prove the product with 100 paying users before the runway ends' },
+      { roleTags: ['project'] },
+      { purpose: 'Close seed funding' },
+      { purposeFor: 'Fund product development' },
+      { purposeCompletion: '100 paying users before runway ends' },
       { classification: 'objective' },
       { doneWhen: 'Marked complete by the team' },
     ];
@@ -320,9 +338,12 @@ describe('Elicitation Engine — Initiative slot: DECLARE_INITIATIVE dispatch', 
       expect.objectContaining({
         name: 'business funding',
         owningEntityId: null,
-        purpose: 'Secure the capital needed to activate the capital-heavy lanes of the plan',
+        roleTags: ['project'],
+        purpose: 'Secure the capital needed for the enterprise',
+        purposeFor: 'Activate the capital-heavy lanes of the plan',
+        purposeCompletion: '$500k in the bank',
         classification: 'constraint',
-        doneWhen: 'Funding closed and available in the bank account',
+        doneWhen: 'Funding closed with $500k in the bank account',
         source: 'operator_declared',
       })
     );

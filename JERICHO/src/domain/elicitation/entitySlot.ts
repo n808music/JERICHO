@@ -27,7 +27,7 @@ export const ENTITY_SLOT = {
   section: 2,
   matrixBinding: {
     action: 'DECLARE_ENTITY',
-    fields: ['name', 'roleTags', 'purpose', 'formationState', 'statusEvidence', 'legallyFormed', 'doneWhen'],
+    fields: ['name', 'roleTags', 'purpose', 'formationState', 'statusEvidence', 'legallyFormed', 'namedOnlyConfirmed', 'doneWhen'],
   },
   dependsOn: [],
   // First-failure-wins gate ladder. Field order = probe order.
@@ -92,17 +92,41 @@ export const ENTITY_SLOT = {
         !isValidFormationState(String(captured.formationState)),
       pickSet: 'formationStateOptions',
     },
+    // ── statusEvidence: proof of state (all states except named-only) ─
+    // For named-only, the formation state itself is self-proving (name exists,
+    // nothing built), so we skip the open-ended evidence question and use a
+    // yes/no confirmation instead (see ENTITY_NAMEDONLY_CONFIRMATION_MISSING below).
     {
       code: 'ENTITY_STATUS_EVIDENCE_MISSING',
       fieldName: 'statusEvidence',
-      detect: (captured) => !captured?.statusEvidence,
+      detect: (captured) =>
+        captured?.formationState !== 'named-only' && !captured?.statusEvidence,
     },
     {
       code: 'ENTITY_STATUS_EVIDENCE_NOT_SUBSTANTIVE',
       fieldName: 'statusEvidence',
       detect: (captured) =>
+        captured?.formationState !== 'named-only' &&
         Boolean(captured?.statusEvidence) &&
         !hasAuthoredSubstance(String(captured.statusEvidence)),
+    },
+    // ── formationState-specific: named-only confirmation ─
+    // When named-only is selected, ask for yes/no confirmation using the entity's
+    // known name, since the state itself is self-proving (has name, nothing built).
+    {
+      code: 'ENTITY_NAMEDONLY_CONFIRMATION_MISSING',
+      fieldName: 'namedOnlyConfirmed',
+      detect: (captured) =>
+        captured?.formationState === 'named-only' &&
+        (captured?.namedOnlyConfirmed === undefined || captured?.namedOnlyConfirmed === null),
+      pickSet: 'yesNoOptions',
+    },
+    {
+      code: 'ENTITY_NAMEDONLY_CONFIRMATION_REJECTED',
+      fieldName: 'namedOnlyConfirmed',
+      detect: (captured) =>
+        captured?.formationState === 'named-only' &&
+        captured?.namedOnlyConfirmed === false,
     },
     // ── legal status: independently tracked boolean ─
     {
@@ -137,8 +161,10 @@ export function buildEntityDeclarePayload(captured) {
     roleTags: captured.roleTags,
     purpose: captured.purpose,
     formationState: captured.formationState,
-    statusEvidence: captured.statusEvidence,
+    statusEvidence: captured.statusEvidence || null,
     legallyFormed: captured.legallyFormed !== undefined ? Boolean(captured.legallyFormed) : false,
+    namedOnlyConfirmed: captured?.formationState === 'named-only' &&
+      captured?.namedOnlyConfirmed === true,
   };
   // doneWhen is optional — include only when authored.
   if (captured?.doneWhen) payload.doneWhen = captured.doneWhen;

@@ -12,11 +12,11 @@ export type ProfileLearning = {
  * This prevents learning from polluted failed/incomplete attempts.
  */
 export function computeProfileLearning(cyclesById: Record<string, any> = {}): ProfileLearning {
-  // Filter to ended cycles with convergence verdict CONVERGED
+  // Filter to ended cycles with Fidelity Verdict CONVERGED
   const learnableCycles = Object.values(cyclesById || {}).filter((cycle: any) => {
     if (cycle?.status !== 'ended') return false;
-    // MVP 3.0: Require convergence verdict
-    const verdict = cycle?.convergenceReport?.verdict;
+    // MVP 3.0: Require Fidelity Verdict
+    const verdict = cycle?.fidelityVerdictReport?.verdict;
     return verdict === 'CONVERGED';
   });
 
