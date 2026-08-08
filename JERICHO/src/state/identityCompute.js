@@ -7485,6 +7485,13 @@ function applyPlanQualityGates(state) {
     const masterPlanId = contract?.masterPlanId || cycle?.masterPlanId || null;
     const masterPlanForGate = masterPlanId ? state?.masterPlansById?.[masterPlanId] || null : null;
 
+    // Resolve feasibility status for P.O.S. gate (upper-bound Demand vs. Capacity)
+    const feasibilityResult = state.feasibilityByGoal?.[goalId] || null;
+    const feasibilityStatus = feasibilityResult?.status || null;
+    const insufficientCapacityReasons = feasibilityResult?.reasons?.includes('INSUFFICIENT_CAPACITY')
+      ? feasibilityResult.reasons
+      : [];
+
     const result = evaluatePlanQualityGate({
       goalText: contract?.terminalOutcome?.text || contract?.goalText || contract?.goalLabel || '',
       verificationText: contract?.terminalOutcome?.verificationCriteria || '',
@@ -7527,6 +7534,9 @@ function applyPlanQualityGates(state) {
           state?.goalExecutionContract?.workWindows ||
           null,
       },
+      // P.O.S. feasibility gate: upper-bound Demand estimation
+      feasibilityStatus,
+      insufficientCapacityReasons,
     });
     cycle.planQualityGate = result;
     gatesByGoal[goalId] = result;
@@ -7615,7 +7625,8 @@ function applyFeasibility(state) {
       };
       return;
     }
-    feasibilityByGoal[goalId] = computeFeasibility({ goalId, deadlineISO }, state, constraints, nowISO);
+    const executionType = cycleForGoal?.goalContract?.executionType || null;
+    feasibilityByGoal[goalId] = computeFeasibility({ goalId, deadlineISO, executionType }, state, constraints, nowISO);
   });
   state.feasibilityByGoal = feasibilityByGoal;
 }

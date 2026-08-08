@@ -169,6 +169,9 @@ type EvaluatePlanQualityGateInput = {
     earlyCompletionJustification?: string | null;
     workWindows?: Record<string, Array<{ start?: string | null; end?: string | null }>> | null;
   };
+  // Feasibility gate: upper-bound Demand > Capacity triggers P.O.S. gate failure
+  feasibilityStatus?: 'FEASIBLE' | 'REQUIRED' | 'INFEASIBLE' | null;
+  insufficientCapacityReasons?: string[];
 };
 
 type BlockDetailQualityResult = ReturnType<typeof resolveBlockPlainLanguage>;
@@ -1467,6 +1470,17 @@ export function evaluatePlanQualityGate(input: EvaluatePlanQualityGateInput): Pl
 
   const failureCodes = new Set<PlanQualityFailureCode>();
   const reasonCodes = new Set<string>();
+
+  // FEASIBILITY_DEMAND_EXCEEDS_CAPACITY: P.O.S. feasibility gate using upper-bound
+  // Demand estimation. If INFEASIBLE, the goal's remaining Demand exceeds available
+  // Capacity over the planning horizon (using pessimistic per-execution-type duration estimates).
+  if (input.feasibilityStatus === 'INFEASIBLE') {
+    failureCodes.add('FEASIBILITY_DEMAND_EXCEEDS_CAPACITY');
+    reasonCodes.add('FEASIBILITY_DEMAND_EXCEEDS_CAPACITY');
+    if (Array.isArray(input.insufficientCapacityReasons)) {
+      input.insufficientCapacityReasons.forEach((reason) => reasonCodes.add(reason));
+    }
+  }
 
   // MISSING_OUTCOME_TARGET: a plan whose outcome depends on external markets,
   // stakeholders, or funding (semi_controllable / externally_mediated) must declare

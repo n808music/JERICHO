@@ -301,10 +301,12 @@ export function generateDeterministicPlan(input: DeterministicGenInput): Determi
   }
 
   // Allocate blocks deterministically (earliest-first)
+  // Track daily duration totals (in minutes) for constraint enforcement
   const proposedBlocks: ProposedBlock[] = [];
   let blockIndex = 0;
   let dayIndex = 0;
-  let dailyCount: Record<string, number> = {};
+  const dailyMinutesTotal: Record<string, number> = {}; // Track minutes, not counts
+  const maxDailyMinutes = constraints.maxBlocksPerDay * 60; // Convert hours constraint to minutes
   let weeklyCount: Record<string, number> = {};
 
   // Flatten deliverables into individual blocks for scheduling
@@ -349,22 +351,25 @@ export function generateDeterministicPlan(input: DeterministicGenInput): Determi
       const dayKey = eligibleDays[(dayIndex + attempt) % eligibleDays.length];
       const weekKey = getWeekStart(dayKey);
 
-      const dailyCount_ = dailyCount[dayKey] || 0;
+      const currentDailyMinutes = dailyMinutesTotal[dayKey] || 0;
       const weeklyCount_ = weeklyCount[weekKey] || 0;
+      const blockDurationMinutes = 60; // All blocks in deterministic generator are 60 min
 
-      if (dailyCount_ < constraints.maxBlocksPerDay && weeklyCount_ < constraints.maxBlocksPerWeek) {
+      // Check if adding this block would exceed daily duration limit (converted from hours to minutes)
+      // and weekly block count limit
+      if (currentDailyMinutes + blockDurationMinutes <= maxDailyMinutes && weeklyCount_ < constraints.maxBlocksPerWeek) {
         proposedBlocks.push({
           id: `block-${blockIndex}`,
           dayKey,
           deliverableId: block.deliverableId,
           deliverableTitle: block.deliverableTitle,
           kind: block.kind,
-          durationMinutes: 60,
+          durationMinutes: blockDurationMinutes,
           order: block.order,
           sourceProjectId: block.sourceProjectId,
         });
 
-        dailyCount[dayKey] = dailyCount_ + 1;
+        dailyMinutesTotal[dayKey] = currentDailyMinutes + blockDurationMinutes;
         weeklyCount[weekKey] = weeklyCount_ + 1;
         blockIndex++;
         allocated = true;

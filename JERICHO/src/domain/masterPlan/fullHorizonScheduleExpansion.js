@@ -1347,6 +1347,7 @@ export function expandFullHorizonSchedule({
   workDays = [],
   workWindows = null,
   timeZone = 'UTC',
+  constraints = null,
 } = {}) {
   const result = [];
   if (!phaseModel?.phases?.length || !horizonStartDayKey || !horizonEndDayKey) {
@@ -1356,6 +1357,11 @@ export function expandFullHorizonSchedule({
   const planId = plan.id || plan.planId || 'plan';
   const planOrientation = inferPlanOrientation(plan);
   const targetLanes = Array.isArray(lanes) && lanes.length ? lanes : [null];
+
+  // Track daily duration totals (in minutes) for constraint enforcement (Step 1 fix)
+  // Constraints are in hours; convert to minutes for comparison
+  const dailyMinutesTotal = {};
+  const maxDailyMinutes = constraints?.maxBlocksPerDay ? constraints.maxBlocksPerDay * 60 : Infinity;
 
   for (const phase of phaseModel.phases) {
     const phaseLabel = phase.label || 'phase';
@@ -1389,19 +1395,28 @@ export function expandFullHorizonSchedule({
         const placementKey = workDays.length > 0
           ? placementDayForBlock(cursor, workDays, rotationIdx)
           : cursor;
-        result.push(
-          buildBlock({
-            planId,
-            phase,
-            lane,
-            laneStatus,
-            descriptor,
-            dayKey: placementKey,
-            idDayKey: cursor,
-            idx,
-            plan,
-          })
-        );
+
+        // Step 1: Enforce daily Constraint — don't place block if total duration would exceed available hours
+        // Build the block first to get its duration, then check if it fits
+        const block = buildBlock({
+          planId,
+          phase,
+          lane,
+          laneStatus,
+          descriptor,
+          dayKey: placementKey,
+          idDayKey: cursor,
+          idx,
+          plan,
+        });
+
+        const blockDurationMinutes = block?.durationMinutes || 60;
+        const currentDailyMinutes = dailyMinutesTotal[placementKey] || 0;
+        if (currentDailyMinutes + blockDurationMinutes <= maxDailyMinutes) {
+          result.push(block);
+          dailyMinutesTotal[placementKey] = currentDailyMinutes + blockDurationMinutes;
+        }
+
         cursor = nextDayKey(cursor, cadenceDays);
         idx += 1;
         rotationIdx += 1;

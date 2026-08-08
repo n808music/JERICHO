@@ -1,5 +1,19 @@
 import { addDays, dayKeyFromISO } from '../time/time.ts';
 
+// Upper-bound duration estimates per execution type for feasibility gate (pessimistic for hard gate)
+const EXECUTION_TYPE_UPPER_BOUND_MINUTES: Record<string, number> = {
+  VentureLaunch: 180,
+  SkillAcquisition: 120,
+  ProfessionalQualification: 180,
+  PhysicalTraining: 120,
+  SalesPipeline: 180,
+  Fundraising: 180,
+  JobSearchPipeline: 120,
+  CreativeProduction: 180,
+  BrandLaunch: 720,
+  GenericStructured: 120,
+};
+
 type WorkItem = {
   workItemId: string;
   title?: string;
@@ -64,7 +78,7 @@ const WEEKDAY_MAP: Record<string, number> = {
 };
 
 export function computeFeasibility(
-  goal: { goalId: string; deadlineISO: string },
+  goal: { goalId: string; deadlineISO: string; executionType?: string | null },
   state: any,
   constraints: Constraints,
   nowISO: string
@@ -73,10 +87,16 @@ export function computeFeasibility(
   const todayLocalDate = dayKeyFromISO(nowISO, timezone);
   const deadlineLocalDate = dayKeyFromISO(goal.deadlineISO, timezone);
   const workItems: WorkItem[] = (state?.goalWorkById && state.goalWorkById[goal.goalId]) || [];
+
+  // Convert remaining blocks to Demand using upper-bound duration per execution type
+  // (pessimistic estimate for hard feasibility gate; prevents false "feasible" verdicts)
+  const executionType = goal.executionType || 'GenericStructured';
+  const blockDurationMinutes = EXECUTION_TYPE_UPPER_BOUND_MINUTES[executionType] || 120;
   const remainingBlocksTotal = workItems.reduce(
     (sum, item) => sum + Math.max(0, Number(item?.blocksRemaining) || 0),
     0
   );
+  const remainingDemandMinutes = remainingBlocksTotal * blockDurationMinutes;
 
   if (goal.deadlineISO <= nowISO) {
     if (remainingBlocksTotal > 0) {
@@ -127,7 +147,8 @@ export function computeFeasibility(
 
   const dailyCapacitySchedule = buildDailyCapacitySchedule(todayLocalDate, deadlineLocalDate, constraints, timezone);
   const dates = Object.keys(dailyCapacitySchedule).sort();
-  const totalRemainingCapacity = dates.reduce((sum, d) => sum + (dailyCapacitySchedule[d] || 0), 0);
+  // Convert capacity from blocks to minutes using same upper-bound duration
+  const totalRemainingCapacityMinutes = dates.reduce((sum, d) => sum + ((dailyCapacitySchedule[d] || 0) * blockDurationMinutes), 0);
   const workableDaysRemaining = dates.filter((d) => (dailyCapacitySchedule[d] || 0) > 0).length;
   const completedBlocksToday = countCompletedBlocksForDate(state, goal.goalId, todayLocalDate);
 
@@ -165,10 +186,13 @@ export function computeFeasibility(
     }
   }
 
-  if (totalRemainingCapacity < remainingBlocksTotal) {
-    const deficit = remainingBlocksTotal - totalRemainingCapacity;
-    delta.blocksShort = deficit;
-    delta.extraBlocksPerDayNeeded = Math.ceil(deficit / workableDaysRemaining);
+  // Compare Demand (in minutes) against Capacity (in minutes)
+  // Using upper-bound Demand ensures pessimistic gate (better to block false feasible than pass false infeasible)
+  if (totalRemainingCapacityMinutes < remainingDemandMinutes) {
+    const deficitMinutes = remainingDemandMinutes - totalRemainingCapacityMinutes;
+    const deficitBlocks = Math.ceil(deficitMinutes / blockDurationMinutes);
+    delta.blocksShort = deficitBlocks;
+    delta.extraBlocksPerDayNeeded = Math.ceil(deficitBlocks / workableDaysRemaining);
     reasons.push('INSUFFICIENT_CAPACITY');
     status = 'INFEASIBLE';
   }
