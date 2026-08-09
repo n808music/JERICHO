@@ -99,20 +99,20 @@ describe('MatrixIntake Back navigation', () => {
     render(<IdentityProvider initialState={admittedGoalState()}><StoreProbe /><MatrixIntake /></IdentityProvider>);
     await addChips(user, ['Acme Robotics']);
 
-    // Field 1: roleTags (pick-set). Answer it.
-    await waitFor(() => expect(document.querySelector('[data-testid="pickset-option"]')).toBeTruthy());
-    await user.click(document.querySelector('[data-testid="pickset-option"]'));
-    await user.click(screen.getByRole('button', { name: /^Next/i }));
-
-    // Field 2: purpose (free text). Type an answer, advance.
+    // Field 1: purpose (free text). Type an answer, advance.
     await waitFor(() => expect(document.querySelector('textarea')).toBeTruthy());
     await user.type(document.querySelector('textarea'), SUBSTANTIVE);
     await user.click(screen.getByRole('button', { name: /^Next/i }));
     await waitFor(() => {
       const ta = document.querySelector('textarea');
-      // advanced: field 2's textarea cleared for the next field, or a pick-set showed
+      // advanced: field 1's textarea cleared for the next field (formationState pick-set)
       expect(!ta || ta.value === '').toBeTruthy();
     });
+
+    // Field 2: formationState (pick-set). Answer it.
+    await waitFor(() => expect(document.querySelector('[data-testid="pickset-option"]')).toBeTruthy());
+    await user.click(document.querySelector('[data-testid="pickset-option"]'));
+    await user.click(screen.getByRole('button', { name: /^Next/i }));
 
     // Back → purpose question returns with the typed answer intact for editing.
     await user.click(screen.getByTestId('intake-back'));
@@ -122,9 +122,9 @@ describe('MatrixIntake Back navigation', () => {
       expect(ta.value).toBe(SUBSTANTIVE);
     });
 
-    // Back again → roleTags pick-set returns with the prior selection active.
+    // Back again → roster (no more roleTags field to return to).
     await user.click(screen.getByTestId('intake-back'));
-    await waitFor(() => expect(document.querySelector('[data-testid="pickset-option"]')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('roster-input')).toBeTruthy());
   }, 30000);
 
   it('Back across an entity boundary rolls the declared entity out of the matrix', async () => {

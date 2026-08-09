@@ -23,25 +23,10 @@ describe('referent binding — entity slot', () => {
     expect(step.probe.spine).not.toContain('**');
   });
 
-  it('role probe after name captured names the entity in plain text', () => {
-    let engine = makeEngine(ENTITY_SLOT_ID);
-    engine.openingStep();
-    const r1 = engine.consumeAnswer({ name: 'Global State Corp.' });
-    engine = r1.engine;
-    const step = engine.nextStep();
-    expect(step.probe?.fieldName).toBe('roleTags');
-    expect(step.probe.spine).toContain('Global State Corp.');
-    expect(step.probe.spine).not.toContain('this entity');
-    // Plain text — no markdown emphasis markers leak into the rendered spine.
-    expect(step.probe.spine).not.toContain('**');
-  });
-
   it('purpose probe after name captured names the entity in plain text', () => {
     let engine = makeEngine(ENTITY_SLOT_ID);
     engine.openingStep();
     let r = engine.consumeAnswer({ name: 'F8 Energy Co.' });
-    engine = r.engine;
-    r = engine.consumeAnswer({ roleTags: ['business', 'system'] });
     engine = r.engine;
     const step = engine.nextStep();
     expect(step.probe?.fieldName).toBe('purpose');
@@ -54,8 +39,6 @@ describe('referent binding — entity slot', () => {
     let engine = makeEngine(ENTITY_SLOT_ID);
     engine.openingStep();
     let r = engine.consumeAnswer({ name: 'Global State Corp.' });
-    engine = r.engine;
-    r = engine.consumeAnswer({ roleTags: ['business'] });
     engine = r.engine;
     r = engine.consumeAnswer({ purpose: 'Parent company that owns and coordinates the six subsidiaries' });
     engine = r.engine;

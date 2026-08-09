@@ -16275,6 +16275,10 @@ function declareEntity(state, payload = {}) {
   }
 
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  // Storage field for Owner-backfill (declareInitiative/declareProject/declareSystem).
+  // Never elicited at intake (Phase 2), never validated. Purely a backfill target.
+  // Accepts roleTags from payload for backward compatibility with test fixtures.
+  const roleTags = Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [];
   const entry = {
     id,
     name,
@@ -16284,6 +16288,7 @@ function declareEntity(state, payload = {}) {
     legallyFormed,
     namedOnlyConfirmed,
     phase: String(payload?.phase || '').trim() || null,
+    roleTags,
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
     source: 'operator_declared',

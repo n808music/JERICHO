@@ -66,19 +66,6 @@ describe('Elicitation Engine — Entity slot: gate ladder', () => {
     expect(first.probe.code).toBe('ENTITY_NAME_MISSING');
   });
 
-  it('drives the full gate sequence name→roleTags→purpose→formationState→[namedOnlyConfirmed or statusEvidence]→legallyFormed', () => {
-    const { probes } = runEntityScript(F8_SCRIPT);
-    // For named-only entities, asks for confirmation (namedOnlyConfirmed) instead of evidence
-    expect(probes.map((p) => p.fieldName)).toEqual([
-      'name',
-      'roleTags',
-      'purpose',
-      'formationState',
-      'namedOnlyConfirmed',  // ← conditional on formationState being 'named-only'
-      'legallyFormed',
-    ]);
-  });
-
   it('fires ENTITY_NAME_NOT_HOLDABLE when name is an imperative phrase', () => {
     let state = buildBlankIdentityState({});
     let engine = createElicitationEngine({
@@ -99,28 +86,6 @@ describe('Elicitation Engine — Entity slot: gate ladder', () => {
 // ── 2. PickSet resolution ─────────────────────────────────────────────────────
 
 describe('Elicitation Engine — Entity slot: pickSet resolution', () => {
-  it('roleTagOptions pickSet returns the five canonical role tags', () => {
-    let state = buildBlankIdentityState({});
-    let engine = createElicitationEngine({
-      goalType: 'founder',
-      matrixSnapshot: state.matrix,
-      scope: [ENTITY_SLOT_ID],
-    });
-    engine.openingStep();
-    const result = engine.consumeAnswer({ name: 'F8 Energy Co.' });
-    engine = result.engine.refreshMatrix(state.matrix);
-    const step = engine.nextStep();
-    expect(step.probe.fieldName).toBe('roleTags');
-    expect(step.probe.pickSet?.kind).toBe('roleTagOptions');
-    expect(step.probe.pickSet?.items.map((i) => i.id)).toEqual([
-      'business',
-      'initiative',
-      'project',
-      'system',
-    ]);
-    expect(step.probe.dependencyGap).toBe(false);
-  });
-
   it('formationStateOptions pickSet returns the five formation states', () => {
     let state = buildBlankIdentityState({});
     let engine = createElicitationEngine({
@@ -129,10 +94,9 @@ describe('Elicitation Engine — Entity slot: pickSet resolution', () => {
       scope: [ENTITY_SLOT_ID],
     });
     engine.openingStep();
-    // Drive past name, roleTags, purpose
+    // Drive past name, purpose
     const answers = [
       { name: 'F8 Energy Co.' },
-      { roleTags: ['business'] },
       { purpose: 'Energy and focus supplement company, a healthier alternative to energy drinks' },
     ];
     for (const answer of answers) {
@@ -240,7 +204,6 @@ describe('Elicitation Engine — Entity slot: DECLARE_ENTITY dispatch', () => {
     expect(entities[0]).toEqual(
       expect.objectContaining({
         name: 'F8 Energy Co.',
-        roleTags: ['business', 'system'],
         purpose: 'Energy and focus supplement company, a healthier alternative to energy drinks',
         formationState: 'named-only',
         statusEvidence: null,  // named-only entities don't require evidence

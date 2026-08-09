@@ -60,12 +60,12 @@ describe('Entity — zero role-tags validation (Phase 2 critical test)', () => {
     expect(createdEntity.formationState).toBe('in-development');
     expect(createdEntity.statusEvidence).toBe('Currently operating with team of 5');
 
-    // Critical: roleTags field should NOT exist on the Entity node
-    // (it was removed during Phase 2)
-    expect(createdEntity.roleTags).toBeUndefined();
+    // Critical: roleTags field is present as empty array (for Owner-backfill)
+    // but was NOT elicited at intake — Phase 2 removed the probe/validation
+    expect(createdEntity.roleTags).toEqual([]);
 
-    console.log(`✓ Entity validation PASSED with zero/undefined roleTags`);
-    console.log(`✓ roleTags field is NOT stored on Entity node`);
+    console.log(`✓ Entity validation PASSED with zero/empty roleTags`);
+    console.log(`✓ roleTags field exists as empty array (for Owner-backfill, not elicited)`);
     console.log(`✓ Entity classification unaffected (id + name + purpose + formationState)\n`);
   });
 
@@ -89,7 +89,7 @@ describe('Entity — zero role-tags validation (Phase 2 critical test)', () => {
     const entity = state.matrix.entitiesById['entity-test-2'];
     expect(entity).toBeDefined();
     expect(entity.name).toBe('Global State Systems');
-    expect(entity.roleTags).toBeUndefined();
+    expect(entity.roleTags).toEqual([]);
 
     console.log(`\n✓ Entity #2 validation passed (all required fields, no roleTags)`);
   });
