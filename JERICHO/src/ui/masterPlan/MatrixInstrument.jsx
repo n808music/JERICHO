@@ -8,15 +8,6 @@
 
 import React, { useMemo } from 'react';
 
-// Parity copy of ROLE_TAG_DISPLAY_LABELS from entityRoleTags.ts — import deferred to Wave 3.
-// Drift is caught by: tests/components/MatrixInstrument.labelParity.test.js
-export const ROLE_TAG_DISPLAY_LABELS = {
-  business:   'Business',
-  initiative: 'Campaign leader',
-  project:    'Project operator',
-  system:     'System custodian',
-};
-
 // ─── Formation state ladder ────────────────────────────────────────────────────
 // Color encodes maturity: dim=not-formed → bright green=functioning
 // Legal status (legallyFormed boolean) rendered separately as a badge, not part of this ladder.
@@ -124,23 +115,6 @@ function LegalStatusBadge({ formed }) {
   );
 }
 
-function RoleTagChips({ tags }) {
-  if (!tags?.length) return null;
-  return (
-    <span className="inline-flex gap-1 flex-wrap">
-      {tags.map(tag => (
-        <span
-          key={tag}
-          className="text-[9px] uppercase tracking-wider rounded px-1 py-0.5"
-          style={{ color: '#71717a', border: '1px solid #3f3f46' }}
-        >
-          {ROLE_TAG_DISPLAY_LABELS[tag] || tag}
-        </span>
-      ))}
-    </span>
-  );
-}
-
 // INTAKE GAPS — top punch-list, visually isolated from reality gaps
 function IntakeCompletenessBar({ matrix }) {
   const sections = computeIntakeCompleteness(matrix);
@@ -242,7 +216,6 @@ function EntitySpineSection({ matrix }) {
                 <span className="text-sm font-semibold" style={{ color: '#e4e4e7' }}>{entity.name}</span>
                 <FormationPill state={entity.formationState} />
                 <LegalStatusBadge formed={entity.legallyFormed} />
-                <RoleTagChips tags={entity.roleTags} />
               </div>
               {entity.purpose && (
                 <p className="text-[11px] leading-relaxed" style={{ color: '#71717a' }}>{entity.purpose}</p>

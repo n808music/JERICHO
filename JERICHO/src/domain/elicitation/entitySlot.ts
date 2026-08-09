@@ -1,7 +1,7 @@
 import { isHoldableNoun } from '../planQuality/isHoldableNoun';
 import { hasAuthoredSubstance } from '../planQuality/hasAuthoredSubstance';
 import { isExternallyVerifiable } from '../planQuality/isExternallyVerifiable';
-import { ENTITY_ROLE_TAGS, ROLE_TAG_DISPLAY_LABELS, isValidRoleTag } from '../enterprise/entityRoleTags';
+import { ENTITY_ROLE_TAGS, ROLE_TAG_DISPLAY_LABELS } from '../enterprise/entityRoleTags';
 import { FORMATION_STATES, isValidFormationState } from '../enterprise/entityFormationStates';
 
 // Section 2 (Entities / Nodes) slot contract.
@@ -11,7 +11,7 @@ import { FORMATION_STATES, isValidFormationState } from '../enterprise/entityFor
 // stays optional. This is the entity-tier exception; every tier BELOW entity
 // requires all fields.
 //
-// Required:  name, roleTags, purpose, formationState, statusEvidence
+// Required:  name, purpose, formationState, statusEvidence
 // Optional:  doneWhen  (no presence gate; validity-gated only when present)
 //
 // "Current status" is decomposed into a closed-set pick (formationState) plus a
@@ -27,7 +27,7 @@ export const ENTITY_SLOT = {
   section: 2,
   matrixBinding: {
     action: 'DECLARE_ENTITY',
-    fields: ['name', 'roleTags', 'purpose', 'formationState', 'statusEvidence', 'legallyFormed', 'namedOnlyConfirmed', 'doneWhen'],
+    fields: ['name', 'purpose', 'formationState', 'statusEvidence', 'legallyFormed', 'namedOnlyConfirmed', 'doneWhen'],
   },
   dependsOn: [],
   // First-failure-wins gate ladder. Field order = probe order.
@@ -47,23 +47,6 @@ export const ENTITY_SLOT = {
       // allowance rather than the bare holdable check.
       detect: (captured) =>
         Boolean(captured?.name) && !isHoldableNoun(String(captured.name)),
-    },
-    // ── roleTags ────────────────────────────────────────────────────────
-    {
-      code: 'ENTITY_ROLETAGS_MISSING',
-      fieldName: 'roleTags',
-      detect: (captured) =>
-        !Array.isArray(captured?.roleTags) || captured.roleTags.length === 0,
-      pickSet: 'roleTagOptions',
-    },
-    {
-      code: 'ENTITY_ROLETAGS_INVALID',
-      fieldName: 'roleTags',
-      detect: (captured) =>
-        Array.isArray(captured?.roleTags) &&
-        captured.roleTags.length > 0 &&
-        captured.roleTags.some((t) => !isValidRoleTag(String(t))),
-      pickSet: 'roleTagOptions',
     },
     // ── purpose ─────────────────────────────────────────────────────────
     {

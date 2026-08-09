@@ -16254,7 +16254,6 @@ function declareEntity(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
   const name = String(payload?.name || '').trim();
-  const roleTags = Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [];
   const purpose = String(payload?.purpose || '').trim();
   const formationState = String(payload?.formationState || '').trim();
   const statusEvidence = String(payload?.statusEvidence || '').trim();
@@ -16265,12 +16264,12 @@ function declareEntity(state, payload = {}) {
   // self-proving: name exists, nothing built). For other states, statusEvidence
   // is mandatory — it proves the stated formation state.
   const statusEvidenceRequired = formationState !== 'named-only';
-  if (!id || !name || roleTags.length === 0 || !purpose || !formationState ||
+  if (!id || !name || !purpose || !formationState ||
       (statusEvidenceRequired && !statusEvidence)) {
     state.lastPlanError = {
       code: 'ENTITY_INVALID',
-      reason: 'Entity requires id, name, roleTags, purpose, and formationState. statusEvidence required except for named-only entities.',
-      meta: { id, name, roleTagCount: roleTags.length, purpose, formationState, statusEvidence },
+      reason: 'Entity requires id, name, purpose, and formationState. statusEvidence required except for named-only entities.',
+      meta: { id, name, purpose, formationState, statusEvidence },
     };
     return;
   }
@@ -16279,7 +16278,6 @@ function declareEntity(state, payload = {}) {
   const entry = {
     id,
     name,
-    roleTags,
     purpose,
     formationState,
     statusEvidence: statusEvidence || null,
