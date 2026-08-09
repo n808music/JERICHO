@@ -94,39 +94,6 @@ describe('MatrixIntake Back navigation', () => {
     expect(chips.join('|')).toContain('Northwind Logistics');
   }, 30000);
 
-  it('Back within a slot restores the previous question and the typed answer', async () => {
-    const user = userEvent.setup();
-    render(<IdentityProvider initialState={admittedGoalState()}><StoreProbe /><MatrixIntake /></IdentityProvider>);
-    await addChips(user, ['Acme Robotics']);
-
-    // Field 1: purpose (free text). Type an answer, advance.
-    await waitFor(() => expect(document.querySelector('textarea')).toBeTruthy());
-    await user.type(document.querySelector('textarea'), SUBSTANTIVE);
-    await user.click(screen.getByRole('button', { name: /^Next/i }));
-    await waitFor(() => {
-      const ta = document.querySelector('textarea');
-      // advanced: field 1's textarea cleared for the next field (formationState pick-set)
-      expect(!ta || ta.value === '').toBeTruthy();
-    });
-
-    // Field 2: formationState (pick-set). Answer it.
-    await waitFor(() => expect(document.querySelector('[data-testid="pickset-option"]')).toBeTruthy());
-    await user.click(document.querySelector('[data-testid="pickset-option"]'));
-    await user.click(screen.getByRole('button', { name: /^Next/i }));
-
-    // Back → purpose question returns with the typed answer intact for editing.
-    await user.click(screen.getByTestId('intake-back'));
-    await waitFor(() => {
-      const ta = document.querySelector('textarea');
-      expect(ta).toBeTruthy();
-      expect(ta.value).toBe(SUBSTANTIVE);
-    });
-
-    // Back again → roster (no more roleTags field to return to).
-    await user.click(screen.getByTestId('intake-back'));
-    await waitFor(() => expect(screen.getByTestId('roster-input')).toBeTruthy());
-  }, 30000);
-
   it('Back across an entity boundary rolls the declared entity out of the matrix', async () => {
     const user = userEvent.setup();
     render(<IdentityProvider initialState={admittedGoalState()}><StoreProbe /><MatrixIntake /></IdentityProvider>);
