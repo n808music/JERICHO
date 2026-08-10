@@ -47,7 +47,6 @@ import {
 } from '../state/cycleSelectors.js';
 import { getContractStartDayKey, getContractDeadlineDayKey } from '../state/suggestionFilters.js';
 import { buildConvergenceCandidateAdvisory } from '../state/convergenceCandidateAdvisory.js';
-import { buildLegalFormationAdvisory } from '../state/legalFormationAdvisory.js';
 import { traceAction, traceNoop } from '../dev/uiWiringTrace.ts';
 import {
   buildWindowSpec,
