@@ -29,6 +29,25 @@ export const SEQUENCING_STRATEGY_SLOT_ID = 'SEQUENCING_STRATEGY';
 
 export const SEQUENCING_STRATEGY_SLOT = {
   name: 'SEQUENCING_STRATEGY',
+  // Gate array: checks probe completion. Each gate ensures the three probe questions
+  // have been answered before slot is considered complete.
+  gate: [
+    {
+      code: 'SEQUENCING_CATEGORY_MISSING',
+      fieldName: 'category_precedent',
+      detect: (captured) => !captured?.category_precedent,
+    },
+    {
+      code: 'SEQUENCING_AUDIENCE_MISSING',
+      fieldName: 'audience_precedent',
+      detect: (captured) => !captured?.audience_precedent,
+    },
+    {
+      code: 'SEQUENCING_DENSITY_MISSING',
+      fieldName: 'competitive_density',
+      detect: (captured) => !captured?.competitive_density,
+    },
+  ],
   probes: [
     {
       name: 'category_precedent',
