@@ -2149,10 +2149,18 @@ export function IdentityProvider({ children, initialState }) {
     };
   }, []);
 
-  if (typeof window !== 'undefined') {
+  // Debug helpers: properly scoped in useEffect with cleanup (matches ZionDashboard.jsx pattern)
+  React.useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
     window.__jerichoDebug__ = store;
     window.__jerichoResetIntake = () => dispatch({ type: 'MASTER_PLAN_INTAKE_RESET' });
-  }
+    return () => {
+      delete window.__jerichoDebug__;
+      delete window.__jerichoResetIntake;
+    };
+  }, [store, dispatch]);
 
   return React.createElement(
     IdentityContext.Provider,
