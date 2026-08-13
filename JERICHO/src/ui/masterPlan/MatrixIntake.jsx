@@ -13,7 +13,6 @@ import {
   BINDING_CONSTRAINT_SLOT_ID,
   BOOTSTRAP_SLOT_ID,
 } from '../../domain/elicitation/elicitationEngine.js';
-import { SEQUENCING_STRATEGY_SLOT_ID } from '../../domain/elicitation/sequencingStrategySlot.js';
 import { RoleTagGlossaryButton } from './RoleTagGlossaryPanel';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
