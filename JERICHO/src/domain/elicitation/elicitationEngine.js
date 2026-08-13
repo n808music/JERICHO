@@ -78,6 +78,7 @@ import {
   buildBootstrapDeclarePayload,
   computeBootstrapCandidates,
 } from './bootstrapSlot';
+import { PRICING_STRATEGY_SLOT } from './pricingStrategySlot.js';
 import { probeFor } from './reprobes.js';
 
 // Byte-identical for identical inputs — no interpolation, no randomness.
@@ -112,6 +113,9 @@ export { CONVERGENCE_SLOT_ID } from './convergenceSlot';
 export { RESOURCE_PROFILE_SLOT_ID, BINDING_CONSTRAINT_SLOT_ID } from './resourceProfileSlot';
 export { BOOTSTRAP_SLOT_ID } from './bootstrapSlot';
 
+// TODO: Phase 2 — Sequencing Risk will also read riskClassification for scheduling recommendations
+const PRICING_STRATEGY_SLOT_ID = 'PRICING_STRATEGY';
+
 const SLOT_REGISTRY = {
   [PROJECT_SLOT_ID]: PROJECT_SLOT,
   [VERIFICATION_SOURCE_SLOT_ID]: VERIFICATION_SOURCE_SLOT,
@@ -124,6 +128,7 @@ const SLOT_REGISTRY = {
   [RESOURCE_PROFILE_SLOT_ID]: RESOURCE_PROFILE_SLOT,
   [BINDING_CONSTRAINT_SLOT_ID]: BINDING_CONSTRAINT_SLOT,
   [BOOTSTRAP_SLOT_ID]: BOOTSTRAP_SLOT,
+  [PRICING_STRATEGY_SLOT_ID]: PRICING_STRATEGY_SLOT,
 };
 
 function freshSlotState(slotId) {

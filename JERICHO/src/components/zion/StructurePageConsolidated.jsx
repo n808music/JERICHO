@@ -33,6 +33,7 @@ import { materializeBlocksFromEvents } from '../../state/engine/todayAuthority.t
 import { isCanonicalBlankState } from '../../state/identityCompute.js';
 import { describeBlockMeaning } from '../zion/blockMeaning.js';
 import CycleTransitionModal from './CycleTransitionModal.jsx';
+import PricingStrategyModal from './PricingStrategyModal.jsx';
 import ExportFullScheduleButton from './ExportFullScheduleButton.jsx';
 import SaveProgressButton from './SaveProgressButton.jsx';
 import HorizonResolutionPanel from './HorizonResolutionPanel.jsx';
@@ -693,6 +694,8 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   const isBlankStructureState = isCanonicalBlankState(store);
   const [isCycleTransitionModalOpen, setCycleTransitionModalOpen] = useState(false);
   const [constraintsSaveState, setConstraintsSaveState] = useState('idle');
+  const [isPricingStrategyModalOpen, setIsPricingStrategyModalOpen] = useState(false);
+  const [selectedInitiativeForPricing, setSelectedInitiativeForPricing] = useState(null);
   const activeCycle = activeCycleId ? cyclesById[activeCycleId] : null;
   const activeGoalId = activeCycle?.goalContract?.goalId || goalExecutionContract?.goalId || null;
   const activeGoalPolicy = activeCycle?.policyState?.goalPolicy || null;
@@ -1116,6 +1119,14 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
       return;
     }
     store.startNewCycleWithDecision?.({ mode: 'archive' });
+  };
+
+  const handlePricingStrategySubmit = (payload) => {
+    if (store?.matrixDispatch) {
+      store.matrixDispatch(payload);
+    }
+    setIsPricingStrategyModalOpen(false);
+    setSelectedInitiativeForPricing(null);
   };
 
   // ============================================================================
@@ -1709,6 +1720,47 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
         );
       })()}
 
+      {/* Pricing Strategy Configuration */}
+      <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4 space-y-3">
+        <p className="text-xs uppercase tracking-[0.14em] text-muted">Pricing Strategy</p>
+        {activeCycleId && store?.matrix?.initiativesById ? (
+          <div className="space-y-2">
+            {Object.values(store.matrix.initiativesById).length > 0 ? (
+              Object.values(store.matrix.initiativesById).map((initiative) => (
+                <div key={initiative.id} className="flex items-center justify-between rounded-lg border border-line/40 bg-jericho-surface/50 p-2">
+                  <div className="flex-1">
+                    <p className="text-xs font-medium text-jericho-text">{initiative.name}</p>
+                    {initiative.riskClassification && (
+                      <p className="text-xs text-muted">
+                        <strong>Classification:</strong> {initiative.riskClassification}
+                        {initiative.pricingStrategy && ` · Strategy: ${initiative.pricingStrategy}`}
+                      </p>
+                    )}
+                    {!initiative.riskClassification && (
+                      <p className="text-xs text-muted">Not yet classified</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="ml-2 rounded border border-line/60 px-2 py-1 text-[11px] text-muted hover:text-jericho-accent whitespace-nowrap"
+                    onClick={() => {
+                      setSelectedInitiativeForPricing(initiative);
+                      setIsPricingStrategyModalOpen(true);
+                    }}
+                  >
+                    Configure
+                  </button>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-muted/70">No initiatives declared yet. Create an initiative in Matrix Intake to configure pricing.</p>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs text-muted/70">Create a cycle first to configure pricing strategies.</p>
+        )}
+      </div>
+
       {/* Advisory Constraints (Work Windows + Blackout) */}
       <details className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4">
         <summary className="cursor-pointer flex items-center gap-2">
@@ -1895,6 +1947,17 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
           }
         }}
         onCancel={() => setCycleTransitionModalOpen(false)}
+      />
+
+      <PricingStrategyModal
+        open={isPricingStrategyModalOpen}
+        initiativeId={selectedInitiativeForPricing?.id}
+        initiative={selectedInitiativeForPricing}
+        onClose={() => {
+          setIsPricingStrategyModalOpen(false);
+          setSelectedInitiativeForPricing(null);
+        }}
+        onSubmit={handlePricingStrategySubmit}
       />
     </div>
   );

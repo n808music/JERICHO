@@ -1225,6 +1225,9 @@ export function computeDerivedState(state, action) {
     case 'SET_INITIATIVE_PHASE':
       setInitiativePhase(next, action.payload || {});
       break;
+    case 'DECLARE_PRICING_STRATEGY':
+      declarePricingStrategy(next, action.payload || {});
+      break;
     case 'DECLARE_SYSTEM':
       declareSystem(next, action.payload || {});
       break;
@@ -16361,6 +16364,9 @@ function declareInitiative(state, payload = {}) {
     confirmedBy: String(payload?.confirmedBy || '').trim() || null,
     confirmationSource: String(payload?.confirmationSource || '').trim() || null,
     laneId: String(payload?.laneId || '').trim() || null,
+    riskClassification: String(payload?.riskClassification || '').trim() || null,
+    pricingStrategy: String(payload?.pricingStrategy || '').trim() || null,
+    pricingReasoning: String(payload?.pricingReasoning || '').trim() || null,
   };
 }
 
@@ -16395,6 +16401,43 @@ function setInitiativePhase(state, payload = {}) {
   }
   const phase = payload?.phase === null ? null : String(payload?.phase ?? '').trim() || null;
   state.matrix.initiativesById[id] = { ...existing, phase };
+}
+
+// Pricing strategy declaration for an initiative.
+// Updates riskClassification, pricingStrategy, and optional pricingReasoning.
+// Triggers derived state recomputation (doc: Pricing is shared with Sequencing Risk Phase 2).
+function declarePricingStrategy(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const initiativeId = String(payload?.initiativeId || '').trim();
+  if (!initiativeId) {
+    state.lastPlanError = {
+      code: 'PRICING_STRATEGY_INVALID',
+      reason: 'Declaring pricing strategy requires an initiativeId.',
+      meta: { initiativeId },
+    };
+    return;
+  }
+  const existing = state.matrix.initiativesById?.[initiativeId];
+  if (!existing) {
+    state.lastPlanError = {
+      code: 'PRICING_STRATEGY_INITIATIVE_NOT_FOUND',
+      reason: `Initiative ${initiativeId} not found.`,
+      meta: { initiativeId },
+    };
+    return;
+  }
+
+  const riskClassification = String(payload?.riskClassification || '').trim() || null;
+  const pricingStrategy = String(payload?.pricingStrategy || '').trim() || null;
+  const pricingReasoning = payload?.pricingReasoning ? String(payload.pricingReasoning).trim() : null;
+
+  // Update initiative with pricing strategy
+  state.matrix.initiativesById[initiativeId] = {
+    ...existing,
+    riskClassification,
+    pricingStrategy,
+    pricingReasoning,
+  };
 }
 
 // Section 4 system declared through the elicitation engine (DECLARE_SYSTEM).
