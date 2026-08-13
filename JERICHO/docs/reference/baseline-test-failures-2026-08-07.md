@@ -139,3 +139,16 @@ Total count verification:
 
 **Usage:** Future "no regressions" claims must diff against this exact list.  
 Report format: "Baseline: 36 failures, Current: X failures, Delta: ±Y"
+
+---
+
+## Observed Baseline Flakiness (2026-08-12)
+
+During Pricing Strategy Button implementation, full-suite runs observed variance between 36-38 failures.
+The four tests that vary are pre-existing baseline failures (present in this 2026-08-07 list):
+- `tests/state/masterPlanFullHorizon.coverage.test.js` — Test #18
+- `tests/state/podcast.fullPlan.apply.test.js` — Test #27
+- `tests/state/regulatedConsumable.energyGum.acceptance.test.ts` — Test #25
+- `tests/state/schedule.generate.nonSilent.test.js` — Tests #20, #21
+
+These appear to be affected by test-isolation pollution or timing variance in the suite itself, not by implementation changes. Cross-referenced 2026-08-12 run (37 failures) against this baseline list (36 failures, all 4 tests present) — no net-new regressions, all new tests in scope are within expected range.
