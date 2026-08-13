@@ -63,9 +63,11 @@ Recommendation: New advisoryFlag (like plan-quality flags), separate from gate f
 
 ## Investigation 3: Minimal Viable Version
 
-**Finding:** **Pre-commit validation pass is sufficient for Phase 1.**
+**Finding:** **Application-level "before-save" validation is sufficient for Phase 1.**
 
-### Real-Time vs. Pre-Commit
+### Real-Time vs. Before-Save (Application-Level)
+
+**Terminology clarification:** "Pre-commit" here means **application-level checkpoint before save**, NOT a git pre-commit hook. Operator must see conflicts when actually editing Jericho data, not just in developer commits.
 
 **Real-Time Checking (NOT required for Phase 1):**
 - Wired into every Project Terminal Date change (scheduler, drag-drop, reschedule)
@@ -74,11 +76,12 @@ Recommendation: New advisoryFlag (like plan-quality flags), separate from gate f
   - More computation overhead (check on every keystroke)
   - More noisy warnings (operator may be mid-drag)
 
-**Pre-Commit Validation Pass (RECOMMENDED for Phase 1):**
-- Single validation function: check all Convergence edges when plan is about to be applied/committed
-- Triggered: before cycle save, before plan apply
+**Before-Save Validation (RECOMMENDED for Phase 1):**
+- Single validation function: check all Convergence edges when plan is about to be applied/saved to store
+- Triggered: before `store.dispatch()` that changes a Project's Terminal Date or applies cycle
+- Application-level, inside Jericho (not git hook)
 - Simple, contained, low risk
-- Sufficient: operator sees conflicts before committing, can adjust
+- Sufficient: operator sees conflicts before save completes, can abort or reconfigure
 
 **Minimal Viable for Phase 1:**
 ```
@@ -91,7 +94,17 @@ function validateConvergenceConsistency(state) {
 }
 ```
 
-Call this before: cycle apply, plan commit, schedule save
+**Calling pattern (application-level, before dispatch):**
+```
+const issues = validateConvergenceConsistency(state);
+if (issues.length > 0) {
+  // Show advisory UI, operator can proceed or abort
+  showAdvisoryWarning(issues);
+}
+// Then proceed with dispatch
+```
+
+NOT a git pre-commit hook — runs inside the Jericho app when operator saves/applies changes.
 
 ### Scope
 
@@ -106,21 +119,29 @@ Call this before: cycle apply, plan commit, schedule save
 
 **Finding:** **YES — one generalized cross-reference integrity checker can cover both Convergence enforcement and drift detection.**
 
-### Three Drift Patterns (All Cross-Reference Mismatches)
+### Four Drift Patterns Identified (All Cross-Reference Mismatches)
 
-1. **Convergence date drift** (existing bug, e.g., Academy/79th St)
-   - Convergence edge says "sources meet at DATE"
-   - Project Terminal Dates don't match
+**Pattern 1: Convergence date drift** (existing bug, e.g., Academy/79th St)
+- Convergence edge says "sources meet at DATE"
+- Project Terminal Dates don't match
+- **Severity:** High (breaks shared deadline assumption)
 
-2. **Convergence naming drift** (e.g., Desiree)
-   - Convergence edge references Project by name
-   - Project name changes, edge is orphaned
-   - Or: Project is deleted, edge still points to it
+**Pattern 2: Convergence reference drift** (e.g., Desiree)
+- Convergence edge references Project by name or ID
+- Project name changes or is deleted
+- Edge becomes orphaned/stale
+- **Severity:** High (broken reference structure)
 
-3. **Deliverable↔Artifact parent drift** (structural consistency)
-   - Artifact names parent Deliverable ID
-   - Parent Deliverable is deleted or renamed
-   - Reference is now broken
+**Pattern 3: Deliverable↔Artifact parent drift** (structural consistency)
+- Artifact names parent Deliverable ID
+- Parent Deliverable is deleted or renamed
+- Reference is now broken
+- **Severity:** Medium (lineage broken, but UI can still render)
+
+**Pattern 4: Cross-tab naming consistency drift** (general case)
+- Any entity's name changes, breaking references in other entities
+- Example: Project name changes, but Convergence edge still uses old name
+- **Severity:** Variable (depends on reference criticality)
 
 ### One Generalized Validator
 
@@ -132,11 +153,14 @@ interface CrossReferenceCheck {
   validate(state): { isValid: boolean, issues: Issue[] }
 }
 
-// Registered checks:
-ConvergenceDateConsistencyCheck
-ConvergenceReferenceCheck (names, IDs)
-DeliverableArtifactParentCheck
-NamingConsistencyCheck
+// All four checks (2 in Phase 1, 2 deferred to Phase 2):
+// Phase 1 (v1):
+ConvergenceDateConsistencyCheck ← IN PHASE 1
+DeliverableArtifactParentCheck ← IN PHASE 1
+
+// Phase 2 (v2):
+ConvergenceReferenceCheck (names, IDs) ← DEFERRED
+CrossTabNamingConsistencyCheck ← DEFERRED
 ```
 
 Each check:
@@ -183,27 +207,46 @@ Call same function for:
 
 ## Phase 1 Minimal Build (Recommended Scope)
 
-### What's In
+### What's In (2 of 4 Patterns)
 
-1. **Pre-commit validation pass** (Investigation 3)
+1. **Before-Save Validation Pass** (Investigation 3)
    - Single function: `validateConvergenceConsistency(state)`
-   - Check Convergence edges before cycle apply
+   - Check Convergence edges before cycle apply/save (application-level)
    - Return advisory flags (not blocking)
 
-2. **Cross-reference integrity checker** (Investigation 4, v1)
-   - Start with two checks: Convergence dates + Deliverable↔Artifact parents
-   - Extensible pattern for future checks
-   - Same call signature for all validation scenarios
-
-3. **Advisory flag type** (new)
+2. **Cross-Reference Integrity Checker** (Investigation 4, v1)
+   
+   **Pattern 1: Convergence Date Consistency** ✅ IN PHASE 1
+   - Check all Convergence edges against Project Terminal Dates
+   - Detects Academy/79th St type bugs (date mismatches)
+   - Solves the immediate known issue
+   
+   **Pattern 3: Deliverable↔Artifact Parent Integrity** ✅ IN PHASE 1
+   - Check Artifacts' parent Deliverable references
+   - Detects orphaned/stale parent links
+   - Covers structural consistency
+   
+3. **Advisory Flag Type** (new)
    - Like plan-quality flags
    - Rendered in UI without blocking
+   - Operator can see conflicts and choose to proceed or reconfigure
 
-### What's NOT In Phase 1
+### What's Deferred to Phase 2 (2 of 4 Patterns)
 
-- Real-time checking wired into every date change (defer to Phase 2)
-- Hard-blocking gate failure codes (advisory-only per Learning Boundary)
-- All four drift patterns (start with two, add naming + reference checks in Phase 2)
+- **Pattern 2: Convergence Reference Drift** (e.g., Desiree)
+  - Check if Projects referenced in Convergence edges have been deleted/renamed
+  - More complex (requires name/ID resolution)
+  - Deferred: lower frequency issue than date mismatches
+
+- **Pattern 4: Cross-Tab Naming Consistency**
+  - General case: any entity name changes break references elsewhere
+  - Requires comprehensive entity reference mapping
+  - Deferred: touches more of codebase, higher risk for Phase 1
+
+### What's NOT In Any Phase (Architectural Reasons)
+
+- Real-time checking wired into every date change (event overhead too high, noisy warnings)
+- Hard-blocking gate failure codes (violates Learning Boundary: advisory-only, operator accepts)
 
 ### Scope Justification
 
