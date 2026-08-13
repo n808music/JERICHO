@@ -21,7 +21,6 @@ import { RoleTagGlossaryButton } from './RoleTagGlossaryPanel';
 const SLOT_META = {
   [ENTITY_SLOT_ID]:             { label: 'Entity',             section: '§2',  color: '#60a5fa', plural: 'entities' },
   [INITIATIVE_SLOT_ID]:         { label: 'Initiative',         section: '§3',  color: '#a78bfa', plural: 'initiatives' },
-  [SEQUENCING_STRATEGY_SLOT_ID]: { label: 'Sequencing Strategy', section: '§3b', color: '#7c3aed', plural: 'sequencing strategies' },
   [SYSTEM_SLOT_ID]:             { label: 'System',             section: '§4',  color: '#c084fc', plural: 'systems' },
   [PROJECT_SLOT_ID]:            { label: 'Project',            section: '§5',  color: '#34d399', plural: 'projects' },
   [ARTIFACT_SLOT_ID]:           { label: 'Artifact',           section: '§6',  color: '#fb923c', plural: 'artifacts' },
@@ -38,7 +37,6 @@ const SLOT_META = {
 const SECTION_FRAMING = {
   [ENTITY_SLOT_ID]:             'The parts of your operation',
   [INITIATIVE_SLOT_ID]:         'The work streams driving this goal',
-  [SEQUENCING_STRATEGY_SLOT_ID]: 'How to sequence Foundation and Output work',
   [SYSTEM_SLOT_ID]:             'The systems involved',
   [PROJECT_SLOT_ID]:            'What specific projects or deliverable streams need to happen?',
   [ARTIFACT_SLOT_ID]:           "What you'll produce",
@@ -55,7 +53,6 @@ const SECTION_FRAMING = {
 // (Defect C) rewritten to a single ask while preserving that affirmative polarity.
 const SCOPE_QUESTIONS = {
   [INITIATIVE_SLOT_ID]:         'Will this goal run several work streams in parallel?',
-  [SEQUENCING_STRATEGY_SLOT_ID]: 'Do you want guidance on whether to build Foundation (brand, positioning) or Output (product) first?',
   [SYSTEM_SLOT_ID]:             'Are there software systems to set up?',
   [ARTIFACT_SLOT_ID]:           'Will this produce specific deliverables?',
   [DEPENDENCY_SLOT_ID]:         'Are there work items where one must be completed before another can start?',
@@ -81,7 +78,6 @@ const PROBE_OVERRIDES = {
 // Optional sections require a scoping question before entering (Rule 5)
 const OPTIONAL_SECTIONS = new Set([
   INITIATIVE_SLOT_ID,
-  SEQUENCING_STRATEGY_SLOT_ID,
   SYSTEM_SLOT_ID,
   ARTIFACT_SLOT_ID,
   DEPENDENCY_SLOT_ID,
@@ -113,7 +109,6 @@ const MULTI_SELECT_KINDS = new Set([
 const FULL_SLOT_ORDER = [
   ENTITY_SLOT_ID,
   INITIATIVE_SLOT_ID,
-  SEQUENCING_STRATEGY_SLOT_ID,
   PROJECT_SLOT_ID,
   ARTIFACT_SLOT_ID,
   SYSTEM_SLOT_ID,
