@@ -81,7 +81,6 @@ const PROBE_OVERRIDES = {
 // Optional sections require a scoping question before entering (Rule 5)
 const OPTIONAL_SECTIONS = new Set([
   INITIATIVE_SLOT_ID,
-  SEQUENCING_STRATEGY_SLOT_ID,
   SYSTEM_SLOT_ID,
   ARTIFACT_SLOT_ID,
   DEPENDENCY_SLOT_ID,

@@ -1,5 +1,6 @@
 import { ENTITY_REPROBES } from './entityReprobes';
 import { INITIATIVE_REPROBES } from './initiativeReprobes';
+import { SEQUENCING_REPROBES } from './sequencingReprobes';
 import { SYSTEM_REPROBES } from './systemReprobes';
 import { ARTIFACT_REPROBES } from './artifactReprobes';
 import { DEPENDENCY_REPROBES } from './dependencyReprobes';
@@ -133,6 +134,7 @@ export const REPROBES = {
   },
   ...ENTITY_REPROBES,
   ...INITIATIVE_REPROBES,
+  ...SEQUENCING_REPROBES,
   ...SYSTEM_REPROBES,
   ...ARTIFACT_REPROBES,
   ...DEPENDENCY_REPROBES,
