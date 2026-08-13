@@ -15,17 +15,19 @@
 - This is distinct from Release Date (customer-facing ship)
 - All Convergence Declaration reasoning assumes this definition
 
-**Open decision: Grandfathering**
+**Locked decision: Retroactive Sweep (Option A)**
 
-Existing Terminal Dates in code (OFL tapes, Operation Endgame, etc.) may have been set with "Release = Terminal" assumption (old doctrine).
+Existing Terminal Dates in code (OFL tapes, Operation Endgame, etc.) must be audited against the full definition.
 
-**Two options (pick one):**
-- **Option A (Sweep Retroactively):** Review existing Terminal Dates, update any that conflate Release with Terminal, align all with new definition
-- **Option B (Grandfather):** Leave existing Terminal Dates as-is with explicit exception flag; new Convergence work uses correct definition going forward
+**What this means:**
+- Review every existing Project's Terminal Date
+- Audit for real post-release work: does this project genuinely have work after release? (e.g., Romance Riot's Deluxe Edition pattern)
+- Correct Terminal Dates where a Terminal currently equals Release but post-release work actually exists
+- **Do not assume post-release work exists where it doesn't** — this is an audit, not a blanket date shift
 
-**Why this matters:** Convergence enforcement assumes Terminal Deadline accuracy. If old dates are wrong, enforcement runs against garbage. But sweeping is out-of-scope for this phase if existing tests rely on old dates. Grandfathering is safer (no test churn), clearer (one exception, documented).
+**Why retroactive:** Convergence enforcement assumes Terminal Deadline accuracy. If old dates conflate Release with Terminal incorrectly, enforcement runs against garbage. Audit now, get the facts straight, then Convergence enforcement is built on solid ground.
 
-**Recommendation:** Option B (grandfather existing, document exception, use correct definition for Phase 2 onward).
+**Outcome:** Every Project's Terminal Date reflects reality of post-release work (or absence thereof), not legacy doctrine assumptions.
 
 ---
 
