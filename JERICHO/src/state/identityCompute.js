@@ -48,6 +48,7 @@ import { getDeadlineDayKey } from '../core/deadline.ts';
 
 import { generateDeterministicPlan } from '../core/deterministicPlanGenerator.ts';
 import { buildCausalChainStepsFromMatrix } from '../domain/masterGrid/causalChainFromMatrix.js';
+import { validateCrossReferenceIntegrity } from './engine/crossReferenceIntegrityValidator.js';
 import { seedCapacityFromLegacyConstraints } from '../domain/masterGrid/capacityFromLegacy.js';
 import { buildConstraintsFromMatrix } from '../domain/masterGrid/constraintsFromMatrix.js';
 import { buildScheduledBlocksFromDeterministicResult } from '../domain/masterGrid/scheduledBlocksFromDeterministicResult.js';
@@ -835,6 +836,7 @@ export function computeDerivedState(state, action) {
       break;
     case 'END_CYCLE':
       endCycle(next, action.cycleId);
+      checkCrossReferenceIntegrity(next);
       break;
     case 'ARCHIVE_AND_CLONE_CYCLE':
       archiveAndCloneCycle(next, action.cycleId, action.overrides);
@@ -16479,6 +16481,20 @@ function declareSequencingStrategy(state, payload = {}) {
     sequencingStrategy,
     sequencingReasoning,
   };
+}
+
+// Cross-reference integrity check: detects drift in Convergence dates, references, etc.
+// Called before cycle apply/save to catch inconsistencies early.
+// Issues are advisory (non-blocking); operator chooses whether to proceed.
+function checkCrossReferenceIntegrity(state) {
+  const result = validateCrossReferenceIntegrity(state);
+
+  // Store issues on state for UI rendering
+  // Clear previous issues each time (state may have changed)
+  state.referenceIntegrityIssues = result.issues;
+  state.referenceIntegrityStatus = result.isConsistent ? 'consistent' : 'drift_detected';
+
+  return result;
 }
 
 // Section 4 system declared through the elicitation engine (DECLARE_SYSTEM).

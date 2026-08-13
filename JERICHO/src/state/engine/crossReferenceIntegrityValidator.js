@@ -62,16 +62,16 @@ export function validateConvergenceDates(state) {
   const projects = state.matrix?.projectsById || {};
 
   for (const [edgeId, edge] of Object.entries(convergences)) {
-    if (!edge.sourceProjectIds || edge.sourceProjectIds.length === 0) continue;
+    if (!edge.sourceProjectIds || edge.sourceProjectIds.length === 0) {continue;}
 
     const sharedDate = edge.expectedTerminalDate || edge.sharedDeadline;
-    if (!sharedDate) continue;
+    if (!sharedDate) {continue;}
 
     const mismatchedSources = [];
 
     for (const projectId of edge.sourceProjectIds) {
       const project = projects[projectId];
-      if (!project) continue; // Will be caught by Pattern 2
+      if (!project) {continue;} // Will be caught by Pattern 2
 
       const projectTerminalDate = project.terminalDate || project.deadlineISO;
       if (projectTerminalDate && projectTerminalDate !== sharedDate) {
@@ -122,7 +122,7 @@ export function validateConvergenceSources(state) {
   }
 
   for (const [edgeId, edge] of Object.entries(convergences)) {
-    if (!edge.sourceProjectIds || edge.sourceProjectIds.length === 0) continue;
+    if (!edge.sourceProjectIds || edge.sourceProjectIds.length === 0) {continue;}
 
     const brokenReferences = [];
 
@@ -172,7 +172,7 @@ export function validateArtifactParents(state) {
 
   for (const [artifactId, artifact] of Object.entries(artifacts)) {
     const parentId = artifact.parentDeliverableId || artifact.parentProjectId;
-    if (!parentId) continue; // No parent reference, not an error
+    if (!parentId) {continue;} // No parent reference, not an error
 
     const resolved = resolver(state, parentId);
     if (!resolved) {
@@ -213,7 +213,7 @@ export function validateNamingConsistency(state) {
   const projects = state.matrix?.projectsById || {};
 
   for (const [edgeId, edge] of Object.entries(convergences)) {
-    if (!edge.sourceProjectNames || edge.sourceProjectNames.length === 0) continue;
+    if (!edge.sourceProjectNames || edge.sourceProjectNames.length === 0) {continue;}
 
     const missingNameReferences = [];
 
