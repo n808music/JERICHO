@@ -40,7 +40,10 @@ export default defineConfig({
     },
   },
   test: {
-    threads: false,
+    pool: 'forks',
+    poolOptions: {
+      forks: { singleFork: false },
+    },
     globals: true,
     environment: 'jsdom',
     setupFiles: [path.join(__dirname, 'tests/setup.ts')],
