@@ -39,7 +39,7 @@ describe('Operation Endgame Context — Deep Dive', () => {
     console.log('\nCanonical entities NOT hit by ANY fixture lane:');
     const hit = new Set(entityCounts.keys());
     ENTERPRISE_IDENTITY_MAP.forEach((e) => {
-      if (!hit.has(e.displayName)) console.log(`  - ${e.displayName.padEnd(32)} (category: ${e.companyCategory})`);
+      if (!hit.has(e.displayName)) {console.log(`  - ${e.displayName.padEnd(32)} (category: ${e.companyCategory})`);}
     });
     expect(true).toBe(true);
   });
@@ -108,7 +108,7 @@ describe('Operation Endgame Context — Deep Dive', () => {
     const laneTargets = new Set();
     fullHorizon.forEach((b) => {
       (b?.consumedBy || []).forEach((c) => {
-        if (String(c).startsWith('lane:')) laneTargets.add(c);
+        if (String(c).startsWith('lane:')) {laneTargets.add(c);}
       });
     });
     [...laneTargets].slice(0, 15).forEach((t) => console.log(`  ${t}`));
@@ -121,7 +121,7 @@ describe('Operation Endgame Context — Deep Dive', () => {
       const consumerLaneIds = new Set();
       consumers.forEach((c) => {
         const m = /^lane:([^:]+)/.exec(String(c));
-        if (m) consumerLaneIds.add(m[1]);
+        if (m) {consumerLaneIds.add(m[1]);}
       });
       if (consumerLaneIds.size > 0 && b?.laneId && !consumerLaneIds.has(b.laneId)) {
         crossLaneCount += 1;

@@ -6,7 +6,7 @@ import { buildOperationEndgameState } from '../helpers/masterPlanFullHorizonScen
 function countBlocksByYear(blocks) {
   return blocks.reduce((counts, block) => {
     const year = String(block?.dayKey || '').slice(0, 4);
-    if (!year) return counts;
+    if (!year) {return counts;}
     counts[year] = (counts[year] || 0) + 1;
     return counts;
   }, {});
@@ -14,7 +14,7 @@ function countBlocksByYear(blocks) {
 
 function getLaneGapDays(blocks) {
   const byLane = blocks.reduce((acc, block) => {
-    if (!block?.laneId || !block?.dayKey) return acc;
+    if (!block?.laneId || !block?.dayKey) {return acc;}
     acc[block.laneId] = acc[block.laneId] || [];
     acc[block.laneId].push(block.dayKey);
     return acc;
@@ -39,7 +39,7 @@ function countFinal12Months(blocks, horizonEndDayKey) {
   const startDate = new Date(endDate);
   startDate.setUTCMonth(startDate.getUTCMonth() - 12);
   return blocks.filter((block) => {
-    if (!block?.dayKey) return false;
+    if (!block?.dayKey) {return false;}
     const date = new Date(`${block.dayKey}T12:00:00.000Z`);
     return date >= startDate && date <= endDate;
   });

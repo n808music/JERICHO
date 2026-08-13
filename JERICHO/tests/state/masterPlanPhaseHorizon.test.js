@@ -77,7 +77,7 @@ function getPlan(derived) {
 
 function getPhaseModel(derived) {
   const plan = getPlan(derived);
-  if (!plan) return null;
+  if (!plan) {return null;}
   const lanes = (plan.laneIds || []).map(id => derived.masterPlanLanesById?.[id]).filter(Boolean);
   const milestones = lanes.flatMap(l => (l.milestoneIds || []).map(id => derived.masterPlanMilestonesById?.[id])).filter(Boolean);
   return deriveMasterPlanPhaseModel({

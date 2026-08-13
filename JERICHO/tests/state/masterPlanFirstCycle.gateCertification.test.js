@@ -216,8 +216,8 @@ describe('GATE CERTIFICATION: First-cycle Sprint quality', () => {
         artifact.includes('First-cycle readiness work') || artifact.includes('Milestone checkpoint');
       const isGenericEvidence = evidence.includes('confirmed complete');
 
-      if (isGenericArtifact) genericArtifactCount++;
-      if (isGenericEvidence) genericEvidenceCount++;
+      if (isGenericArtifact) {genericArtifactCount++;}
+      if (isGenericEvidence) {genericEvidenceCount++;}
 
       console.log(`  Block ${idx + 1}: ${block.title}`);
       console.log(`    - artifact: ${artifact.substring(0, 80)}...`);

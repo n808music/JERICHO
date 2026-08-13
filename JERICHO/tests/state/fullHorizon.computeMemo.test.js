@@ -24,7 +24,7 @@ describe('full-horizon derivation is memoized at enterprise scale', () => {
     let s = computeDerivedState(state, TRIVIAL);
     const iterations = 5;
     const t0 = performance.now();
-    for (let i = 0; i < iterations; i++) s = computeDerivedState(s, TRIVIAL);
+    for (let i = 0; i < iterations; i++) {s = computeDerivedState(s, TRIVIAL);}
     const perCall = (performance.now() - t0) / iterations;
     // Pre-fix this is ~900ms. Post-fix (memo hit + clone) is a few tens of ms.
     // 300ms is a generous ceiling that still catches the regression on slow CI.

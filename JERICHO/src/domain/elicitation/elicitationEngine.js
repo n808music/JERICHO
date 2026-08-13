@@ -79,6 +79,7 @@ import {
   computeBootstrapCandidates,
 } from './bootstrapSlot';
 import { PRICING_STRATEGY_SLOT } from './pricingStrategySlot.js';
+import { SEQUENCING_STRATEGY_SLOT } from './sequencingStrategySlot.js';
 import { probeFor } from './reprobes.js';
 
 // Byte-identical for identical inputs — no interpolation, no randomness.
@@ -113,8 +114,8 @@ export { CONVERGENCE_SLOT_ID } from './convergenceSlot';
 export { RESOURCE_PROFILE_SLOT_ID, BINDING_CONSTRAINT_SLOT_ID } from './resourceProfileSlot';
 export { BOOTSTRAP_SLOT_ID } from './bootstrapSlot';
 
-// TODO: Phase 2 — Sequencing Risk will also read riskClassification for scheduling recommendations
 const PRICING_STRATEGY_SLOT_ID = 'PRICING_STRATEGY';
+const SEQUENCING_STRATEGY_SLOT_ID = 'SEQUENCING_STRATEGY';
 
 const SLOT_REGISTRY = {
   [PROJECT_SLOT_ID]: PROJECT_SLOT,
@@ -129,6 +130,7 @@ const SLOT_REGISTRY = {
   [BINDING_CONSTRAINT_SLOT_ID]: BINDING_CONSTRAINT_SLOT,
   [BOOTSTRAP_SLOT_ID]: BOOTSTRAP_SLOT,
   [PRICING_STRATEGY_SLOT_ID]: PRICING_STRATEGY_SLOT,
+  [SEQUENCING_STRATEGY_SLOT_ID]: SEQUENCING_STRATEGY_SLOT,
 };
 
 function freshSlotState(slotId) {
@@ -347,11 +349,11 @@ const REFERENT_PLACEHOLDER = {
 function subjectNameFor(slotId, captured, matrixSnapshot) {
   if (slotId === CONVERGENCE_SLOT_ID) {
     const to = String(captured?.toNodeId || '').trim();
-    if (!to) return '';
+    if (!to) {return '';}
     const snap = matrixSnapshot || {};
     for (const reg of ['entitiesById', 'initiativesById', 'systemsById', 'projectsById', 'artifactsById']) {
       const node = snap[reg]?.[to];
-      if (node) return String(node.name || to);
+      if (node) {return String(node.name || to);}
     }
     return '';
   }
@@ -360,9 +362,9 @@ function subjectNameFor(slotId, captured, matrixSnapshot) {
 
 function applyReferentBinding(spine, slotId, captured, matrixSnapshot) {
   const placeholder = REFERENT_PLACEHOLDER[slotId];
-  if (!placeholder) return spine;
+  if (!placeholder) {return spine;}
   const subject = subjectNameFor(slotId, captured, matrixSnapshot);
-  if (!subject) return spine;
+  if (!subject) {return spine;}
   // Replace all occurrences so multi-sentence spines bind fully. Plain text —
   // the UI renders the spine verbatim, so no markdown markers (Defect E).
   return spine.split(placeholder).join(subject);
@@ -395,7 +397,7 @@ function buildProbe({ slotId, goalType, code, matrixSnapshot, captured }) {
 
 function nextProbeForCurrentSlot(state) {
   const topSlotState = topOfStack(state.slotStack);
-  if (!topSlotState) return { done: true };
+  if (!topSlotState) {return { done: true };}
   const slotDef = SLOT_REGISTRY[topSlotState.slotId];
   const failure = firstFailingGate(slotDef, topSlotState.captured, { matrixSnapshot: state.matrixSnapshot });
   if (!failure) {
@@ -548,10 +550,10 @@ function finalizeCompletedSlots(state) {
   let safety = 0;
   while (safety++ < 10) {
     const topSlotState = topOfStack(nextState.slotStack);
-    if (!topSlotState) break;
+    if (!topSlotState) {break;}
     const slotDef = SLOT_REGISTRY[topSlotState.slotId];
     const failure = firstFailingGate(slotDef, topSlotState.captured, { matrixSnapshot: nextState.matrixSnapshot });
-    if (failure) break;
+    if (failure) {break;}
     // PROJECT_SLOT requires operator confirmation before dispatching.
     if (topSlotState.slotId === PROJECT_SLOT_ID) {
       if (!nextState.readbackPending) {
@@ -667,7 +669,7 @@ export function createElicitationEngine({ goalType, matrixSnapshot, scope = [PRO
           verificationSource: ['verificationSource', 'verificationSourceId'],
         };
         const nextCaptured = { ...topSlotState.captured };
-        for (const f of REOPEN_CASCADE[reopen] || [reopen]) delete nextCaptured[f];
+        for (const f of REOPEN_CASCADE[reopen] || [reopen]) {delete nextCaptured[f];}
         const nextSlotState = { ...topSlotState, captured: nextCaptured };
         const nextStack = [...currentState.slotStack.slice(0, -1), nextSlotState];
         const nextState = {
@@ -704,15 +706,15 @@ export function createElicitationEngine({ goalType, matrixSnapshot, scope = [PRO
       // must be able to step backwards through what they already answered.
       answeredGateFields() {
         const top = topOfStack(currentState.slotStack);
-        if (!top) return [];
+        if (!top) {return [];}
         const slotDef = SLOT_REGISTRY[top.slotId];
         const seen = new Set();
         const out = [];
         for (const g of slotDef?.gate || []) {
           const f = g.fieldName;
-          if (!f || seen.has(f)) continue;
+          if (!f || seen.has(f)) {continue;}
           seen.add(f);
-          if (top.captured[f] !== undefined) out.push({ fieldName: f, value: top.captured[f] });
+          if (top.captured[f] !== undefined) {out.push({ fieldName: f, value: top.captured[f] });}
         }
         return out;
       },
@@ -723,7 +725,7 @@ export function createElicitationEngine({ goalType, matrixSnapshot, scope = [PRO
       // a captured answer they never confirmed.
       reopenFieldAndLater(fieldName) {
         const top = topOfStack(currentState.slotStack);
-        if (!top) return { engine: wrap(currentState), previousValue: null };
+        if (!top) {return { engine: wrap(currentState), previousValue: null };}
         const slotDef = SLOT_REGISTRY[top.slotId];
         const order = [];
         const seen = new Set();
@@ -734,10 +736,10 @@ export function createElicitationEngine({ goalType, matrixSnapshot, scope = [PRO
           }
         }
         const idx = order.indexOf(fieldName);
-        if (idx < 0) return { engine: wrap(currentState), previousValue: null };
+        if (idx < 0) {return { engine: wrap(currentState), previousValue: null };}
         const previousValue = top.captured[fieldName];
         const nextCaptured = { ...top.captured };
-        for (const f of order.slice(idx)) delete nextCaptured[f];
+        for (const f of order.slice(idx)) {delete nextCaptured[f];}
         const nextTop = { ...top, captured: nextCaptured, lastFailureCode: null };
         const nextState = {
           ...currentState,

@@ -72,7 +72,7 @@ export const PROJECT_SLOT = {
       fieldName: 'phase',
       detect: (captured) => {
         const raw = captured?.phase;
-        if (raw == null || String(raw).trim() === '') return false; // absence handled above
+        if (raw == null || String(raw).trim() === '') {return false;} // absence handled above
         try {
           classifyPhase(raw, captured?.name);
           return false;

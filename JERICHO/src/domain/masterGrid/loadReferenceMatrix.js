@@ -32,7 +32,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
   // Full name -> id map (all classes) for parent_initiative / parent_project
   // references, which appear in the fixture with exact names.
   const idByName = new Map();
-  for (const n of nodes) idByName.set(n.name, slugId(n.name));
+  for (const n of nodes) {idByName.set(n.name, slugId(n.name));}
   const resolve = (nm) => (nm && idByName.has(nm) ? idByName.get(nm) : null);
 
   let state = buildBlankIdentityState({ nowISO });
@@ -47,7 +47,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
   // resolves to null. Entities are declared before any referencing class, so
   // state.matrix.entitiesById is populated by the time this runs for owners.
   const resolveEntity = (nm) => {
-    if (!nm) return null;
+    if (!nm) {return null;}
     const canonical = ENTITY_ALIASES[nm] || nm;
     const id = idByName.get(canonical);
     return id && state.matrix?.entitiesById?.[id] ? id : null;

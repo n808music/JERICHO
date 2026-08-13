@@ -23,7 +23,7 @@ function parseHHMMToMinutes(hhmm) {
   const [h, m] = String(hhmm || '')
     .split(':')
     .map(Number);
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return 0;
+  if (!Number.isFinite(h) || !Number.isFinite(m)) {return 0;}
   return h * 60 + m;
 }
 
@@ -44,14 +44,14 @@ function resolveConfirmedCapacityRow(matrix) {
     const forEntity = Object.values(capacityById).find(
       (row) => row && row.owningEntityId === entityId && row.reviewStatus === 'CONFIRMED'
     );
-    if (forEntity) return forEntity;
+    if (forEntity) {return forEntity;}
   }
 
   // No confirmed causal chain yet to anchor an entity, or that entity has no confirmed
   // capacity — if there's exactly one CONFIRMED capacity row in the whole matrix, it's
   // unambiguous enough to use (the common solo-operator case).
   const confirmedRows = Object.values(capacityById).filter((row) => row && row.reviewStatus === 'CONFIRMED');
-  if (confirmedRows.length === 1) return confirmedRows[0];
+  if (confirmedRows.length === 1) {return confirmedRows[0];}
 
   return null;
 }
@@ -62,10 +62,10 @@ function resolveConfirmedCapacityRow(matrix) {
  */
 export function buildConstraintsFromMatrix(matrix = {}) {
   const row = resolveConfirmedCapacityRow(matrix);
-  if (!row) return null;
+  if (!row) {return null;}
 
   const workDays = DAY_KEYS.filter((day) => minutesForDay(row.workWindows, day) > 0);
-  if (workDays.length === 0) return null;
+  if (workDays.length === 0) {return null;}
 
   const minutesPerWorkDay = workDays.map((day) => minutesForDay(row.workWindows, day));
   const minMinutesInADay = Math.min(...minutesPerWorkDay);

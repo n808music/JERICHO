@@ -40,19 +40,19 @@ function hasWord(text, pattern) {
 function inferLaneFamily(lane) {
   const domain = String(lane?.domain || '').trim().toLowerCase();
   const title = String(lane?.title || '').trim().toLowerCase();
-  if (domain === 'product' || hasWord(title, 'app') || title.includes('software')) return 'product_software';
-  if (domain === 'creative' || title.includes('album') || title.includes('release') || title.includes('music')) return 'creative_media';
-  if (domain === 'media' || title.includes('podcast') || title.includes('content')) return 'media_channel';
-  if (domain === 'brand' || title.includes('company') || title.includes('agency') || title.includes('studio')) return 'company_operations';
-  if (domain === 'income' || title.includes('income') || title.includes('revenue')) return 'income_stream';
-  if (domain === 'capital' || domain === 'real_estate' || title.includes('real estate') || title.includes('property')) return 'capital_real_estate';
-  if (domain === 'institution' || domain === 'education' || title.includes('school') || title.includes('franchise')) return 'institution_education';
-  if (domain === 'civic' || domain === 'district' || title.includes('district') || title.includes('community')) return 'civic_development';
+  if (domain === 'product' || hasWord(title, 'app') || title.includes('software')) {return 'product_software';}
+  if (domain === 'creative' || title.includes('album') || title.includes('release') || title.includes('music')) {return 'creative_media';}
+  if (domain === 'media' || title.includes('podcast') || title.includes('content')) {return 'media_channel';}
+  if (domain === 'brand' || title.includes('company') || title.includes('agency') || title.includes('studio')) {return 'company_operations';}
+  if (domain === 'income' || title.includes('income') || title.includes('revenue')) {return 'income_stream';}
+  if (domain === 'capital' || domain === 'real_estate' || title.includes('real estate') || title.includes('property')) {return 'capital_real_estate';}
+  if (domain === 'institution' || domain === 'education' || title.includes('school') || title.includes('franchise')) {return 'institution_education';}
+  if (domain === 'civic' || domain === 'district' || title.includes('district') || title.includes('community')) {return 'civic_development';}
   return domain || 'general';
 }
 
 function laneLabel(lane) {
-  if (!lane) return 'primary lane';
+  if (!lane) {return 'primary lane';}
   const family = inferLaneFamily(lane);
   return LANE_FAMILY_LABELS[family] || 'primary lane';
 }
@@ -147,7 +147,7 @@ function daysBetween(startKey, endKey) {
 }
 
 function clampKey(key, maxKey) {
-  if (!key || !maxKey) return key || maxKey;
+  if (!key || !maxKey) {return key || maxKey;}
   return key < maxKey ? key : maxKey;
 }
 
@@ -188,7 +188,7 @@ function forecastBlockId(planId, phaseLabel, dayKey, index) {
 // ─── Block factory ────────────────────────────────────────────────────────────
 
 function resolveForecastBlockOwner(blockType, laneFamily = null) {
-  if (blockType === 'waiting_period') return 'TBD — must be resolved before activation';
+  if (blockType === 'waiting_period') {return 'TBD — must be resolved before activation';}
   return defaultOwnerForLaneFamily(laneFamily);
 }
 
@@ -327,11 +327,11 @@ function buildForecastBlock({
 
 function deriveP2Blocks({ planId, phase, lane, horizonEndDayKey }) {
   const { startBoundary, endBoundary } = phase;
-  if (!startBoundary || !endBoundary) return [];
+  if (!startBoundary || !endBoundary) {return [];}
 
   const phaseEnd = clampKey(endBoundary, horizonEndDayKey);
   const totalDays = daysBetween(startBoundary, phaseEnd);
-  if (totalDays < 14) return [];
+  if (totalDays < 14) {return [];}
 
   const templates = p2TitleTemplates(lane ? { domain: lane.domain, title: lane.laneTitle } : null);
   const blocks = [];
@@ -386,11 +386,11 @@ function deriveP2Blocks({ planId, phase, lane, horizonEndDayKey }) {
 
 function deriveP3Blocks({ planId, phase, lane, horizonEndDayKey }) {
   const { startBoundary, endBoundary } = phase;
-  if (!startBoundary || !endBoundary) return [];
+  if (!startBoundary || !endBoundary) {return [];}
 
   const phaseEnd = clampKey(endBoundary, horizonEndDayKey);
   const totalDays = daysBetween(startBoundary, phaseEnd);
-  if (totalDays < 30) return [];
+  if (totalDays < 30) {return [];}
 
   const templates = p3TitleTemplates(lane ? { domain: lane.domain, title: lane.laneTitle } : null);
   const blocks = [];
@@ -446,7 +446,7 @@ function deriveP3Blocks({ planId, phase, lane, horizonEndDayKey }) {
 
 function deriveP1PostCycleBlocks({ planId, phase, lane, cycleEndDayKey, horizonEndDayKey }) {
   const { startBoundary, endBoundary } = phase;
-  if (!startBoundary || !endBoundary) return [];
+  if (!startBoundary || !endBoundary) {return [];}
 
   const phaseEnd = clampKey(endBoundary, horizonEndDayKey);
 
@@ -458,10 +458,10 @@ function deriveP1PostCycleBlocks({ planId, phase, lane, cycleEndDayKey, horizonE
 
   // Clamp: post-cycle start must be within the P1 phase window and horizon
   const windowStart = clampKey(postCycleStart, phaseEnd);
-  if (!windowStart || windowStart > phaseEnd) return [];
+  if (!windowStart || windowStart > phaseEnd) {return [];}
 
   const totalDays = daysBetween(windowStart, phaseEnd);
-  if (totalDays < 14) return [];
+  if (totalDays < 14) {return [];}
 
   const templates = p1PostCycleTitleTemplates(lane ? { domain: lane.domain, title: lane.laneTitle } : null);
   const blocks = [];
@@ -527,12 +527,12 @@ function deriveP1PostCycleBlocks({ planId, phase, lane, cycleEndDayKey, horizonE
  * @returns {Array}
  */
 export function deriveForecastBlocks({ plan, phase, horizonEndDayKey, cycleEndDayKey = null }) {
-  if (!plan || !phase) return [];
+  if (!plan || !phase) {return [];}
   const label = String(phase.label || '').trim().toUpperCase();
 
   const planId = String(plan.id || 'plan');
   const effectiveHorizonEnd = horizonEndDayKey || plan.fullHorizonEndDayKey || plan.horizonEnd;
-  if (!effectiveHorizonEnd) return [];
+  if (!effectiveHorizonEnd) {return [];}
 
   // Use the primary lane for title generation (first active/non-deferred lane)
   const primaryLane =
@@ -568,9 +568,9 @@ export function deriveForecastBlocks({ plan, phase, horizonEndDayKey, cycleEndDa
  *       and must not be on the vague-label blocklist.
  */
 export function validateBlockTitle(title) {
-  if (!title) return false;
+  if (!title) {return false;}
   const t = String(title).trim();
-  if (!t) return false;
+  if (!t) {return false;}
 
   const VAGUE = new Set([
     'launch', 'drop', 'promo', 'scale', 'build', 'review',
@@ -581,10 +581,10 @@ export function validateBlockTitle(title) {
   const normalized = t.toLowerCase();
 
   // Single-word check
-  if (!normalized.includes(' ')) return false;
+  if (!normalized.includes(' ')) {return false;}
 
   // Check if the entire title (lower-cased, trimmed) is a single known vague word
-  if (VAGUE.has(normalized)) return false;
+  if (VAGUE.has(normalized)) {return false;}
 
   return true;
 }
@@ -599,7 +599,7 @@ export function validateBlockTitle(title) {
  * @returns {string|null}
  */
 export function resolveHorizonEndForMode(horizonVisibility, mode, cycleDeadlineDayKey = null) {
-  if (!horizonVisibility) return cycleDeadlineDayKey || null;
+  if (!horizonVisibility) {return cycleDeadlineDayKey || null;}
   switch (mode) {
     case 'current_cycle': return cycleDeadlineDayKey || horizonVisibility.currentCycleEnd || null;
     case '1_year':        return horizonVisibility.oneYearEnd || null;

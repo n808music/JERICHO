@@ -18,7 +18,7 @@ describe('Master Grid acceptance', () => {
   it('AC2: names byte-identical to the seed file', () => {
     const matrix = loadReferenceMatrix(fixture, { nowISO: '2026-07-08T00:00:00Z' }).matrix;
     const rowNames = new Set(selectMasterGridRows(matrix).map((r) => r.name));
-    for (const node of fixture.nodes) expect(rowNames.has(node.name)).toBe(true);
+    for (const node of fixture.nodes) {expect(rowNames.has(node.name)).toBe(true);}
     expect(rowNames.size).toBe(53);
   });
 

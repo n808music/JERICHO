@@ -50,7 +50,7 @@ export function getPlan(derived) {
 
 export function getPhaseModel(derived) {
   const plan = getPlan(derived);
-  if (!plan) return null;
+  if (!plan) {return null;}
   const lanes = (plan.laneIds || []).map((id) => derived.masterPlanLanesById?.[id]).filter(Boolean);
   const milestones = lanes
     .flatMap((lane) => (lane.milestoneIds || []).map((id) => derived.masterPlanMilestonesById?.[id]))

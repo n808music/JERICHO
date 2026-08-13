@@ -146,7 +146,7 @@ function applyCreateMasterPlan(draft, action) {
 
 function applyUpdateMasterPlan(draft, action) {
   const plan = draft.masterPlansById?.[action.masterPlanId];
-  if (!plan) return;
+  if (!plan) {return;}
   const { id, profileId, createdAt, laneIds, anchors, ...rest } = action.updates || {};
   Object.assign(plan, rest);
   plan.updatedAt = action.nowISO || new Date().toISOString();
@@ -155,7 +155,7 @@ function applyUpdateMasterPlan(draft, action) {
 function applySetActiveMasterPlan(draft, action) {
   const profileId = action.profileId || draft.activeProfileId;
   const profile = draft.profilesById?.[profileId];
-  if (!profile) return;
+  if (!profile) {return;}
   ensureMasterPlanProfileFields(profile);
   if (draft.masterPlansById?.[action.masterPlanId]) {
     profile.activeMasterPlanId = action.masterPlanId;
@@ -164,7 +164,7 @@ function applySetActiveMasterPlan(draft, action) {
 
 function applyAddMasterPlanAnchor(draft, action) {
   const plan = draft.masterPlansById?.[action.masterPlanId];
-  if (!plan) return;
+  if (!plan) {return;}
   const anchor = action.anchor?.id ? action.anchor : buildAnchor(action.anchor);
   plan.anchors = plan.anchors || [];
   plan.anchors.push(anchor);
@@ -173,16 +173,16 @@ function applyAddMasterPlanAnchor(draft, action) {
 
 function applyUpdateMasterPlanAnchor(draft, action) {
   const plan = draft.masterPlansById?.[action.masterPlanId];
-  if (!plan) return;
+  if (!plan) {return;}
   const idx = (plan.anchors || []).findIndex((a) => a.id === action.anchorId);
-  if (idx === -1) return;
+  if (idx === -1) {return;}
   plan.anchors[idx] = { ...plan.anchors[idx], ...action.updates };
   plan.updatedAt = action.nowISO || new Date().toISOString();
 }
 
 function applyAddMasterPlanLane(draft, action) {
   const plan = draft.masterPlansById?.[action.masterPlanId];
-  if (!plan) return;
+  if (!plan) {return;}
   const lane = buildLane({ ...action.payload, masterPlanId: action.masterPlanId });
 
   draft.masterPlanLanesById[lane.id] = lane;
@@ -194,7 +194,7 @@ function applyAddMasterPlanLane(draft, action) {
 
 function applyUpdateMasterPlanLane(draft, action) {
   const lane = draft.masterPlanLanesById?.[action.laneId];
-  if (!lane) return;
+  if (!lane) {return;}
   // milestoneIds and id are managed by the store, not patched directly
   const { id, masterPlanId, milestoneIds, ...rest } = action.updates || {};
   Object.assign(lane, rest);
@@ -202,7 +202,7 @@ function applyUpdateMasterPlanLane(draft, action) {
 
 function applyAddMasterPlanMilestone(draft, action) {
   const lane = draft.masterPlanLanesById?.[action.laneId];
-  if (!lane) return;
+  if (!lane) {return;}
   const milestone = buildMilestone({ ...action.payload, laneId: action.laneId });
 
   draft.masterPlanMilestonesById[milestone.id] = milestone;
@@ -213,14 +213,14 @@ function applyAddMasterPlanMilestone(draft, action) {
 
 function applyUpdateMasterPlanMilestone(draft, action) {
   const milestone = draft.masterPlanMilestonesById?.[action.milestoneId];
-  if (!milestone) return;
+  if (!milestone) {return;}
   const { id, laneId, anchorId, ...rest } = action.updates || {};
   Object.assign(milestone, rest);
 }
 
 function applyAddLaneRequirement(draft, action) {
   const lane = draft.masterPlanLanesById?.[action.laneId];
-  if (!lane) return;
+  if (!lane) {return;}
   const req = buildRequirement(action.payload);
   lane.requirements = lane.requirements || [];
   lane.requirements.push(req);
@@ -228,9 +228,9 @@ function applyAddLaneRequirement(draft, action) {
 
 function applyUpdateLaneRequirement(draft, action) {
   const lane = draft.masterPlanLanesById?.[action.laneId];
-  if (!lane) return;
+  if (!lane) {return;}
   const idx = (lane.requirements || []).findIndex((r) => r.id === action.requirementId);
-  if (idx === -1) return;
+  if (idx === -1) {return;}
   lane.requirements[idx] = { ...lane.requirements[idx], ...action.updates };
 }
 
@@ -240,9 +240,9 @@ function nextIntakeStep(intake, answer = {}) {
   const { phase, step, currentLaneIdx, clarifyingQuestionIdx, extractedLanes } = intake;
 
   if (phase === 1) {
-    if (step === 1) return { phase: 1, step: 2 };
-    if (step === 2) return { phase: 1, step: 3 };
-    if (step === 3) return { phase: 2, step: 4 };
+    if (step === 1) {return { phase: 1, step: 2 };}
+    if (step === 2) {return { phase: 1, step: 3 };}
+    if (step === 3) {return { phase: 2, step: 4 };}
   }
 
   if (phase === 2) {
@@ -250,9 +250,9 @@ function nextIntakeStep(intake, answer = {}) {
       // Stay at step 4 if the user indicated more anchors exist
       return answer.hasMore ? { phase: 2, step: 4 } : { phase: 2, step: 5 };
     }
-    if (step === 5) return { phase: 2, step: 6 };
+    if (step === 5) {return { phase: 2, step: 6 };}
     if (step === 6) {
-      if (!extractedLanes || extractedLanes.length === 0) return { phase: 4, step: 11 };
+      if (!extractedLanes || extractedLanes.length === 0) {return { phase: 4, step: 11 };}
       return { phase: 3, step: 7, currentLaneIdx: 0, clarifyingQuestionIdx: 0 };
     }
   }
@@ -275,7 +275,7 @@ function nextIntakeStep(intake, answer = {}) {
       }
       return { phase: 3, step: 9, clarifyingQuestionIdx: 0 };
     }
-    if (step === 9) return { phase: 3, step: 10 };
+    if (step === 9) {return { phase: 3, step: 10 };}
     if (step === 10) {
       const nextLane = currentLaneIdx + 1;
       if (nextLane < extractedLanes.length) {
@@ -286,8 +286,8 @@ function nextIntakeStep(intake, answer = {}) {
   }
 
   if (phase === 4) {
-    if (step === 11) return { phase: 4, step: 12 };
-    if (step === 12) return { phase: 4, step: 13 };
+    if (step === 11) {return { phase: 4, step: 12 };}
+    if (step === 12) {return { phase: 4, step: 13 };}
     // Step 13 completion is triggered by MASTER_PLAN_INTAKE_COMPLETE
   }
 
@@ -309,7 +309,7 @@ function applyIntakeStart(draft, action) {
 
 function applyIntakeAnswer(draft, action) {
   const intake = draft.masterPlanIntake;
-  if (!intake || intake.status !== 'in-progress') return;
+  if (!intake || intake.status !== 'in-progress') {return;}
 
   const { phase, step, currentLaneIdx, clarifyingQuestionIdx } = intake;
   const value = action.value;
@@ -369,7 +369,7 @@ function applyIntakeAnswer(draft, action) {
 
 function applyIntakeLaneAdded(draft, action) {
   const intake = draft.masterPlanIntake;
-  if (!intake) return;
+  if (!intake) {return;}
   if (action.lane) {
     intake.extractedLanes = [...(intake.extractedLanes || []), action.lane];
   }
@@ -377,14 +377,14 @@ function applyIntakeLaneAdded(draft, action) {
 
 function applyIntakeSetLanes(draft, action) {
   const intake = draft.masterPlanIntake;
-  if (!intake) return;
+  if (!intake) {return;}
   intake.extractedLanes = Array.isArray(action.lanes) ? [...action.lanes] : [];
   refreshQuestionPlan(intake);
 }
 
 function applyIntakeAssessed(draft, action) {
   const intake = draft.masterPlanIntake;
-  if (!intake) return;
+  if (!intake) {return;}
   const { laneIdx, assessment } = action;
   if (typeof laneIdx === 'number' && assessment) {
     intake.answers[`lane_${laneIdx}_system_assessment`] = assessment;
@@ -411,7 +411,7 @@ function resolveLaneAnchorIds(candidate, anchors = []) {
 
 function applyIntakeComplete(draft, action) {
   const intake = draft.masterPlanIntake;
-  if (!intake || intake.status !== 'in-progress') return;
+  if (!intake || intake.status !== 'in-progress') {return;}
 
   try {
     const { answers, extractedLanes, anchors, profileId } = intake;
@@ -564,7 +564,7 @@ function applyIntakeComplete(draft, action) {
 
 function applyIntakeReset(draft) {
   const intake = draft.masterPlanIntake;
-  if (!intake) return;
+  if (!intake) {return;}
   intake.status = 'idle';
   intake.draft = null;
   intake.answers = {};
@@ -582,9 +582,9 @@ function applyIntakeReset(draft) {
 
 function applyDeleteMasterPlan(draft, action) {
   const masterPlanId = String(action?.masterPlanId || '').trim();
-  if (!masterPlanId) return;
+  if (!masterPlanId) {return;}
   const plan = draft.masterPlansById?.[masterPlanId];
-  if (!plan) return;
+  if (!plan) {return;}
 
   const laneIds = Array.isArray(plan.laneIds) ? [...plan.laneIds] : [];
   laneIds.forEach((laneId) => {
@@ -730,9 +730,9 @@ export function applyMasterPlanAction(draft, action) {
 function applyCreateScheduleConstraintVersion(draft, action) {
   const payload = action.payload || {};
   const profileId = String(action.profileId || payload.profileId || '').trim();
-  if (!profileId) return;
+  if (!profileId) {return;}
   const profile = draft.profilesById?.[profileId];
-  if (!profile) return;
+  if (!profile) {return;}
   const id = `schedule-constraint-${Math.random().toString(36).slice(2,9)}`;
   const constraint = {
     id,
@@ -763,10 +763,10 @@ function applyCreateAgendaVersion(draft, action) {
   const payload = action.payload || {};
   const profileId = String(action.profileId || payload.profileId || '').trim();
   const masterPlanId = action.masterPlanId || payload.masterPlanId || null;
-  if (!profileId || !masterPlanId) return;
+  if (!profileId || !masterPlanId) {return;}
   const profile = draft.profilesById?.[profileId];
   const plan = draft.masterPlansById?.[masterPlanId];
-  if (!profile || !plan) return;
+  if (!profile || !plan) {return;}
   const id = `agenda-${Math.random().toString(36).slice(2,9)}`;
   const agenda = {
     id,

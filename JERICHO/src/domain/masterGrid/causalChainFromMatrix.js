@@ -38,7 +38,7 @@ import { deriveEffectiveProjectPhases } from './phaseFromDependencies.js';
 function numericAwareCompare(a, b) {
   const na = Number(a);
   const nb = Number(b);
-  if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
+  if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) {return na - nb;}
   return String(a).localeCompare(String(b));
 }
 
@@ -60,7 +60,7 @@ export function buildCausalChainStepsFromMatrix(matrix = {}) {
     .map((id) => projects[id])
     .filter((project) => project && project.reviewStatus === 'CONFIRMED');
 
-  if (confirmed.length === 0) return [];
+  if (confirmed.length === 0) {return [];}
 
   const effectivePhases = deriveEffectiveProjectPhases(matrix);
   const effectivePhase = (project) =>
@@ -70,10 +70,10 @@ export function buildCausalChainStepsFromMatrix(matrix = {}) {
     const pa = effectivePhase(a);
     const pb = effectivePhase(b);
     if (pa !== pb) {
-      if (pa == null) return 1;
-      if (pb == null) return -1;
+      if (pa == null) {return 1;}
+      if (pb == null) {return -1;}
       const byPhase = numericAwareCompare(pa, pb);
-      if (byPhase !== 0) return byPhase;
+      if (byPhase !== 0) {return byPhase;}
     }
 
     return String(a.name).localeCompare(String(b.name));

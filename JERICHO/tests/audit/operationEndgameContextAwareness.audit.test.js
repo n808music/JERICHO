@@ -17,8 +17,8 @@ function summarizeField(records, field) {
   const counts = { present: 0, missing: 0 };
   records.forEach((r) => {
     const v = r?.[field];
-    if (v == null || v === '' || (Array.isArray(v) && v.length === 0)) counts.missing += 1;
-    else counts.present += 1;
+    if (v == null || v === '' || (Array.isArray(v) && v.length === 0)) {counts.missing += 1;}
+    else {counts.present += 1;}
   });
   return counts;
 }
@@ -112,7 +112,7 @@ describe('Operation Endgame Context Awareness Audit', () => {
       const surveyEvidence = intake?.answers?.[surveyEvidenceKey];
       console.log(`  intake evidence (${surveyEvidenceKey}): ${surveyEvidence ? 'PRESENT' : 'MISSING'}`);
       console.log('');
-      if (laneIdSet.has(lane?.id)) console.log('  ⚠ DUPLICATE LANE ID');
+      if (laneIdSet.has(lane?.id)) {console.log('  ⚠ DUPLICATE LANE ID');}
       laneIdSet.add(lane?.id);
     });
 
@@ -136,9 +136,9 @@ describe('Operation Endgame Context Awareness Audit', () => {
     console.log('\n========== PART 3 — ENTITY STRUCTURE AUDIT ==========\n');
     const entityField = (block) => block?.entityId || block?.entityLabel || null;
     const entitiesFromBlocks = new Set();
-    fullHorizon.forEach((b) => { const e = entityField(b); if (e) entitiesFromBlocks.add(e); });
+    fullHorizon.forEach((b) => { const e = entityField(b); if (e) {entitiesFromBlocks.add(e);} });
     const entitiesFromLanes = new Set();
-    lanes.forEach((l) => { const e = l?.entityId || l?.entityLabel; if (e) entitiesFromLanes.add(e); });
+    lanes.forEach((l) => { const e = l?.entityId || l?.entityLabel; if (e) {entitiesFromLanes.add(e);} });
 
     console.log('ENTITIES FOUND IN DATA:');
     console.log('  from fullHorizon blocks (entityId/entityLabel): ', entitiesFromBlocks.size);
@@ -197,11 +197,11 @@ describe('Operation Endgame Context Awareness Audit', () => {
     Object.keys(systemPatterns).forEach((s) => systemCounts[s] = { blocks: 0, milestones: 0 });
     fullHorizon.forEach((b) => {
       const t = String(b?.title || b?.label || '').toLowerCase();
-      Object.entries(systemPatterns).forEach(([s, re]) => { if (re.test(t)) systemCounts[s].blocks += 1; });
+      Object.entries(systemPatterns).forEach(([s, re]) => { if (re.test(t)) {systemCounts[s].blocks += 1;} });
     });
     milestones.forEach((m) => {
       const t = String(m?.title || '').toLowerCase();
-      Object.entries(systemPatterns).forEach(([s, re]) => { if (re.test(t)) systemCounts[s].milestones += 1; });
+      Object.entries(systemPatterns).forEach(([s, re]) => { if (re.test(t)) {systemCounts[s].milestones += 1;} });
     });
     console.log('SYSTEM EVIDENCE (title-pattern attribution across data):');
     Object.entries(systemCounts).forEach(([s, c]) =>
@@ -229,14 +229,14 @@ describe('Operation Endgame Context Awareness Audit', () => {
     const artifacts = new Map();
     fullHorizon.forEach((b) => {
       const a = String(b?.producesArtifact || '').trim();
-      if (!a) return;
-      if (!artifacts.has(a)) artifacts.set(a, { id: a, produces: new Set(), consumes: new Set() });
+      if (!a) {return;}
+      if (!artifacts.has(a)) {artifacts.set(a, { id: a, produces: new Set(), consumes: new Set() });}
       const node = artifacts.get(a);
       (b?.consumedBy || []).forEach((c) => node.produces.add(c));
     });
     fullHorizon.forEach((b) => {
       const a = String(b?.producesArtifact || '').trim();
-      if (!a) return;
+      if (!a) {return;}
       const node = artifacts.get(a);
       (Array.isArray(b?.dependsOn) ? b.dependsOn : []).forEach((d) => node?.consumes.add(d));
     });

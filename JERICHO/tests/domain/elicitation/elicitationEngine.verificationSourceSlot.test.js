@@ -21,7 +21,7 @@ function runVSScript(script, opts = {}) {
   let pendingAnswers = [...script];
   let safety = 0;
   while (!step.done) {
-    if (safety++ > 20) throw new Error('Engine did not terminate within safety bound');
+    if (safety++ > 20) {throw new Error('Engine did not terminate within safety bound');}
     probes.push(step.probe);
     if (pendingAnswers.length === 0) {
       throw new Error(`Out of scripted answers — engine still asking "${step.probe.fieldName}" (${step.probe.code})`);

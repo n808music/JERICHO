@@ -5,7 +5,7 @@ import fixture from '../fixtures/masterPlan/operationEndgame.fullHorizonSchedule
 function groupCountByYear(blocks = []) {
   return blocks.reduce((acc, block) => {
     const year = String(block?.dayKey || block?.date || '').slice(0, 4);
-    if (!year) return acc;
+    if (!year) {return acc;}
     acc[year] = (acc[year] || 0) + 1;
     return acc;
   }, {});

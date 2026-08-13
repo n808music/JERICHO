@@ -41,9 +41,9 @@ function buildProjectRequiresMap(matrix) {
   }
 
   for (const edge of Object.values(dependencies)) {
-    if (!edge || !ORDERING_TYPES.has(edge.type)) continue;
+    if (!edge || !ORDERING_TYPES.has(edge.type)) {continue;}
     const { downstreamId, upstreamId } = edge;
-    if (!confirmed.has(downstreamId) || !confirmed.has(upstreamId)) continue; // not a Project-Project edge
+    if (!confirmed.has(downstreamId) || !confirmed.has(upstreamId)) {continue;} // not a Project-Project edge
     requires.get(downstreamId).add(upstreamId);
     participates.add(downstreamId);
     participates.add(upstreamId);
@@ -77,7 +77,7 @@ function computeLayers(requires, participates) {
         continue;
       }
       const prereqLayers = prereqs.map((p) => layers.get(p));
-      if (prereqLayers.some((l) => l === undefined)) continue; // not resolvable yet
+      if (prereqLayers.some((l) => l === undefined)) {continue;} // not resolvable yet
       const candidate = 1 + Math.max(...prereqLayers);
       if (layers.get(id) !== candidate) {
         layers.set(id, candidate);
@@ -98,7 +98,7 @@ function computeLayers(requires, participates) {
  */
 function bucketLayersToPhases(layers) {
   const phases = new Map();
-  if (layers.size === 0) return phases;
+  if (layers.size === 0) {return phases;}
 
   const values = [...layers.values()];
   const minLayer = Math.min(...values);
@@ -297,7 +297,7 @@ export function buildPhaseReorganizationRecommendations(matrix = {}) {
   const initiativeHasConfirmedProject = new Set();
   for (const id of confirmed) {
     const owningInitiativeId = projects[id]?.owningInitiativeId;
-    if (owningInitiativeId) initiativeHasConfirmedProject.add(owningInitiativeId);
+    if (owningInitiativeId) {initiativeHasConfirmedProject.add(owningInitiativeId);}
   }
   for (const initiativeId of initiativeHasConfirmedProject) {
     const initiative = initiatives[initiativeId];

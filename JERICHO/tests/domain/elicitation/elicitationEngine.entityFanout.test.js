@@ -65,7 +65,7 @@ function driveEntities(entities) {
 
     while (!step.done && guard++ < 40) {
       const probe = step.probe;
-      if (!probe) break;
+      if (!probe) {break;}
       // A follow-up (any probe after the name is captured) that references THIS
       // entity's own name in bold is a correctly-bound referent.
       if (probe.fieldName !== 'name' && probe.spine.includes(entity.name)) {
@@ -75,7 +75,7 @@ function driveEntities(entities) {
       engine = res.engine;
       for (const d of res.dispatches) {
         dispatches.push(d);
-        if (d.type === 'DECLARE_ENTITY') applyDeclareEntity(matrix, d.payload);
+        if (d.type === 'DECLARE_ENTITY') {applyDeclareEntity(matrix, d.payload);}
       }
       step = engine.nextStep();
     }

@@ -17,17 +17,17 @@ export function normalize(s) {
 }
 
 export function deadlineKey(target) {
-  if (!target || /TBD/i.test(target)) return '9999-12-31';
+  if (!target || /TBD/i.test(target)) {return '9999-12-31';}
   const s = String(target);
   // Tolerant extraction (fixture targets can be messy, e.g. "2026-2027 (pt. 1 by 2026-10-17)").
   // Priority: YYYY-YYYY period → end year; full ISO date → itself; bare/leading YYYY → end year.
   // Byte-identical to the strict form on clean inputs ("2026", "2028-2030", "2026-10-17").
   const range = s.match(/(\d{4})\s*[-–]\s*(\d{4})/);
-  if (range) return `${range[2]}-12-31`;
+  if (range) {return `${range[2]}-12-31`;}
   const iso = s.match(/(\d{4}-\d{2}-\d{2})/);
-  if (iso) return iso[1];
+  if (iso) {return iso[1];}
   const year = s.match(/(\d{4})/);
-  if (year) return `${year[1]}-12-31`;
+  if (year) {return `${year[1]}-12-31`;}
   return s;
 }
 
@@ -40,8 +40,8 @@ export function sortByPhase(gridTitles, matrix) {
   const gridToFixture = new Map();
   for (const g of gridTitles) {
     const key = alias(normalize(g));
-    if (rows.has(key)) gridToFixture.set(key, [...(gridToFixture.get(key) ?? []), g]);
-    else unmatched.push(g);
+    if (rows.has(key)) {gridToFixture.set(key, [...(gridToFixture.get(key) ?? []), g]);}
+    else {unmatched.push(g);}
   }
 
   for (const [key, gridNames] of gridToFixture) {
@@ -66,7 +66,7 @@ export function sortByPhase(gridTitles, matrix) {
       const b = placed.find((p) => normalize(p.fixtureTitle) === normalize(l.to));
       if (b && b.links.some((bl) => normalize(bl.to) === normalize(a.fixtureTitle))) {
         a.tieWith = a.tieWith ?? [];
-        if (!a.tieWith.includes(b.fixtureTitle)) a.tieWith.push(b.fixtureTitle);
+        if (!a.tieWith.includes(b.fixtureTitle)) {a.tieWith.push(b.fixtureTitle);}
       }
     }
   }
@@ -82,7 +82,7 @@ export function sortByPhase(gridTitles, matrix) {
       const row = placed.find((p) => normalize(p.fixtureTitle) === normalize(laneTitle));
       if (row) {
         row.milestones = row.milestones ?? [];
-        if (!row.milestones.some((x) => x.name === m.name)) row.milestones.push({ name: m.name, date: m.date });
+        if (!row.milestones.some((x) => x.name === m.name)) {row.milestones.push({ name: m.name, date: m.date });}
         return { title: row.fixtureTitle, present: true, ownDeadline: row.deadline };
       }
       return { title: laneTitle, present: false, ownDeadline: null };
@@ -96,8 +96,8 @@ export function sortByPhase(gridTitles, matrix) {
   const residual = [];
   for (const p of placed) {
     const bucket = phases.get(p.phase);
-    if (bucket) bucket.push(p);
-    else residual.push(p);
+    if (bucket) {bucket.push(p);}
+    else {residual.push(p);}
   }
   for (const list of phases.values()) {
     list.sort((a, b) =>
@@ -114,38 +114,38 @@ export function sortByPhase(gridTitles, matrix) {
       });
       continue;
     }
-    if (p.crossTab) questions.push({
+    if (p.crossTab) {questions.push({
       code: 'FIXTURE-DISCREPANCY',
       probe: `"${p.fixtureTitle}": PROJECTS target is ${p.target}, but DELIVERABLES target is ${p.crossTab.deliverablesTarget}. These targets must align per the master fixture. Correct one to match the other. (${p.provenance})`,
-    });
-    else if (p.tbd) questions.push({
+    });}
+    else if (p.tbd) {questions.push({
       code: 'RESIDUAL-DATE',
       probe: `"${p.fixtureTitle}" is phase ${p.phase} with target TBD${p.targetNote ? ` (${p.targetNote})` : ''}. Attest a specific deadline per §5 or confirm it sorts to phase-${p.phase} bottom.`,
-    });
+    });}
   }
   for (const [key, names] of gridToFixture) {
-    if (names.length > 1) questions.push({
+    if (names.length > 1) {questions.push({
       code: 'GRID-PHANTOM',
       probe: `Grid rows ${names.join(' and ')} both resolve to fixture node "${rows.get(key).title}". This is a duplicate reference (two rows → one canonical node). Deferred: grid row merge/delete affordance is not yet available in the UI. See GRID-PHANTOM findings.`,
-    });
+    });}
   }
   for (const m of milestones) {
     for (const lane of m.lanes) {
-      if (!lane.present) questions.push({
+      if (!lane.present) {questions.push({
         code: 'MILESTONE-LANE-MISSING',
         probe: `Milestone "${m.name}" (${m.date}) references lane "${lane.title}", but no grid row resolves to this fixture node. Either add a grid row that maps to the fixture node, or correct the milestone to reference an existing lane.`,
-      });
+      });}
     }
   }
 
   const advisories = [];
   for (const p of placed) {
-    if (p.tbd) continue;
+    if (p.tbd) {continue;}
     const yr = Number(p.deadline.slice(0, 4));
-    if (p.phase === 3 && yr <= 2030) advisories.push(
-      `"${p.fixtureTitle}" is phase 3 but dated ${p.target} (inside phase 2's window). Phase category wins; flagged only.`);
-    if (p.phase === 2 && yr <= 2027) advisories.push(
-      `"${p.fixtureTitle}" is phase 2 but dated ${p.target} (inside phase 1's window). Phase category wins; flagged only.`);
+    if (p.phase === 3 && yr <= 2030) {advisories.push(
+      `"${p.fixtureTitle}" is phase 3 but dated ${p.target} (inside phase 2's window). Phase category wins; flagged only.`);}
+    if (p.phase === 2 && yr <= 2027) {advisories.push(
+      `"${p.fixtureTitle}" is phase 2 but dated ${p.target} (inside phase 1's window). Phase category wins; flagged only.`);}
   }
 
   return { phases, residual, questions, advisories, unmatched, milestones };

@@ -93,12 +93,12 @@ describe('Cross-lane semantic artifact dependency', () => {
     for (const block of crossLaneConsumers) {
       for (const artifactId of block.consumedArtifactIds) {
         const upstream = artifactIdToBlock.get(artifactId);
-        if (!upstream) continue;
+        if (!upstream) {continue;}
         expect(String(upstream.dayKey || '') <= String(block.dayKey || '')).toBe(true);
       }
       for (const depId of block.dependsOnBlockIds || []) {
         const upstream = idToBlock.get(depId);
-        if (!upstream) continue;
+        if (!upstream) {continue;}
         expect(String(upstream.dayKey || '') <= String(block.dayKey || '')).toBe(true);
       }
     }

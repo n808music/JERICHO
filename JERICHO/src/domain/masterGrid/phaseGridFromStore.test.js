@@ -23,7 +23,7 @@ describe('selectGridNodes — grid default-tier rule (allProjects ∪ promoted l
     // with Patent as a lane → present
     expect(selectGridNodes(m).some((n) => n.id === patentId)).toBe(true);
     // remove Patent from the Oct-17 milestone lanes → parent Jericho 1.0 no longer double-claimed → Patent NOT promoted → drops
-    for (const ms of Object.values(m.milestonesById)) ms.laneIds = ms.laneIds.filter((id) => id !== patentId);
+    for (const ms of Object.values(m.milestonesById)) {ms.laneIds = ms.laneIds.filter((id) => id !== patentId);}
     const after = selectGridNodes(m);
     expect(after.some((n) => n.id === patentId)).toBe(false);
     expect(after.length).toBe(17);
@@ -82,7 +82,7 @@ describe('phaseGridFromStore → sortByPhase (③④⑤ from canonical store)', 
 
   it('guard: every asserted ③ title exists verbatim in the fixture (no third-copy drift)', () => {
     const fixtureNames = new Set(fixture.nodes.map((n) => n.name));
-    for (const t of [...P1, ...P2, ...P3]) expect(fixtureNames.has(t)).toBe(true);
+    for (const t of [...P1, ...P2, ...P3]) {expect(fixtureNames.has(t)).toBe(true);}
   });
 });
 
@@ -103,7 +103,7 @@ describe('phaseGridFromStore — phase classification at ingest', () => {
     const nodeName = proj.name;
     m.projectsById[someId] = { ...proj, phase: null };
     const initId = proj.owningInitiativeId;
-    if (initId && m.initiativesById[initId]) m.initiativesById[initId] = { ...m.initiativesById[initId], phase: null };
+    if (initId && m.initiativesById[initId]) {m.initiativesById[initId] = { ...m.initiativesById[initId], phase: null };}
     const { gridTitles, matrix: mtx } = phaseGridFromStore(m); // must NOT throw
     const r = sortByPhase(gridTitles, mtx);
     expect(r.residual.some((p) => p.fixtureTitle === nodeName)).toBe(true);

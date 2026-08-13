@@ -42,23 +42,23 @@ function driveProjectSlot() {
   let phaseProbe = null;
   let safety = 0;
   while (!step.done) {
-    if (safety++ > 40) throw new Error('engine did not terminate; codes=' + probeCodes.join(','));
+    if (safety++ > 40) {throw new Error('engine did not terminate; codes=' + probeCodes.join(','));}
     if (step.readback) {
       const result = engine.confirmReadback({ confirmed: true });
       engine = result.engine;
-      for (const action of result.dispatches || []) state = computeDerivedState(state, action);
+      for (const action of result.dispatches || []) {state = computeDerivedState(state, action);}
       engine = engine.refreshMatrix(state.matrix);
       step = engine.nextStep();
       continue;
     }
     const { code } = step.probe;
     probeCodes.push(code);
-    if (code === 'PROJECT_PHASE_UNATTESTED') phaseProbe = step.probe;
+    if (code === 'PROJECT_PHASE_UNATTESTED') {phaseProbe = step.probe;}
     const answer = ANSWER_BY_CODE[code];
-    if (!answer) throw new Error(`no scripted answer for probe ${code}; codes so far: ${probeCodes.join(',')}`);
+    if (!answer) {throw new Error(`no scripted answer for probe ${code}; codes so far: ${probeCodes.join(',')}`);}
     const result = engine.consumeAnswer(answer);
     engine = result.engine;
-    for (const action of result.dispatches || []) state = computeDerivedState(state, action);
+    for (const action of result.dispatches || []) {state = computeDerivedState(state, action);}
     engine = engine.refreshMatrix(state.matrix);
     step = engine.nextStep();
   }

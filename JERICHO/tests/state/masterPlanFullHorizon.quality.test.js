@@ -653,7 +653,7 @@ describe('master-plan full-horizon quality gate', () => {
     // Snap all blocks to Tuesday/Wednesday only to simulate the pre-fix clustering
     const clusterBlocks = cloneBlocks(state.fullHorizonScheduleBlocks).map((block) => {
       const dk = String(block.dayKey || '');
-      if (!dk) return block;
+      if (!dk) {return block;}
       const d = new Date(`${dk}T12:00:00.000Z`);
       const utcDow = d.getUTCDay();
       // Push every block to the nearest Tuesday (DOW 2)
@@ -675,13 +675,13 @@ describe('master-plan full-horizon quality gate', () => {
     const dowSet = new Set();
     for (const b of blocks) {
       const dk = b.dayKey || b.date;
-      if (dk) dowSet.add(new Date(`${dk}T12:00:00.000Z`).getUTCDay());
+      if (dk) {dowSet.add(new Date(`${dk}T12:00:00.000Z`).getUTCDay());}
     }
     expect(dowSet.size).toBeGreaterThanOrEqual(4);
     const counts = {};
     for (const b of blocks) {
       const dk = b.dayKey || b.date;
-      if (!dk) continue;
+      if (!dk) {continue;}
       const dow = new Date(`${dk}T12:00:00.000Z`).getUTCDay();
       counts[dow] = (counts[dow] || 0) + 1;
     }

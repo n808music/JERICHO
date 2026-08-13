@@ -52,9 +52,9 @@ function findRegistryMatch(block, context = {}, registry = OPERATION_ENDGAME_INI
   for (const entry of registry || []) {
     const aliases = Array.isArray(entry?.aliases) ? entry.aliases.map(lowerText).filter(Boolean) : [];
     for (const alias of aliases) {
-      if (!alias) continue;
+      if (!alias) {continue;}
       const hit = haystacks.find((haystack) => haystack.includes(alias));
-      if (!hit) continue;
+      if (!hit) {continue;}
       const score = alias.length;
       if (!bestMatch || score > bestMatch.score) {
         bestMatch = {

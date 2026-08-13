@@ -22,7 +22,7 @@ function projectLanes(matrix) {
   for (const ms of Object.values(milestones)) {
     for (const laneId of ms.laneIds || []) {
       const deliv = artifacts[laneId];
-      if (!deliv) continue;
+      if (!deliv) {continue;}
       const parentId = deliv.producingProjectId;
       if (parentId && projects[parentId] && !claimedProjects.has(parentId)) {
         claimedProjects.add(parentId); // lane collapses into its (still-free) parent project
@@ -40,8 +40,8 @@ export function selectGridNodes(matrix = {}) {
   const artifacts = matrix.artifactsById || {};
   const { promotedDeliverableIds } = projectLanes(matrix);
   const nodes = [];
-  for (const id of Object.keys(projects)) nodes.push({ ...projects[id], id, primaryClass: 'Project' });
-  for (const id of promotedDeliverableIds) if (artifacts[id]) nodes.push({ ...artifacts[id], id, primaryClass: 'Deliverable' });
+  for (const id of Object.keys(projects)) {nodes.push({ ...projects[id], id, primaryClass: 'Project' });}
+  for (const id of promotedDeliverableIds) {if (artifacts[id]) {nodes.push({ ...artifacts[id], id, primaryClass: 'Deliverable' });}}
   return nodes;
 }
 
@@ -66,20 +66,20 @@ function resolveNodePhase(node, canonicalRaw, derivedEffective, projects, initia
   // phase outranks its dependency-derived phase when they disagree — the operator attests, the
   // system proposes. This override lives ONLY here; the shared deriveEffectiveProjectPhases stays
   // derived-first so causalChain scheduling still honors hard dependencies for execution order.
-  if (canonicalRaw != null) return canonicalRaw;
+  if (canonicalRaw != null) {return canonicalRaw;}
   // Raw absent → fall to the shared resolver (dependency-derived, else initiative). It returns a
   // NUMBER from the dependency tier but the RAW STRING ("1") from its raw/initiative tiers —
   // normalize, since sortByPhase groups on numeric 1/2/3 and phases.get("1") would bucket residual.
   const derived = toCanonicalPhase(derivedEffective[node.id]);
-  if (derived != null) return derived;
+  if (derived != null) {return derived;}
   const initCanon = toCanonicalPhase(initiatives[node.owningInitiativeId]?.phase);
-  if (initCanon != null) return initCanon;
+  if (initCanon != null) {return initCanon;}
   const pid = node.producingProjectId;
   if (pid) {
     const parentDerived = toCanonicalPhase(derivedEffective[pid]);
-    if (parentDerived != null) return parentDerived;
+    if (parentDerived != null) {return parentDerived;}
     const parentCanon = toCanonicalPhase(projects[pid]?.phase);
-    if (parentCanon != null) return parentCanon;
+    if (parentCanon != null) {return parentCanon;}
   }
   return null;
 }
@@ -101,9 +101,9 @@ export function phaseGridFromStore(matrix = {}) {
 
   // any node id -> its grid-row id (itself if a grid row; else its parent project if that's a grid row)
   const toGridRowId = (id) => {
-    if (gridIds.has(id)) return id;
+    if (gridIds.has(id)) {return id;}
     const d = artifacts[id];
-    if (d && d.producingProjectId && gridIds.has(d.producingProjectId)) return d.producingProjectId;
+    if (d && d.producingProjectId && gridIds.has(d.producingProjectId)) {return d.producingProjectId;}
     return null;
   };
 
@@ -131,9 +131,9 @@ export function phaseGridFromStore(matrix = {}) {
   for (const l of Object.values(matrix.matrixLinksById || {})) {
     const a = toGridRowId(l.fromId);
     const b = toGridRowId(l.toId);
-    if (!a || !b || a === b) continue;
+    if (!a || !b || a === b) {continue;}
     rowById[a].links.push({ kind: l.kind, to: rowById[b].title });
-    if (RELATIONAL_KINDS.has(l.kind)) rowById[b].links.push({ kind: l.kind, to: rowById[a].title });
+    if (RELATIONAL_KINDS.has(l.kind)) {rowById[b].links.push({ kind: l.kind, to: rowById[a].title });}
   }
 
   const milestones = Object.values(matrix.milestonesById || {}).map((ms) => ({

@@ -55,7 +55,7 @@ describe('fullHorizonScheduleExpansion - Constraint enforcement', () => {
     for (const block of result) {
       const dayKey = String(block?.dayKey || block?.date || '').slice(0, 10);
       if (dayKey) {
-        if (!blocksByDay[dayKey]) blocksByDay[dayKey] = { blocks: [], totalMinutes: 0 };
+        if (!blocksByDay[dayKey]) {blocksByDay[dayKey] = { blocks: [], totalMinutes: 0 };}
         blocksByDay[dayKey].blocks.push(block);
         blocksByDay[dayKey].totalMinutes += block?.durationMinutes || 60;
         totalMinutes += block?.durationMinutes || 60;
@@ -133,7 +133,7 @@ describe('fullHorizonScheduleExpansion - Constraint enforcement', () => {
     for (const block of result) {
       const dayKey = String(block?.dayKey || block?.date || '').slice(0, 10);
       if (dayKey) {
-        if (!blocksByDay[dayKey]) blocksByDay[dayKey] = { blocks: [], totalMinutes: 0 };
+        if (!blocksByDay[dayKey]) {blocksByDay[dayKey] = { blocks: [], totalMinutes: 0 };}
         blocksByDay[dayKey].blocks.push(block);
         blocksByDay[dayKey].totalMinutes += block?.durationMinutes || 60;
       }

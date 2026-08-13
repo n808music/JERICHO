@@ -893,7 +893,7 @@ function evaluateMvpPlanQualityStandard({
     const dowNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
     for (const block of blocks) {
       const dk = block?.dayKey || block?.date;
-      if (!dk || typeof dk !== 'string') continue;
+      if (!dk || typeof dk !== 'string') {continue;}
       const dowName = dowNames[new Date(`${dk}T12:00:00.000Z`).getUTCDay()];
       dowCounts[dowName] = (dowCounts[dowName] || 0) + 1;
     }

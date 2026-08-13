@@ -226,9 +226,9 @@ function computeMolecularQuality(block) {
   }
   const hasPlainAction = !isGenericDetail(block?.plainAction);
   const hasSteps = Array.isArray(block?.steps) && block.steps.length > 0;
-  if (!hasPlainAction && !hasSteps) failureCodes.push('BLOCK_DETAIL_DO_THIS_EMPTY');
-  if (isGenericDetail(block?.doneWhen)) failureCodes.push('BLOCK_DETAIL_DONE_WHEN_EMPTY');
-  if (isGenericDetail(block?.completionAssertion)) failureCodes.push('MISSING_COMPLETION_ASSERTION');
+  if (!hasPlainAction && !hasSteps) {failureCodes.push('BLOCK_DETAIL_DO_THIS_EMPTY');}
+  if (isGenericDetail(block?.doneWhen)) {failureCodes.push('BLOCK_DETAIL_DONE_WHEN_EMPTY');}
+  if (isGenericDetail(block?.completionAssertion)) {failureCodes.push('MISSING_COMPLETION_ASSERTION');}
   // ATTESTATION CONTRACT (Truth Communication layer).
   // Per the contract: "Any measurable target entered into the system must be
   // accompanied by Target + Verification Source + Operator Attestation."

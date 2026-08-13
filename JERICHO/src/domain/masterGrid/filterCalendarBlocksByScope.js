@@ -13,9 +13,9 @@ export const BLOCK_SCOPE_KINDS = ['Entity', 'Initiative', 'Project', 'Deliverabl
 
 // scope: 'full' | null  →  all blocks.  { kind, id }  →  that node's isolated blocks.
 export function filterCalendarBlocksByScope(blocks = [], scope = 'full', matrix = {}) {
-  if (!scope || scope === 'full') return blocks;
+  if (!scope || scope === 'full') {return blocks;}
   const { kind, id } = scope;
-  if (id == null) return blocks;
+  if (id == null) {return blocks;}
   switch (kind) {
     case 'Entity':
       return blocks.filter((b) => b.entityId === id);
@@ -58,7 +58,7 @@ export function availableBlockScopes(blocks = [], matrix = {}) {
     const counts = new Map();
     for (const b of blocks) {
       const id = idOf(b);
-      if (id == null) continue;
+      if (id == null) {continue;}
       counts.set(id, (counts.get(id) || 0) + 1);
     }
     return counts;

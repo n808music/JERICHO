@@ -32,9 +32,9 @@ function admittedGoalState() {
 // or-clauses, or more than one question mark.
 function isCompoundAsk(s) {
   const text = String(s || '');
-  if ((text.match(/\?/g) || []).length > 1) return true;
-  if (/,\s*[^,]+,\s*or\b/i.test(text)) return true; // "X, Y, or Z"
-  if (/\bor\b.*\bor\b/i.test(text)) return true; // two or-clauses
+  if ((text.match(/\?/g) || []).length > 1) {return true;}
+  if (/,\s*[^,]+,\s*or\b/i.test(text)) {return true;} // "X, Y, or Z"
+  if (/\bor\b.*\bor\b/i.test(text)) {return true;} // two or-clauses
   return false;
 }
 

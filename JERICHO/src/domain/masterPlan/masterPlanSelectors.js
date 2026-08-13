@@ -6,7 +6,7 @@ export function selectActiveMasterPlan(state) {
   const profileId = state.activeProfileId;
   const profile = state.profilesById?.[profileId];
   const planId = profile?.activeMasterPlanId;
-  if (!planId) return null;
+  if (!planId) {return null;}
   return state.masterPlansById?.[planId] || null;
 }
 
@@ -16,7 +16,7 @@ export function selectMasterPlanById(state, masterPlanId) {
 
 export function selectMasterPlansForProfile(state, profileId) {
   const profile = state.profilesById?.[profileId];
-  if (!profile) return [];
+  if (!profile) {return [];}
   return (profile.masterPlanIds || [])
     .map((id) => state.masterPlansById?.[id])
     .filter(Boolean);
@@ -26,7 +26,7 @@ export function selectMasterPlansForProfile(state, profileId) {
 
 export function selectMasterPlanLanes(state, masterPlanId) {
   const plan = state.masterPlansById?.[masterPlanId];
-  if (!plan) return [];
+  if (!plan) {return [];}
   return (plan.laneIds || [])
     .map((id) => state.masterPlanLanesById?.[id])
     .filter(Boolean);
@@ -47,7 +47,7 @@ export function selectLaneById(state, laneId) {
 
 export function selectMilestonesForLane(state, laneId) {
   const lane = state.masterPlanLanesById?.[laneId];
-  if (!lane) return [];
+  if (!lane) {return [];}
   return (lane.milestoneIds || [])
     .map((id) => state.masterPlanMilestonesById?.[id])
     .filter(Boolean);
@@ -86,6 +86,6 @@ export function selectMasterTimeline(state, masterPlanId) {
 // Anchors sorted by date — used to drive backward scheduling.
 export function selectMasterPlanAnchors(state, masterPlanId) {
   const plan = state.masterPlansById?.[masterPlanId];
-  if (!plan) return [];
+  if (!plan) {return [];}
   return [...(plan.anchors || [])].sort((a, b) => (a.date < b.date ? -1 : 1));
 }

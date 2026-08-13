@@ -75,7 +75,7 @@ function runProfileScript(script, opts = {}) {
   let pendingAnswers = [...script];
   let safety = 0;
   while (!step.done) {
-    if (safety++ > 60) throw new Error('Engine safety limit reached');
+    if (safety++ > 60) {throw new Error('Engine safety limit reached');}
     probes.push(step.probe);
     if (pendingAnswers.length === 0) {
       throw new Error(`Out of scripted answers — still asking "${step.probe.fieldName}" (${step.probe.code})`);
@@ -106,9 +106,9 @@ function runBindingScript(script, opts = {}) {
   let pendingAnswers = [...script];
   let safety = 0;
   while (!step.done) {
-    if (safety++ > 30) throw new Error('Engine safety limit reached');
+    if (safety++ > 30) {throw new Error('Engine safety limit reached');}
     probes.push(step.probe);
-    if (pendingAnswers.length === 0) break;
+    if (pendingAnswers.length === 0) {break;}
     const answer = pendingAnswers.shift();
     const result = engine.consumeAnswer(answer);
     engine = result.engine;

@@ -132,7 +132,7 @@ describe('MatrixIntake — resume when restored slot now passes all gates', () =
     await user.click(screen.getByRole('button', { name: /^Next/i }));
     await waitFor(() => expect(document.querySelector('textarea')).toBeTruthy());
     const ta = document.querySelector('textarea');
-    if (!ta.value) await user.type(ta, DONE_WHEN);
+    if (!ta.value) {await user.type(ta, DONE_WHEN);}
     await user.click(screen.getByRole('button', { name: /^Next/i }));
 
     // NOW it declares — operator pressed Next themselves — and moves to Mission B.
