@@ -101,14 +101,14 @@ function buildLaneAnswers(index, activation, description, assessedStage) {
 export function buildOperationEndgameState({
   nowISO = '2026-05-11T10:00:00.000Z',
   todayDate = '2026-05-11',
-  horizonEnd = '2031-05-11',
-  horizonMonths = 60,
+  horizonEnd = '2032-03-15',
+  horizonMonths = 72,
   goalText = 'Coordinate Operation Endgame as a 5-year multi-lane master plan across product, creative, media, operations, revenue, capital, institution, and civic pathways.',
   includeCreativeLane = true,
   includeProductLane = true,
   creativeAnchor = true,
   anchorDate = '2026-10-17',
-  successStandard = 'Build an active scaling ecosystem with validated product, creative, media, operations, revenue, capital, institution, and civic pathways through the 2031 strategic horizon.',
+  successStandard = 'Build an active scaling ecosystem with validated product, creative, media, operations, revenue, capital, institution, and civic pathways through the 2032 strategic horizon.',
   capitalAvailable = 0,
 } = {}) {
   const state = buildBlankIdentityState({ timeZone: 'UTC', nowISO, todayDate });
