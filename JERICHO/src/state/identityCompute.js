@@ -16312,6 +16312,8 @@ function declareEntity(state, payload = {}) {
     confirmedAt: payload?.confirmedAt || null,
     confirmedBy: String(payload?.confirmedBy || '').trim() || null,
     confirmationSource: String(payload?.confirmationSource || '').trim() || null,
+    description: String(payload?.description || '').trim() || null,
+    notes: String(payload?.notes || '').trim() || null,
   };
   if (payload?.doneWhen) {entry.doneWhen = String(payload.doneWhen).trim();}
   state.matrix.entitiesById[id] = entry;
@@ -16381,6 +16383,10 @@ function declareInitiative(state, payload = {}) {
     riskClassification: String(payload?.riskClassification || '').trim() || null,
     pricingStrategy: String(payload?.pricingStrategy || '').trim() || null,
     pricingReasoning: String(payload?.pricingReasoning || '').trim() || null,
+    function: String(payload?.function || '').trim() || null,
+    nextMilestoneDeadline: String(payload?.nextMilestoneDeadline || '').trim() || null,
+    nextMilestoneDescription: String(payload?.nextMilestoneDescription || '').trim() || null,
+    notes: String(payload?.notes || '').trim() || null,
   };
 }
 
@@ -16549,6 +16555,9 @@ function declareSystem(state, payload = {}) {
     confirmedAt: payload?.confirmedAt || null,
     confirmedBy: String(payload?.confirmedBy || '').trim() || null,
     confirmationSource: String(payload?.confirmationSource || '').trim() || null,
+    mechanism: String(payload?.mechanism || '').trim() || null,
+    feedsInto: String(payload?.feedsInto || '').trim() || null,
+    notes: String(payload?.notes || '').trim() || null,
   };
   if (payload?.activationCondition) {entry.activationCondition = String(payload.activationCondition).trim();}
   state.matrix.systemsById[id] = entry;
@@ -16792,6 +16801,9 @@ function declareMatrixDeliverable(state, payload = {}) {
     confirmedAt: payload?.confirmedAt || null,
     confirmedBy: String(payload?.confirmedBy || '').trim() || null,
     confirmationSource: String(payload?.confirmationSource || '').trim() || null,
+    workState: String(payload?.workState || '').trim() || null,
+    executingEntityId: String(payload?.executingEntityId || '').trim() || null,
+    notes: String(payload?.notes || '').trim() || null,
   };
 }
 
@@ -16876,6 +16888,9 @@ function declareArtifact(state, payload = {}) {
     return;
   }
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  const parentDeliverableIds = Array.isArray(payload?.parentDeliverableIds)
+    ? payload.parentDeliverableIds.map((id) => String(id || '').trim()).filter(Boolean)
+    : [];
   state.matrix.artifactsById[id] = {
     id,
     name,
@@ -16894,6 +16909,8 @@ function declareArtifact(state, payload = {}) {
     confirmedAt: payload?.confirmedAt || null,
     confirmedBy: String(payload?.confirmedBy || '').trim() || null,
     confirmationSource: String(payload?.confirmationSource || '').trim() || null,
+    satisfactionMode: String(payload?.satisfactionMode || '').trim() || null,
+    parentDeliverableIds,
   };
 }
 
@@ -17356,6 +17373,7 @@ function declareConvergence(state, payload = {}) {
     precedingProjectId, // Sequential: which source is first
     followingProjectId, // Sequential: which source is second
     declaredAtISO: nowISO,
+    notes: String(payload?.notes || '').trim() || null,
   };
 
   // Step 3 Piece 3: Update triggering edge to point back to this new edge

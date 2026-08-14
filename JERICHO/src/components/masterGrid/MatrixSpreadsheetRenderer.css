@@ -1,0 +1,305 @@
+/**
+ * Matrix Spreadsheet Renderer — Styles
+ *
+ * Responsive grid layout with collapsible groups, virtualized scrolling,
+ * and computed-column distinction.
+ */
+
+:root {
+  --matrix-border-color: #e5e7eb;
+  --matrix-row-bg: #ffffff;
+  --matrix-row-bg-alt: #f9fafb;
+  --matrix-row-bg-hover: #f3f4f6;
+  --matrix-text-primary: #1f2937;
+  --matrix-text-secondary: #6b7280;
+  --matrix-text-muted: #9ca3af;
+  --matrix-computed-opacity: 0.7;
+  --matrix-accent-color: #3b82f6;
+  --matrix-accent-hover: #2563eb;
+  --matrix-tab-bg: #f3f4f6;
+  --matrix-tab-active-underline: #3b82f6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --matrix-border-color: #374151;
+    --matrix-row-bg: #111827;
+    --matrix-row-bg-alt: #1f2937;
+    --matrix-row-bg-hover: #374151;
+    --matrix-text-primary: #f3f4f6;
+    --matrix-text-secondary: #d1d5db;
+    --matrix-text-muted: #9ca3af;
+    --matrix-tab-bg: #1f2937;
+    --matrix-tab-active-underline: #60a5fa;
+  }
+}
+
+.matrix-spreadsheet-renderer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background-color: var(--matrix-row-bg);
+  color: var(--matrix-text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Tab Navigation */
+.matrix-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--matrix-border-color);
+  background-color: var(--matrix-tab-bg);
+  padding: 0;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.matrix-tab {
+  flex-shrink: 0;
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  color: var(--matrix-text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  border-bottom: 3px solid transparent;
+  transition: all 150ms ease-out;
+  white-space: nowrap;
+}
+
+.matrix-tab:hover {
+  color: var(--matrix-text-primary);
+  background-color: var(--matrix-row-bg);
+}
+
+.matrix-tab--active {
+  color: var(--matrix-text-primary);
+  border-bottom-color: var(--matrix-tab-active-underline);
+  background-color: var(--matrix-row-bg);
+}
+
+.matrix-tab:focus-visible {
+  outline: 2px solid var(--matrix-accent-color);
+  outline-offset: -2px;
+}
+
+/* Column Headers */
+.matrix-headers {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--matrix-border-color);
+  background-color: var(--matrix-tab-bg);
+  padding: 0;
+  overflow-x: hidden;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+
+.matrix-header-cell {
+  padding: 10px 12px;
+  border-right: 1px solid var(--matrix-border-color);
+  font-weight: 600;
+  color: var(--matrix-text-primary);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.matrix-header-cell:last-child {
+  border-right: none;
+}
+
+/* Virtualized List Container */
+.matrix-list {
+  flex: 1;
+  overflow: auto;
+}
+
+/* Row Styles */
+.matrix-row {
+  display: flex;
+  gap: 0;
+  align-items: center;
+  height: 40px;
+  border-bottom: 1px solid var(--matrix-border-color);
+  background-color: var(--matrix-row-bg);
+  padding: 0;
+  transition: background-color 100ms ease-out;
+}
+
+.matrix-row:hover {
+  background-color: var(--matrix-row-bg-hover);
+}
+
+.matrix-row:nth-child(even) {
+  background-color: var(--matrix-row-bg-alt);
+}
+
+.matrix-row--disclosure:nth-child(even) {
+  background-color: var(--matrix-row-bg-alt);
+}
+
+.matrix-row--child {
+  background-color: var(--matrix-row-bg);
+}
+
+.matrix-row--child:nth-child(even) {
+  background-color: var(--matrix-row-bg-alt);
+}
+
+
+/* Cells */
+.matrix-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-right: 1px solid var(--matrix-border-color);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.matrix-cell:last-child {
+  border-right: none;
+}
+
+.matrix-cell-content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--matrix-text-primary);
+}
+
+/* Computed Column Style */
+.matrix-cell--computed .matrix-cell-content {
+  opacity: var(--matrix-computed-opacity);
+  color: var(--matrix-text-secondary);
+}
+
+.matrix-cell--computed {
+  position: relative;
+}
+
+.matrix-cell-icon {
+  flex-shrink: 0;
+  color: var(--matrix-accent-color);
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* Keyboard Focus */
+.matrix-row:focus-within .matrix-cell-content {
+  outline: none;
+}
+
+/* Responsive: Tablet */
+@media (max-width: 1199px) {
+  .matrix-spreadsheet-renderer {
+    font-size: 12px;
+  }
+
+  .matrix-cell {
+    padding: 4px 8px;
+  }
+
+  .matrix-header-cell {
+    padding: 8px 8px;
+    font-size: 11px;
+  }
+
+  .matrix-tab {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+}
+
+/* Responsive: Mobile */
+@media (max-width: 767px) {
+  .matrix-spreadsheet-renderer {
+    font-size: 11px;
+  }
+
+  .matrix-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .matrix-tab {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  .matrix-cell {
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+
+  .matrix-header-cell {
+    padding: 6px 6px;
+    font-size: 10px;
+  }
+
+  .matrix-row {
+    height: 36px;
+  }
+}
+
+/* Scrollbar Styling (webkit browsers) */
+.matrix-list::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.matrix-list::-webkit-scrollbar-track {
+  background-color: var(--matrix-tab-bg);
+}
+
+.matrix-list::-webkit-scrollbar-thumb {
+  background-color: var(--matrix-text-muted);
+  border-radius: 4px;
+}
+
+.matrix-list::-webkit-scrollbar-thumb:hover {
+  background-color: var(--matrix-text-secondary);
+}
+
+/* Accessibility: Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .matrix-tab,
+  .matrix-row,
+  .matrix-disclosure-button {
+    transition: none;
+  }
+
+  .matrix-disclosure-button:active {
+    transform: none;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .matrix-tabs {
+    border-bottom: 2px solid var(--matrix-text-primary);
+  }
+
+  .matrix-row:hover {
+    background-color: var(--matrix-row-bg);
+  }
+
+  .matrix-disclosure-button {
+    cursor: text;
+  }
+}
