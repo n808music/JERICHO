@@ -48,6 +48,7 @@ import { getDeadlineDayKey } from '../core/deadline.ts';
 
 import { generateDeterministicPlan } from '../core/deterministicPlanGenerator.ts';
 import { buildCausalChainStepsFromMatrix } from '../domain/masterGrid/causalChainFromMatrix.js';
+import { resolveConvergenceBuffers } from '../domain/masterGrid/resolveConvergenceBuffers.js';
 import { validateCrossReferenceIntegrity } from './engine/crossReferenceIntegrityValidator.js';
 import { seedCapacityFromLegacyConstraints } from '../domain/masterGrid/capacityFromLegacy.js';
 import { buildConstraintsFromMatrix } from '../domain/masterGrid/constraintsFromMatrix.js';
@@ -4591,10 +4592,18 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
     // through to the generic 3-tier default. Empty matrix -> [] -> generator's own
     // fallback still applies, unchanged.
     const manualCausalChainSteps = cycle.goalContract?.execution?.causalChainSteps;
-    const causalChainSteps =
+    const baseChainSteps =
       manualCausalChainSteps && manualCausalChainSteps.length > 0
         ? manualCausalChainSteps
         : buildCausalChainStepsFromMatrix(state.matrix);
+
+    // Resolve Convergence buffers (2026-08-13 Gap 3): compute synchronized target dates
+    // for projects linked via Convergence edges with buffer constraints.
+    const bufferAdjustments = resolveConvergenceBuffers(state.matrix);
+    const causalChainSteps = baseChainSteps.map((step) => ({
+      ...step,
+      synchronizedDate: bufferAdjustments.get(step.projectId) || null,
+    }));
 
     // Same precedence as causalChainSteps above: an explicitly-set cycle.strategy.constraints
     // wins if the operator (or SET_STRATEGY/SET_SCHEDULING_CONSTRAINTS) put something there;
@@ -17317,6 +17326,13 @@ function declareConvergence(state, payload = {}) {
     }
   }
 
+  // Buffer specification (2026-08-13 Gap 3: Convergence buffer resolution)
+  const bufferType = String(payload?.bufferType || '').trim() || null;
+  const bufferDays = Number(payload?.bufferDays) || null;
+  const toleranceDays = Number(payload?.toleranceDays) || null;
+  const precedingProjectId = String(payload?.precedingProjectId || '').trim() || null;
+  const followingProjectId = String(payload?.followingProjectId || '').trim() || null;
+
   state.matrix.convergenceEdgesById[id] = {
     id,
     name, // Step 3: operator-chosen name (editable)
@@ -17333,6 +17349,12 @@ function declareConvergence(state, payload = {}) {
     supersededBy: null, // Step 4: links to subsequent edge if superseded
     broken: Boolean(payload?.broken) || false,
     label: String(payload?.label || '').trim() || null,
+    // Buffer specification (2026-08-13 Gap 3)
+    bufferType, // 'sequential' | 'parallel'
+    bufferDays, // For sequential buffers
+    toleranceDays, // For parallel buffers
+    precedingProjectId, // Sequential: which source is first
+    followingProjectId, // Sequential: which source is second
     declaredAtISO: nowISO,
   };
 

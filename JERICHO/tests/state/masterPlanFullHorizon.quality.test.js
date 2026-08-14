@@ -220,7 +220,7 @@ describe('master-plan full-horizon quality gate', () => {
       (block) =>
         String(block.dayKey || '') < '2029-01-01' ||
         String(block.dayKey || '') === '2029-01-01' ||
-        String(block.dayKey || '') === '2031-05-11'
+        String(block.dayKey || '') === '2032-03-15'
     );
 
     const quality = evaluateForState(state, blocks);

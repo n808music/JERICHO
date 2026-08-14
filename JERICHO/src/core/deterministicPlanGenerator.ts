@@ -67,6 +67,10 @@ export type AutoDeliverable = {
   kind: 'PLANNING' | 'CORE' | 'VERIFICATION';
   requiredBlocks: number;
   sourceProjectId?: string;
+  // Per-project target deadline (YYYY-MM-DD format). Soft constraint — used as
+  // tiebreaker within phase, not hard ordering override. Phase ordering is always
+  // respected (hard constraint). Undefined if no target date on source project.
+  targetDate?: string | null;
 };
 
 /**
@@ -85,11 +89,26 @@ export type CapacityViolation = {
   cutSteps: Array<{ deliverableId: string; deliverableTitle: string }>;
 };
 
+/**
+ * Target date conflict payload (2026-08-13, per-project deadline enforcement).
+ * Parallel to CapacityViolation: when a project's targetDate cannot be satisfied,
+ * flag it explicitly instead of silently stretching to next available slot.
+ * Blocks still get scheduled (never silent data loss), but operator sees the conflicts.
+ */
+export type TargetDateConflict = {
+  deliverableId: string;
+  deliverableTitle: string;
+  targetDate: string; // YYYY-MM-DD
+  reason: 'OUTSIDE_CONTRACT_WINDOW' | 'LANDS_IN_BLACKOUT' | 'CAPACITY_CLUSTER_CONFLICT';
+  placedOnDate: string; // Where it actually got scheduled (best-effort next available)
+};
+
 export type DeterministicPlanResult = {
   status: 'SUCCESS' | 'PARTIAL' | 'INFEASIBLE';
   proposedBlocks: ProposedBlock[];
   autoDeliverables: AutoDeliverable[];
   capacityViolation?: CapacityViolation;
+  targetDateConflicts?: TargetDateConflict[]; // Per-project deadline conflicts (2026-08-13)
   error?: {
     code:
       | 'NO_ELIGIBLE_DAYS'
@@ -107,7 +126,13 @@ export interface DeterministicGenInput {
   contractDeadlineDayKey: string; // YYYY-MM-DD
   contractStartDayKey: string; // YYYY-MM-DD
   nowDayKey: string; // YYYY-MM-DD (current execution point)
-  causalChainSteps?: Array<{ sequence: number; description: string }>;
+  causalChainSteps?: Array<{
+    sequence: number;
+    description: string;
+    projectId?: string;
+    targetDate?: string | null; // Per-project deadline (2026-08-13), YYYY-MM-DD or null
+    synchronizedDate?: string | null; // Buffer-adjusted date (2026-08-13 Gap 3), takes precedence over targetDate
+  }>;
   constraints: {
     maxBlocksPerDay: number; // e.g., 4
     maxBlocksPerWeek: number; // e.g., 16
@@ -123,7 +148,7 @@ export interface DeterministicGenInput {
  * Returns deterministic deliverables ordered by sequence
  */
 export function buildAutoDeliverables(
-  causalChainSteps?: Array<{ sequence: number; description: string; projectId?: string }>
+  causalChainSteps?: Array<{ sequence: number; description: string; projectId?: string; targetDate?: string | null }>
 ): AutoDeliverable[] {
   // If causal chain provided and non-empty, use it
   if (causalChainSteps && causalChainSteps.length > 0) {
@@ -134,6 +159,7 @@ export function buildAutoDeliverables(
       kind: idx < 1 ? 'PLANNING' : idx < sorted.length - 1 ? 'CORE' : 'VERIFICATION',
       requiredBlocks: 1,
       sourceProjectId: step.projectId,
+      targetDate: step.targetDate || null,
     }));
   }
 
@@ -300,17 +326,25 @@ export function generateDeterministicPlan(input: DeterministicGenInput): Determi
     };
   }
 
-  // Allocate blocks deterministically (earliest-first)
+  // Allocate blocks deterministically (phase-first, target-date-secondary)
   // Track daily duration totals (in minutes) for constraint enforcement
   const proposedBlocks: ProposedBlock[] = [];
+  const targetDateConflicts: TargetDateConflict[] = [];
   let blockIndex = 0;
-  let dayIndex = 0;
   const dailyMinutesTotal: Record<string, number> = {}; // Track minutes, not counts
   const maxDailyMinutes = constraints.maxBlocksPerDay * 60; // Convert hours constraint to minutes
   let weeklyCount: Record<string, number> = {};
 
-  // Flatten deliverables into individual blocks for scheduling
-  const blockQueue = deliverables.flatMap((deliv) =>
+  // Build block queue with deliverable metadata (phase, target date)
+  interface BlockWithMeta {
+    deliverableId: string;
+    deliverableTitle: string;
+    kind: 'PLANNING' | 'CORE' | 'VERIFICATION';
+    order: number;
+    sourceProjectId?: string;
+    targetDate?: string | null;
+  }
+  const blockQueue: BlockWithMeta[] = deliverables.flatMap((deliv) =>
     Array(deliv.requiredBlocks)
       .fill(null)
       .map((_, idx) => ({
@@ -319,16 +353,100 @@ export function generateDeterministicPlan(input: DeterministicGenInput): Determi
         kind: deliv.kind,
         order: idx,
         sourceProjectId: deliv.sourceProjectId,
+        targetDate: deliv.targetDate || null,
       }))
   );
 
-  // Allocate blocks to days (deterministic earliest-first)
+  /**
+   * Find preferred day index for a block with a target date.
+   * Prioritizes synchronizedDate (buffer-adjusted) over targetDate.
+   * Returns the index in eligibleDays that matches or is closest to the preferred date.
+   * Returns -1 if the date is outside the contract window.
+   */
+  function findPreferredDayIndex(targetDate: string | null, synchronizedDate: string | null): number {
+    // Synchronized date (buffer-adjusted) takes precedence over declared target date
+    const preferredDate = synchronizedDate || targetDate;
+    if (!preferredDate) return 0; // No target date, use earliest-first (index 0)
+
+    // Check if preferredDate is within contract window
+    if (preferredDate < effectiveStartDayKey || preferredDate > contractDeadlineDayKey) {
+      return -1; // Outside contract window — conflict
+    }
+
+    // Find the index of the matching or closest earlier eligible day
+    for (let i = eligibleDays.length - 1; i >= 0; i--) {
+      if (eligibleDays[i] <= preferredDate) {
+        return i;
+      }
+    }
+
+    // Preferred date is before all eligible days (shouldn't happen if window check passed)
+    return 0;
+  }
+
+  // Track which deliverables have had conflicts flagged (to avoid duplicate flagging)
+  const conflictFlaggedDeliverables = new Set<string>();
+
+  // Allocate blocks to days (phase-first, target-date-secondary)
+  // Track current position to enforce phase ordering: blocks must progress forward in time
+  let currentDayIndex = 0;
   let allocationIterations = 0;
 
   for (const block of blockQueue) {
     if (blockIndex >= targetBlocks) break;
 
     let allocated = false;
+    const preferredDayIndex = findPreferredDayIndex(block.targetDate, block.synchronizedDate);
+
+    // If target date is outside contract window, flag conflict but still allocate
+    if (preferredDayIndex === -1 && !conflictFlaggedDeliverables.has(block.deliverableId)) {
+      const conflictDate = block.synchronizedDate || block.targetDate;
+      targetDateConflicts.push({
+        deliverableId: block.deliverableId,
+        deliverableTitle: block.deliverableTitle,
+        targetDate: conflictDate!,
+        reason: 'OUTSIDE_CONTRACT_WINDOW',
+        placedOnDate: '', // Will be filled after allocation
+      });
+      conflictFlaggedDeliverables.add(block.deliverableId);
+    }
+
+    // Flag divergence between targetDate and synchronizedDate (buffer adjustment)
+    if (block.targetDate && block.synchronizedDate && block.targetDate !== block.synchronizedDate &&
+        !conflictFlaggedDeliverables.has(block.deliverableId)) {
+      targetDateConflicts.push({
+        deliverableId: block.deliverableId,
+        deliverableTitle: block.deliverableTitle,
+        targetDate: block.targetDate,
+        reason: 'CONVERGENCE_BUFFER_ADJUSTED',
+        placedOnDate: block.synchronizedDate,
+      });
+      conflictFlaggedDeliverables.add(block.deliverableId);
+    }
+
+    // Determine start index: prefer target date if valid and >= current position (phase order), else use current
+    let startIndex: number;
+    if (preferredDayIndex >= 0 && preferredDayIndex >= currentDayIndex) {
+      // Target date is valid and doesn't violate phase ordering
+      startIndex = preferredDayIndex;
+    } else if (preferredDayIndex >= 0 && preferredDayIndex < currentDayIndex) {
+      // Target date is earlier than current position (would violate phase order), flag and use current
+      if (!conflictFlaggedDeliverables.has(block.deliverableId)) {
+        targetDateConflicts.push({
+          deliverableId: block.deliverableId,
+          deliverableTitle: block.deliverableTitle,
+          targetDate: block.targetDate!,
+          reason: 'CAPACITY_CLUSTER_CONFLICT',
+          placedOnDate: '', // Will be filled after allocation
+        });
+        conflictFlaggedDeliverables.add(block.deliverableId);
+      }
+      startIndex = currentDayIndex;
+    } else {
+      // No target date, use current position (earliest-first within phase order)
+      startIndex = currentDayIndex;
+    }
+
     for (let attempt = 0; attempt < eligibleDays.length && !allocated; attempt++) {
       allocationIterations++;
       if (allocationIterations > ITERATION_GUARDS.MAX_ALLOCATION_ITERATIONS) {
@@ -348,15 +466,15 @@ export function generateDeterministicPlan(input: DeterministicGenInput): Determi
           },
         };
       }
-      const dayKey = eligibleDays[(dayIndex + attempt) % eligibleDays.length];
+
+      const dayKey = eligibleDays[(startIndex + attempt) % eligibleDays.length];
       const weekKey = getWeekStart(dayKey);
 
       const currentDailyMinutes = dailyMinutesTotal[dayKey] || 0;
       const weeklyCount_ = weeklyCount[weekKey] || 0;
       const blockDurationMinutes = 60; // All blocks in deterministic generator are 60 min
 
-      // Check if adding this block would exceed daily duration limit (converted from hours to minutes)
-      // and weekly block count limit
+      // Check if adding this block would exceed daily duration limit and weekly block count limit
       if (currentDailyMinutes + blockDurationMinutes <= maxDailyMinutes && weeklyCount_ < constraints.maxBlocksPerWeek) {
         proposedBlocks.push({
           id: `block-${blockIndex}`,
@@ -369,15 +487,36 @@ export function generateDeterministicPlan(input: DeterministicGenInput): Determi
           sourceProjectId: block.sourceProjectId,
         });
 
+        // Update current day index to this day (blocks should generally progress forward)
+        const placedDayIndex = eligibleDays.indexOf(dayKey);
+        if (placedDayIndex >= currentDayIndex) {
+          currentDayIndex = placedDayIndex;
+        }
+
+        // Check if we placed it on the preferred (synchronized or target) date
+        const preferredDate = block.synchronizedDate || block.targetDate;
+        if (preferredDate && dayKey !== preferredDate &&
+            !conflictFlaggedDeliverables.has(block.deliverableId) &&
+            preferredDayIndex >= 0 && preferredDayIndex >= currentDayIndex) {
+          // Only flag if this was a capacity cluster (preferred was valid but we placed elsewhere due to capacity)
+          targetDateConflicts.push({
+            deliverableId: block.deliverableId,
+            deliverableTitle: block.deliverableTitle,
+            targetDate: block.targetDate || null,
+            reason: 'CAPACITY_CLUSTER_CONFLICT',
+            placedOnDate: dayKey,
+          });
+          conflictFlaggedDeliverables.add(block.deliverableId);
+        } else if (preferredDate && dayKey === preferredDate) {
+          // Successfully placed on preferred date — mark so we don't flag it again
+          conflictFlaggedDeliverables.add(block.deliverableId);
+        }
+
         dailyMinutesTotal[dayKey] = currentDailyMinutes + blockDurationMinutes;
         weeklyCount[weekKey] = weeklyCount_ + 1;
         blockIndex++;
         allocated = true;
       }
-    }
-
-    if (!allocated) {
-      dayIndex++;
     }
   }
 
@@ -387,6 +526,7 @@ export function generateDeterministicPlan(input: DeterministicGenInput): Determi
       status: 'INFEASIBLE',
       proposedBlocks: [],
       autoDeliverables: deliverables,
+      targetDateConflicts: targetDateConflicts.length > 0 ? targetDateConflicts : undefined,
       error: {
         code: 'NO_ELIGIBLE_DAYS',
         message: 'Failed to allocate blocks despite eligible days',
@@ -420,6 +560,7 @@ export function generateDeterministicPlan(input: DeterministicGenInput): Determi
         overageMinutes: shortfall * 60,
         cutSteps,
       },
+      targetDateConflicts: targetDateConflicts.length > 0 ? targetDateConflicts : undefined,
     };
   }
 
@@ -427,6 +568,7 @@ export function generateDeterministicPlan(input: DeterministicGenInput): Determi
     status: 'SUCCESS',
     proposedBlocks,
     autoDeliverables: deliverables,
+    targetDateConflicts: targetDateConflicts.length > 0 ? targetDateConflicts : undefined,
   };
 }
 

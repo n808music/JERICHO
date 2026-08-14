@@ -50,8 +50,9 @@ function numericAwareCompare(a, b) {
  * matrix contents.
  *
  * @param {object} matrix - state.matrix (entitiesById/initiativesById/projectsById/...)
- * @returns {Array<{sequence: number, description: string, projectId: string}>} empty array
+ * @returns {Array<{sequence: number, description: string, projectId: string, targetDate: string|null}>} empty array
  *   if no CONFIRMED projects exist (caller falls back to the generic 3-tier default).
+ *   targetDate is YYYY-MM-DD or null if not set on the project.
  */
 export function buildCausalChainStepsFromMatrix(matrix = {}) {
   const projects = matrix.projectsById || {};
@@ -87,5 +88,10 @@ export function buildCausalChainStepsFromMatrix(matrix = {}) {
     // deliverable back to its owning Project/Initiative/Entity for entityId/laneId
     // (2026-07-13 unified schedule generation design, §6/§3).
     projectId: project.id,
+    // Per-project target deadline (2026-08-13, per-project deadline enforcement).
+    // Format: YYYY-MM-DD. The scheduler respects this as a soft constraint (phase
+    // ordering is hard; target dates are soft, used as tiebreaker within phase).
+    // Undefined if project has no targetDate set.
+    targetDate: project.targetDate || null,
   }));
 }

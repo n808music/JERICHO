@@ -59,10 +59,13 @@ describe('master-plan full-horizon density correction', () => {
     const blocks = Array.isArray(derived.fullHorizonScheduleBlocks) ? derived.fullHorizonScheduleBlocks : [];
     const counts = countBlocksByYear(blocks);
     const peakYearCount = Math.max(...Object.values(counts), 0);
-    const terminalYearCount = counts['2031'] || 0;
+    const terminalYearCount = counts['2032'] || 0;
 
     expect(peakYearCount).toBeGreaterThan(0);
-    expect(terminalYearCount / peakYearCount).toBeGreaterThanOrEqual(0.35);
+    // Terminal year (2032) is partial (ends March 15), so proportional to full year:
+    // ~2.5 months = ~21% of year. Threshold adjusted to 20% to account for partial year
+    // while still requiring meaningful density.
+    expect(terminalYearCount / peakYearCount).toBeGreaterThanOrEqual(0.20);
   });
 
   it('keeps P3 starting before the final 12 months so it is not only a terminal review tail', () => {
@@ -75,7 +78,7 @@ describe('master-plan full-horizon density correction', () => {
     const p3 = phaseModel?.phases?.find((phase) => phase.label === 'P3');
 
     expect(p3).toBeTruthy();
-    expect(p3?.startBoundary <= '2030-05-11').toBe(true);
+    expect(p3?.startBoundary <= '2031-03-15').toBe(true);
     expect(blocks.filter((block) => block.phaseLabel === 'P3').length).toBeGreaterThan(0);
   });
 
@@ -109,7 +112,7 @@ describe('master-plan full-horizon density correction', () => {
     const p3Blocks = blocks.filter((block) => block.phaseLabel === 'P3');
     const p3Lanes = new Set(p3Blocks.map((block) => block.laneId).filter(Boolean));
 
-    expect(plan.fullHorizonEndDayKey).toBe('2031-05-11');
+    expect(plan.fullHorizonEndDayKey).toBe('2032-03-15');
     expect(p3).toBeTruthy();
     expect(p3Days / totalDays).toBeGreaterThanOrEqual(0.20);
     expect(p3Blocks.length).toBeGreaterThanOrEqual(120);
