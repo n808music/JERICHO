@@ -435,6 +435,207 @@ describe('MatrixSpreadsheetRenderer', () => {
     });
   });
 
+  describe('Sort Order — Phase → Date → Parent-Grouping', () => {
+    it('sorts rows by Phase (primary), then Date (secondary)', () => {
+      // Use Initiatives since they have targetDate field for sorting
+      const sortedMatrix = {
+        initiativesById: {
+          'i-phase2': {
+            id: 'i-phase2',
+            name: 'Initiative Phase 2',
+            owningEntityId: 'e1',
+            function: 'Test',
+            purpose: 'Test',
+            purposeCompletion: null,
+            purposeOngoing: null,
+            nextMilestoneDeadline: '2026-08-01',
+            nextMilestoneDescription: null,
+            phase: 2,
+            notes: null,
+          },
+          'i-phase1-late': {
+            id: 'i-phase1-late',
+            name: 'Initiative Phase 1 Later',
+            owningEntityId: 'e1',
+            function: 'Test',
+            purpose: 'Test',
+            purposeCompletion: null,
+            purposeOngoing: null,
+            nextMilestoneDeadline: '2026-12-31',
+            nextMilestoneDescription: null,
+            phase: 1,
+            notes: null,
+          },
+          'i-phase1-early': {
+            id: 'i-phase1-early',
+            name: 'Initiative Phase 1 Early',
+            owningEntityId: 'e1',
+            function: 'Test',
+            purpose: 'Test',
+            purposeCompletion: null,
+            purposeOngoing: null,
+            nextMilestoneDeadline: '2026-08-15',
+            nextMilestoneDescription: null,
+            phase: 1,
+            notes: null,
+          },
+        },
+        entitiesById: {},
+        projectsById: {},
+        deliverablesById: {},
+        artifactsById: {},
+        systemsById: {},
+        convergenceEdgesById: {},
+      };
+
+      const { container } = render(<MatrixSpreadsheetRenderer matrix={sortedMatrix} />);
+      // Switch to Initiative tab (default is Entity)
+      const initiativeTab = screen.getByRole('button', { name: 'Initiative' });
+      fireEvent.click(initiativeTab);
+
+      const rows = container.querySelectorAll('.matrix-row--simple');
+
+      // Should have 3 rows
+      expect(rows.length).toBe(3);
+
+      // Phase 1 early should come first (phase 1, date 2026-08-15)
+      expect(rows[0].textContent).toContain('Initiative Phase 1 Early');
+      // Phase 1 late should come second (phase 1, date 2026-12-31)
+      expect(rows[1].textContent).toContain('Initiative Phase 1 Later');
+      // Phase 2 should come last
+      expect(rows[2].textContent).toContain('Initiative Phase 2');
+    });
+
+    it('uses parent date for child row positioning in sort order', async () => {
+      const hierarchicalMatrix = {
+        projectsById: {
+          'p-date-2026-09': {
+            id: 'p-date-2026-09',
+            name: 'Project Sept 2026',
+            owningEntityId: 'e1',
+            owningInitiativeId: 'i1',
+            targetDate: '2026-09-30',
+            desiredOutcome: 'Later project',
+            phase: 1,
+            notes: null,
+          },
+          'p-date-2026-08': {
+            id: 'p-date-2026-08',
+            name: 'Project Aug 2026',
+            owningEntityId: 'e1',
+            owningInitiativeId: 'i1',
+            targetDate: '2026-08-31',
+            desiredOutcome: 'Earlier project',
+            phase: 1,
+            notes: null,
+          },
+        },
+        deliverablesById: {
+          'd-under-sept': {
+            id: 'd-under-sept',
+            name: 'Under Sept Project',
+            owningProjectId: 'p-date-2026-09',
+            owningInitiativeId: 'i1',
+            workState: null,
+            targetDate: null,
+            phase: 1,
+            reviewStatus: null,
+            notes: null,
+          },
+          'd-under-aug': {
+            id: 'd-under-aug',
+            name: 'Under Aug Project',
+            owningProjectId: 'p-date-2026-08',
+            owningInitiativeId: 'i1',
+            workState: null,
+            targetDate: null,
+            phase: 1,
+            reviewStatus: null,
+            notes: null,
+          },
+        },
+        entitiesById: {},
+        initiativesById: {},
+        artifactsById: {},
+        systemsById: {},
+        convergenceEdgesById: {},
+      };
+
+      const { container } = render(<MatrixSpreadsheetRenderer matrix={hierarchicalMatrix} />);
+      const projectTab = screen.getByRole('button', { name: 'Project' });
+      fireEvent.click(projectTab);
+
+      await waitFor(() => {
+        const rows = container.querySelectorAll('.matrix-row');
+        // Aug project should come before Sept project (by date)
+        const rowTexts = Array.from(rows).map(r => r.textContent.trim());
+        const augIndex = rowTexts.findIndex(t => t.includes('Aug 2026'));
+        const septIndex = rowTexts.findIndex(t => t.includes('Sept 2026'));
+        expect(augIndex).toBeLessThan(septIndex);
+      });
+    });
+
+    it('preserves sort order across different phases and dates', () => {
+      const mixedMatrix = {
+        deliverablesById: {
+          'd-phase2': {
+            id: 'd-phase2',
+            name: 'Deliverable Phase 2',
+            owningProjectId: 'p1',
+            owningInitiativeId: 'i1',
+            workState: null,
+            targetDate: '2026-12-31',
+            phase: 2,
+            reviewStatus: null,
+            notes: null,
+          },
+          'd-phase1-early': {
+            id: 'd-phase1-early',
+            name: 'Deliverable Phase 1 Early',
+            owningProjectId: 'p1',
+            owningInitiativeId: 'i1',
+            workState: null,
+            targetDate: '2026-08-01',
+            phase: 1,
+            reviewStatus: null,
+            notes: null,
+          },
+          'd-phase1-late': {
+            id: 'd-phase1-late',
+            name: 'Deliverable Phase 1 Late',
+            owningProjectId: 'p1',
+            owningInitiativeId: 'i1',
+            workState: null,
+            targetDate: '2026-12-01',
+            phase: 1,
+            reviewStatus: null,
+            notes: null,
+          },
+        },
+        entitiesById: {},
+        initiativesById: {},
+        projectsById: {},
+        artifactsById: {},
+        systemsById: {},
+        convergenceEdgesById: {},
+      };
+
+      const { container } = render(<MatrixSpreadsheetRenderer matrix={mixedMatrix} />);
+      const deliverableTab = screen.getByRole('button', { name: 'Deliverable' });
+      fireEvent.click(deliverableTab);
+
+      const rows = container.querySelectorAll('.matrix-row');
+      expect(rows.length).toBe(3);
+
+      // Phase 1 early should come first
+      expect(rows[0].textContent).toContain('Phase 1 Early');
+      // Phase 1 late should come second
+      expect(rows[1].textContent).toContain('Phase 1 Late');
+      // Phase 2 should come last
+      expect(rows[2].textContent).toContain('Phase 2');
+    });
+  });
+
   describe('Column Headers', () => {
     it('renders correct column headers for Entity tab', () => {
       render(<MatrixSpreadsheetRenderer matrix={mockMatrix} />);

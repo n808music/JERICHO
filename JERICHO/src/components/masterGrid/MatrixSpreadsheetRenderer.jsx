@@ -115,7 +115,31 @@ function getParentId(node, nodeType) {
 }
 
 /**
- * Helper: Build hierarchical row structure with parent-child relationships
+ * Helper: Get effective date for sorting (node's date, or parent's date if child)
+ */
+function getEffectiveSortDate(node, nodeType, parentNode) {
+  // If this is a child row, use parent's date for positioning
+  if (parentNode) {
+    return parentNode.targetDate || parentNode.nextMilestoneDeadline || '9999-12-31';
+  }
+  // Top-level node: use its own date
+  return node.targetDate || node.nextMilestoneDeadline || '9999-12-31';
+}
+
+/**
+ * Helper: Get effective phase for sorting (node's phase, or parent's phase if child)
+ */
+function getEffectiveSortPhase(node, nodeType, parentNode) {
+  // If this is a child row, use parent's phase for positioning
+  if (parentNode) {
+    return parentNode.phase ?? 999;
+  }
+  // Top-level node: use its own phase
+  return node.phase ?? 999;
+}
+
+/**
+ * Helper: Build hierarchical row structure with Phase→Date→Parent-grouping sort order
  */
 function buildRowStructure(nodes, nodeType, matrix) {
   const rows = [];
@@ -123,15 +147,72 @@ function buildRowStructure(nodes, nodeType, matrix) {
     .filter(([, node]) => node)
     .map(([id, node]) => ({ id, ...node, _nodeType: nodeType }));
 
-  // For now, render all nodes as simple rows (no hierarchical disclosure)
-  // Hierarchical rendering can be added per nodeType if needed
+  // Build parent-child relationships
+  const nodeById = Object.fromEntries(nodeList.map(n => [n.id, n]));
+  const parentMap = new Map(); // child ID -> parent node
+
   for (const node of nodeList) {
+    const parentId = getParentId(node, nodeType);
+    if (parentId && nodeById[parentId]) {
+      parentMap.set(node.id, nodeById[parentId]);
+    }
+  }
+
+  // Separate top-level nodes from children
+  const topLevelNodes = nodeList.filter(n => !getParentId(n, nodeType) || !nodeById[getParentId(n, nodeType)]);
+
+  // Sort top-level nodes by Phase (primary) → Date (secondary)
+  topLevelNodes.sort((a, b) => {
+    const phaseA = getEffectiveSortPhase(a, nodeType, null);
+    const phaseB = getEffectiveSortPhase(b, nodeType, null);
+    if (phaseA !== phaseB) {
+      return phaseA - phaseB;
+    }
+
+    const dateA = getEffectiveSortDate(a, nodeType, null);
+    const dateB = getEffectiveSortDate(b, nodeType, null);
+    return dateA.localeCompare(dateB);
+  });
+
+  // Build final row list with children grouped under parents
+  for (const parentNode of topLevelNodes) {
+    // Add parent
     rows.push({
       type: 'simple',
       nodeType,
-      id: node.id,
-      data: node,
+      id: parentNode.id,
+      data: parentNode,
     });
+
+    // Find and sort children of this parent
+    const childrenOfParent = nodeList.filter(n => {
+      const pId = getParentId(n, nodeType);
+      return pId === parentNode.id;
+    });
+
+    // Sort children by Phase → Date (using parent's date as effective date)
+    childrenOfParent.sort((a, b) => {
+      const phaseA = getEffectiveSortPhase(a, nodeType, parentNode);
+      const phaseB = getEffectiveSortPhase(b, nodeType, parentNode);
+      if (phaseA !== phaseB) {
+        return phaseA - phaseB;
+      }
+
+      const dateA = getEffectiveSortDate(a, nodeType, parentNode);
+      const dateB = getEffectiveSortDate(b, nodeType, parentNode);
+      return dateA.localeCompare(dateB);
+    });
+
+    // Add sorted children
+    for (const child of childrenOfParent) {
+      rows.push({
+        type: 'child',
+        nodeType,
+        id: child.id,
+        data: child,
+        parentId: parentNode.id,
+      });
+    }
   }
 
   return rows;
@@ -178,17 +259,23 @@ export function MatrixSpreadsheetRenderer({ matrix = {} }) {
     const row = rows[index];
     if (!row) return null;
 
+    // Child rows are indented
+    const childIndent = row.type === 'child' ? 20 : 0;
+
     return (
       <div
         style={style}
         className={`matrix-row matrix-row--${row.type}`}
         data-node-type={row.nodeType}
       >
-        {columnConfig.map(col => (
+        {columnConfig.map((col, colIndex) => (
           <div
             key={col.key}
             className={`matrix-cell${col.computed ? ' matrix-cell--computed' : ''}`}
-            style={{ width: col.width }}
+            style={{
+              width: col.width,
+              paddingLeft: colIndex === 0 ? childIndent : 0,
+            }}
             title={col.computed ? 'Derived from child rows (not editable)' : undefined}
           >
             {col.computed && <span className="matrix-cell-icon">🔗</span>}
