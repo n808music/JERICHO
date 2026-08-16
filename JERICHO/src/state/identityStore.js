@@ -487,6 +487,7 @@ export function buildBlankIdentityState(options = {}) {
       barriersById: {},
       bindingConstraint: null,
       bootstrap: { candidates: [], selectedNodeId: null },
+      spineInitiativeIds: [],
     },
     goalPolicyByGoalId: {},
     masterPlanPolicyByPlanId: {},

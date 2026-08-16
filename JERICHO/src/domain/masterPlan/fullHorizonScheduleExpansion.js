@@ -91,6 +91,14 @@ function mkId(planId, phaseLabel, laneId, dayKey, idx) {
   return `fh-${planId || 'plan'}-${phaseLabel || 'phase'}-${laneId || 'lane'}-${dayKey}-${idx}`;
 }
 
+// Convert numeric phase (1, 2, 3) to string key format ('P1', 'P2', 'P3') for lookups
+function phaseKeyForLookup(numericPhase) {
+  if (numericPhase === 1) return 'P1';
+  if (numericPhase === 2) return 'P2';
+  if (numericPhase === 3) return 'P3';
+  return null;
+}
+
 function clampKey(key) {
   return String(key || '').slice(0, 10);
 }
@@ -303,7 +311,7 @@ function formatQuarterYear(dayKey) {
 }
 
 function getReviewWindowLabel(phaseLabel, dayKey) {
-  if (phaseLabel === 'P3') {
+  if (phaseLabel === 'P3' || phaseLabel === 3) {
     return formatQuarterYear(dayKey);
   }
   return formatMonthYear(dayKey);
@@ -481,7 +489,8 @@ function getOccurrenceFocusOptions(family, phaseLabel, laneTitle) {
     },
   };
 
-  return byFamily[family]?.[phaseLabel] || byFamily.general[phaseLabel] || byFamily.general.P2;
+  const phaseKey = phaseKeyForLookup(phaseLabel) || phaseLabel;  // Support both numeric and string
+  return byFamily[family]?.[phaseKey] || byFamily.general[phaseKey] || byFamily.general.P2;
 }
 
 function getArtifactLabel(family, phaseLabel, blockType, laneTitle) {
@@ -534,7 +543,8 @@ function getArtifactLabel(family, phaseLabel, blockType, laneTitle) {
     },
   };
 
-  return byFamily[family]?.[phaseLabel] || byFamily.general[phaseLabel] || `${genericLane} evidence package`;
+  const phaseKey = phaseKeyForLookup(phaseLabel) || phaseLabel;  // Support both numeric and string
+  return byFamily[family]?.[phaseKey] || byFamily.general[phaseKey] || `${genericLane} evidence package`;
 }
 
 function decorateDescriptorForOccurrence({ descriptor, phaseLabel, lane, dayKey, idx }) {
@@ -545,7 +555,7 @@ function decorateDescriptorForOccurrence({ descriptor, phaseLabel, lane, dayKey,
   const focus = focusOptions[idx % focusOptions.length] || `${laneTitle} evidence`;
   const artifact = getArtifactLabel(family, phaseLabel, descriptor.blockType, laneTitle);
   const titleWindowLabel =
-    phaseLabel === 'P3' ? `${reviewWindow} scale review window` : `${reviewWindow} review window`;
+    (phaseLabel === 'P3' || phaseLabel === 3) ? `${reviewWindow} scale review window` : `${reviewWindow} review window`;
 
   // RTG Finding 2: descriptor.expectedOutput may be a noun phrase ("revenue
   // protection brief") or a sentence/clause ("Direct expansion gate with unmet
@@ -1021,7 +1031,8 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
     },
   };
 
-  let descriptors = (byFamily[family] || byFamily.general)[phaseLabel] || byFamily.general[phaseLabel] || [];
+  const phaseKey = phaseKeyForLookup(phaseLabel) || phaseLabel;  // Support both numeric and string
+  let descriptors = (byFamily[family] || byFamily.general)[phaseKey] || byFamily.general[phaseKey] || [];
 
   if (gated) {
     descriptors = descriptors.filter((item) => item[1] !== 'action');
@@ -1134,14 +1145,15 @@ function resolvePassEvidence(blockType, descriptor) {
 // dependencies demonstrates upstream proof threshold cleared for X". The
 // current implementation places the descriptor evidence in a parenthetical
 // reference so the surrounding sentence reads cleanly regardless of phrasing.
-function resolveGateCriteria({ descriptor, phase, lane }) {
-  const phaseLabel = phase?.label || null;
+function resolveGateCriteria({ descriptor, phase, lane, initiativePhase }) {
+  const phaseLabel = initiativePhase || null;  // Use Initiative phase (numeric) instead of model phase
   const laneId = lane?.id || lane?.laneId || 'unknown';
   const laneTitle = getLaneTitle(lane) || 'lane';
   const expectedOutput = descriptor?.expectedOutput || 'gate evidence packet';
-  const nextPhase = phaseLabel === 'P1' ? 'P2' : phaseLabel === 'P2' ? 'P3' : 'terminal-review';
-  const nextLabel = nextPhase === 'terminal-review' ? 'terminal review' : nextPhase;
-  const gateName = `${phaseLabel || 'phase'}→${nextPhase} gate: ${laneTitle}`;
+  const nextPhase = phaseLabel === 1 ? 2 : phaseLabel === 2 ? 3 : 'terminal-review';
+  const nextLabel = nextPhase === 'terminal-review' ? 'terminal review' : `Phase ${nextPhase}`;
+  const gateLabel = phaseLabel ? `${phaseLabel}→${nextPhase}` : `phase→${nextPhase}`;
+  const gateName = `${gateLabel} gate: ${laneTitle}`;
   const evidence = String(descriptor?.evidenceRequired || expectedOutput).toLowerCase().replace(/\.\s*$/, '');
   return {
     gateName,
@@ -1181,9 +1193,10 @@ function buildBlock({
 }) {
   const laneId = lane?.id || lane?.laneId || null;
   const blockType = descriptor.blockType;
+  const initiativePhase = plan?.phase || null;
   const occurrenceDescriptor = decorateDescriptorForOccurrence({
     descriptor,
-    phaseLabel: phase?.label || null,
+    phaseLabel: initiativePhase,
     lane,
     dayKey,
     idx,
@@ -1193,25 +1206,25 @@ function buildBlock({
       ? 'review-required'
       : occurrenceDescriptor.blockType === 'terminal-readiness'
         ? 'terminal-readiness'
-        : phase?.label === 'P1'
+        : initiativePhase === 1
           ? 'forecast'
-          : phase?.label === 'P2'
+          : initiativePhase === 2
             ? 'forecast'
             : 'strategic';
   const idKey = idDayKey || dayKey;
   const family = inferLaneFamily(lane);
   const laneTitle = getLaneTitle(lane);
-  const gateCriteria = blockType === 'gate' ? resolveGateCriteria({ descriptor: occurrenceDescriptor, phase, lane }) : null;
+  const gateCriteria = blockType === 'gate' ? resolveGateCriteria({ descriptor: occurrenceDescriptor, phase, lane, initiativePhase }) : null;
 
   return {
-    id: mkId(planId, phase?.label, laneId || 'lane', idKey, idx),
+    id: mkId(planId, initiativePhase, laneId || 'lane', idKey, idx),
     title: occurrenceDescriptor.title,
     date: dayKey,
     dayKey,
     start: `${dayKey}T09:00:00.000Z`,
     end: `${dayKey}T10:00:00.000Z`,
     phaseId: phase?.id || null,
-    phaseLabel: phase?.label || null,
+    phaseLabel: initiativePhase,
     phaseName: phase?.phaseTitle || phase?.title || phase?.label || null,
     laneId,
     laneId,
@@ -1236,8 +1249,8 @@ function buildBlock({
       plan?.successStandard ? `success:${String(plan.successStandard).slice(0, 80)}` : null,
     ].filter(Boolean),
     dependsOn: [
-      ...(phase?.label === 'P2' ? ['phase:P1'] : []),
-      ...(phase?.label === 'P3' ? ['phase:P2'] : []),
+      ...(initiativePhase === 2 ? ['phase:P1'] : []),
+      ...(initiativePhase === 3 ? ['phase:P2'] : []),
       ...((lane?.dependsOnLaneIds || []).map((dependencyId) => `lane:${dependencyId}`)),
     ],
     unlocks: occurrenceDescriptor.unlocks,
@@ -1265,8 +1278,8 @@ function buildBlock({
     isExternalStakeholderTouchpoint: occurrenceDescriptor.isExternalStakeholderTouchpoint === true,
     durationMinutes: resolveTimeEstimateMinutes(blockType),
     producesArtifact: occurrenceDescriptor.isExternalBdMechanic
-      ? (occurrenceDescriptor.expectedOutput || getArtifactLabel(family, phase?.label || null, blockType, laneTitle) || null)
-      : (getArtifactLabel(family, phase?.label || null, blockType, laneTitle) || occurrenceDescriptor.expectedOutput || null),
+      ? (occurrenceDescriptor.expectedOutput || getArtifactLabel(family, phaseKeyForLookup(initiativePhase), blockType, laneTitle) || null)
+      : (getArtifactLabel(family, phaseKeyForLookup(initiativePhase), blockType, laneTitle) || occurrenceDescriptor.expectedOutput || null),
     consumedBy: occurrenceDescriptor.unlocks || [],
     consumedByRef: deriveConsumedByRef(occurrenceDescriptor),
     dependsOnBlockIds: [],
@@ -1282,16 +1295,17 @@ function buildBlock({
 
 function buildGlobalTerminalBlock({ planId, phase, horizonEndDayKey, plan }) {
   const dayKey = clampKey(horizonEndDayKey || phase?.endBoundary);
-  if (!dayKey || phase?.label !== 'P3') {return null;}
+  const initiativePhase = plan?.phase || null;
+  if (!dayKey || initiativePhase !== 3) {return null;}
   return {
-    id: mkId(planId, phase?.label, 'terminal', dayKey, 999),
+    id: mkId(planId, initiativePhase, 'terminal', dayKey, 999),
     title: `Assess terminal-readiness evidence for the cross-lane Operation Endgame review against the success standard and outcome target in ${formatQuarterYear(dayKey)}`,
     date: dayKey,
     dayKey,
     start: `${dayKey}T15:00:00.000Z`,
     end: `${dayKey}T16:30:00.000Z`,
     phaseId: phase?.id || null,
-    phaseLabel: phase?.label || null,
+    phaseLabel: initiativePhase,
     phaseName: phase?.phaseTitle || phase?.title || phase?.label || null,
     laneId: 'cross_lane_terminal_review',
     laneLabel: 'cross-lane terminal review',

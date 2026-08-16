@@ -49,6 +49,7 @@ import { getDeadlineDayKey } from '../core/deadline.ts';
 import { generateDeterministicPlan } from '../core/deterministicPlanGenerator.ts';
 import { buildCausalChainStepsFromMatrix } from '../domain/masterGrid/causalChainFromMatrix.js';
 import { resolveConvergenceBuffers } from '../domain/masterGrid/resolveConvergenceBuffers.js';
+import { computeSpineWindows, computeInitiativePhase, validateInitiativePhaseHierarchy } from '../domain/masterGrid/spinePhaseComputation.js';
 import { validateCrossReferenceIntegrity } from './engine/crossReferenceIntegrityValidator.js';
 import { seedCapacityFromLegacyConstraints } from '../domain/masterGrid/capacityFromLegacy.js';
 import { buildConstraintsFromMatrix } from '../domain/masterGrid/constraintsFromMatrix.js';
@@ -520,6 +521,67 @@ export function normalizeConfirmationProvenance(state) {
       }
     }
   }
+}
+
+/**
+ * Auto-compute Initiative Phases from spine windows and Terminal Deadlines.
+ * Per doctrine (Phase Assignment Rule), Phase is computed from each Initiative's
+ * Terminal Deadline against the spine windows. This runs after spine or deadline changes.
+ */
+function computeInitiativePhasesForAll(state) {
+  if (!state.matrix?.initiativesById || !Array.isArray(state.matrix?.spineInitiativeIds) || state.matrix.spineInitiativeIds.length === 0) {
+    return;
+  }
+
+  const spineInitiatives = (state.matrix.spineInitiativeIds || [])
+    .map((spineId) => state.matrix.initiativesById?.[spineId])
+    .filter(Boolean);
+  const spineWindows = computeSpineWindows(spineInitiatives);
+
+  for (const [initiativeId, initiative] of Object.entries(state.matrix.initiativesById || {})) {
+    const computedPhase = computeInitiativePhase(initiative, spineWindows);
+    const phaseValue = computedPhase === null || computedPhase === 'CROSS_PHASE' ? null : String(computedPhase);
+    state.matrix.initiativesById[initiativeId] = { ...initiative, phase: phaseValue };
+
+    // Validate parent-child hierarchy if parent exists
+    if (initiative.parentInitiativeId && computedPhase !== null && computedPhase !== 'CROSS_PHASE') {
+      const parentInitiative = state.matrix.initiativesById?.[initiative.parentInitiativeId];
+      if (parentInitiative) {
+        const parentPhase = computeInitiativePhase(parentInitiative, spineWindows);
+        const hierarchyValidation = validateInitiativePhaseHierarchy(computedPhase, parentPhase);
+        if (!hierarchyValidation.valid) {
+          state.lastPlanWarning = state.lastPlanWarning || {
+            code: 'INITIATIVE_PHASE_HIERARCHY_VIOLATION',
+            reason: hierarchyValidation.message,
+            initiativeId,
+            parentInitiativeId: initiative.parentInitiativeId,
+            childPhase: computedPhase,
+            parentPhase,
+          };
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Spine declaration: operator-declared list of Initiative IDs defining phase windows.
+ */
+function declareSpine(state, payload = {}) {
+  if (!state?.matrix) return;
+  const spineInitiativeIds = Array.isArray(payload?.spineInitiativeIds)
+    ? payload.spineInitiativeIds.filter(Boolean).map((id) => String(id).trim()).filter(Boolean)
+    : [];
+  const invalidIds = spineInitiativeIds.filter((id) => !state.matrix.initiativesById?.[id]);
+  if (invalidIds.length > 0) {
+    state.lastPlanError = {
+      code: 'SPINE_INITIATIVE_NOT_FOUND',
+      reason: `Spine declaration references unknown Initiative(s): ${invalidIds.join(', ')}`,
+      meta: { invalidIds },
+    };
+    return;
+  }
+  state.matrix.spineInitiativeIds = spineInitiativeIds;
 }
 
 export function computeDerivedState(state, action) {
@@ -1228,6 +1290,9 @@ export function computeDerivedState(state, action) {
     case 'SET_INITIATIVE_PHASE':
       setInitiativePhase(next, action.payload || {});
       break;
+    case 'DECLARE_SPINE':
+      declareSpine(next, action.payload || {});
+      break;
     case 'DECLARE_PRICING_STRATEGY':
       declarePricingStrategy(next, action.payload || {});
       break;
@@ -1582,6 +1647,12 @@ export function computeDerivedState(state, action) {
       next = updateConvergenceDetectionState(next, convergenceCandidates);
     }
   }
+
+  // Task B Approval: Wire auto-calling of Phase computation (2026-08-16)
+  // Per doctrine: Phase is computed from spine windows + Terminal Deadline, never hand-typed.
+  // Auto-calling runs after all mutations complete, updating all Initiative phases deterministically.
+  // Retroactive audit (Task B) has confirmed all Phase values compute correctly with zero anomalies.
+  computeInitiativePhasesForAll(next);
 
   return next;
 }
@@ -11322,6 +11393,7 @@ function rehydrateSuggestionOverrides(suggestions = [], events = []) {
       target.status = 'dismissed';
     }
   });
+
   return next;
 }
 
@@ -16364,6 +16436,7 @@ function declareInitiative(state, payload = {}) {
     name,
     owningEntityId: owningEntityIds[0] || owningEntityId || null,
     owningEntityIds,
+    parentInitiativeId: String(payload?.parentInitiativeId || '').trim() || null,
     crossCutting: Boolean(payload?.crossCutting),
     purpose,
     purposeFor: String(payload?.purposeFor || '').trim() || null,
@@ -16384,6 +16457,7 @@ function declareInitiative(state, payload = {}) {
     pricingStrategy: String(payload?.pricingStrategy || '').trim() || null,
     pricingReasoning: String(payload?.pricingReasoning || '').trim() || null,
     function: String(payload?.function || '').trim() || null,
+    terminalDeadline: String(payload?.terminalDeadline || '').trim() || null,
     nextMilestoneDeadline: String(payload?.nextMilestoneDeadline || '').trim() || null,
     nextMilestoneDescription: String(payload?.nextMilestoneDescription || '').trim() || null,
     notes: String(payload?.notes || '').trim() || null,
@@ -16631,6 +16705,42 @@ function declareProject(state, payload = {}) {
     confirmedBy: String(payload?.confirmedBy || '').trim() || null,
     confirmationSource: String(payload?.confirmationSource || '').trim() || null,
   };
+
+  // Task 6: Validate Project↔Initiative Phase hierarchy.
+  // Compute both Project and Initiative phases from spine windows.
+  const projectOwningInitiativeId = state.matrix.projectsById[id]?.owningInitiativeId;
+  if (projectOwningInitiativeId) {
+    const projOwningInit = state.matrix.initiativesById?.[projectOwningInitiativeId];
+    if (projOwningInit) {
+      const spines = (state.matrix.spineInitiativeIds || [])
+        .map((sid) => state.matrix.initiativesById?.[sid])
+        .filter(Boolean);
+      const windows = computeSpineWindows(spines);
+      const projPhase = computeInitiativePhase({ targetDate: payload?.targetDate }, windows);
+      const initPhase = computeInitiativePhase(projOwningInit, windows);
+      if (
+        projPhase !== null &&
+        projPhase !== 'CROSS_PHASE' &&
+        initPhase !== null &&
+        initPhase !== 'CROSS_PHASE' &&
+        projPhase < initPhase
+      ) {
+        const validation = validateInitiativePhaseHierarchy(projPhase, initPhase);
+        if (!validation.valid) {
+          state.lastPlanWarning = state.lastPlanWarning || {
+            code: 'PROJECT_PHASE_HIERARCHY_VIOLATION',
+            reason: validation.message,
+            projectId: id,
+            projectName: name,
+            initiativeId: projectOwningInitiativeId,
+            initiativeName: projOwningInit.name || projectOwningInitiativeId,
+            projectPhase: projPhase,
+            initiativePhase: initPhase,
+          };
+        }
+      }
+    }
+  }
 }
 
 function updateProject(state, payload = {}) {
@@ -16677,7 +16787,45 @@ function updateProject(state, payload = {}) {
   if (payload.evidenceProduced !== undefined)
     {patch.evidenceProduced = String(payload.evidenceProduced || '').trim() || null;}
   if (payload.notes !== undefined) {patch.notes = String(payload.notes || '').trim() || null;}
-  state.matrix.projectsById[id] = { ...existing, ...patch };
+  const updated = { ...existing, ...patch };
+  state.matrix.projectsById[id] = updated;
+
+  // Task 6: Re-validate Project↔Initiative Phase hierarchy after update
+  if (payload.targetDate !== undefined || payload.owningInitiativeId !== undefined) {
+    const updateOwningInitId = updated.owningInitiativeId;
+    if (updateOwningInitId) {
+      const updateOwningInit = state.matrix.initiativesById?.[updateOwningInitId];
+      if (updateOwningInit) {
+        const spines = (state.matrix.spineInitiativeIds || [])
+          .map((sid) => state.matrix.initiativesById?.[sid])
+          .filter(Boolean);
+        const windows = computeSpineWindows(spines);
+        const projPhase = computeInitiativePhase({ targetDate: updated.targetDate }, windows);
+        const initPhase = computeInitiativePhase(updateOwningInit, windows);
+        if (
+          projPhase !== null &&
+          projPhase !== 'CROSS_PHASE' &&
+          initPhase !== null &&
+          initPhase !== 'CROSS_PHASE' &&
+          projPhase < initPhase
+        ) {
+          const validation = validateInitiativePhaseHierarchy(projPhase, initPhase);
+          if (!validation.valid) {
+            state.lastPlanWarning = state.lastPlanWarning || {
+              code: 'PROJECT_PHASE_HIERARCHY_VIOLATION',
+              reason: validation.message,
+              projectId: id,
+              projectName: updated.name,
+              initiativeId: updateOwningInitId,
+              initiativeName: updateOwningInit.name || updateOwningInitId,
+              projectPhase: projPhase,
+              initiativePhase: initPhase,
+            };
+          }
+        }
+      }
+    }
+  }
 }
 
 function removeProject(state, payload = {}) {

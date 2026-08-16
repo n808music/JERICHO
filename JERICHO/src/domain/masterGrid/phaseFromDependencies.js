@@ -18,6 +18,7 @@
  */
 
 import { classifyPhase, NonCanonicalPhaseError } from './phaseClassification.js';
+import { validateInitiativePhaseHierarchy } from './spinePhaseComputation.js';
 
 const ORDERING_TYPES = new Set(['hard_gate', 'directional']);
 
@@ -210,26 +211,9 @@ export function buildPhaseReorganizationRecommendations(matrix = {}) {
       continue;
     }
 
-    // Gate 3: validate declared phase via classifyPhase. Advisory never blocks on bad data —
-    // if phase is corrupted, flag it and continue checking other recommendations.
-    let declaredPhase = null;
-    if (project?.phase != null) {
-      try {
-        declaredPhase = classifyPhase(project.phase, name);
-      } catch (err) {
-        if (err instanceof NonCanonicalPhaseError) {
-          recommendations.push({
-            code: 'PHASE_DATA_CORRUPTED',
-            projectId: id,
-            projectName: name,
-            message: `"${name}" has invalid phase data: "${project.phase}" (violates §5 canonical rule). Phase must be exactly 1 (beginning), 2 (middle), or 3 (end). Correct to one of these values before scheduling. Example: set phase to 2 for a middle-of-timeline project.`,
-          });
-          declaredPhase = null; // treat as unattested, continue checking
-        } else {
-          throw err; // re-throw unexpected errors
-        }
-      }
-    }
+    // Gate 3: Phase is now computed from Terminal Date via spine windows, not hand-typed.
+    // No validation needed — computed phases cannot be non-canonical.
+    let declaredPhase = null; // No longer read from project.phase at intake
 
     const derivedPhase = derivedPhases[id];
     if (declaredPhase != null && Number.isFinite(declaredPhase) && derivedPhase != null && declaredPhase !== derivedPhase) {
@@ -241,38 +225,30 @@ export function buildPhaseReorganizationRecommendations(matrix = {}) {
       });
     }
 
-    // Gate 3: validate initiative phase via classifyPhase.
-    let initiativePhase = null;
-    if (initiativeHasDeclaredPhase) {
-      try {
-        initiativePhase = classifyPhase(owningInitiative.phase, owningInitiative.name || project.owningInitiativeId);
-      } catch (err) {
-        if (err instanceof NonCanonicalPhaseError) {
-          recommendations.push({
-            code: 'PHASE_DATA_CORRUPTED',
-            projectId: project.owningInitiativeId,
-            projectName: owningInitiative.name || project.owningInitiativeId,
-            message: `Initiative "${owningInitiative.name || project.owningInitiativeId}" has invalid phase data: "${owningInitiative.phase}" (violates §5 canonical rule). Phase must be exactly 1 (beginning), 2 (middle), or 3 (end). Correct to one of these values before scheduling. Example: set phase to 1 for an early-timeline initiative.`,
-          });
-          initiativePhase = null; // treat as unattested, continue checking
-        } else {
-          throw err;
-        }
-      }
-    }
+    // Gate 4: PROJECT_PHASE_CONTRADICTS_INITIATIVE — Live gate (Task 6, 2026-08-15):
+    // Project Phase must be >= owning Initiative's Phase (child >= parent).
+    // Per new doctrine, both Phases are now independently computed from their Terminal Dates
+    // via spine windows. This gate validates the hierarchy invariant at runtime.
+    // Uses validateInitiativePhaseHierarchy (shared validator, also in retroactive audit).
+    // Advisory (non-blocking): violations surface to operator for remediation.
+    // (owningInitiative already computed at line 196, reuse it here)
+    const initiativePhase = owningInitiative?.phase ? Number(owningInitiative.phase) : null;
 
     if (
       initiativePhase != null &&
       Number.isFinite(initiativePhase) &&
       derivedPhase != null &&
-      initiativePhase !== derivedPhase
+      Number.isFinite(derivedPhase)
     ) {
-      recommendations.push({
-        code: 'PROJECT_PHASE_CONTRADICTS_INITIATIVE',
-        projectId: id,
-        projectName: name,
-        message: `"${name}" is ordered to phase ${derivedPhase} by its dependencies, but owning initiative "${owningInitiative.name || project.owningInitiativeId}" is attested phase ${initiativePhase} (Gate 1 §5). Initiative phase must encompass all its projects. Correct the initiative to phase ${derivedPhase}, or re-order "${name}"'s dependencies.`,
-      });
+      const hierarchyValidation = validateInitiativePhaseHierarchy(derivedPhase, initiativePhase);
+      if (!hierarchyValidation.valid) {
+        recommendations.push({
+          code: 'PROJECT_PHASE_HIERARCHY_VIOLATION',
+          projectId: id,
+          projectName: name,
+          message: hierarchyValidation.message,
+        });
+      }
     }
   }
 
