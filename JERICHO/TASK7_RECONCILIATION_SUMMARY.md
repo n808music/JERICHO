@@ -19,10 +19,14 @@ phaseLabel: phase?.label || null
 ### AFTER
 ```javascript
 // phaseLabel source: plan?.phase (computed Initiative Phase via identityCompute.js:11400)
-phaseLabel: plan?.phase || null
-// Values: 1 | 2 | 3 | null
-// Result: blocks tagged with inherited Initiative phase
+//                     mapped to string format for downstream compatibility
+const phaseLabelForBlock = initiativePhase === 1 ? 'P1' : initiativePhase === 2 ? 'P2' : initiativePhase === 3 ? 'P3' : null;
+phaseLabel: phaseLabelForBlock
+// Values: 'P1' | 'P2' | 'P3' | null
+// Result: blocks tagged with Initiative phase, formatted as string for compatibility
 ```
+
+**Critical Design Decision:** phaseLabel value is *derived* from computed Initiative.phase (numeric), but *represented* as string ('P1'/'P2'/'P3') to maintain compatibility with downstream code (fullHorizonBlockQuality.js, identityCompute.js, etc.) that expects string format.
 
 ---
 
@@ -110,10 +114,11 @@ function phaseKeyForLookup(numericPhase) {
 
 ### Test 1: Direct Reconciliation (1083 blocks)
 ```
-Phases found in all blocks: 1, 2, 3
-Format: numeric (1, 2, 3) — not string (P1, P2, P3) ✅
-Blocks with numeric phaseLabel: 1083 / 1083 ✅
-Blocks with string phaseLabel ('P1'/'P2'/'P3'): 0 ✅
+Phases found in all blocks: P1, P2, P3
+Format: string ('P1', 'P2', 'P3') — derived from computed Initiative.phase ✅
+Blocks with string phaseLabel ('P1'/'P2'/'P3'): 1083 / 1083 ✅
+Blocks with valid phaseLabel (string or null): 1083 / 1083 ✅
+All blocks inherit computed Initiative phase via phaseKeyForLookup() mapping ✅
 ```
 
 ### Test 2: Full 30-Initiative Portfolio
@@ -130,44 +135,55 @@ F8 Production lines (all P2): 2/2 ✅
 
 #### Initiative: P1 Initiative (Computed Phase = 1)
 ```
-Block ID: fh-initiative-p1-1-lane-foundation-2026-08-15-0
-          ├── Numeric phase ✅
-          └── No 'P1' string
-phaseLabel: 1 (numeric) ✅
+Block ID: fh-initiative-p1-P1-lane-foundation-2026-08-15-0
+          └── Derived from plan?.phase (1 → 'P1')
+phaseLabel: 'P1' (string, mapped from numeric phase) ✅
+Source: computed Initiative.phase ✅
 ```
 
 #### Initiative: P2 Initiative (Computed Phase = 2)
 ```
-Block ID: fh-initiative-p2-2-lane-foundation-2026-08-15-0
-          ├── Numeric phase ✅
-          └── No 'P2' string
-phaseLabel: 2 (numeric) ✅
+Block ID: fh-initiative-p2-P2-lane-foundation-2026-08-15-0
+          └── Derived from plan?.phase (2 → 'P2')
+phaseLabel: 'P2' (string, mapped from numeric phase) ✅
+Source: computed Initiative.phase ✅
 ```
 
 #### Initiative: P3 Initiative (Computed Phase = 3)
 ```
-Block ID: fh-initiative-p3-3-lane-foundation-2026-08-15-0
-          ├── Numeric phase ✅
-          └── No 'P3' string
-phaseLabel: 3 (numeric) ✅
+Block ID: fh-initiative-p3-P3-lane-foundation-2026-08-15-0
+          └── Derived from plan?.phase (3 → 'P3')
+phaseLabel: 'P3' (string, mapped from numeric phase) ✅
+Source: computed Initiative.phase ✅
 Title: "...for the scale review window..." ✅ (P3-specific phrasing)
-Gate: "3→terminal gate" ✅ (numeric progression)
+Gate: "P3→terminal gate" ✅ (string progression)
 ```
 
 ---
+
+## Downstream Compatibility: Preserved String Format
+
+**Issue Identified & Fixed:** Five downstream files compare `block.phaseLabel` against strings ('P1'/'P2'/'P3'):
+- identityCompute.js: `b.phaseLabel === 'P2'`, `b.phaseLabel === 'P3'`
+- fullHorizonBlockQuality.js: `phaseLabel === 'P2'`, `phaseLabel === 'P3'`, `['P2', 'P3'].includes(phaseLabel)`
+- fullHorizonPlanQuality.js: `block.phaseLabel === 'P2' || block.phaseLabel === 'P3'`
+- artifactDependencyIntegrity.js: `phaseLabel === 'P1'`
+- forecastBlockDerivation.js: `phaseLabel === 'P1' ? 'P2' : ...`
+
+**Solution:** phaseLabel uses string format ('P1'/'P2'/'P3') while being *derived* from computed Initiative.phase. All downstream comparisons continue to work without changes ✅
 
 ## Boundary Preservation: Notes Never Parsed
 
 ### 79th Street Renovation
 - Notes: "multi-phase 2,3"
 - Initiative.phase: 2 (computed)
-- block.phaseLabel: 2 ✅
+- block.phaseLabel: 'P2' (string, from computed phase) ✅
 - Outcome: Single-value Phase 2, Notes text un-parsed ✅
 
 ### First Academy Building
 - Notes: "multi-phase 2,3"
 - Initiative.phase: 2 (computed)
-- block.phaseLabel: 2 ✅
+- block.phaseLabel: 'P2' (string, from computed phase) ✅
 - Outcome: Single-value Phase 2, Notes text un-parsed ✅
 
 ---
@@ -176,7 +192,7 @@ Gate: "3→terminal gate" ✅ (numeric progression)
 
 ### Imaginary CEO Cross-Phase Initiative
 - Sub-units: Foundation (P1), Production (P2), Scale (P3)
-- Each block.phaseLabel: 1, 2, 3 respectively ✅
+- Each block.phaseLabel: 'P1', 'P2', 'P3' respectively (strings, from computed phases 1/2/3) ✅
 - Parent row display (main): min(1,2,3) = 1 (Phase 1)
 - Full spread (1,2,3): Appears ONLY in Notes, never computed ✅
 
@@ -187,20 +203,21 @@ Gate: "3→terminal gate" ✅ (numeric progression)
 ### Task 7 Reconciliation Tests
 1. **task7_direct_reconciliation.test.js** — Direct call to expandFullHorizonSchedule
    - 1083 blocks generated from 3 test Initiatives
-   - All phaseLabel values numeric (1/2/3)
-   - No phaseLabel values string ('P1'/'P2'/'P3')
+   - All phaseLabel values string ('P1'/'P2'/'P3')
+   - All phaseLabel values derived from computed Initiative.phase (numeric source)
    - Status: ✅ PASS
 
 2. **task7_phaselabel_reconciliation.test.js** — Full state mutation flow
    - 30 Initiatives declared
    - Full 30-initiative phase snapshot verified
-   - Spine members correct phases
+   - Spine members correct phases (1, 2, 3)
    - Foundation lanes all Phase 1
    - Status: ✅ PASS
 
 3. **hardVerification_full30_liveWiring.test.js** — Existing test, confirms no regression
    - All 30 Initiatives compute phases correctly
    - Spine members verified (1, 2, 3)
+   - Blocks inherit Initiative phases via reconciled phaseLabel assignment
    - Status: ✅ PASS
 
 ---

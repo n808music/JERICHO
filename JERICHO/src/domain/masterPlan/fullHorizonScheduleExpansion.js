@@ -1194,9 +1194,11 @@ function buildBlock({
   const laneId = lane?.id || lane?.laneId || null;
   const blockType = descriptor.blockType;
   const initiativePhase = plan?.phase || null;
+  // Convert numeric phase to string format for phaseLabel (1→'P1', 2→'P2', 3→'P3')
+  const phaseLabelForBlock = initiativePhase === 1 ? 'P1' : initiativePhase === 2 ? 'P2' : initiativePhase === 3 ? 'P3' : null;
   const occurrenceDescriptor = decorateDescriptorForOccurrence({
     descriptor,
-    phaseLabel: initiativePhase,
+    phaseLabel: phaseLabelForBlock,
     lane,
     dayKey,
     idx,
@@ -1217,14 +1219,14 @@ function buildBlock({
   const gateCriteria = blockType === 'gate' ? resolveGateCriteria({ descriptor: occurrenceDescriptor, phase, lane, initiativePhase }) : null;
 
   return {
-    id: mkId(planId, initiativePhase, laneId || 'lane', idKey, idx),
+    id: mkId(planId, phaseLabelForBlock, laneId || 'lane', idKey, idx),
     title: occurrenceDescriptor.title,
     date: dayKey,
     dayKey,
     start: `${dayKey}T09:00:00.000Z`,
     end: `${dayKey}T10:00:00.000Z`,
     phaseId: phase?.id || null,
-    phaseLabel: initiativePhase,
+    phaseLabel: phaseLabelForBlock,
     phaseName: phase?.phaseTitle || phase?.title || phase?.label || null,
     laneId,
     laneId,
@@ -1298,14 +1300,14 @@ function buildGlobalTerminalBlock({ planId, phase, horizonEndDayKey, plan }) {
   const initiativePhase = plan?.phase || null;
   if (!dayKey || initiativePhase !== 3) {return null;}
   return {
-    id: mkId(planId, initiativePhase, 'terminal', dayKey, 999),
+    id: mkId(planId, 'P3', 'terminal', dayKey, 999),
     title: `Assess terminal-readiness evidence for the cross-lane Operation Endgame review against the success standard and outcome target in ${formatQuarterYear(dayKey)}`,
     date: dayKey,
     dayKey,
     start: `${dayKey}T15:00:00.000Z`,
     end: `${dayKey}T16:30:00.000Z`,
     phaseId: phase?.id || null,
-    phaseLabel: initiativePhase,
+    phaseLabel: 'P3',
     phaseName: phase?.phaseTitle || phase?.title || phase?.label || null,
     laneId: 'cross_lane_terminal_review',
     laneLabel: 'cross-lane terminal review',

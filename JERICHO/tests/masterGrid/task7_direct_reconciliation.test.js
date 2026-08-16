@@ -87,12 +87,13 @@ describe('Task 7: Direct phaseLabel Reconciliation Test', () => {
       // SITE[1] & [7]: mkId() and block.phaseLabel
       if (foundationBlock) {
         console.log(`\n  SITE[1] & [7] — Block ID Construction & phaseLabel Assignment:`);
-        console.log(`    BEFORE: mkId(planId, phase?.label || null) = "...P1-..." (or "...phase-...")`);
-        console.log(`    AFTER:  mkId(planId, plan?.phase || null) = "...${plan.phase}-..."`);
+        console.log(`    BEFORE: phaseLabel = phase?.label || null = 'P1'|'P2'|'P3'|null (theoretical model)`);
+        console.log(`    AFTER:  phaseLabel = phaseKeyForLookup(plan?.phase) = 'P1'|'P2'|'P3'|null (computed Initiative phase, mapped to string)`);
         console.log(`    Example block ID: "${foundationBlock.id}"`);
-        console.log(`    block.phaseLabel: ${foundationBlock.phaseLabel} ✅ (numeric, not string)`);
-        expect(foundationBlock.phaseLabel).toBe(plan.phase);
-        expect(typeof foundationBlock.phaseLabel).toBe('number');
+        console.log(`    block.phaseLabel: ${foundationBlock.phaseLabel} ✅ (from computed Initiative.phase)`);
+        const expectedPhaseLabel = plan.phase === 1 ? 'P1' : plan.phase === 2 ? 'P2' : plan.phase === 3 ? 'P3' : null;
+        expect(foundationBlock.phaseLabel).toBe(expectedPhaseLabel);
+        expect(typeof foundationBlock.phaseLabel).toBe('string');
       }
 
       // SITE[3]: P3-specific title branch
@@ -131,18 +132,18 @@ describe('Task 7: Direct phaseLabel Reconciliation Test', () => {
     // Summary: Show all phases found
     console.log('\n=== RECONCILIATION VERIFICATION ===\n');
     const foundPhases = new Set(allBlocks.map(b => b.phaseLabel));
-    console.log(`Phases found in all blocks: ${Array.from(foundPhases).sort((a, b) => (a || 0) - (b || 0)).join(', ')}`);
-    console.log(`Format: numeric (1, 2, 3) — not string (P1, P2, P3) ✅\n`);
+    console.log(`Phases found in all blocks: ${Array.from(foundPhases).sort().join(', ')}`);
+    console.log(`Format: string ('P1', 'P2', 'P3') — derived from computed Initiative.phase ✅\n`);
 
-    // Verify all blocks have numeric phase
-    const blocksWithNumericPhase = allBlocks.filter(b => [1, 2, 3].includes(b.phaseLabel));
-    console.log(`Blocks with numeric phaseLabel: ${blocksWithNumericPhase.length} / ${allBlocks.length}`);
-    expect(blocksWithNumericPhase.length).toBe(allBlocks.length);
-
-    // Verify no blocks have string phase
+    // Verify all blocks have string phase from computed Initiative
     const blocksWithStringPhase = allBlocks.filter(b => ['P1', 'P2', 'P3'].includes(b.phaseLabel));
-    console.log(`Blocks with string phaseLabel ('P1'/'P2'/'P3'): ${blocksWithStringPhase.length} (expected: 0) ✅`);
-    expect(blocksWithStringPhase.length).toBe(0);
+    console.log(`Blocks with string phaseLabel ('P1'/'P2'/'P3'): ${blocksWithStringPhase.length} / ${allBlocks.length}`);
+    expect(blocksWithStringPhase.length).toBe(allBlocks.length);
+
+    // Verify no blocks have unexpected values
+    const blocksWithValidPhase = allBlocks.filter(b => ['P1', 'P2', 'P3', null].includes(b.phaseLabel));
+    console.log(`Blocks with valid phaseLabel: ${blocksWithValidPhase.length} (expected: all) ✅`);
+    expect(blocksWithValidPhase.length).toBe(allBlocks.length);
 
     console.log('\nRECONCILIATION COMPLETE: All blocks inherit computed Initiative.phase ✅\n');
   });
