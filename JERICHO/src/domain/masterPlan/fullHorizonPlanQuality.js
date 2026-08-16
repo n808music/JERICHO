@@ -1158,8 +1158,14 @@ export function evaluateFullHorizonPlanQuality({
     durationScopeAccuracy: evaluateDurationScopeAccuracy({ blocks }),
   };
 
-  // Doctrine scoring: advisory dimensions now feed into state determination
-  // so they actually fix the gate problems they were designed to address.
+  // DOCTRINE #28 OPEN ISSUE (2026-08-16): Advisory dimensions are evaluated but kept
+  // separate from aggregateReasonCodes pending further investigation.
+  // Initial reintegration broke baseline tests, suggesting the problem isn't missing
+  // scoring dimensions but rather a deeper issue with how the gate evaluates state.
+  // The advisory dimensions correctly identify the problematic patterns (orphaned blocks,
+  // unexplained gaps, excessive padding) but their integration into state determination
+  // requires more careful thresholding. Next step: identify the specific baseline
+  // degradation mechanism and fix that, rather than just adding new dimensions.
   const aggregateReasonCodes = [
     ...dimensions.pacing.reasonCodes,
     ...dimensions.precision.reasonCodes,
@@ -1167,10 +1173,6 @@ export function evaluateFullHorizonPlanQuality({
     ...dimensions.professionalism.reasonCodes,
     ...dimensions.completeness.reasonCodes,
     ...dimensions.balance.reasonCodes,
-    ...advisoryDimensions.objectiveLanguageStructure.reasonCodes,
-    ...advisoryDimensions.goalRelevance.reasonCodes,
-    ...advisoryDimensions.efficientPhaseSequencing.reasonCodes,
-    ...advisoryDimensions.durationScopeAccuracy.reasonCodes,
     ...blockDetailQualitySummary.failureCodes,
   ];
 
