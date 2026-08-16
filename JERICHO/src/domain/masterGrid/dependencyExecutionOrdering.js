@@ -137,7 +137,7 @@ export function buildPhaseReorganizationRecommendations(matrix = {}) {
           code: 'NO_DECLARED_SEQUENCE',
           projectId: id,
           projectName: name,
-          message: `"${name}" has no declared dependency relationship to any other CONFIRMED project, and its owning initiative has no declared phase (§5). Either: declare a dependency edge to sequence it relative to another project, or assign the initiative a phase (1=beginning, 2=middle, 3=end) so this project inherits. Deferred: dedicated sequencing UI is not yet available; use dependency declaration modal.`,
+          message: `"${name}" has no declared dependency relationship to any other CONFIRMED project, and its owning initiative has no terminal deadline. Phase is derived from Terminal Date, not hand-assigned. Either: (1) declare a dependency edge to sequence it relative to another project, or (2) set the owning initiative's Terminal Deadline so "${name}" inherits its phase. Deferred: dedicated sequencing UI is not yet available; use dependency declaration modal for edges.`,
         });
       }
       continue;
@@ -200,7 +200,7 @@ export function buildPhaseReorganizationRecommendations(matrix = {}) {
         code: 'INITIATIVE_NO_PHASE_DECLARED',
         projectId: initiativeId,
         projectName: initiative.name || initiativeId,
-        message: `Initiative "${initiative.name || initiativeId}" has ${[...confirmed].filter(id => projects[id]?.owningInitiativeId === initiativeId).length} CONFIRMED projects but no declared phase (§5). Set phase to 1 (beginning), 2 (middle), or 3 (end) so all projects under it inherit a consistent phase and schedule together.`,
+        message: `Initiative "${initiative.name || initiativeId}" has ${[...confirmed].filter(id => projects[id]?.owningInitiativeId === initiativeId).length} CONFIRMED projects but no computed phase (phase derives from Terminal Deadline). Set a Terminal Deadline on the initiative so all projects under it inherit a consistent phase and schedule together.`,
       });
     }
   }

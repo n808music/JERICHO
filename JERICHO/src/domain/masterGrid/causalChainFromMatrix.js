@@ -66,11 +66,12 @@ export function buildCausalChainStepsFromMatrix(matrix = {}) {
 
   const sorted = [...confirmed].sort((a, b) => {
     // Primary: execution layer (raw dependency depth, 0-based)
+    // Only use layer for differentiation when both projects have one (both participate in dependencies).
+    // If either has no layer (no dependency signal), skip to phase tier — having no dependency signal
+    // is not the same as sorting last; the phase tier handles priority correctly.
     const layerA = executionLayer(a);
     const layerB = executionLayer(b);
-    if (layerA !== layerB) {
-      if (layerA == null) {return 1;}
-      if (layerB == null) {return -1;}
+    if (layerA != null && layerB != null && layerA !== layerB) {
       const byLayer = numericAwareCompare(layerA, layerB);
       if (byLayer !== 0) {return byLayer;}
     }

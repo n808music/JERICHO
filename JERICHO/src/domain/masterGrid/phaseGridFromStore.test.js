@@ -156,26 +156,39 @@ const realStore = () => ({
   },
 });
 
-describe('phaseGridFromStore — delegates to derived phase for real (raw-null) stores', () => {
-  it('raw phase null + dependency edges → nodes PLACED via derived phase, zero residual', () => {
+describe('phaseGridFromStore — handles phase-null nodes with dependency edges', () => {
+  it('raw phase null + dependency edges → nodes in RESIDUAL (no fallback to dependency-bucketed phase)', () => {
+    // DOCTRINE CHANGE (Task 3, 2026-08-15): Dependency-derived phase fallback removed.
+    // A node with phase:null (no Terminal Date) and dependency edges no longer gets a fake
+    // phase assignment via bucketed dependency depth. That fallback conflated two distinct
+    // preconditions: "has a Terminal Date" and "is sequenced by dependencies."
+    // Real Phase now comes ONLY from Terminal Dates (via spine windows), never from
+    // dependency position. Nodes without Terminal Dates go residual, which is the honest
+    // signal: "operator action required" rather than "silently scheduled."
+    // See GATE 1 (NO_DECLARED_SEQUENCE) and GATE 4 (INITIATIVE_NO_PHASE_DECLARED) for
+    // operator guidance when facing residual nodes.
     const { gridTitles, matrix: mtx } = phaseGridFromStore(realStore());
     const r = sortByPhase(gridTitles, mtx);
     const placed = [1, 2, 3].reduce((n, p) => n + r.phases.get(p).length, 0);
-    expect(placed).toBe(3);
-    expect(r.residual.length).toBe(0);
-    expect(r.questions.filter((q) => q.code === 'RESIDUAL-PHASE').length).toBe(0);
+    expect(placed).toBe(0); // all three nodes have phase:null, no Terminal Dates, so residual
+    expect(r.residual.length).toBe(3);
+    expect(r.questions.filter((q) => q.code === 'RESIDUAL-PHASE').length).toBe(3);
   });
 
-  it('present-but-invalid raw phase treated as absent, grid renders even when edges could derive one', () => {
+  it('present-but-invalid raw phase treated as absent, grid renders (node goes residual)', () => {
     // Gate 3: corrupted phases no longer throw. Instead they are treated as absent (null),
     // allowing the grid to render while the advisory panel flags the corruption.
+    // With dependency-derived phase fallback removed, the corrupted node goes residual
+    // (no Terminal Date to derive a real phase from). Advisory flags both the corruption
+    // and the residual placement.
     const m = realStore();
     m.projectsById.a = { ...m.projectsById.a, phase: '7' };
     const { gridTitles, matrix: mtx } = phaseGridFromStore(m); // must NOT throw
     const r = sortByPhase(gridTitles, mtx);
-    // Node 'a' is placed via derived phase (edges still work), not residual. The advisory panel flags the corruption.
+    // Node 'a' goes residual (corrupted phase treated as null, no Terminal Date). Grid renders.
     const allNodes = [...r.phases.get(1), ...r.phases.get(2), ...r.phases.get(3), ...r.residual];
     expect(allNodes.some((p) => p.fixtureTitle === 'Foundations')).toBe(true);
+    expect(r.residual.some((p) => p.fixtureTitle === 'Foundations')).toBe(true);
   });
 
   it('genuinely unphasable (raw null, no ordering edges, no initiative phase) still buckets residual', () => {
