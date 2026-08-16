@@ -441,8 +441,9 @@ function evaluateProfessionalism({ blocks, laneModel = [] }) {
 function evaluateObjectiveLanguageStructure({ blocks }) {
   const reasonCodes = [];
   const findings = [];
-  // Objective Language Structure is advisory-only: only flag when pattern indicates real comprehension gap.
-  // Do not flag on edge cases or minor style inconsistencies.
+  // Objective Language Structure: flags critically vague titles (bare generic words with no end-state output).
+  // PROVISIONAL THRESHOLD (2026-08-16): 15% of blocks with bare single-word titles and no expectedOutput.
+  // This threshold is untested against real schedules and will be validated/adjusted post-deployment.
   const criticallyVaguePatterns = /^\s*(review|check|update)\s*$/i; // ONLY single bare words, not longer titles
 
   let criticalCount = 0;
@@ -456,7 +457,7 @@ function evaluateObjectiveLanguageStructure({ blocks }) {
     }
   });
 
-  // High threshold: only flag if >15% of blocks are this bad
+  // PROVISIONAL: only flag if >15% of blocks are this bad (threshold untested)
   if (criticalCount > blocks.length * 0.15) {
     reasonCodes.push('OBJECTIVE_LANGUAGE_CRITICALLY_VAGUE');
     findings.push(`${criticalCount}/${blocks.length} blocks have bare generic titles with no expected output.`);
@@ -472,8 +473,9 @@ function evaluateObjectiveLanguageStructure({ blocks }) {
 function evaluateGoalRelevance({ blocks, masterPlanContract = {} }) {
   const reasonCodes = [];
   const findings = [];
-  // Goal Relevance is advisory only and surfaces findings only when there's a real structural problem.
-  // Do not flag on normal plans without objectives (those are valid schedule variants).
+  // DOCTRINE: An orphaned block (no link to declared completion value, success criterion, or parent)
+  // fails the goal-relevance requirement per-block, regardless of its own description quality.
+  // Flag each orphaned block individually.
 
   const blocksWithoutCriteria = blocks.filter((block) => {
     const successCriterion = String(block?.successCriterionServed || '').trim();
@@ -483,32 +485,37 @@ function evaluateGoalRelevance({ blocks, masterPlanContract = {} }) {
     return !successCriterion && !consumedBy && !hasParentLink;
   });
 
-  // Only flag if MAJORITY of blocks are orphaned (this would be a real problem)
-  if (blocksWithoutCriteria.length > blocks.length * 0.5) {
-    reasonCodes.push('GOAL_RELEVANCE_ORPHANED_BLOCKS');
-    findings.push(`${blocksWithoutCriteria.length}/${blocks.length} blocks have no success criterion, consumer, or parent link.`);
+  if (blocksWithoutCriteria.length > 0) {
+    reasonCodes.push('GOAL_RELEVANCE_ORPHANED_BLOCK');
+    blocksWithoutCriteria.forEach((block) => {
+      findings.push(`Orphaned: "${String(block?.title || '').slice(0, 50)}" has no success criterion, consumer, or parent.`);
+    });
   }
 
   return {
-    score: scoreFromReasonCount(98, [...new Set(reasonCodes)].length, 2),
+    score: scoreFromReasonCount(92, [...new Set(reasonCodes)].length, 8),
     reasonCodes: [...new Set(reasonCodes)],
     findings,
+    summary: {
+      orphanedBlockCount: blocksWithoutCriteria.length,
+    },
   };
 }
 
 function evaluateEfficientPhaseSequencing({ blocks }) {
   const reasonCodes = [];
   const findings = [];
-  // Efficient Phase Sequencing: gaps are explained by (1) real targetDateConflict,
-  // (2) deadline-driven spacing requirement, or (3) genuine Capacity unavailability.
-  // Only flag if gaps suggest defective packing, not legitimate spacing.
+  // Efficient Phase Sequencing (resolves doctrine #28 open question):
+  // Gaps are explained by (1) real targetDateConflict, (2) deadline-driven spacing, or (3) Capacity unavailability.
+  // Unexplained gaps suggest packing defects. PROVISIONAL THRESHOLDS (2026-08-16):
+  // - P1: gap > 21 days, P2: gap > 60 days, P3: gap > 90 days
+  // - Flags if any phase has >2 large unexplained gaps
+  // These thresholds are untested against real schedules; validation pending.
 
   const sortedBlocks = [...(Array.isArray(blocks) ? blocks : [])].sort((a, b) =>
     String(normalizeDayKey(a?.dayKey || a?.date) || '').localeCompare(String(normalizeDayKey(b?.dayKey || b?.date) || ''))
   );
 
-  // Advisory only: this evaluator is designed to catch packing defects, not schedule variance.
-  // For now, it flags if >20% of gaps within a phase are both large and unexplained.
   const phaseGaps = {};
   let totalUnexplainedLargeGaps = 0;
 
@@ -517,7 +524,7 @@ function evaluateEfficientPhaseSequencing({ blocks }) {
     if (phaseBlocks.length < 3) {return;} // Too few blocks to evaluate packing
 
     const largeUnexplainedGaps = [];
-    const threshold = phaseLabel === 'P1' ? 21 : (phaseLabel === 'P2' ? 60 : 90); // Very permissive thresholds
+    const threshold = phaseLabel === 'P1' ? 21 : (phaseLabel === 'P2' ? 60 : 90); // PROVISIONAL thresholds
 
     for (let i = 1; i < phaseBlocks.length; i += 1) {
       const prevBlock = phaseBlocks[i - 1];
@@ -545,7 +552,7 @@ function evaluateEfficientPhaseSequencing({ blocks }) {
     totalUnexplainedLargeGaps += largeUnexplainedGaps.length;
   });
 
-  // Only advisory: flag only if pattern is egregious (>2 large unexplained gaps per phase)
+  // PROVISIONAL: flag if any phase has >2 large unexplained gaps (threshold untested)
   if (Object.values(phaseGaps).some((count) => count > 2)) {
     reasonCodes.push('EFFICIENT_PHASE_SEQUENCING_PACKING_DEFECT');
     findings.push(`Schedule has unexplained large gaps suggesting packing defects (${totalUnexplainedLargeGaps} total).`);
@@ -561,20 +568,24 @@ function evaluateEfficientPhaseSequencing({ blocks }) {
 function evaluateDurationScopeAccuracy({ blocks }) {
   const reasonCodes = [];
   const findings = [];
-  // Advisory dimension: only flag if patterned mismatch exists (many blocks padded or compressed),
-  // not individual variance.
+  // Duration Scope Accuracy: duration should match declared Demand, neither padded nor compressed.
+  // PROVISIONAL THRESHOLDS (2026-08-16):
+  // - Flags blocks padded >35% above declared demand
+  // - Only raises gate if >25% of blocks show this pattern
+  // These thresholds are untested; validation pending.
 
   const paddedCount = blocks.filter((block) => {
     const assignedDuration = Number(block?.estimatedWorkDays || block?.duration || 0);
     const declaredDemand = Number(block?.demandWorkDays || block?.expectedDuration || 0);
     if (assignedDuration <= 0 || declaredDemand <= 0) {return false;}
     const padding = assignedDuration - declaredDemand;
-    return padding > 0 && padding > Math.max(1, declaredDemand * 0.35); // Very generous threshold
+    return padding > 0 && padding > Math.max(1, declaredDemand * 0.35); // PROVISIONAL: >35% threshold
   }).length;
 
+  // PROVISIONAL: flag if >25% of blocks are padded (threshold untested)
   if (paddedCount > blocks.length * 0.25) {
     reasonCodes.push('DURATION_SYSTEMATIC_PADDING');
-    findings.push(`${paddedCount} blocks significantly padded above declared demand.`);
+    findings.push(`${paddedCount}/${blocks.length} blocks significantly padded above declared demand.`);
   }
 
   return {
@@ -1147,6 +1158,8 @@ export function evaluateFullHorizonPlanQuality({
     durationScopeAccuracy: evaluateDurationScopeAccuracy({ blocks }),
   };
 
+  // Doctrine scoring: advisory dimensions now feed into state determination
+  // so they actually fix the gate problems they were designed to address.
   const aggregateReasonCodes = [
     ...dimensions.pacing.reasonCodes,
     ...dimensions.precision.reasonCodes,
@@ -1154,6 +1167,10 @@ export function evaluateFullHorizonPlanQuality({
     ...dimensions.professionalism.reasonCodes,
     ...dimensions.completeness.reasonCodes,
     ...dimensions.balance.reasonCodes,
+    ...advisoryDimensions.objectiveLanguageStructure.reasonCodes,
+    ...advisoryDimensions.goalRelevance.reasonCodes,
+    ...advisoryDimensions.efficientPhaseSequencing.reasonCodes,
+    ...advisoryDimensions.durationScopeAccuracy.reasonCodes,
     ...blockDetailQualitySummary.failureCodes,
   ];
 
