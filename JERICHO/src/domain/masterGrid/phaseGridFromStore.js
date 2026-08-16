@@ -45,7 +45,7 @@ export function selectGridNodes(matrix = {}) {
   return nodes;
 }
 
-import { deriveEffectiveProjectPhases } from './phaseFromDependencies.js';
+import { computeDependencyExecutionLayer } from './dependencyExecutionOrdering.js';
 import { classifyPhase, NonCanonicalPhaseError, toCanonicalPhase } from './phaseClassification.js';
 // Re-exported for backward compatibility — the phase validators now live in phaseClassification.js,
 // the single source of truth shared with the elicitation §5 phase gate (no second validator).
@@ -54,33 +54,29 @@ export { classifyPhase, NonCanonicalPhaseError };
 // Relational link kinds render as convergence ties (mutual); directional kinds do not.
 const RELATIONAL_KINDS = new Set(['ships_with', 'soundtrack_of', 'promotes', 'feeds', 'loop']);
 
-// Effective phase for a grid node. Phase is DERIVED, not entered: a real intake store leaves
-// project.phase near-always-null and expresses order through dependency edges. So resolve the
-// same way the rest of masterGrid does — dependency-derived first (deriveEffectiveProjectPhases
-// already folds derived → raw → initiative for CONFIRMED projects) — then the node's own
-// canonical raw phase (covers non-CONFIRMED projects and the reference fixture), then owning
-// initiative, then a promoted deliverable inheriting its producing project's phase. No signal
-// anywhere → null → residual (a legitimate unknown, surfaced as a question).
-function resolveNodePhase(node, canonicalRaw, derivedEffective, projects, initiatives) {
-  // DISPLAY raw-first (2026-07-16 ruling, scope (a) display-only): the node's own hand-attested
-  // phase outranks its dependency-derived phase when they disagree — the operator attests, the
-  // system proposes. This override lives ONLY here; the shared deriveEffectiveProjectPhases stays
-  // derived-first so causalChain scheduling still honors hard dependencies for execution order.
+// Phase resolution for a grid node. Priority:
+// 1. The node's own computed/attested phase (canonicalRaw from classifyPhase check)
+// 2. Owning Initiative's computed phase (from Terminal Date via spine windows)
+// 3. Parent project's computed phase (if this is a deliverable under a project)
+// 4. No signal: null (legitimate unknown, surfaced as advisory)
+//
+// NOTE: Dependency-based execution ordering is handled separately in causalChainFromMatrix.js
+// for scheduling purposes. Phases are computed from Terminal Dates, not dependency position.
+function resolveNodePhase(node, canonicalRaw, projects, initiatives) {
+  // Priority 1: node's own validated phase (covers all node types)
   if (canonicalRaw != null) {return canonicalRaw;}
-  // Raw absent → fall to the shared resolver (dependency-derived, else initiative). It returns a
-  // NUMBER from the dependency tier but the RAW STRING ("1") from its raw/initiative tiers —
-  // normalize, since sortByPhase groups on numeric 1/2/3 and phases.get("1") would bucket residual.
-  const derived = toCanonicalPhase(derivedEffective[node.id]);
-  if (derived != null) {return derived;}
+
+  // Priority 2: owning Initiative's computed phase
   const initCanon = toCanonicalPhase(initiatives[node.owningInitiativeId]?.phase);
   if (initCanon != null) {return initCanon;}
+
+  // Priority 3: parent project's computed phase (for deliverables under a project)
   const pid = node.producingProjectId;
   if (pid) {
-    const parentDerived = toCanonicalPhase(derivedEffective[pid]);
-    if (parentDerived != null) {return parentDerived;}
     const parentCanon = toCanonicalPhase(projects[pid]?.phase);
     if (parentCanon != null) {return parentCanon;}
   }
+
   return null;
 }
 
@@ -95,9 +91,6 @@ export function phaseGridFromStore(matrix = {}) {
   const initiatives = matrix.initiativesById || {};
   const gridNodes = selectGridNodes(matrix);
   const gridIds = new Set(gridNodes.map((n) => n.id));
-
-  // Dependency-derived effective phase per CONFIRMED project (derived → raw → initiative).
-  const derivedEffective = deriveEffectiveProjectPhases(matrix);
 
   // any node id -> its grid-row id (itself if a grid row; else its parent project if that's a grid row)
   const toGridRowId = (id) => {
@@ -124,7 +117,7 @@ export function phaseGridFromStore(matrix = {}) {
         }
       }
     }
-    const phase = resolveNodePhase(n, canonicalRaw, derivedEffective, projects, initiatives);
+    const phase = resolveNodePhase(n, canonicalRaw, projects, initiatives);
     rowById[n.id] = { title: n.name, phase, target: n.targetDate ?? 'TBD', targetNote: null, links: [] };
   }
 

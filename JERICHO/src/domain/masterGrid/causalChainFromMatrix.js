@@ -22,18 +22,14 @@
  * Only reviewStatus === 'CONFIRMED' projects are used (matches Master Grid's
  * `readyForIntake` predicate) — DRAFT/NEEDS_REVIEW rows are not yet operator-ready.
  *
- * Ordering (2026-07-13 phase/sequencing design, extended same day for the
- * phasing-scalability follow-up): the raw `phase` field on a Project is almost never
- * populated — nothing in the operator-facing intake survey ever asks for it, and pairwise
- * dependency declaration doesn't scale once a portfolio holds many unrelated content lines
- * (confirmed by the operator at ~18 CONFIRMED Projects). Effective phase per Project now
- * comes from deriveEffectiveProjectPhases (phaseFromDependencies.js), which merges, most
- * specific first: (1) dependency-derived phase, (2) the project's own hand-typed phase,
- * (3) its owning Initiative's declared phase (SET_INITIATIVE_PHASE) — the coarse default a
- * project inherits when it has no more specific signal of its own.
+ * Ordering: Primary is dependency-based execution layer (raw topological depth, 0-based).
+ * Within the same layer, projects are ordered by computed Phase (Project.phase, computed
+ * from Terminal Date), then owning Initiative's Phase, then name. Raw execution layers
+ * preserve the full dependency chain depth (not bucketed into 1/2/3), giving finer-grained
+ * scheduling order than phase windows alone could provide.
  */
 
-import { deriveEffectiveProjectPhases } from './phaseFromDependencies.js';
+import { computeDependencyExecutionLayer } from './dependencyExecutionOrdering.js';
 
 function numericAwareCompare(a, b) {
   const na = Number(a);
@@ -45,9 +41,9 @@ function numericAwareCompare(a, b) {
 /**
  * Derive ordered causal chain steps from CONFIRMED Project rows in the matrix.
  *
- * Ordering: numeric-aware project phase, then numeric-aware owning-initiative
- * phase, then project name — deterministic and stable across calls for the same
- * matrix contents.
+ * Ordering: dependency execution layer (raw topological depth, primary), then
+ * computed project phase, then owning-initiative phase, then project name —
+ * deterministic and stable across calls for the same matrix contents.
  *
  * @param {object} matrix - state.matrix (entitiesById/initiativesById/projectsById/...)
  * @returns {Array<{sequence: number, description: string, projectId: string, targetDate: string|null}>} empty array
@@ -56,6 +52,7 @@ function numericAwareCompare(a, b) {
  */
 export function buildCausalChainStepsFromMatrix(matrix = {}) {
   const projects = matrix.projectsById || {};
+  const initiatives = matrix.initiativesById || {};
 
   const confirmed = Object.keys(projects)
     .map((id) => projects[id])
@@ -63,20 +60,42 @@ export function buildCausalChainStepsFromMatrix(matrix = {}) {
 
   if (confirmed.length === 0) {return [];}
 
-  const effectivePhases = deriveEffectiveProjectPhases(matrix);
-  const effectivePhase = (project) =>
-    effectivePhases[project.id] != null ? effectivePhases[project.id] : null;
+  const executionLayers = computeDependencyExecutionLayer(matrix);
+  const executionLayer = (project) =>
+    executionLayers[project.id] != null ? executionLayers[project.id] : null;
 
   const sorted = [...confirmed].sort((a, b) => {
-    const pa = effectivePhase(a);
-    const pb = effectivePhase(b);
-    if (pa !== pb) {
-      if (pa == null) {return 1;}
-      if (pb == null) {return -1;}
-      const byPhase = numericAwareCompare(pa, pb);
+    // Primary: execution layer (raw dependency depth, 0-based)
+    const layerA = executionLayer(a);
+    const layerB = executionLayer(b);
+    if (layerA !== layerB) {
+      if (layerA == null) {return 1;}
+      if (layerB == null) {return -1;}
+      const byLayer = numericAwareCompare(layerA, layerB);
+      if (byLayer !== 0) {return byLayer;}
+    }
+
+    // Secondary: computed project phase (from Terminal Date, live via computeInitiativePhasesForAll)
+    const phaseA = a.phase != null ? Number(a.phase) : null;
+    const phaseB = b.phase != null ? Number(b.phase) : null;
+    if (phaseA !== phaseB) {
+      if (phaseA == null) {return 1;}
+      if (phaseB == null) {return -1;}
+      const byPhase = numericAwareCompare(phaseA, phaseB);
       if (byPhase !== 0) {return byPhase;}
     }
 
+    // Tertiary: owning initiative's computed phase
+    const initPhaseA = initiatives[a.owningInitiativeId]?.phase != null ? Number(initiatives[a.owningInitiativeId].phase) : null;
+    const initPhaseB = initiatives[b.owningInitiativeId]?.phase != null ? Number(initiatives[b.owningInitiativeId].phase) : null;
+    if (initPhaseA !== initPhaseB) {
+      if (initPhaseA == null) {return 1;}
+      if (initPhaseB == null) {return -1;}
+      const byInitPhase = numericAwareCompare(initPhaseA, initPhaseB);
+      if (byInitPhase !== 0) {return byInitPhase;}
+    }
+
+    // Final tiebreak: project name
     return String(a.name).localeCompare(String(b.name));
   });
 
