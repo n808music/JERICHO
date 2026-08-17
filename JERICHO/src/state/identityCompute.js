@@ -8033,8 +8033,22 @@ function applyLongHorizonCalendarBlocks(state) {
   for (const phase of phaseModel.phases) {
     // Skip phases that start entirely beyond the selected horizon
     if (horizonEndForMode && phase.startBoundary > horizonEndForMode) {continue;}
+
+    // Extract real P1 commitment dayKeys for pacing doctrine
+    // (real commitments = milestones anchored to operator-declared dates)
+    let p1RealCommitmentDayKeys = [];
+    if (phase.label === 'P1') {
+      const p1Milestones = (phase.laneParticipation || []).flatMap((lane) => {
+        const laneId = lane.laneId || lane.id;
+        return Object.values(state?.masterPlanMilestonesById || {})
+          .filter((m) => m.laneId === laneId && m.targetDate);
+      });
+      p1RealCommitmentDayKeys = p1Milestones.map((m) => m.targetDate).sort();
+    }
+
     const blocks = deriveForecastBlocks({
       plan, phase, horizonEndDayKey: horizonEndForMode, cycleEndDayKey,
+      p1RealCommitmentDayKeys,
     });
     allForecastBlocks.push(...blocks);
   }

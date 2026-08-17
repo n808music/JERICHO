@@ -19,6 +19,116 @@
 
 import { defaultOwnerForLaneFamily } from './ownerLabels.js';
 
+// ─── Near-Term Pacing Doctrine ────────────────────────────────────────────────
+/**
+ * Near-term (P1) review/checkpoint blocks are placed ONLY in gaps between real,
+ * operator-declared commitments (Target Dates / Deliverables / Milestones —
+ * never forecast-on-forecast) that exceed 2× that specific plan's OWN median
+ * real-commitment gap.
+ *
+ * If fewer than 3 real dated commitments exist in P1, the entire window flags
+ * for review by default rather than being silently trusted.
+ */
+
+/**
+ * Calculate gaps between sorted dayKeys (block dates).
+ * Gap = days from one block to the next.
+ * @param {Array<string>} sortedDayKeys - Sorted array of YYYY-MM-DD dates
+ * @returns {Array<number>} Array of gap sizes in days (length = keys.length - 1)
+ */
+function calculateGaps(sortedDayKeys) {
+  if (!Array.isArray(sortedDayKeys) || sortedDayKeys.length < 2) return [];
+  const gaps = [];
+  for (let i = 0; i < sortedDayKeys.length - 1; i++) {
+    const current = new Date(sortedDayKeys[i]);
+    const next = new Date(sortedDayKeys[i + 1]);
+    if (isNaN(current.getTime()) || isNaN(next.getTime())) continue;
+    const daysDiff = Math.floor((next - current) / (1000 * 60 * 60 * 24));
+    if (daysDiff > 0) gaps.push(daysDiff);
+  }
+  return gaps;
+}
+
+/**
+ * Find the median of an array of numbers.
+ * @param {Array<number>} values
+ * @returns {number} Median value (0 if empty)
+ */
+function medianValue(values) {
+  if (!Array.isArray(values) || values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
+}
+
+/**
+ * Derive checkpoint placement dates based on the pacing doctrine.
+ * Given existing block dates (real commitments), place checkpoints only in gaps
+ * that exceed 2× the median gap.
+ * @param {Array<string>} existingDayKeys - Sorted YYYY-MM-DD dates of real commitments
+ * @param {string} windowEnd - End boundary (YYYY-MM-DD) for the search window
+ * @returns {{ checkpointDayKeys: Array<string>, medianGap: number, gaps: Array<number>, needsReview: boolean, reviewReason: string }}
+ */
+function deriveCheckpointPlacement(existingDayKeys, windowEnd) {
+  const result = {
+    checkpointDayKeys: [],
+    medianGap: 0,
+    gaps: [],
+    needsReview: false,
+    reviewReason: null, // 'DATA_PIPE_NOT_WIRED' | 'INSUFFICIENT_REAL_COMMITMENTS'
+  };
+
+  if (!Array.isArray(existingDayKeys) || existingDayKeys.length === 0) {
+    result.needsReview = true;
+    result.reviewReason = 'DATA_PIPE_NOT_WIRED';
+    return result;
+  }
+
+  // Edge case: fewer than 3 commitments → flag for review instead of deriving checkpoints
+  // This is a genuine doctrine condition, not a data wiring issue.
+  if (existingDayKeys.length < 3) {
+    result.needsReview = true;
+    result.reviewReason = 'INSUFFICIENT_REAL_COMMITMENTS';
+    return result;
+  }
+
+  const sorted = [...existingDayKeys].sort();
+  const gaps = calculateGaps(sorted);
+  result.gaps = gaps;
+
+  if (gaps.length === 0) {
+    result.needsReview = true;
+    return result;
+  }
+
+  const median = medianValue(gaps);
+  result.medianGap = median;
+
+  // Threshold: place checkpoints only in gaps > 2× median
+  const threshold = median * 2;
+
+  // For each gap exceeding threshold, place ONE checkpoint roughly in the middle
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const gapSize = gaps[i];
+    if (gapSize > threshold) {
+      // Place checkpoint at midpoint of the gap
+      const startDate = new Date(sorted[i]);
+      const endDate = new Date(sorted[i + 1]);
+      const midDate = new Date((startDate.getTime() + endDate.getTime()) / 2);
+      const checkpointKey = midDate.toISOString().slice(0, 10);
+
+      // Clamp to window end
+      if (checkpointKey <= windowEnd && !result.checkpointDayKeys.includes(checkpointKey)) {
+        result.checkpointDayKeys.push(checkpointKey);
+      }
+    }
+  }
+
+  return result;
+}
+
 // ─── Title templates ──────────────────────────────────────────────────────────
 
 const LANE_FAMILY_LABELS = {
@@ -444,7 +554,7 @@ function deriveP3Blocks({ planId, phase, lane, horizonEndDayKey }) {
 
 // ─── P1 post-cycle derivation ─────────────────────────────────────────────────
 
-function deriveP1PostCycleBlocks({ planId, phase, lane, cycleEndDayKey, horizonEndDayKey }) {
+function deriveP1PostCycleBlocks({ planId, phase, lane, cycleEndDayKey, horizonEndDayKey, p1RealCommitmentDayKeys = [] }) {
   const { startBoundary, endBoundary } = phase;
   if (!startBoundary || !endBoundary) {return [];}
 
@@ -477,21 +587,43 @@ function deriveP1PostCycleBlocks({ planId, phase, lane, cycleEndDayKey, horizonE
     blockType: 'audit',
   }));
 
-  // Monthly blocks through P1 window — capped at 5 (density doctrine: near-term = monthly)
-  const intervalDays = 28;
-  const maxBlocks = Math.min(Math.floor(totalDays / intervalDays), 5);
-  let cursor = addDaysToKey(useEntryKey, intervalDays);
-  let templateIdx = 1;
-  while (cursor <= phaseEnd && blocks.length <= maxBlocks) {
-    blocks.push(buildForecastBlock({
-      planId, phase, lane, dayKey: cursor,
-      title: templates[templateIdx % templates.length],
-      commitmentState: 'forecast',
-      index: blocks.length,
-      blockType: templateIdx % 2 === 0 ? 'validation' : 'action',
-    }));
-    cursor = addDaysToKey(cursor, intervalDays);
-    templateIdx++;
+  // Near-term pacing doctrine: place checkpoints only in gaps between real P1
+  // commitments that exceed 2× the plan's OWN median real-commitment gap.
+  // If fewer than 3 real commitments exist, flag the window for review.
+  const pacingAnalysis = deriveCheckpointPlacement(
+    p1RealCommitmentDayKeys || [],
+    phaseEnd
+  );
+
+  // If pacing analysis flagged for review (insufficient data or commitments),
+  // place a review marker at mid-window instead of distributed checkpoints
+  if (pacingAnalysis.needsReview) {
+    const midWindowKey = addDaysToKey(windowStart, Math.floor(totalDays / 2));
+    if (midWindowKey <= phaseEnd) {
+      const ll = lane ? laneLabel({ domain: lane.domain, title: lane.laneTitle }) : 'primary lane';
+      blocks.push(buildForecastBlock({
+        planId, phase, lane, dayKey: midWindowKey,
+        title: `Reassess P1 pacing and checkpoint coverage for ${ll}`,
+        commitmentState: 'review-required',
+        index: blocks.length,
+        blockType: 'audit',
+      }));
+    }
+  } else {
+    // Place checkpoints in gaps identified by the pacing doctrine
+    for (let i = 0; i < pacingAnalysis.checkpointDayKeys.length && blocks.length < 100; i++) {
+      const checkpointKey = pacingAnalysis.checkpointDayKeys[i];
+      if (checkpointKey <= phaseEnd) {
+        const templateIdx = 1 + (i % (templates.length - 1));
+        blocks.push(buildForecastBlock({
+          planId, phase, lane, dayKey: checkpointKey,
+          title: templates[templateIdx],
+          commitmentState: 'forecast',
+          index: blocks.length,
+          blockType: i % 2 === 0 ? 'validation' : 'action',
+        }));
+      }
+    }
   }
 
   // P1-to-P2 readiness gate: 3 weeks before P1 end (if not already covered)
@@ -542,10 +674,15 @@ export function deriveForecastBlocks({ plan, phase, horizonEndDayKey, cycleEndDa
 
   if (label === 'P1') {
     // Only derive P1 post-cycle blocks when a cycle end is known (or estimable)
+    // TODO: Extract real P1 commitments (milestones, deliverables with actual dates)
+    // from the phase model and pass as p1RealCommitmentDayKeys to activate the full
+    // pacing doctrine. For now, the function falls back to review-required blocks
+    // when commitment data is unavailable.
     return deriveP1PostCycleBlocks({
       planId, phase, lane: primaryLane,
       cycleEndDayKey,
       horizonEndDayKey: effectiveHorizonEnd,
+      p1RealCommitmentDayKeys: [], // TODO: Wire up real P1 commitments from phase model
     });
   }
 

@@ -81,9 +81,30 @@ export function resolveInitiativeDisplay(block = {}, context = {}) {
     normalizeText(block?.laneLabel || block?.laneName || block?.lane);
 
   if (explicitName) {
+    // When an explicit initiative name is provided, look it up in the registry
+    // to get the owner. This ensures entity resolution is consistent with the registry.
+    const registry = context?.registry || getInitiativeRegistrySyncOrEmpty();
+    const registryEntry = registry.find((entry) => {
+      const entryNameLower = lowerText(entry.name);
+      const explicitLower = lowerText(explicitName);
+      return entryNameLower === explicitLower;
+    });
+
+    if (registryEntry && registryEntry.owner) {
+      return {
+        initiative: registryEntry.name,
+        lane: registryEntry.name,
+        entity: normalizeText(registryEntry.owner),
+        confidence: 'high',
+        source: 'explicit:registry',
+        id: registryEntry.id,
+      };
+    }
+
+    // Explicit name provided but not found in registry; use fallback entity
     return {
       initiative: explicitName,
-      lane: explicitName, // Retired lane as separate concept; use initiative as lane identifier
+      lane: explicitName,
       entity: fallbackLane || '',
       confidence: 'high',
       source: 'explicit',

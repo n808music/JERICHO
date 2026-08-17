@@ -27,6 +27,7 @@ import { google } from 'googleapis';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { deriveAliasesFromName } from './initiativeAliasDerivation.js';
 
 const SHEET_ID = '1fuhoQDTz1F_AjBPlgHybP7ulSbH3CKjDoDDQkKnuKxw';
 const SHEET_TAB = '2. INITIATIVES';
@@ -168,30 +169,6 @@ function slugifyInitiativeName(name) {
     .replace(/\s+/g, '-') // Replace spaces with hyphens
     .replace(/-+/g, '-') // Collapse multiple hyphens
     .trim();
-}
-
-/**
- * Derives searchable aliases from an initiative name.
- * Generates both the name itself and word-level variants for flexible matching.
- * Example: "The Jericho System" → ["the jericho system", "jericho", "jericho system", "system"]
- */
-function deriveAliasesFromName(name) {
-  const normalized = name.toLowerCase().trim();
-  const aliases = new Set();
-
-  // Add the full name
-  aliases.add(normalized);
-
-  // Add individual significant words (exclude articles like "the", "a")
-  const words = normalized.split(/\s+/).filter((w) => w.length > 2 && !['the', 'and', 'for', 'from', 'with'].includes(w));
-  words.forEach((word) => aliases.add(word));
-
-  // Add 2-word combinations for common patterns
-  for (let i = 0; i < words.length - 1; i++) {
-    aliases.add(`${words[i]} ${words[i + 1]}`);
-  }
-
-  return Array.from(aliases);
 }
 
 /**

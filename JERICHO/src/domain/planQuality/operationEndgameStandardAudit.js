@@ -1,4 +1,5 @@
 import { auditExecutionBlockAdmission, HARD_BLOCK_ADMISSION_FAILURE_CODES } from './evaluatePlanQualityGate.ts';
+import { getInitiativeRegistrySyncOrEmpty } from '../product/initiativeRegistryLoader.js';
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -599,7 +600,43 @@ function evaluateSampleCognitiveIssues(sample) {
   return unique(issues);
 }
 
-function buildSamples(records) {
+function deriveEntitySampleCategories(initiativeRegistry, planningHorizonEndDate) {
+  // Derive required-entity roster from LIVE INITIATIVE REGISTRY, independent of audit records.
+  // Replaces hardcoded 14-entity list with entities that have real CONFIRMED work and Terminal Dates
+  // within the planning horizon, read directly from the matrix.
+  //
+  // This roster is independent of what's being audited (the records parameter), so audit records
+  // CAN flag entities as missing if they're required by the matrix but absent from the schedule.
+
+  const today = new Date().toISOString().split('T')[0];
+  const registry = Array.isArray(initiativeRegistry) ? initiativeRegistry : [];
+
+  // Filter initiatives: Terminal Date is within planning horizon
+  const requiredInitiatives = registry.filter((initiative) => {
+    const terminalDate = normalizeText(initiative?.terminalDeadline);
+    return (
+      Boolean(terminalDate) && // Has a terminal date
+      terminalDate >= today && // Date is in the future
+      terminalDate <= planningHorizonEndDate // Date is within planning horizon
+    );
+  });
+
+  // Extract unique entity owners from required initiatives
+  const requiredEntities = Array.from(new Set(requiredInitiatives.map((init) => normalizeText(init?.owner))))
+    .filter(Boolean)
+    .sort();
+
+  // Create a sample category for each required entity
+  // All are marked required because the matrix says so (independent of audit records)
+  return requiredEntities.map((entityLabel) => ({
+    key: `entity_${entityLabel.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
+    label: entityLabel,
+    predicate: (record) => record.entityLabel === entityLabel,
+    required: true, // Required by matrix, regardless of what's in the audit records
+  }));
+}
+
+function buildSamples(records, initiativeRegistry, planningHorizonEndDate) {
   const all = Array.isArray(records) ? records : [];
   const activeAdmitted = all.filter((record) => record.source === 'active' && record.admissionStatus === 'ADMITTED');
   const combined = [...activeAdmitted, ...all];
@@ -608,47 +645,14 @@ function buildSamples(records) {
     pool.find((record) => predicate(record) && !excludeKeys.has(buildRecordIdentity(record))) ||
     pool.find((record) => predicate(record)) ||
     null;
-  const hasAdmittedEntity = (entityLabel) => activeAdmitted.some((record) => record.entityLabel === entityLabel);
 
-  const categories = [
-    { key: 'global_state_systems', label: 'Global State Systems', predicate: (record) => record.entityLabel === 'Global State Systems' },
-    { key: 'global_state_corp', label: 'Global State Corp.', predicate: (record) => record.entityLabel === 'Global State Corp.' },
-    {
-      key: 'global_state_productions',
-      label: 'Global State Productions',
-      predicate: (record) => record.entityLabel === 'Global State Productions',
-    },
-    {
-      key: 'global_state_solutions',
-      label: 'Global State Solutions',
-      predicate: (record) => record.entityLabel === 'Global State Solutions',
-    },
-    {
-      key: 'capital_or_revenue',
-      label: 'Capital Path or Revenue Engine',
-      predicate: (record) =>
-        record.entityLabel === 'Capital Path or Revenue Engine' ||
-        record.entityLabel === 'F8 Energy Co.' ||
-        /revenue|runway/i.test(record.projectLabel),
-    },
-    {
-      key: 'f8_energy',
-      label: 'F8 Energy Co.',
-      predicate: (record) => record.entityLabel === 'F8 Energy Co.',
-      required: hasAdmittedEntity('F8 Energy Co.'),
-    },
-    {
-      key: 'global_state_holdings',
-      label: 'Global State Holdings',
-      predicate: (record) => record.entityLabel === 'Global State Holdings',
-      required: hasAdmittedEntity('Global State Holdings'),
-    },
-    {
-      key: 'global_state_academy',
-      label: 'Global State Academy',
-      predicate: (record) => record.entityLabel === 'Global State Academy',
-      required: hasAdmittedEntity('Global State Academy'),
-    },
+  // Dynamic entity categories: derived from INITIATIVE REGISTRY (independent of audit records)
+  // This allows the audit to flag entities as MISSING if they're required by the matrix but absent from the schedule
+  const entityCategories = deriveEntitySampleCategories(initiativeRegistry, planningHorizonEndDate);
+
+  // Data-independent feature-based categories (6 checks that don't depend on hardcoded matrix roster)
+  // Note: These predicates combine entity labels AND title/content patterns for robust matching
+  const featureCategories = [
     {
       key: 'hard_anchor',
       label: 'Hard-anchor protection',
@@ -683,6 +687,9 @@ function buildSamples(records) {
       predicate: (record) => /milestone|dependency|stakeholder map/i.test(record.title) && /Validation/i.test(record.workType),
     },
   ];
+
+  // Combine: dynamic entities first, then data-independent features
+  const categories = [...entityCategories, ...featureCategories];
 
   const usedKeys = new Set();
   const duplicateReuse = [];
@@ -825,7 +832,12 @@ export function runOperationEndgameStandardComplianceAudit(input) {
   );
   const coverageIntegrity = computeCoverageIntegrity(activeRecordsAudited);
 
-  const sampleReport = buildSamples(allRecords);
+  // Derive roster-completeness sample categories from live Initiative registry (independent of audit records)
+  // Planning horizon: P3 end, typically ~90 days out. Can be overridden via context.
+  const initiativeRegistry = getInitiativeRegistrySyncOrEmpty();
+  const planningHorizonEndDate = context?.planningHorizonEndDate || '2026-11-30'; // P3 default end
+
+  const sampleReport = buildSamples(allRecords, initiativeRegistry, planningHorizonEndDate);
   const failureCountsByReasonCode = countBy(
     [
       ...allRecords.flatMap((record) => record.hardFailureCodes.map((code) => ({ code }))),

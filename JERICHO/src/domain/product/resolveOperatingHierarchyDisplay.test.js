@@ -62,15 +62,15 @@ describe('resolveOperatingHierarchyDisplay', () => {
         block: {
           title: 'Stabilize activation checks',
           phaseLabel: 'P2',
-          laneLabel: 'Operations / Systems',
+          laneLabel: 'Governance / Policy',
         },
       })
     ).toMatchObject({
       phase: 'P2 Conversion / Operating System',
       operatingCycle: '',
       sprint: '',
-      lane: 'Operations / Systems',
-      initiative: 'Operations / Systems',
+      lane: 'Governance / Policy',
+      initiative: 'Governance / Policy',
     });
   });
 

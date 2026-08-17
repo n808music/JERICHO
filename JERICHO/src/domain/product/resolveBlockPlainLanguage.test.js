@@ -223,13 +223,14 @@ describe('resolveBlockPlainLanguage', () => {
       {
         hierarchy: {
           operatingCycle: 'June 2026 Operating Cycle',
+          initiative: 'Global State Solutions Foundation',
         },
       }
     );
 
-    expect(result.laneLabel).toBe('Operations / Systems');
+    expect(result.laneLabel).toBe('Global State Solutions Foundation');
     expect(result.entityLabel).toBe('Global State Solutions');
-    expect(result.projectLabel).toBe('Operations / Systems');
+    expect(result.projectLabel).toBe('Global State Solutions Foundation');
     expect(result.phaseJustification).toBe('Hard-anchor protection');
     expect(result.expectedOutput).toBe('Defined timing-slip non-negotiable rule set');
   });
