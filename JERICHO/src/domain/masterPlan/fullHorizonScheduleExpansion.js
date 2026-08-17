@@ -1301,7 +1301,7 @@ function buildGlobalTerminalBlock({ planId, phase, horizonEndDayKey, plan }) {
   if (!dayKey || initiativePhase !== 3) {return null;}
   return {
     id: mkId(planId, 'P3', 'terminal', dayKey, 999),
-    title: `Assess terminal-readiness evidence for the cross-lane Operation Endgame review against the success standard and outcome target in ${formatQuarterYear(dayKey)}`,
+    title: `Assess terminal-readiness evidence against the success standard and outcome target in ${formatQuarterYear(dayKey)}`,
     date: dayKey,
     dayKey,
     start: `${dayKey}T15:00:00.000Z`,
@@ -1320,7 +1320,7 @@ function buildGlobalTerminalBlock({ planId, phase, horizonEndDayKey, plan }) {
       'Terminal-readiness review is inspectable for the strategic horizon but cannot mutate execution state.',
     source: 'derived',
     expectedOutput:
-      'Terminal-readiness evidence package updated for the cross-lane Operation Endgame review with current proof, remaining gaps, and final horizon decision.',
+      'Terminal-readiness evidence package updated with current proof, remaining gaps, and final horizon decision.',
     derivationReason:
       `Derived from P3 success standard comparison against the declared outcome target for the ${formatQuarterYear(dayKey)} terminal review window.`,
     timeEstimateMinutes: 120,

@@ -6320,7 +6320,7 @@ function buildMasterPlanReadinessCandidates(plan, lanes = [], weeklyCapacityHour
   if (hasFixedAnchors) {
     candidates.push({
       key: 'confirm-hard-anchors',
-      title: 'Validate Operation Endgame hard-anchor protection rules',
+      title: 'Validate hard-anchor protection rules',
       minutes: 45,
       practice: 'FOCUS',
       priority: 125,
@@ -16204,8 +16204,8 @@ function removeVerificationSource(state, payload = {}) {
 //  function) must be declared once. Lanes and blocks reference nodes by id
 //  via `entityId`. The gate code UNDECLARED_NODE fires when a block
 //  references an entity that is not in the registry. The SEED_CANONICAL_
-//  ENTITIES action provides a fast path to populate the 8 Operation Endgame
-//  reference entities from ENTERPRISE_IDENTITY_MAP — idempotent and
+//  ENTITIES action provides a fast path to populate reference entities
+//  from ENTERPRISE_IDENTITY_MAP — idempotent and
 //  non-destructive of any operator-declared nodes.
 // ─────────────────────────────────────────────────────────────────────────
 

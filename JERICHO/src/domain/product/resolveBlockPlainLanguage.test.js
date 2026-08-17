@@ -107,19 +107,20 @@ describe('resolveBlockPlainLanguage', () => {
       {
         title: 'Validate Operation Endgame hard-anchor protection rules',
         laneId: 'brand',
-        laneLabel: 'Operation Endgame studio operations system',
+        laneLabel: 'Operations / Systems',
         startDayKey: '2026-06-08',
       },
       {
         hierarchy: {
           operatingCycle: 'June 2026 Operating Cycle',
+          initiative: 'Global State Solutions Foundation',
         },
       }
     );
 
-    expect(result.intent).toMatch(/keep fixed Operation Endgame anchors from moving/i);
+    expect(result.intent).toMatch(/keep fixed.*anchors from moving/i);
     expect(result.workType).toBe('Validation');
-    expect(result.laneLabel).toBe('Operation Endgame studio operations system');
+    expect(result.laneLabel).toBe('Global State Solutions Foundation');
     expect(result.entityLabel).toBe('Global State Solutions');
     expect(result.expectedOutput).toBe('Validated hard-anchor rule set');
     expect(result.acceptanceEvidence).toMatch(/hard-anchor protection rule set/i);
@@ -216,6 +217,7 @@ describe('resolveBlockPlainLanguage', () => {
     const result = resolveBlockPlainLanguage(
       {
         title: 'Define timing-slip non-negotiables',
+        laneLabel: 'Operations / Systems',
         startDayKey: '2026-06-20',
       },
       {
@@ -225,9 +227,9 @@ describe('resolveBlockPlainLanguage', () => {
       }
     );
 
-    expect(result.laneLabel).toBe('Operation Endgame studio operations system');
+    expect(result.laneLabel).toBe('Operations / Systems');
     expect(result.entityLabel).toBe('Global State Solutions');
-    expect(result.projectLabel).toBe('Operating System');
+    expect(result.projectLabel).toBe('Operations / Systems');
     expect(result.phaseJustification).toBe('Hard-anchor protection');
     expect(result.expectedOutput).toBe('Defined timing-slip non-negotiable rule set');
   });
@@ -254,19 +256,20 @@ describe('resolveBlockPlainLanguage', () => {
   it('renders media episode recording blocks with a completed artifact instead of repeating the title', () => {
     const result = resolveBlockPlainLanguage(
       {
-        title: 'Record next Operation Endgame media narrative pipeline episode',
-        laneLabel: 'Operation Endgame media narrative pipeline',
+        title: 'Record next media narrative pipeline episode',
+        laneLabel: 'Creative / Entertainment',
         startDayKey: '2026-06-20',
       },
       {
         hierarchy: {
           operatingCycle: 'June 2026 Operating Cycle',
+          initiative: 'Help Your Self Broadcast',
         },
       }
     );
 
     expect(result.entityLabel).toBe('Global State Productions');
-    expect(result.projectLabel).toBe('Media Narrative Pipeline');
+    expect(result.projectLabel).toBe('Help Your Self Broadcast');
     expect(result.expectedOutput).toBe('Recorded media narrative episode source session');
     expect(result.quality.failureCodes).not.toContain('TITLE_REPEATED_IN_PRODUCES');
     expect(result.quality.failureCodes).not.toContain('MISSING_COMPLETED_ARTIFACT');
@@ -275,19 +278,20 @@ describe('resolveBlockPlainLanguage', () => {
   it('renders product sprint cadence work as a concrete shipped change instead of generic sprint filler', () => {
     const result = resolveBlockPlainLanguage(
       {
-        title: 'Complete Operation Endgame product platform development sprint — feature, fix, or integration',
-        laneLabel: 'Operation Endgame product platform',
+        title: 'Complete product platform development sprint — feature, fix, or integration',
+        laneLabel: 'Product / Software',
         startDayKey: '2026-06-20',
       },
       {
         hierarchy: {
           operatingCycle: 'June 2026 Operating Cycle',
+          initiative: 'The Jericho System',
         },
       }
     );
 
     expect(result.entityLabel).toBe('Global State Systems');
-    expect(result.projectLabel).toBe('Jericho System');
+    expect(result.projectLabel).toBe('The Jericho System');
     expect(result.expectedOutput).toBe('Completed product sprint change set with verified next release target');
     expect(result.quality.failureCodes).not.toContain('ABSTRACT_BLOCK_MEANING');
     expect(result.quality.failureCodes).not.toContain('BLOCK_DETAIL_AMBIGUOUS');

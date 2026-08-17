@@ -11,17 +11,18 @@ describe('resolveOperatingHierarchyDisplay', () => {
           phaseLabel: 'P1',
           laneLabel: 'Product / Software',
         },
+        masterPlan: 'Operation Morning Sun',
         operatingCycle: 'June 2026 Review Window',
         sprint: 'Jun 8–Jun 19 Sprint',
         initiative: 'Jericho System',
       })
     ).toEqual({
-      masterPlan: 'Operation Endgame',
+      masterPlan: 'Operation Morning Sun',
       activatedPlan: 'Activated Plan',
       phase: 'P1 Launch / Proof',
       operatingCycle: 'June 2026 Review Window',
       sprint: 'Jun 8–Jun 19 Sprint',
-      lane: 'Product / Software',
+      lane: 'Jericho System',
       initiative: 'Jericho System',
       block: 'Clarify launch-blocker requirements',
       milestoneType: '',
@@ -41,16 +42,17 @@ describe('resolveOperatingHierarchyDisplay', () => {
     expect(result.initiative).toBe('Creative / Entertainment');
   });
 
-  it('projects named initiatives from Operation Endgame substrate labels', () => {
+  it('resolves initiative from global registry when available', () => {
     const result = resolveOperatingHierarchyDisplay({
       block: {
-        title: 'Validate onboarding path for Operation Endgame app platform in P1 product/software lane',
+        title: 'Validate onboarding path',
         phaseLabel: 'P1',
-        laneLabel: 'Operation Endgame app platform',
+        laneLabel: 'Creative / Entertainment',
       },
+      initiative: 'Jericho System',
     });
 
-    expect(result.lane).toBe('Product / Software');
+    expect(result.lane).toBe('Jericho System');
     expect(result.initiative).toBe('Jericho System');
   });
 

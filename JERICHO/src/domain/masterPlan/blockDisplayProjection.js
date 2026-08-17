@@ -4,15 +4,17 @@ function normalizeText(value) {
     .trim();
 }
 
-function shortenOperationEndgamePhrases(title) {
+function normalizeBlockTitlePhrasing(title) {
   let next = normalizeText(title);
   if (!next) {
     return next;
   }
 
+  // Strip legacy plan-name references that don't add user value in display
   next = next.replace(/\s+for the cross-lane Operation Endgame review\b/gi, '');
   next = next.replace(/\s+for Operation Endgame\b/gi, '');
   next = next.replace(/\s+in P\d\s+[^,]+?\s+lane\b/gi, '');
+  // Simplify wordy technical phrases
   next = next.replace(/\bconversion-readiness\b/gi, 'conversion');
   next = next.replace(/\bagainst the success standard and outcome target\b/gi, 'against success standard');
 

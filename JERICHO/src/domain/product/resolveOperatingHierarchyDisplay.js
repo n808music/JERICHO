@@ -1,16 +1,10 @@
+import { resolveInitiativeDisplay as globalResolveInitiativeDisplay } from './resolveInitiativeDisplay';
+
 const PHASE_LABELS = {
   P1: 'P1 Launch / Proof',
   P2: 'P2 Conversion / Operating System',
   P3: 'P3 Scale / Terminal Readiness',
 };
-
-const INITIATIVE_ALIAS_TABLE = [
-  {
-    initiative: 'Jericho System',
-    lane: 'Product / Software',
-    aliases: ['jericho system', 'operation endgame app platform', 'product platform onboarding', 'onboarding implementation'],
-  },
-];
 
 const MILESTONE_TYPE_LABELS = {
   macro: 'Macro Milestone',
@@ -68,52 +62,6 @@ function laneFromInput({ lane, block }) {
     return 'Real Estate';
   }
   return rawLane;
-}
-
-function initiativeFromInput({ initiative, block, laneLabel }) {
-  const explicitInitiative =
-    normalizeText(initiative?.label || initiative?.title || initiative?.name || initiative) ||
-    normalizeText(block?.initiativeLabel || block?.initiativeTitle || block?.initiativeName || block?.initiative);
-  if (explicitInitiative) {
-    return {
-      initiative: explicitInitiative,
-      lane: laneLabel,
-    };
-  }
-
-  const haystacks = [
-    block?.displayTitle,
-    block?.title,
-    block?.label,
-    block?.laneLabel,
-    block?.laneName,
-    block?.mission,
-    block?.cluster,
-  ]
-    .map((value) => normalizeText(value).toLowerCase())
-    .filter(Boolean);
-
-  for (const candidate of INITIATIVE_ALIAS_TABLE) {
-    const matched = candidate.aliases.some((alias) => haystacks.some((haystack) => haystack.includes(alias)));
-    if (matched) {
-      return {
-        initiative: candidate.initiative,
-        lane: candidate.lane || laneLabel,
-      };
-    }
-  }
-
-  if (/district|civic|corridor|physical footprint|real estate|site control|property|acquisition thesis/.test(haystacks.join(' '))) {
-    return {
-      initiative: 'Real Estate',
-      lane: 'Real Estate',
-    };
-  }
-
-  return {
-    initiative: laneLabel,
-    lane: laneLabel,
-  };
 }
 
 function cycleFromInput({ operatingCycle, cycle }) {
@@ -180,14 +128,13 @@ function milestoneTypeFromInput({ milestoneType, block, laneLabel }) {
 export function resolveOperatingHierarchyDisplay(input = {}) {
   const block = input?.block || {};
   const laneLabel = laneFromInput({ lane: input?.lane, block });
-  const initiativeDisplay = initiativeFromInput({
+  const initiativeDisplay = globalResolveInitiativeDisplay(block, {
     initiative: input?.initiative,
-    block,
-    laneLabel,
+    lane: input?.lane,
   });
 
   return {
-    masterPlan: normalizeText(input?.masterPlan || 'Operation Endgame'),
+    masterPlan: normalizeText(input?.masterPlan || 'Untitled Plan'),
     activatedPlan: normalizeText(input?.activatedPlan || 'Activated Plan'),
     phase: phaseFromInput({ phase: input?.phase, block }),
     operatingCycle: cycleFromInput({ operatingCycle: input?.operatingCycle, cycle: input?.cycle }),

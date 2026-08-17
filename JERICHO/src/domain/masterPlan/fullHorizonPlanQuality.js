@@ -556,6 +556,32 @@ function evaluateEfficientPhaseSequencing({ blocks }) {
   if (Object.values(phaseGaps).some((count) => count > 2)) {
     reasonCodes.push('EFFICIENT_PHASE_SEQUENCING_PACKING_DEFECT');
     findings.push(`Schedule has unexplained large gaps suggesting packing defects (${totalUnexplainedLargeGaps} total).`);
+
+    // DIAGNOSTIC (2026-08-16): Log which blocks have unexplained gaps for doctrine #28 investigation
+    if (typeof process !== 'undefined' && process?.env?.NODE_ENV !== 'production') {
+      const gapDetails = {};
+      ['P1', 'P2', 'P3'].forEach((phaseLabel) => {
+        const phaseBlocks = sortedBlocks.filter((b) => String(b?.phaseLabel || '').trim() === phaseLabel);
+        if (phaseBlocks.length < 2) return;
+        const threshold = phaseLabel === 'P1' ? 21 : (phaseLabel === 'P2' ? 60 : 90);
+        const gaps = [];
+        for (let i = 1; i < phaseBlocks.length; i += 1) {
+          const prevBlock = phaseBlocks[i - 1];
+          const currBlock = phaseBlocks[i];
+          const gapDays = diffDays(normalizeDayKey(prevBlock?.dayKey || prevBlock?.date), normalizeDayKey(currBlock?.dayKey || currBlock?.date));
+          if (gapDays > threshold) {
+            const isExplained = Boolean(currBlock?.targetDateConflict || currBlock?.capacityConstraintCode || currBlock?.placementDeadlineJustification || currBlock?.dependencyDelay);
+            if (!isExplained) {
+              gaps.push({ after: String(prevBlock?.title || '').slice(0,40), before: String(currBlock?.title || '').slice(0,40), days: gapDays });
+            }
+          }
+        }
+        if (gaps.length > 0) gapDetails[phaseLabel] = gaps;
+      });
+      if (Object.keys(gapDetails).length > 0) {
+        console.log('[efficientPhaseSequencing] UNEXPLAINED GAPS:', JSON.stringify(gapDetails, null, 2));
+      }
+    }
   }
 
   return {
@@ -1158,14 +1184,6 @@ export function evaluateFullHorizonPlanQuality({
     durationScopeAccuracy: evaluateDurationScopeAccuracy({ blocks }),
   };
 
-  // DOCTRINE #28 OPEN ISSUE (2026-08-16): Advisory dimensions are evaluated but kept
-  // separate from aggregateReasonCodes pending further investigation.
-  // Initial reintegration broke baseline tests, suggesting the problem isn't missing
-  // scoring dimensions but rather a deeper issue with how the gate evaluates state.
-  // The advisory dimensions correctly identify the problematic patterns (orphaned blocks,
-  // unexplained gaps, excessive padding) but their integration into state determination
-  // requires more careful thresholding. Next step: identify the specific baseline
-  // degradation mechanism and fix that, rather than just adding new dimensions.
   const aggregateReasonCodes = [
     ...dimensions.pacing.reasonCodes,
     ...dimensions.precision.reasonCodes,
@@ -1173,6 +1191,10 @@ export function evaluateFullHorizonPlanQuality({
     ...dimensions.professionalism.reasonCodes,
     ...dimensions.completeness.reasonCodes,
     ...dimensions.balance.reasonCodes,
+    ...advisoryDimensions.objectiveLanguageStructure.reasonCodes,
+    ...advisoryDimensions.goalRelevance.reasonCodes,
+    ...advisoryDimensions.efficientPhaseSequencing.reasonCodes,
+    ...advisoryDimensions.durationScopeAccuracy.reasonCodes,
     ...blockDetailQualitySummary.failureCodes,
   ];
 
@@ -1265,6 +1287,18 @@ export function evaluateFullHorizonPlanQuality({
       standardStatus,
       durationMs: Date.now() - startedAt,
     });
+  }
+
+  // DIAGNOSTIC (2026-08-16): Temporary logging for doctrine #28 investigation
+  const advisoryFindingsSummary = {
+    objectiveLanguage: advisoryDimensions.objectiveLanguageStructure.reasonCodes,
+    goalRelevanceOrphaned: advisoryDimensions.goalRelevance.summary?.orphanedBlockCount || 0,
+    goalRelevanceCodes: advisoryDimensions.goalRelevance.reasonCodes,
+    efficientPhaseGaps: advisoryDimensions.efficientPhaseSequencing.reasonCodes,
+    durationPadded: advisoryDimensions.durationScopeAccuracy.reasonCodes,
+  };
+  if (Object.values(advisoryFindingsSummary).some(v => (Array.isArray(v) && v.length > 0) || (typeof v === 'number' && v > 0))) {
+    console.log('[fullHorizonPlanQuality] ADVISORY FINDINGS:', JSON.stringify(advisoryFindingsSummary, null, 2));
   }
 
   return {

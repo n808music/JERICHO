@@ -83,7 +83,7 @@ function p3TitleTemplates(lane) {
 }
 
 const TERMINAL_READINESS_TITLE =
-  'Assess terminal-readiness evidence for the cross-lane Operation Endgame review against the success standard and outcome target';
+  'Assess terminal-readiness evidence against the success standard and outcome target';
 
 function buildForecastExpectedOutput({ blockType, lane, phase, title }) {
   const laneContext = lane ? laneLabel({ domain: lane.domain, title: lane.laneTitle }) : 'cross-lane terminal review';
