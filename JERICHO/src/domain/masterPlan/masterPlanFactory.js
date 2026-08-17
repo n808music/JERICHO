@@ -87,7 +87,7 @@ export function buildMilestone({
   flex = MILESTONE_FLEX.LOW,
   requirementIds = [],
   missConsequence = '',
-  origin = 'system',
+  origin = null,
   userWeight = null,
 } = {}) {
   if (!laneId) {
@@ -101,6 +101,12 @@ export function buildMilestone({
   }
   if (!derivedFrom) {
     throw new Error('MILESTONE_INVALID: derivedFrom is required — system must explain placement');
+  }
+  // CRITICAL: origin must be explicitly set to avoid silently treating user-created milestones
+  // as auto-generated (which would cause them to be excluded from pacing doctrine).
+  // This validation ensures callers are explicit about milestone provenance.
+  if (!origin || !['system', 'user'].includes(origin)) {
+    throw new Error(`MILESTONE_INVALID: origin must be 'system' or 'user', got: ${origin}`);
   }
 
   return {
