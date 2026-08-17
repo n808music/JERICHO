@@ -118,6 +118,10 @@ export function buildMilestone({
     missConsequence,
     origin,
     userWeight: origin === 'user' ? (userWeight || null) : null,
+    // generated: true if origin is 'system' (auto-generated via generateMilestonesForLane)
+    // generated: false if origin is 'user' or other (manually created)
+    // Used to distinguish real commitments from system-generated entries in pacing analysis
+    generated: origin === 'system',
   };
 }
 

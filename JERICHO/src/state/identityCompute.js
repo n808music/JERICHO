@@ -8035,13 +8035,13 @@ function applyLongHorizonCalendarBlocks(state) {
     if (horizonEndForMode && phase.startBoundary > horizonEndForMode) {continue;}
 
     // Extract real P1 commitment dayKeys for pacing doctrine
-    // (real commitments = milestones anchored to operator-declared dates)
+    // (real commitments = milestones anchored to operator-declared dates, excluding generated/system entries)
     let p1RealCommitmentDayKeys = [];
     if (phase.label === 'P1') {
       const p1Milestones = (phase.laneParticipation || []).flatMap((lane) => {
         const laneId = lane.laneId || lane.id;
         return Object.values(state?.masterPlanMilestonesById || {})
-          .filter((m) => m.laneId === laneId && m.targetDate);
+          .filter((m) => m.laneId === laneId && m.targetDate && !m.generated);
       });
       p1RealCommitmentDayKeys = p1Milestones.map((m) => m.targetDate).sort();
     }
