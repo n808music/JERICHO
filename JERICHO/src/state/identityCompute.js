@@ -8035,14 +8035,25 @@ function applyLongHorizonCalendarBlocks(state) {
     if (horizonEndForMode && phase.startBoundary > horizonEndForMode) {continue;}
 
     // Extract real P1 commitment dayKeys for pacing doctrine
-    // (real commitments = milestones anchored to operator-declared dates, excluding generated/system entries)
+    // (real commitments = milestones with explicit origin='user', excluding system-generated and unknown-provenance)
     let p1RealCommitmentDayKeys = [];
     if (phase.label === 'P1') {
-      const p1Milestones = (phase.laneParticipation || []).flatMap((lane) => {
+      const allMilestonesInPhase = (phase.laneParticipation || []).flatMap((lane) => {
         const laneId = lane.laneId || lane.id;
         return Object.values(state?.masterPlanMilestonesById || {})
-          .filter((m) => m.laneId === laneId && m.targetDate && !m.generated);
+          .filter((m) => m.laneId === laneId && m.targetDate);
       });
+
+      // Log warning for unknown-provenance milestones (pre-existing data without explicit origin)
+      const unknownMilestones = allMilestonesInPhase.filter((m) => m.generated === 'unknown');
+      if (unknownMilestones.length > 0) {
+        console.warn(
+          `[pacing-doctrine] Excluding ${unknownMilestones.length} milestone(s) with unknown provenance from P1 real-commitment calculation. ` +
+          `These have no origin field set (pre-existing data). Titles: ${unknownMilestones.map((m) => m.title).join(', ')}`
+        );
+      }
+
+      const p1Milestones = allMilestonesInPhase.filter((m) => m.generated === 'user');
       p1RealCommitmentDayKeys = p1Milestones.map((m) => m.targetDate).sort();
     }
 

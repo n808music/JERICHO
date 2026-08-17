@@ -124,10 +124,14 @@ export function buildMilestone({
     missConsequence,
     origin,
     userWeight: origin === 'user' ? (userWeight || null) : null,
-    // generated: true if origin is 'system' (auto-generated via generateMilestonesForLane)
-    // generated: false if origin is 'user' or other (manually created)
-    // Used to distinguish real commitments from system-generated entries in pacing analysis
-    generated: origin === 'system',
+    // generated: 'system' | 'user' | 'unknown'
+    // - 'system': auto-generated via generateMilestonesForLane (exclude from pacing doctrine)
+    // - 'user': manually created (include in pacing doctrine)
+    // - 'unknown': pre-existing data with missing/invalid origin (exclude as cautious default)
+    // Used to distinguish real commitments from system-generated/uncertain entries in pacing analysis.
+    // CRITICAL: defaults to 'unknown' (excluded) when loaded from pre-existing state with missing origin,
+    // preventing uncertain provenance from silently contaminating the real-commitment rhythm.
+    generated: origin === 'system' ? 'system' : origin === 'user' ? 'user' : 'unknown',
   };
 }
 
