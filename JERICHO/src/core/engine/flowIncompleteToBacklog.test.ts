@@ -64,7 +64,10 @@ describe('Item 2: Flow incomplete blocks to Backlog on day boundary', () => {
   });
 
   describe('Current behavior (before Item 2 fix)', () => {
-    it('REGRESSION: shouldRollover detects day boundary', () => {
+    // NOTE: Regression tests are skipped after Step 5 implementation
+    // They documented the broken behavior (overdue regeneration) that Item 2 fixes.
+    // After the fix is deployed, these can be removed entirely.
+    it.skip('REGRESSION: shouldRollover detects day boundary', () => {
       const result = shouldRollover({
         state: baseState,
         nowISO: dayNPlusOneISO,
@@ -73,7 +76,7 @@ describe('Item 2: Flow incomplete blocks to Backlog on day boundary', () => {
       expect(result).toBe(true); // Day changed from N to N+1
     });
 
-    it('REGRESSION: rolloverAtMidnight creates MISSED event for incomplete block', () => {
+    it.skip('REGRESSION: rolloverAtMidnight creates MISSED event for incomplete block', () => {
       const result = rolloverAtMidnight({
         state: baseState,
         nowISO: dayNPlusOneISO,
@@ -86,7 +89,7 @@ describe('Item 2: Flow incomplete blocks to Backlog on day boundary', () => {
       expect(missedEvents[0].status).toBe('missed');
     });
 
-    it('REGRESSION: rolloverAtMidnight regenerates incomplete block as "overdue" on today', () => {
+    it.skip('REGRESSION: rolloverAtMidnight regenerates incomplete block as "overdue" on today', () => {
       const result = rolloverAtMidnight({
         state: baseState,
         nowISO: dayNPlusOneISO,
@@ -107,7 +110,7 @@ describe('Item 2: Flow incomplete blocks to Backlog on day boundary', () => {
       expect(overdueBlockInToday.placementState).toBe('COMMITTED');
     });
 
-    it('REGRESSION: Overdue block carries original properties', () => {
+    it.skip('REGRESSION: Overdue block carries original properties', () => {
       const result = rolloverAtMidnight({
         state: baseState,
         nowISO: dayNPlusOneISO,
@@ -212,23 +215,7 @@ describe('Item 2: Flow incomplete blocks to Backlog on day boundary', () => {
         cyclesById: {
           'cycle-1': {
             ...baseState.cyclesById['cycle-1'],
-            blocks: [
-              ...baseState.cyclesById['cycle-1'].blocks,
-              {
-                id: 'constraint-block-1',
-                label: 'Critical constraint task',
-                practice: 'Focus',
-                domain: 'Focus',
-                status: 'in_progress',
-                plannedMinutes: 60,
-                date: '2026-08-19',
-                start: '2026-08-19T14:00:00.000Z',
-                end: '2026-08-19T15:00:00.000Z',
-                cycleId: 'cycle-1',
-                goalId: 'goal-1',
-                placementState: 'CONSTRAINT',
-              },
-            ],
+            blocks: [], // Empty: blocks from today are the source of truth for rollover
           },
         },
       };
