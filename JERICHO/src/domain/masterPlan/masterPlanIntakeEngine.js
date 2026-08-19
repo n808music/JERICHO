@@ -130,15 +130,15 @@ function isNonAnswerValue(value) {
 
 function inferEntityType(domain, title = '') {
   const lower = String(title || '').toLowerCase();
-  if (domain === LANE_DOMAIN.PRODUCT || /\bapp|software|platform|tool|saas\b/.test(lower)) {return 'app';}
-  if (domain === LANE_DOMAIN.CREATIVE || /\balbum|ep|song|record|release\b/.test(lower)) {return 'album';}
-  if (domain === LANE_DOMAIN.MEDIA || /\bpodcast|channel|show|newsletter|blog\b/.test(lower)) {return 'podcast';}
-  if (domain === LANE_DOMAIN.BRAND || /\bbrand|company|agency|studio|service\b/.test(lower)) {return 'brand';}
-  if (domain === LANE_DOMAIN.INCOME || /\bincome|runway|revenue|job|cash\b/.test(lower)) {return 'business_line';}
-  if (domain === LANE_DOMAIN.CAPITAL || /\breal estate|property|building|district\b/.test(lower)) {return 'business_line';}
-  if (domain === LANE_DOMAIN.INSTITUTION || /\bschool|academy|curriculum|education\b/.test(lower)) {return 'business_line';}
-  if (domain === LANE_DOMAIN.CIVIC || /\bdistrict|revitalization|community development|corridor\b/.test(lower)) {return 'campaign';}
-  if (domain === LANE_DOMAIN.COMPANY || /\bcompany|operations|holding company|business lines\b/.test(lower)) {return 'company';}
+  if (domain === LANE_DOMAIN.PRODUCT || /\bapp|software|platform|tool|saas\b/.test(lower)) return 'app';
+  if (domain === LANE_DOMAIN.CREATIVE || /\balbum|ep|song|record|release\b/.test(lower)) return 'album';
+  if (domain === LANE_DOMAIN.MEDIA || /\bpodcast|channel|show|newsletter|blog\b/.test(lower)) return 'podcast';
+  if (domain === LANE_DOMAIN.BRAND || /\bbrand|company|agency|studio|service\b/.test(lower)) return 'brand';
+  if (domain === LANE_DOMAIN.INCOME || /\bincome|runway|revenue|job|cash\b/.test(lower)) return 'business_line';
+  if (domain === LANE_DOMAIN.CAPITAL || /\breal estate|property|building|district\b/.test(lower)) return 'business_line';
+  if (domain === LANE_DOMAIN.INSTITUTION || /\bschool|academy|curriculum|education\b/.test(lower)) return 'business_line';
+  if (domain === LANE_DOMAIN.CIVIC || /\bdistrict|revitalization|community development|corridor\b/.test(lower)) return 'campaign';
+  if (domain === LANE_DOMAIN.COMPANY || /\bcompany|operations|holding company|business lines\b/.test(lower)) return 'company';
   return 'campaign';
 }
 
@@ -206,7 +206,7 @@ function formatEntitySubject(entity, options = {}) {
  * The AI-powered version replaces this function without changing its contract.
  */
 export function extractLanesFromDescription(text) {
-  if (!text || typeof text !== 'string') {return [];}
+  if (!text || typeof text !== 'string') return [];
 
   const lower = text.toLowerCase();
   const scores = {};
@@ -270,8 +270,8 @@ function toISODate(year, month, day) {
 
 function detectIsFixed(text) {
   const lower = text.toLowerCase();
-  if (FIXED_SIGNALS.some((s) => lower.includes(s))) {return true;}
-  if (INTERNAL_SIGNALS.some((s) => lower.includes(s))) {return false;}
+  if (FIXED_SIGNALS.some((s) => lower.includes(s))) return true;
+  if (INTERNAL_SIGNALS.some((s) => lower.includes(s))) return false;
   return true; // default: treat named dates as fixed
 }
 
@@ -281,7 +281,7 @@ function detectIsFixed(text) {
  * Returns null if no recognizable date pattern is found.
  */
 export function parseAnchorFromInput(text, referenceISO) {
-  if (!text || typeof text !== 'string') {return null;}
+  if (!text || typeof text !== 'string') return null;
 
   const lower = text.toLowerCase().trim();
   const ref = referenceISO ? new Date(referenceISO) : new Date();
@@ -312,7 +312,7 @@ export function parseAnchorFromInput(text, referenceISO) {
   if (monthOnlyMatch) {
     const month = MONTH_MAP[monthOnlyMatch[1].slice(0, 3)];
     let year = refYear;
-    if (month <= refMonth) {year += 1;}
+    if (month <= refMonth) year += 1;
     const lastDay = new Date(year, month + 1, 0).getDate();
     return { date: toISODate(year, month, lastDay), label: text.trim(), isFixed };
   }
@@ -324,7 +324,7 @@ export function parseAnchorFromInput(text, referenceISO) {
     const quarterEndMonths = [2, 5, 8, 11]; // Mar, Jun, Sep, Dec (0-indexed)
     const month = quarterEndMonths[q - 1];
     let year = refYear;
-    if (month < refMonth) {year += 1;}
+    if (month < refMonth) year += 1;
     const lastDay = new Date(year, month + 1, 0).getDate();
     return { date: toISODate(year, month, lastDay), label: text.trim(), isFixed: false };
   }
@@ -368,7 +368,7 @@ export function inferHorizonYearsFromText(goalText) {
   const numericMatch = lower.match(/\b(\d+)[- ]?(?:yr|year)s?\b/);
   if (numericMatch) {
     const years = parseInt(numericMatch[1], 10);
-    if (years >= 2 && years <= 20) {return { years, months: years * 12, explicit: true };}
+    if (years >= 2 && years <= 20) return { years, months: years * 12, explicit: true };
   }
 
   // Word-form year patterns → explicit count
@@ -383,7 +383,7 @@ export function inferHorizonYearsFromText(goalText) {
   const monthsMatch = lower.match(/\b(\d+)\s+months?\b/);
   if (monthsMatch) {
     const months = parseInt(monthsMatch[1], 10);
-    if (months >= 24 && months <= 240) {return { years: months / 12, months, explicit: true };}
+    if (months >= 24 && months <= 240) return { years: months / 12, months, explicit: true };
   }
 
   // Vague multi-year signals → 3-year minimum, not explicit.
@@ -429,7 +429,7 @@ export function suggestPlanHorizon(goalText, anchors, nowISO) {
  * Returns null if no anchors exist.
  */
 export function suggestHorizonFromAnchors(anchors, nowISO) {
-  if (!anchors || anchors.length === 0) {return null;}
+  if (!anchors || anchors.length === 0) return null;
 
   const sorted = [...anchors].sort((a, b) => (a.date > b.date ? 1 : -1));
   const latest = sorted[sorted.length - 1];

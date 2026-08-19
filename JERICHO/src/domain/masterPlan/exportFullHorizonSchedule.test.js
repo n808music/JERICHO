@@ -19,7 +19,7 @@ import { buildFullHorizonScheduleExport } from './exportFullHorizonSchedule.js';
 const FIXTURE_PATH = path.resolve(__dirname, '../../../tmp-live-jericho-identity.json');
 
 function loadFixtureIfPresent() {
-  if (!fs.existsSync(FIXTURE_PATH)) {return null;}
+  if (!fs.existsSync(FIXTURE_PATH)) return null;
   return JSON.parse(fs.readFileSync(FIXTURE_PATH, 'utf-8'));
 }
 

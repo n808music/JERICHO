@@ -38,7 +38,7 @@ function luminance(cssColor) {
     [r, g, b] = [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])];
   } else {
     const hex = s.replace('#', '');
-    if (hex.length !== 6) {return null;}
+    if (hex.length !== 6) return null;
     r = parseInt(hex.slice(0, 2), 16);
     g = parseInt(hex.slice(2, 4), 16);
     b = parseInt(hex.slice(4, 6), 16);

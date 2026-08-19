@@ -21,7 +21,7 @@ function runInitiativeScript(script, opts = {}) {
   let pendingAnswers = [...script];
   let safety = 0;
   while (!step.done) {
-    if (safety++ > 30) {throw new Error('Engine did not terminate within safety bound');}
+    if (safety++ > 30) throw new Error('Engine did not terminate within safety bound');
     probes.push(step.probe);
     if (pendingAnswers.length === 0) {
       throw new Error(`Out of scripted answers — engine still asking "${step.probe.fieldName}" (${step.probe.code})`);
@@ -361,7 +361,7 @@ describe('Elicitation Engine — Initiative slot: DECLARE_INITIATIVE dispatch', 
       });
       let step = engine.openingStep();
       for (const answer of script) {
-        if (step.done) {break;}
+        if (step.done) break;
         const r = engine.consumeAnswer(answer);
         engine = r.engine;
         for (const action of r.dispatches || []) {

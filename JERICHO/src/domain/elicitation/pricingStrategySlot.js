@@ -69,16 +69,16 @@ export function classifyFromAnswers(answers = {}) {
   const validationSignals = [];
 
   // Q1: Category precedent
-  if (q1 === 'yes') {differentiationSignals.push('q1');}
-  if (q1 === 'no') {validationSignals.push('q1');}
+  if (q1 === 'yes') differentiationSignals.push('q1');
+  if (q1 === 'no') validationSignals.push('q1');
 
   // Q2: Audience precedent
-  if (q2 === 'yes') {differentiationSignals.push('q2');}
-  if (q2 === 'no') {validationSignals.push('q2');}
+  if (q2 === 'yes') differentiationSignals.push('q2');
+  if (q2 === 'no') validationSignals.push('q2');
 
   // Q3: Competitive density
-  if (q3 === 'competitive') {differentiationSignals.push('q3');}
-  if (q3 === 'underserved') {validationSignals.push('q3');}
+  if (q3 === 'competitive') differentiationSignals.push('q3');
+  if (q3 === 'underserved') validationSignals.push('q3');
 
   // Classification: 2+ same-direction signals
   if (differentiationSignals.length >= 2) {

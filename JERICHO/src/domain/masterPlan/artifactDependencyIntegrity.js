@@ -36,10 +36,10 @@ const COMMERCIAL_STAGE_PATTERNS = [
 function compareBlocks(left, right) {
   const leftDay = String(left?.dayKey || left?.date || '');
   const rightDay = String(right?.dayKey || right?.date || '');
-  if (leftDay !== rightDay) {return leftDay.localeCompare(rightDay);}
+  if (leftDay !== rightDay) return leftDay.localeCompare(rightDay);
   const leftStart = String(left?.startISO || left?.start || '');
   const rightStart = String(right?.startISO || right?.start || '');
-  if (leftStart !== rightStart) {return leftStart.localeCompare(rightStart);}
+  if (leftStart !== rightStart) return leftStart.localeCompare(rightStart);
   return String(left?.id || '').localeCompare(String(right?.id || ''));
 }
 
@@ -96,25 +96,25 @@ function collectLaneArtifacts(artifactTimeline, laneId) {
 }
 
 function deriveLifecycleStage(block) {
-  if (block?.lifecycleStage) {return block.lifecycleStage;}
+  if (block?.lifecycleStage) return block.lifecycleStage;
   const laneFamily = String(block?.executionContext?.laneFamily || '');
-  if (laneFamily !== 'product_software') {return null;}
+  if (laneFamily !== 'product_software') return null;
   const text = [block?.title, block?.expectedOutput, block?.derivationReason].filter(Boolean).join(' ');
   for (const [stage, pattern] of PRODUCT_LIFECYCLE_PATTERNS) {
-    if (pattern.test(text)) {return stage;}
+    if (pattern.test(text)) return stage;
   }
-  if (String(block?.blockType || '').toLowerCase() === 'review') {return 'post_release_review';}
+  if (String(block?.blockType || '').toLowerCase() === 'review') return 'post_release_review';
   return null;
 }
 
 function deriveCommercialStage(block) {
-  if (block?.commercialStage) {return block.commercialStage;}
+  if (block?.commercialStage) return block.commercialStage;
   if (block?.isExternalBdMechanic !== true && block?.isExternalStakeholderTouchpoint !== true) {
     return null;
   }
   const text = [block?.title, block?.expectedOutput, block?.producesArtifact].filter(Boolean).join(' ');
   for (const [stage, pattern] of COMMERCIAL_STAGE_PATTERNS) {
-    if (pattern.test(text)) {return stage;}
+    if (pattern.test(text)) return stage;
   }
   return 'follow_up_contingency';
 }
@@ -164,14 +164,14 @@ function resolveDependencyArtifacts(block, artifactTimeline, artifactById) {
   const dependencies = Array.isArray(block?.dependsOn) ? block.dependsOn : [];
 
   const pushArtifact = (artifact) => {
-    if (!artifact?.artifactId) {return;}
-    if (resolved.some((entry) => entry.artifactId === artifact.artifactId)) {return;}
+    if (!artifact?.artifactId) return;
+    if (resolved.some((entry) => entry.artifactId === artifact.artifactId)) return;
     resolved.push(artifact);
   };
 
   for (const dependency of dependencies) {
     const value = String(dependency || '').trim();
-    if (!value) {continue;}
+    if (!value) continue;
     if (value.startsWith('phase:')) {
       const phaseLabel = value.slice(6);
       const artifact = latestPriorArtifact(artifactTimeline, (entry) => (
@@ -190,7 +190,7 @@ function resolveDependencyArtifacts(block, artifactTimeline, artifactById) {
     if (value.startsWith('lane:')) {
       const dependencyLaneId = value.slice(5).split(':')[0];
       const artifact = latestPriorArtifact(artifactTimeline, (entry) => entry?.laneId === dependencyLaneId);
-      if (artifact) {pushArtifact(artifact);}
+      if (artifact) pushArtifact(artifact);
       continue;
     }
     if (artifactById.has(value)) {
@@ -214,8 +214,8 @@ function buildPhaseExitCriteriaByPhase(artifacts, blocksById) {
     const block = blocksById.get(artifact?.producerBlockId) || null;
     const gateCriteria = block?.gateCriteria || null;
     const phaseLabel = String(artifact?.phase || '').trim();
-    if (!grouped[phaseLabel]) {continue;}
-    if (!gateCriteria) {continue;}
+    if (!grouped[phaseLabel]) continue;
+    if (!gateCriteria) continue;
     grouped[phaseLabel].push({
       laneId: artifact.laneId || null,
       laneTitle: block?.laneLabel || null,
@@ -261,7 +261,7 @@ function buildDependencyAudit(blocks = [], artifactRegistry = {}) {
 
   for (const block of blocks) {
     const blockId = String(block?.id || '').trim();
-    if (!blockId) {continue;}
+    if (!blockId) continue;
     const blockKey = blockSortKey(block);
     const dependsOnBlockIds = Array.isArray(block?.dependsOnBlockIds) ? block.dependsOnBlockIds : [];
     const consumedArtifactIds = Array.isArray(block?.consumedArtifactIds) ? block.consumedArtifactIds : [];
@@ -324,7 +324,7 @@ function buildDependencyAudit(blocks = [], artifactRegistry = {}) {
       inCycle.add(nodeId);
       return;
     }
-    if (visited.has(nodeId)) {return;}
+    if (visited.has(nodeId)) return;
     visiting.add(nodeId);
     for (const nextId of adjacency.get(nodeId) || []) {
       visit(nextId);
@@ -372,7 +372,7 @@ function buildArtifactRegistryFromBlocks(blocks = []) {
     const outputArtifactId = String(
       block?.outputArtifactId || block?.outputArtifact?.artifactId || (isArtifactRequired(block) ? buildArtifactId(block) : '')
     ).trim();
-    if (!outputArtifactId) {continue;}
+    if (!outputArtifactId) continue;
     const artifact = {
       artifactId: outputArtifactId,
       artifactName: String(
@@ -395,7 +395,7 @@ function buildArtifactRegistryFromBlocks(blocks = []) {
   for (const block of ordered) {
     for (const artifactId of Array.isArray(block?.consumedArtifactIds) ? block.consumedArtifactIds : []) {
       const resolvedId = String(artifactId || '').trim();
-      if (!resolvedId || !artifactById.has(resolvedId)) {continue;}
+      if (!resolvedId || !artifactById.has(resolvedId)) continue;
       artifactById.get(resolvedId).consumedByBlockIds.push(block.id);
     }
   }

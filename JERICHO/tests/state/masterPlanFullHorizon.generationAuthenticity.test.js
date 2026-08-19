@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import goldenFixture from '../fixtures/masterPlan/operationEndgame.fullHorizonSchedule.json';
 import { validateBlockTitle } from '../../src/domain/masterPlan/forecastBlockDerivation.js';
-import { buildFullHorizonMultiLaneFixtureState, setHorizonMode, getActivePlan } from '../helpers/masterPlanFullHorizonScenario.js';
+import { buildOperationEndgameState, setHorizonMode, getActivePlan } from '../helpers/masterPlanFullHorizonScenario.js';
 
 function buildGeneratedState(options = {}) {
-  return setHorizonMode(buildFullHorizonMultiLaneFixtureState(options), 'full_horizon');
+  return setHorizonMode(buildOperationEndgameState(options), 'full_horizon');
 }
 
 function getGeneratedBlocks(state) {
@@ -44,11 +44,11 @@ describe('master-plan full-horizon generation proof', () => {
     const summary = summarize(blocks);
     const representedLanes = new Set(blocks.map((block) => block.laneId).filter(Boolean));
 
-    expect(plan?.fullHorizonEndDayKey).toMatch(/^2032/);
+    expect(plan?.fullHorizonEndDayKey).toMatch(/^2031/);
     expect(summary.phaseCounts.P1).toBeGreaterThan(20);
     expect(summary.phaseCounts.P2).toBeGreaterThan(20);
     expect(summary.phaseCounts.P3).toBeGreaterThan(8);
-    expect(summary.yearCounts['2032']).toBeGreaterThan(0);
+    expect(summary.yearCounts['2031']).toBeGreaterThan(0);
     expect(summary.blockTypeCounts.action).toBeGreaterThan(0);
     expect(summary.blockTypeCounts.review).toBeGreaterThan(0);
     expect(summary.blockTypeCounts.gate).toBeGreaterThan(0);
@@ -79,7 +79,7 @@ describe('master-plan full-horizon generation proof', () => {
 
     expect(Object.keys(generated.phaseCounts)).toEqual(expect.arrayContaining(Object.keys(fixture.phaseCounts)));
     expect(Object.keys(generated.blockTypeCounts)).toEqual(expect.arrayContaining(Object.keys(fixture.blockTypeCounts)));
-    expect(Object.keys(generated.yearCounts)).toEqual(expect.arrayContaining(['2026', '2027', '2028', '2029', '2030', '2031', '2032']));
+    expect(Object.keys(generated.yearCounts)).toEqual(expect.arrayContaining(['2026', '2027', '2028', '2029', '2030', '2031']));
 
     ['P1', 'P2', 'P3'].forEach((phaseLabel) => {
       expect(generated.phaseCounts[phaseLabel]).toBeGreaterThanOrEqual(fixture.phaseCounts[phaseLabel]);

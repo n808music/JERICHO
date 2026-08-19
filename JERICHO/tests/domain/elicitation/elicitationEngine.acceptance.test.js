@@ -53,7 +53,7 @@ function runScript(initialState, script, opts = {}) {
   let pendingAnswers = [...script];
   let safety = 0;
   while (!step.done) {
-    if (safety++ > 50) {throw new Error('Engine did not terminate within safety bound');}
+    if (safety++ > 50) throw new Error('Engine did not terminate within safety bound');
     if (step.readback) {
       // Auto-confirm readbacks in acceptance tests — the readback mechanic has
       // its own test suite; here we care about the probe + dispatch contract.

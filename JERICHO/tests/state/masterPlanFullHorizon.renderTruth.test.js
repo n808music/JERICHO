@@ -4,10 +4,10 @@ import {
   auditFullHorizonRenderTruth,
   applyRenderTruthToCoverageAudit,
 } from '../../src/domain/masterPlan/fullHorizonRenderTruthAudit.js';
-import { buildFullHorizonMultiLaneFixtureState, setHorizonMode } from '../helpers/masterPlanFullHorizonScenario.js';
+import { buildOperationEndgameState, setHorizonMode } from '../helpers/masterPlanFullHorizonScenario.js';
 
 function buildState() {
-  return setHorizonMode(buildFullHorizonMultiLaneFixtureState(), 'full_horizon');
+  return setHorizonMode(buildOperationEndgameState(), 'full_horizon');
 }
 
 function countYear(blocks = [], year) {

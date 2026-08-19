@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSampleProfileReferenceState } from '../../src/dev/sampleProfileRestore.js'';
+import { buildOperationEndgameReferenceState } from '../../src/dev/operationEndgameRestore.js';
 
 const WEEK_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
@@ -12,7 +12,7 @@ function countWindows(workWindows = {}) {
 
 describe('Operation Endgame restore — capacity seed', () => {
   it('produces an availabilityPolicy with confirmed work windows and approved constraints', () => {
-    const state = buildSampleProfileReferenceState();
+    const state = buildOperationEndgameReferenceState();
     const policy = state?.availabilityPolicy || {};
 
     // At least one weekday must carry a work window so workWindowCount > 0.
@@ -28,7 +28,7 @@ describe('Operation Endgame restore — capacity seed', () => {
   });
 
   it('seeds work window rows with the canonical { start, end } HH:MM shape', () => {
-    const state = buildSampleProfileReferenceState();
+    const state = buildOperationEndgameReferenceState();
     const windows = state?.availabilityPolicy?.workWindows || {};
 
     let inspected = 0;

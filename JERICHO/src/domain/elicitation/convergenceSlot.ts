@@ -107,14 +107,6 @@ export function buildConvergenceDeclarePayload(captured: unknown) {
   const fromNodeId = fromNodeIds[0] || '';
   const toNodeId = String(c?.toNodeId || '').trim();
   const id = `conv-${fromNodeId}-to-${toNodeId}`.slice(0, 80);
-
-  // Buffer spec fields (2026-08-13 Gap 3: Convergence buffer resolution)
-  const bufferType = String(c?.bufferType || '').trim() || null; // 'sequential' | 'parallel'
-  const bufferDays = Number(c?.bufferDays) || null; // For sequential buffers
-  const toleranceDays = Number(c?.toleranceDays) || null; // For parallel buffers
-  const precedingProjectId = String(c?.precedingProjectId || '').trim() || null; // Sequential: which is first
-  const followingProjectId = String(c?.followingProjectId || '').trim() || null; // Sequential: which is second
-
   return {
     id,
     // Legacy scalar (first source) kept for downstream consumers; the full
@@ -125,11 +117,5 @@ export function buildConvergenceDeclarePayload(captured: unknown) {
     gives: String(c?.gives || '').trim(),
     broken: Boolean(c?.broken) || false,
     label: String(c?.label || '').trim() || null,
-    // Buffer specification (2026-08-13 Gap 3)
-    bufferType,
-    bufferDays,
-    toleranceDays,
-    precedingProjectId,
-    followingProjectId,
   };
 }

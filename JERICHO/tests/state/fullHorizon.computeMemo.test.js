@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSampleProfileReferenceState } from '../../src/dev/sampleProfileRestore.js';
+import { buildOperationEndgameReferenceState } from '../../src/dev/operationEndgameRestore.js';
 import { computeDerivedState } from '../../src/state/identityCompute.js';
 
 // Regression guard for the enterprise-scale UI freeze / idle crash.
@@ -13,7 +13,7 @@ const TRIVIAL = { type: 'SET_VIEW_DATE', date: '2026-07-09' };
 
 describe('full-horizon derivation is memoized at enterprise scale', () => {
   it('recomputes derived state well under the freeze threshold for an unrelated mutation', () => {
-    const state = buildSampleProfileReferenceState();
+    const state = buildOperationEndgameReferenceState();
     // Confirm this fixture actually carries the heavy full-horizon substrate.
     expect(Array.isArray(state.fullHorizonScheduleBlocks)).toBe(true);
     expect(state.fullHorizonScheduleBlocks.length).toBeGreaterThan(100);
@@ -24,7 +24,7 @@ describe('full-horizon derivation is memoized at enterprise scale', () => {
     let s = computeDerivedState(state, TRIVIAL);
     const iterations = 5;
     const t0 = performance.now();
-    for (let i = 0; i < iterations; i++) {s = computeDerivedState(s, TRIVIAL);}
+    for (let i = 0; i < iterations; i++) s = computeDerivedState(s, TRIVIAL);
     const perCall = (performance.now() - t0) / iterations;
     // Pre-fix this is ~900ms. Post-fix (memo hit + clone) is a few tens of ms.
     // 300ms is a generous ceiling that still catches the regression on slow CI.
@@ -32,7 +32,7 @@ describe('full-horizon derivation is memoized at enterprise scale', () => {
   });
 
   it('preserves full-horizon output across an unrelated mutation (memo reuse is not corruption)', () => {
-    const state = buildSampleProfileReferenceState();
+    const state = buildOperationEndgameReferenceState();
     const before = computeDerivedState(state, TRIVIAL);
     const after = computeDerivedState(before, TRIVIAL);
     expect(after.fullHorizonScheduleBlocks.length).toBe(before.fullHorizonScheduleBlocks.length);

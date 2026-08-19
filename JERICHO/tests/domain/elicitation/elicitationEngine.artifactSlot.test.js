@@ -20,7 +20,7 @@ function runArtifactScript(script, opts = {}) {
   let pendingAnswers = [...script];
   let safety = 0;
   while (!step.done) {
-    if (safety++ > 30) {throw new Error('Engine did not terminate within safety bound');}
+    if (safety++ > 30) throw new Error('Engine did not terminate within safety bound');
     probes.push(step.probe);
     if (pendingAnswers.length === 0) {
       throw new Error(

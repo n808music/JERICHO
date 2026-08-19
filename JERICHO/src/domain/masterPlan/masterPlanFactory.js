@@ -87,7 +87,7 @@ export function buildMilestone({
   flex = MILESTONE_FLEX.LOW,
   requirementIds = [],
   missConsequence = '',
-  origin = null,
+  origin = 'system',
   userWeight = null,
 } = {}) {
   if (!laneId) {
@@ -101,12 +101,6 @@ export function buildMilestone({
   }
   if (!derivedFrom) {
     throw new Error('MILESTONE_INVALID: derivedFrom is required — system must explain placement');
-  }
-  // CRITICAL: origin must be explicitly set to avoid silently treating user-created milestones
-  // as auto-generated (which would cause them to be excluded from pacing doctrine).
-  // This validation ensures callers are explicit about milestone provenance.
-  if (!origin || !['system', 'user'].includes(origin)) {
-    throw new Error(`MILESTONE_INVALID: origin must be 'system' or 'user', got: ${origin}`);
   }
 
   return {
@@ -124,14 +118,6 @@ export function buildMilestone({
     missConsequence,
     origin,
     userWeight: origin === 'user' ? (userWeight || null) : null,
-    // generated: 'system' | 'user' | 'unknown'
-    // - 'system': auto-generated via generateMilestonesForLane (exclude from pacing doctrine)
-    // - 'user': manually created (include in pacing doctrine)
-    // - 'unknown': pre-existing data with missing/invalid origin (exclude as cautious default)
-    // Used to distinguish real commitments from system-generated/uncertain entries in pacing analysis.
-    // CRITICAL: defaults to 'unknown' (excluded) when loaded from pre-existing state with missing origin,
-    // preventing uncertain provenance from silently contaminating the real-commitment rhythm.
-    generated: origin === 'system' ? 'system' : origin === 'user' ? 'user' : 'unknown',
   };
 }
 

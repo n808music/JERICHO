@@ -9,7 +9,6 @@
 import { addDays, dayKeyFromISO, buildLocalStartISO, APP_TIME_ZONE } from '../../state/time/time.ts';
 import { materializeBlocksFromEvents } from '../../state/engine/todayAuthority.ts';
 import type { ExecutionEvent } from '../../state/engine/todayAuthority.ts';
-import { flowIncompleteBlocksToBacklog } from './flowIncompleteToBacklog.ts';
 
 // Types for rollover result
 export interface RolloverResult {
@@ -76,37 +75,166 @@ export function rolloverAtMidnight({
     nowISO,
     timezone: tz,
   });
+  // For each committed block, create MISSED event and new overdue block
+  yesterdayCommittedBlocks.forEach((originalBlock: any) => {
+    const originalStartISO = originalBlock.start || `${originalBlock.date}T08:00:00.000Z`;
+    const originalDate = new Date(originalStartISO);
+    const durationMinutes = originalBlock.plannedMinutes || originalBlock.durationMinutes || 30;
+    carriedBlockIds.push(originalBlock.id);
+    const eventSuffix = `${originalBlock.id}-${currentDayKey}`;
 
-  // Item 2 Fix: Flow incomplete blocks to Backlog (vs. old broken regeneration as "overdue")
-  // Call pure function to generate MISSED events only, without CREATE events or overdue blocks
-  const flowOutResult = flowIncompleteBlocksToBacklog(yesterdayCommittedBlocks, yesterdayDayKey, nowISO);
-  eventsEmitted.push(...flowOutResult.missedEvents);
+    const missedEvent: ExecutionEvent = {
+      id: `missed-${eventSuffix}`,
+      blockId: originalBlock.id,
+      dateISO: yesterdayDayKey,
+      minutes: durationMinutes,
+      rawLabel: originalBlock.label || originalBlock.practice || 'Missed Block',
+      domain: originalBlock.domain || originalBlock.practice || 'Unclassified',
+      cycleId: originalBlock.cycleId,
+      goalId: originalBlock.goalId,
+      origin: originalBlock.origin || 'system',
+      suggestionId: originalBlock.suggestionId,
+      deliverableId: originalBlock.deliverableId,
+      criterionId: originalBlock.criterionId,
+      completed: false,
+      kind: 'missed',
+      startISO: originalStartISO,
+      endISO: originalBlock.end || new Date(originalDate.getTime() + durationMinutes * 60 * 1000).toISOString(),
+      status: 'missed',
+      missedAtISO: nowISO,
+      linkageStatus: originalBlock.deliverableId ? 'LINKED' : 'UNLINKED_ACTIVITY',
+    };
 
-  // Track carried block IDs for telemetry (all incomplete blocks flow to Backlog)
-  yesterdayCommittedBlocks.forEach((block: any) => {
-    carriedBlockIds.push(block.id);
+    eventsEmitted.push(missedEvent);
+
+    const localTimeString = buildLocalTimeStringFromISO(originalStartISO, tz);
+    const startResult = buildLocalStartISO(currentDayKey, localTimeString, tz);
+    const fallbackStartISO = buildFallbackStartISO(currentDayKey, localTimeString);
+    const nextStartISO = startResult.ok ? startResult.startISO : fallbackStartISO;
+    const nextEndISO = new Date(new Date(nextStartISO).getTime() + durationMinutes * 60 * 1000).toISOString();
+
+    const newId = `overdue-${originalBlock.id}-${currentDayKey}`;
+
+    const createEvent: ExecutionEvent = {
+      id: `create-${newId}`,
+      blockId: newId,
+      dateISO: currentDayKey,
+      minutes: durationMinutes,
+      rawLabel: originalBlock.label || originalBlock.practice || 'Overdue Block',
+      domain: originalBlock.domain || originalBlock.practice || 'Unclassified',
+      cycleId: originalBlock.cycleId,
+      goalId: originalBlock.goalId,
+      origin: originalBlock.origin || 'system',
+      suggestionId: originalBlock.suggestionId,
+      deliverableId: originalBlock.deliverableId ?? null,
+      criterionId: originalBlock.criterionId ?? null,
+      completed: false,
+      kind: 'create',
+      startISO: nextStartISO,
+      endISO: nextEndISO,
+      status: originalBlock.status || 'in_progress',
+      placementState: 'COMMITTED',
+    };
+
+    eventsEmitted.push(createEvent);
+
+    const overdueBlock: OverdueBlock = {
+      originalId: originalBlock.id,
+      newId,
+      originalDayKey: yesterdayDayKey,
+      newDayKey: currentDayKey,
+      startISO: nextStartISO,
+      endISO: nextEndISO,
+      durationMinutes,
+      origin: originalBlock.origin || 'system',
+      domain: originalBlock.domain || originalBlock.practice,
+      practice: originalBlock.practice,
+      label: originalBlock.label || originalBlock.practice,
+      cycleId: originalBlock.cycleId,
+      goalId: originalBlock.goalId,
+      deliverableId: originalBlock.deliverableId,
+      criterionId: originalBlock.criterionId,
+    };
+
+    overdueBlocks.push(overdueBlock);
   });
-
-  // NOTE: Intentionally NOT creating CREATE events or overdueBlocks
-  // Incomplete blocks now flow to Backlog (derived from missed events)
-  // vs. old broken behavior of regenerating as "overdue" on today.blocks
-  // See Item 2 design decision: https://github.com/anthropic-ai/jericho/issues/xxx
 
   const nextState = { ...state };
 
   nextState.executionEvents = [...(nextState.executionEvents || []), ...eventsEmitted];
 
-  // Item 2 Fix: Do NOT add overdueBlocks to state
-  // Incomplete blocks are now derived to Backlog via resolveBacklogBlocks() selector
-  // vs. old broken behavior of storing them as separate state blocks
   if (!nextState.today) nextState.today = {};
-  // Keep existing today.blocks unchanged (no overdue regeneration)
+  nextState.today.blocks = [
+    ...(nextState.today.blocks || []),
+    ...overdueBlocks.map((block) => ({
+      id: block.newId,
+      practice: block.practice,
+      label: block.label,
+      start: block.startISO,
+      end: block.endISO,
+      status: 'in_progress',
+      placementState: 'COMMITTED',
+      origin: block.origin,
+      domain: block.domain,
+      cycleId: block.cycleId,
+      goalId: block.goalId,
+      deliverableId: block.deliverableId,
+      criterionId: block.criterionId,
+      plannedMinutes: block.durationMinutes,
+    })),
+  ];
 
-  // Keep existing currentWeek blocks unchanged (no overdue regeneration)
-  // No need to modify currentWeek.days since we're not creating overdueBlocks
+  if (nextState.currentWeek?.days) {
+    const todayDay = nextState.currentWeek.days.find((d: any) => d.date === currentDayKey);
+    if (todayDay) {
+      todayDay.blocks = [
+        ...todayDay.blocks,
+        ...overdueBlocks.map((block) => ({
+          id: block.newId,
+          practice: block.practice,
+          label: block.label,
+          start: block.startISO,
+          end: block.endISO,
+          status: 'in_progress',
+          placementState: 'COMMITTED',
+          origin: block.origin,
+          domain: block.domain,
+          cycleId: block.cycleId,
+          goalId: block.goalId,
+          deliverableId: block.deliverableId,
+          criterionId: block.criterionId,
+          plannedMinutes: block.durationMinutes,
+        })),
+      ];
+    }
+  }
 
-  // Keep existing cyclesById blocks unchanged (no overdue regeneration)
-  // No need to modify cycle.blocks since we're not creating overdueBlocks
+  if (nextState.cyclesById) {
+    Object.values(nextState.cyclesById).forEach((cycle: any) => {
+      const cycleDayKey = dayKeyFromISO(cycle.startedAtDayKey || nowISO, tz);
+      if (cycleDayKey === currentDayKey) {
+        cycle.blocks = [
+          ...cycle.blocks,
+          ...overdueBlocks.map((block) => ({
+            id: block.newId,
+            practice: block.practice,
+            label: block.label,
+            start: block.startISO,
+            end: block.endISO,
+            status: 'in_progress',
+            placementState: 'COMMITTED',
+            origin: block.origin,
+            domain: block.domain,
+            cycleId: block.cycleId,
+            goalId: block.goalId,
+            deliverableId: block.deliverableId,
+            criterionId: block.criterionId,
+            plannedMinutes: block.durationMinutes,
+          })),
+        ];
+      }
+    });
+  }
 
   nextState.lastRolloverDayISO = currentDayKey;
 

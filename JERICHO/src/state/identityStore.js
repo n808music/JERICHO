@@ -177,9 +177,9 @@ function normalizeProfileIdentity(profile = {}, options = {}) {
 export function stripEmbeddedPlanTitle(displayName, masterPlansById) {
   const str = String(displayName || '').trim();
   const sepIdx = str.lastIndexOf(' / ');
-  if (sepIdx <= 0) {return str;}
+  if (sepIdx <= 0) return str;
   const candidateSuffix = str.slice(sepIdx + 3).trim();
-  if (!candidateSuffix) {return str;}
+  if (!candidateSuffix) return str;
   const matchesPlan = Object.values(masterPlansById || {}).some((p) => {
     const t = String(p?.title || p?.coreMission || '').trim();
     return t && t === candidateSuffix;
@@ -487,7 +487,6 @@ export function buildBlankIdentityState(options = {}) {
       barriersById: {},
       bindingConstraint: null,
       bootstrap: { candidates: [], selectedNodeId: null },
-      spineInitiativeIds: [],
     },
     goalPolicyByGoalId: {},
     masterPlanPolicyByPlanId: {},
@@ -1625,13 +1624,13 @@ function identityReducer(state, action) {
 
   if (action.type === 'RESPOND_CONVERGENCE_DETECTION_QUESTION') {
     const { questionId, disposition } = action.payload || {};
-    if (!questionId) {return state;}
+    if (!questionId) return state;
 
     const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
 
     const question = draft.matrix.convergenceDetectionState.pendingQuestions
       .find(q => q.id === questionId);
-    if (!question) {return state;}
+    if (!question) return state;
 
     // Record operator's answer (permanent — never re-ask this question)
     draft.matrix.convergenceDetectionState.answered[questionId] = {
@@ -1960,12 +1959,12 @@ export function IdentityProvider({ children, initialState }) {
     if (IS_PRODUCTION) {
       return null;
     }
-    const { buildSampleProfileReferenceState, summarizeSampleProfileFixtureState } = await import(
-      '../dev/sampleProfileRestore.js'
+    const { buildOperationEndgameReferenceState, summarizeOperationEndgameFixtureState } = await import(
+      '../dev/operationEndgameRestore.js'
     );
-    const nextState = buildSampleProfileReferenceState();
+    const nextState = buildOperationEndgameReferenceState();
     dispatch({ type: 'APPLY_NEXT_STATE', nextState });
-    return summarizeSampleProfileFixtureState(nextState);
+    return summarizeOperationEndgameFixtureState(nextState);
   }, []);
 
   const attemptGoalAdmission = useCallback(
@@ -1978,7 +1977,7 @@ export function IdentityProvider({ children, initialState }) {
   );
   const markMatrixIntakeComplete = useCallback(() => {
     const cycleId = state.activeCycleId;
-    if (!cycleId) {return;}
+    if (!cycleId) return;
     // Pure reducer action (not a stale-closure APPLY_NEXT_STATE full-replace,
     // which could roll back records committed after this callback's snapshot).
     // The reducer applies to CURRENT state and guards session retirement so
@@ -1989,11 +1988,11 @@ export function IdentityProvider({ children, initialState }) {
   // Persist / retire the in-flight matrix-intake session so it survives a route
   // change, refresh, or back-gesture and can resume at the exact slot (Defect B).
   const setIntakeSession = useCallback((cycleId, session) => {
-    if (!cycleId || !session) {return;}
+    if (!cycleId || !session) return;
     dispatch({ type: 'SET_INTAKE_SESSION', payload: { cycleId, session } });
   }, []);
   const clearIntakeSession = useCallback((cycleId) => {
-    if (!cycleId) {return;}
+    if (!cycleId) return;
     dispatch({ type: 'CLEAR_INTAKE_SESSION', payload: { cycleId } });
   }, []);
 
@@ -2136,10 +2135,10 @@ export function IdentityProvider({ children, initialState }) {
       return undefined;
     }
     let active = true;
-    import('../dev/sampleProfileRestore.js')
-      .then(({ installSampleProfileRestore }) => {
+    import('../dev/operationEndgameRestore.js')
+      .then(({ installOperationEndgameRestore }) => {
         if (active) {
-          installSampleProfileRestore(window);
+          installOperationEndgameRestore(window);
         }
       })
       .catch(() => {
@@ -2678,7 +2677,7 @@ export function attemptGoalAdmissionPure(state, admissionInput) {
     };
     draft.aspirations = draft.aspirations || [];
     draft.aspirations.push(aspiration);
-    if (!draft.aspirationsByCycleId) {draft.aspirationsByCycleId = {};}
+    if (!draft.aspirationsByCycleId) draft.aspirationsByCycleId = {};
     const forCycleDupe = draft.activeCycleId || 'global';
     draft.aspirationsByCycleId[forCycleDupe] = draft.aspirationsByCycleId[forCycleDupe] || [];
     draft.aspirationsByCycleId[forCycleDupe].push(aspiration);
@@ -2712,7 +2711,7 @@ export function attemptGoalAdmissionPure(state, admissionInput) {
     };
     draft.aspirations = draft.aspirations || [];
     draft.aspirations.push(aspiration);
-    if (!draft.aspirationsByCycleId) {draft.aspirationsByCycleId = {};}
+    if (!draft.aspirationsByCycleId) draft.aspirationsByCycleId = {};
     const forCycle0 = draft.activeCycleId || 'global';
     draft.aspirationsByCycleId[forCycle0] = draft.aspirationsByCycleId[forCycle0] || [];
     draft.aspirationsByCycleId[forCycle0].push(aspiration);
@@ -2740,7 +2739,7 @@ export function attemptGoalAdmissionPure(state, admissionInput) {
     };
     draft.aspirations = draft.aspirations || [];
     draft.aspirations.push(aspiration);
-    if (!draft.aspirationsByCycleId) {draft.aspirationsByCycleId = {};}
+    if (!draft.aspirationsByCycleId) draft.aspirationsByCycleId = {};
     const forCycle1 = draft.activeCycleId || 'global';
     draft.aspirationsByCycleId[forCycle1] = draft.aspirationsByCycleId[forCycle1] || [];
     draft.aspirationsByCycleId[forCycle1].push(aspiration);

@@ -25,8 +25,8 @@ export function applyCrossLaneArtifactDependencies(blocks, lanes = []) {
   for (const lane of lanes) {
     const d = String(lane?.domain || '').toLowerCase();
     const family = DOMAIN_TO_FAMILY[d] || null;
-    if (lane?.id && family) {laneIdToFamily.set(lane.id, family);}
-    if (lane?.laneId && family) {laneIdToFamily.set(lane.laneId, family);}
+    if (lane?.id && family) laneIdToFamily.set(lane.id, family);
+    if (lane?.laneId && family) laneIdToFamily.set(lane.laneId, family);
   }
   function familyForBlock(b) {
     return laneIdToFamily.get(b.laneId) || null;
@@ -34,36 +34,36 @@ export function applyCrossLaneArtifactDependencies(blocks, lanes = []) {
   const byKey = new Map();
   for (const b of blocks) {
     const family = familyForBlock(b);
-    if (!family) {continue;}
+    if (!family) continue;
     const stageKey = b.lifecycleStage || b.commercialStage;
-    if (!stageKey) {continue;}
+    if (!stageKey) continue;
     const key = `${family}|${b.phaseLabel}|${stageKey}`;
-    if (!byKey.has(key)) {byKey.set(key, []);}
+    if (!byKey.has(key)) byKey.set(key, []);
     byKey.get(key).push(b);
   }
 
   const compareBlockOrder = (left, right) => {
     const leftDay = String(left?.dayKey || left?.date || '');
     const rightDay = String(right?.dayKey || right?.date || '');
-    if (leftDay !== rightDay) {return leftDay.localeCompare(rightDay);}
+    if (leftDay !== rightDay) return leftDay.localeCompare(rightDay);
     const leftStart = String(left?.startISO || left?.start || '');
     const rightStart = String(right?.startISO || right?.start || '');
-    if (leftStart !== rightStart) {return leftStart.localeCompare(rightStart);}
+    if (leftStart !== rightStart) return leftStart.localeCompare(rightStart);
     return String(left?.id || '').localeCompare(String(right?.id || ''));
   };
 
   for (const consumer of blocks) {
     const consumerFamily = familyForBlock(consumer);
-    if (!consumerFamily) {continue;}
+    if (!consumerFamily) continue;
     const consumerStage = consumer.lifecycleStage || consumer.commercialStage;
-    if (!consumerStage) {continue;}
+    if (!consumerStage) continue;
     const matchingDeps = CROSS_LANE_DEPENDENCIES.filter(
       (d) =>
         d.consumingFamily === consumerFamily &&
         d.consumingPhase === consumer.phaseLabel &&
         d.consumingStage === consumerStage,
     );
-    if (matchingDeps.length === 0) {continue;}
+    if (matchingDeps.length === 0) continue;
     const nextConsumed = Array.isArray(consumer.consumedArtifactIds) ? [...consumer.consumedArtifactIds] : [];
     const nextDeps = Array.isArray(consumer.dependsOnBlockIds) ? [...consumer.dependsOnBlockIds] : [];
     for (const dep of matchingDeps) {
@@ -78,7 +78,7 @@ export function applyCrossLaneArtifactDependencies(blocks, lanes = []) {
       const upstreamArtifactId = String(upstream?.outputArtifactId || '').trim();
       if (upstream && upstreamArtifactId && !nextConsumed.includes(upstreamArtifactId)) {
         nextConsumed.push(upstreamArtifactId);
-        if (!nextDeps.includes(upstream.id)) {nextDeps.push(upstream.id);}
+        if (!nextDeps.includes(upstream.id)) nextDeps.push(upstream.id);
       }
     }
     consumer.consumedArtifactIds = nextConsumed;
@@ -91,27 +91,19 @@ function mkId(planId, phaseLabel, laneId, dayKey, idx) {
   return `fh-${planId || 'plan'}-${phaseLabel || 'phase'}-${laneId || 'lane'}-${dayKey}-${idx}`;
 }
 
-// Convert numeric phase (1, 2, 3) to string key format ('P1', 'P2', 'P3') for lookups
-function phaseKeyForLookup(numericPhase) {
-  if (numericPhase === 1) return 'P1';
-  if (numericPhase === 2) return 'P2';
-  if (numericPhase === 3) return 'P3';
-  return null;
-}
-
 function clampKey(key) {
   return String(key || '').slice(0, 10);
 }
 
 function maxDayKey(left, right) {
-  if (!left) {return right || null;}
-  if (!right) {return left || null;}
+  if (!left) return right || null;
+  if (!right) return left || null;
   return left > right ? left : right;
 }
 
 function minDayKey(left, right) {
-  if (!left) {return right || null;}
-  if (!right) {return left || null;}
+  if (!left) return right || null;
+  if (!right) return left || null;
   return left < right ? left : right;
 }
 
@@ -130,7 +122,7 @@ const DOW_OFFSET_FROM_MON = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, su
  * `cursor` (backward placement), advance one week so time only moves forward.
  */
 function placementDayForBlock(cursor, workDays, rotationIdx) {
-  if (!workDays || workDays.length === 0) {return cursor;}
+  if (!workDays || workDays.length === 0) return cursor;
   const d = new Date(`${cursor}T12:00:00.000Z`);
   const utcDow = d.getUTCDay(); // 0=Sun, 1=Mon, …, 6=Sat
   const daysToMon = utcDow === 0 ? -6 : 1 - utcDow;
@@ -160,11 +152,11 @@ function inferLaneFamily(lane) {
     .trim()
     .toLowerCase();
 
-  if (domain === 'product' || hasWord(title, 'app') || title.includes('software')) {return 'product_software';}
+  if (domain === 'product' || hasWord(title, 'app') || title.includes('software')) return 'product_software';
   if (domain === 'creative' || title.includes('album') || title.includes('release') || title.includes('music')) {
     return 'creative_media';
   }
-  if (domain === 'media' || title.includes('podcast') || title.includes('content')) {return 'media_channel';}
+  if (domain === 'media' || title.includes('podcast') || title.includes('content')) return 'media_channel';
   if (domain === 'brand' || title.includes('company') || title.includes('operations') || title.includes('studio')) {
     return 'company_operations';
   }
@@ -241,26 +233,26 @@ function resolveCadenceDays(phaseLabel, laneStatus, planOrientation, laneFamily,
   const narrowSupportLane = planOrientation === 'single_product' && isSupportExpansionLane(laneFamily);
 
   if (phaseLabel === 'P1') {
-    if (narrowSupportLane) {return 28;}
-    if (laneStatus === 'gated' || laneStatus === 'dependent') {return 14;}
+    if (narrowSupportLane) return 28;
+    if (laneStatus === 'gated' || laneStatus === 'dependent') return 14;
     return 7;
   }
   if (phaseLabel === 'P2') {
-    if (narrowSupportLane) {return laneStatus === 'gated' || laneStatus === 'dependent' ? 75 : 60;}
-    if (laneStatus === 'gated') {return 30;}
+    if (narrowSupportLane) return laneStatus === 'gated' || laneStatus === 'dependent' ? 75 : 60;
+    if (laneStatus === 'gated') return 30;
     if (planOrientation === 'single_product' && !['product_software', 'income_stream', 'company_operations'].includes(laneFamily)) {
       return 42;
     }
     return 14;
   }
   if (phaseLabel === 'P3') {
-    if (narrowSupportLane) {return 60;}
-    if (laneStatus === 'gated') {return 90;}
+    if (narrowSupportLane) return 60;
+    if (laneStatus === 'gated') return 90;
     const remainingDays = dayKey && horizonEndDayKey ? Math.max(0, Math.round((new Date(`${horizonEndDayKey}T12:00:00.000Z`) - new Date(`${dayKey}T12:00:00.000Z`)) / (1000 * 60 * 60 * 24))) : null;
     if (remainingDays !== null) {
-      if (remainingDays <= 180) {return 12;}
-      if (remainingDays <= 365) {return 14;}
-      if (remainingDays <= 730) {return 20;}
+      if (remainingDays <= 180) return 12;
+      if (remainingDays <= 365) return 14;
+      if (remainingDays <= 730) return 20;
     }
     if (planOrientation === 'single_product' && ['institution_education', 'civic_development'].includes(laneFamily)) {
       return 120;
@@ -311,7 +303,7 @@ function formatQuarterYear(dayKey) {
 }
 
 function getReviewWindowLabel(phaseLabel, dayKey) {
-  if (phaseLabel === 'P3' || phaseLabel === 3) {
+  if (phaseLabel === 'P3') {
     return formatQuarterYear(dayKey);
   }
   return formatMonthYear(dayKey);
@@ -489,8 +481,7 @@ function getOccurrenceFocusOptions(family, phaseLabel, laneTitle) {
     },
   };
 
-  const phaseKey = phaseKeyForLookup(phaseLabel) || phaseLabel;  // Support both numeric and string
-  return byFamily[family]?.[phaseKey] || byFamily.general[phaseKey] || byFamily.general.P2;
+  return byFamily[family]?.[phaseLabel] || byFamily.general[phaseLabel] || byFamily.general.P2;
 }
 
 function getArtifactLabel(family, phaseLabel, blockType, laneTitle) {
@@ -543,8 +534,7 @@ function getArtifactLabel(family, phaseLabel, blockType, laneTitle) {
     },
   };
 
-  const phaseKey = phaseKeyForLookup(phaseLabel) || phaseLabel;  // Support both numeric and string
-  return byFamily[family]?.[phaseKey] || byFamily.general[phaseKey] || `${genericLane} evidence package`;
+  return byFamily[family]?.[phaseLabel] || byFamily.general[phaseLabel] || `${genericLane} evidence package`;
 }
 
 function decorateDescriptorForOccurrence({ descriptor, phaseLabel, lane, dayKey, idx }) {
@@ -555,7 +545,7 @@ function decorateDescriptorForOccurrence({ descriptor, phaseLabel, lane, dayKey,
   const focus = focusOptions[idx % focusOptions.length] || `${laneTitle} evidence`;
   const artifact = getArtifactLabel(family, phaseLabel, descriptor.blockType, laneTitle);
   const titleWindowLabel =
-    (phaseLabel === 'P3' || phaseLabel === 3) ? `${reviewWindow} scale review window` : `${reviewWindow} review window`;
+    phaseLabel === 'P3' ? `${reviewWindow} scale review window` : `${reviewWindow} review window`;
 
   // RTG Finding 2: descriptor.expectedOutput may be a noun phrase ("revenue
   // protection brief") or a sentence/clause ("Direct expansion gate with unmet
@@ -1031,8 +1021,7 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
     },
   };
 
-  const phaseKey = phaseKeyForLookup(phaseLabel) || phaseLabel;  // Support both numeric and string
-  let descriptors = (byFamily[family] || byFamily.general)[phaseKey] || byFamily.general[phaseKey] || [];
+  let descriptors = (byFamily[family] || byFamily.general)[phaseLabel] || byFamily.general[phaseLabel] || [];
 
   if (gated) {
     descriptors = descriptors.filter((item) => item[1] !== 'action');
@@ -1062,7 +1051,7 @@ function createDescriptor({ phaseLabel, lane, laneStatus, planOrientation }) {
         interleaved.push(others[oi++]);
       }
     }
-    while (oi < others.length) {interleaved.push(others[oi++]);}
+    while (oi < others.length) interleaved.push(others[oi++]);
     descriptors = interleaved;
   }
 
@@ -1145,15 +1134,14 @@ function resolvePassEvidence(blockType, descriptor) {
 // dependencies demonstrates upstream proof threshold cleared for X". The
 // current implementation places the descriptor evidence in a parenthetical
 // reference so the surrounding sentence reads cleanly regardless of phrasing.
-function resolveGateCriteria({ descriptor, phase, lane, initiativePhase }) {
-  const phaseLabel = initiativePhase || null;  // Use Initiative phase (numeric) instead of model phase
+function resolveGateCriteria({ descriptor, phase, lane }) {
+  const phaseLabel = phase?.label || null;
   const laneId = lane?.id || lane?.laneId || 'unknown';
   const laneTitle = getLaneTitle(lane) || 'lane';
   const expectedOutput = descriptor?.expectedOutput || 'gate evidence packet';
-  const nextPhase = phaseLabel === 1 ? 2 : phaseLabel === 2 ? 3 : 'terminal-review';
-  const nextLabel = nextPhase === 'terminal-review' ? 'terminal review' : `Phase ${nextPhase}`;
-  const gateLabel = phaseLabel ? `${phaseLabel}→${nextPhase}` : `phase→${nextPhase}`;
-  const gateName = `${gateLabel} gate: ${laneTitle}`;
+  const nextPhase = phaseLabel === 'P1' ? 'P2' : phaseLabel === 'P2' ? 'P3' : 'terminal-review';
+  const nextLabel = nextPhase === 'terminal-review' ? 'terminal review' : nextPhase;
+  const gateName = `${phaseLabel || 'phase'}→${nextPhase} gate: ${laneTitle}`;
   const evidence = String(descriptor?.evidenceRequired || expectedOutput).toLowerCase().replace(/\.\s*$/, '');
   return {
     gateName,
@@ -1173,10 +1161,10 @@ function resolveGateCriteria({ descriptor, phase, lane, initiativePhase }) {
 function deriveConsumedByRef(occurrenceDescriptor) {
   const unlocks = occurrenceDescriptor.unlocks || [];
   const primary = unlocks[0];
-  if (!primary) {return null;}
-  if (primary.startsWith('phase:')) {return { type: 'phaseObjective', id: primary.slice(6) };}
-  if (primary.startsWith('terminal-review:')) {return { type: 'terminalOutcome', id: primary.slice(16) };}
-  if (primary.startsWith('lane:')) {return { type: 'laneOutcome', id: primary.slice(5) };}
+  if (!primary) return null;
+  if (primary.startsWith('phase:')) return { type: 'phaseObjective', id: primary.slice(6) };
+  if (primary.startsWith('terminal-review:')) return { type: 'terminalOutcome', id: primary.slice(16) };
+  if (primary.startsWith('lane:')) return { type: 'laneOutcome', id: primary.slice(5) };
   return { type: 'block', id: primary };
 }
 
@@ -1193,12 +1181,9 @@ function buildBlock({
 }) {
   const laneId = lane?.id || lane?.laneId || null;
   const blockType = descriptor.blockType;
-  const initiativePhase = plan?.phase || null;
-  // Convert numeric phase to string format for phaseLabel (1→'P1', 2→'P2', 3→'P3')
-  const phaseLabelForBlock = initiativePhase === 1 ? 'P1' : initiativePhase === 2 ? 'P2' : initiativePhase === 3 ? 'P3' : null;
   const occurrenceDescriptor = decorateDescriptorForOccurrence({
     descriptor,
-    phaseLabel: phaseLabelForBlock,
+    phaseLabel: phase?.label || null,
     lane,
     dayKey,
     idx,
@@ -1208,25 +1193,25 @@ function buildBlock({
       ? 'review-required'
       : occurrenceDescriptor.blockType === 'terminal-readiness'
         ? 'terminal-readiness'
-        : initiativePhase === 1
+        : phase?.label === 'P1'
           ? 'forecast'
-          : initiativePhase === 2
+          : phase?.label === 'P2'
             ? 'forecast'
             : 'strategic';
   const idKey = idDayKey || dayKey;
   const family = inferLaneFamily(lane);
   const laneTitle = getLaneTitle(lane);
-  const gateCriteria = blockType === 'gate' ? resolveGateCriteria({ descriptor: occurrenceDescriptor, phase, lane, initiativePhase }) : null;
+  const gateCriteria = blockType === 'gate' ? resolveGateCriteria({ descriptor: occurrenceDescriptor, phase, lane }) : null;
 
   return {
-    id: mkId(planId, phaseLabelForBlock, laneId || 'lane', idKey, idx),
+    id: mkId(planId, phase?.label, laneId || 'lane', idKey, idx),
     title: occurrenceDescriptor.title,
     date: dayKey,
     dayKey,
     start: `${dayKey}T09:00:00.000Z`,
     end: `${dayKey}T10:00:00.000Z`,
     phaseId: phase?.id || null,
-    phaseLabel: phaseLabelForBlock,
+    phaseLabel: phase?.label || null,
     phaseName: phase?.phaseTitle || phase?.title || phase?.label || null,
     laneId,
     laneId,
@@ -1251,8 +1236,8 @@ function buildBlock({
       plan?.successStandard ? `success:${String(plan.successStandard).slice(0, 80)}` : null,
     ].filter(Boolean),
     dependsOn: [
-      ...(initiativePhase === 2 ? ['phase:P1'] : []),
-      ...(initiativePhase === 3 ? ['phase:P2'] : []),
+      ...(phase?.label === 'P2' ? ['phase:P1'] : []),
+      ...(phase?.label === 'P3' ? ['phase:P2'] : []),
       ...((lane?.dependsOnLaneIds || []).map((dependencyId) => `lane:${dependencyId}`)),
     ],
     unlocks: occurrenceDescriptor.unlocks,
@@ -1280,8 +1265,8 @@ function buildBlock({
     isExternalStakeholderTouchpoint: occurrenceDescriptor.isExternalStakeholderTouchpoint === true,
     durationMinutes: resolveTimeEstimateMinutes(blockType),
     producesArtifact: occurrenceDescriptor.isExternalBdMechanic
-      ? (occurrenceDescriptor.expectedOutput || getArtifactLabel(family, phaseKeyForLookup(initiativePhase), blockType, laneTitle) || null)
-      : (getArtifactLabel(family, phaseKeyForLookup(initiativePhase), blockType, laneTitle) || occurrenceDescriptor.expectedOutput || null),
+      ? (occurrenceDescriptor.expectedOutput || getArtifactLabel(family, phase?.label || null, blockType, laneTitle) || null)
+      : (getArtifactLabel(family, phase?.label || null, blockType, laneTitle) || occurrenceDescriptor.expectedOutput || null),
     consumedBy: occurrenceDescriptor.unlocks || [],
     consumedByRef: deriveConsumedByRef(occurrenceDescriptor),
     dependsOnBlockIds: [],
@@ -1297,17 +1282,16 @@ function buildBlock({
 
 function buildGlobalTerminalBlock({ planId, phase, horizonEndDayKey, plan }) {
   const dayKey = clampKey(horizonEndDayKey || phase?.endBoundary);
-  const initiativePhase = plan?.phase || null;
-  if (!dayKey || initiativePhase !== 3) {return null;}
+  if (!dayKey || phase?.label !== 'P3') return null;
   return {
-    id: mkId(planId, 'P3', 'terminal', dayKey, 999),
-    title: `Assess terminal-readiness evidence against the success standard and outcome target in ${formatQuarterYear(dayKey)}`,
+    id: mkId(planId, phase?.label, 'terminal', dayKey, 999),
+    title: `Assess terminal-readiness evidence for the cross-lane Operation Endgame review against the success standard and outcome target in ${formatQuarterYear(dayKey)}`,
     date: dayKey,
     dayKey,
     start: `${dayKey}T15:00:00.000Z`,
     end: `${dayKey}T16:30:00.000Z`,
     phaseId: phase?.id || null,
-    phaseLabel: 'P3',
+    phaseLabel: phase?.label || null,
     phaseName: phase?.phaseTitle || phase?.title || phase?.label || null,
     laneId: 'cross_lane_terminal_review',
     laneLabel: 'cross-lane terminal review',
@@ -1320,7 +1304,7 @@ function buildGlobalTerminalBlock({ planId, phase, horizonEndDayKey, plan }) {
       'Terminal-readiness review is inspectable for the strategic horizon but cannot mutate execution state.',
     source: 'derived',
     expectedOutput:
-      'Terminal-readiness evidence package updated with current proof, remaining gaps, and final horizon decision.',
+      'Terminal-readiness evidence package updated for the cross-lane Operation Endgame review with current proof, remaining gaps, and final horizon decision.',
     derivationReason:
       `Derived from P3 success standard comparison against the declared outcome target for the ${formatQuarterYear(dayKey)} terminal review window.`,
     timeEstimateMinutes: 120,
@@ -1383,19 +1367,19 @@ export function expandFullHorizonSchedule({
     const phaseLabel = phase.label || 'phase';
     const phaseStart = maxDayKey(clampKey(phase.startBoundary || null), horizonStartDayKey);
     const phaseEnd = minDayKey(clampKey(phase.endBoundary || null), horizonEndDayKey);
-    if (!phaseStart || !phaseEnd || phaseStart > horizonEndDayKey) {continue;}
+    if (!phaseStart || !phaseEnd || phaseStart > horizonEndDayKey) continue;
 
     const visiblePhaseEnd = phaseEnd < horizonEndDayKey ? phaseEnd : horizonEndDayKey;
 
     for (let laneIndex = 0; laneIndex < targetLanes.length; laneIndex++) {
       const lane = targetLanes[laneIndex];
       const laneStatus = getPhaseLaneStatus(phase, lane);
-      if (!lane && phaseLabel !== 'P3') {continue;}
-      if (laneStatus === 'deferred') {continue;}
+      if (!lane && phaseLabel !== 'P3') continue;
+      if (laneStatus === 'deferred') continue;
 
       const laneFamily = inferLaneFamily(lane);
       const descriptors = createDescriptor({ phaseLabel, lane, laneStatus, planOrientation });
-      if (!descriptors.length) {continue;}
+      if (!descriptors.length) continue;
 
       // Offset each lane's rotation with a co-prime spread plus phase offset so
       // long-horizon forecast work does not collapse onto the same 1-2 weekdays.
@@ -1447,7 +1431,7 @@ export function expandFullHorizonSchedule({
 
   const inVisibleRange = (block) => {
     const dayKey = String(block?.dayKey || block?.date || '').slice(0, 10);
-    if (!dayKey) {return false;}
+    if (!dayKey) return false;
     return dayKey >= horizonStartDayKey && dayKey <= horizonEndDayKey;
   };
 
@@ -1455,7 +1439,7 @@ export function expandFullHorizonSchedule({
   const seen = new Set();
   const dedup = [];
   for (const block of merged) {
-    if (!block?.id || seen.has(block.id)) {continue;}
+    if (!block?.id || seen.has(block.id)) continue;
     seen.add(block.id);
     dedup.push(block);
   }
@@ -1470,10 +1454,10 @@ export function expandFullHorizonSchedule({
   return crossLaneApplied.sort((left, right) => {
     const leftKey = String(left?.dayKey || left?.date || '');
     const rightKey = String(right?.dayKey || right?.date || '');
-    if (leftKey !== rightKey) {return leftKey.localeCompare(rightKey);}
+    if (leftKey !== rightKey) return leftKey.localeCompare(rightKey);
     const leftStart = String(left?.startISO || left?.start || '');
     const rightStart = String(right?.startISO || right?.start || '');
-    if (leftStart !== rightStart) {return leftStart.localeCompare(rightStart);}
+    if (leftStart !== rightStart) return leftStart.localeCompare(rightStart);
     return String(left?.title || '').localeCompare(String(right?.title || ''));
   });
 }

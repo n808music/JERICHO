@@ -38,7 +38,7 @@ function getOrCreateDeviceId() {
 
 async function ensureAuth() {
   const existing = localStorage.getItem(AUTH_TOKEN_KEY);
-  if (existing) {return existing;}
+  if (existing) return existing;
 
   const deviceId = getOrCreateDeviceId();
   const deviceUrl = new URL(buildApiUrl('/api/auth/device'), typeof window !== 'undefined' ? window.location.origin : undefined);
@@ -50,7 +50,7 @@ async function ensureAuth() {
   const resp = await fetch(requestUrl, {
     method: 'POST',
   });
-  if (!resp.ok) {throw new Error(`Device auth failed: ${resp.status}`);}
+  if (!resp.ok) throw new Error(`Device auth failed: ${resp.status}`);
   const { access_token } = await resp.json();
   localStorage.setItem(AUTH_TOKEN_KEY, access_token);
   return access_token;
@@ -101,7 +101,7 @@ export async function pullState() {
     const resp = await fetch(buildApiUrl('/api/sync/pull'), {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!resp.ok) {return null;}
+    if (!resp.ok) return null;
     const { state_blob } = await resp.json();
     return state_blob ? JSON.parse(state_blob) : null;
   } catch {

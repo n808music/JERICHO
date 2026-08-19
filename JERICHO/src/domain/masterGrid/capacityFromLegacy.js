@@ -20,7 +20,7 @@
 export const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
 function hasAnyWorkWindows(workWindows) {
-  if (!workWindows || typeof workWindows !== 'object') {return false;}
+  if (!workWindows || typeof workWindows !== 'object') return false;
   return DAY_KEYS.some((day) => Array.isArray(workWindows[day]) && workWindows[day].length > 0);
 }
 
@@ -39,12 +39,12 @@ export function resolveActingEntityId(matrix) {
     .sort((a, b) => {
       const pa = a.phase;
       const pb = b.phase;
-      if (pa === pb) {return String(a.name).localeCompare(String(b.name));}
-      if (pa == null) {return 1;}
-      if (pb == null) {return -1;}
+      if (pa === pb) return String(a.name).localeCompare(String(b.name));
+      if (pa == null) return 1;
+      if (pb == null) return -1;
       const na = Number(pa);
       const nb = Number(pb);
-      if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) {return na - nb;}
+      if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
       return String(pa).localeCompare(String(pb));
     });
   if (confirmedProjects.length > 0) {
@@ -94,11 +94,11 @@ export function seedCapacityFromLegacyConstraints({
   strategyConstraints = null,
 } = {}) {
   const entityId = resolveActingEntityId(matrix);
-  if (!entityId) {return null;}
+  if (!entityId) return null;
 
   const capacityById = matrix.capacityById || {};
   const alreadySeeded = Object.values(capacityById).some((row) => row && row.owningEntityId === entityId);
-  if (alreadySeeded) {return null;}
+  if (alreadySeeded) return null;
 
   let workWindows = null;
   let source = 'carried_forward';
