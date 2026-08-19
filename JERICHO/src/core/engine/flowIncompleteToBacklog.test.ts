@@ -11,6 +11,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { rolloverAtMidnight, shouldRollover } from './rollover.ts';
 import { dayKeyFromISO, addDays } from '../../state/time/time.ts';
+import { resolveBacklogBlocks } from './resolveBacklogBlocks.ts';
 
 describe('Item 2: Flow incomplete blocks to Backlog on day boundary', () => {
   let baseState: any;
