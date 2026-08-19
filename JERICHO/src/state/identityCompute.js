@@ -4310,11 +4310,11 @@ function mergePriorTodayBlocks(state, previousBlocks = []) {
   if (!previousBlocks.length) {
     return;
   }
-  // Item 2 Step 6 Fix: Exclude blocks with 'delete' events only
-  // Blocks with 'missed' events should still be re-injected to become overdue blocks
+  // Item 2 Step 6 Fix: Also exclude blocks with 'missed' events
+  // Blocks that flow to Backlog should not be re-injected into today's calendar
   const deletedIds = new Set(
     (state.executionEvents || [])
-      .filter((event) => event?.kind === 'delete' && event?.blockId)
+      .filter((event) => (event?.kind === 'delete' || event?.kind === 'missed') && event?.blockId)
       .map((event) => event.blockId)
   );
   const existingIds = new Set((state.today?.blocks || []).map((block) => block?.id));
