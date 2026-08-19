@@ -21,8 +21,8 @@ const VALID_CLEAR_REASONS = new Set([
 ]);
 
 function safeStorage() {
-  if (typeof localStorage === 'undefined' || !localStorage) {return null;}
-  if (typeof localStorage.getItem !== 'function') {return null;}
+  if (typeof localStorage === 'undefined' || !localStorage) return null;
+  if (typeof localStorage.getItem !== 'function') return null;
   return localStorage;
 }
 
@@ -93,7 +93,7 @@ export function getLastClearReason() {
 
 function getLastExplicitSignoutAt() {
   const raw = safeStorage()?.getItem(LAST_EXPLICIT_SIGNOUT_KEY) ?? null;
-  if (raw == null) {return null;}
+  if (raw == null) return null;
   const ts = Number(raw);
   return Number.isFinite(ts) ? ts : null;
 }

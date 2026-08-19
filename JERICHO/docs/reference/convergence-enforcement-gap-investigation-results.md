@@ -63,11 +63,9 @@ Recommendation: New advisoryFlag (like plan-quality flags), separate from gate f
 
 ## Investigation 3: Minimal Viable Version
 
-**Finding:** **Application-level "before-save" validation is sufficient for Phase 1.**
+**Finding:** **Pre-commit validation pass is sufficient for Phase 1.**
 
-### Real-Time vs. Before-Save (Application-Level)
-
-**Terminology clarification:** "Pre-commit" here means **application-level checkpoint before save**, NOT a git pre-commit hook. Operator must see conflicts when actually editing Jericho data, not just in developer commits.
+### Real-Time vs. Pre-Commit
 
 **Real-Time Checking (NOT required for Phase 1):**
 - Wired into every Project Terminal Date change (scheduler, drag-drop, reschedule)
@@ -76,12 +74,11 @@ Recommendation: New advisoryFlag (like plan-quality flags), separate from gate f
   - More computation overhead (check on every keystroke)
   - More noisy warnings (operator may be mid-drag)
 
-**Before-Save Validation (RECOMMENDED for Phase 1):**
-- Single validation function: check all Convergence edges when plan is about to be applied/saved to store
-- Triggered: before `store.dispatch()` that changes a Project's Terminal Date or applies cycle
-- Application-level, inside Jericho (not git hook)
+**Pre-Commit Validation Pass (RECOMMENDED for Phase 1):**
+- Single validation function: check all Convergence edges when plan is about to be applied/committed
+- Triggered: before cycle save, before plan apply
 - Simple, contained, low risk
-- Sufficient: operator sees conflicts before save completes, can abort or reconfigure
+- Sufficient: operator sees conflicts before committing, can adjust
 
 **Minimal Viable for Phase 1:**
 ```
@@ -94,17 +91,7 @@ function validateConvergenceConsistency(state) {
 }
 ```
 
-**Calling pattern (application-level, before dispatch):**
-```
-const issues = validateConvergenceConsistency(state);
-if (issues.length > 0) {
-  // Show advisory UI, operator can proceed or abort
-  showAdvisoryWarning(issues);
-}
-// Then proceed with dispatch
-```
-
-NOT a git pre-commit hook — runs inside the Jericho app when operator saves/applies changes.
+Call this before: cycle apply, plan commit, schedule save
 
 ### Scope
 
@@ -119,84 +106,72 @@ NOT a git pre-commit hook — runs inside the Jericho app when operator saves/ap
 
 **Finding:** **YES — one generalized cross-reference integrity checker can cover both Convergence enforcement and drift detection.**
 
-### Four Drift Patterns Identified (Grounding & Scope)
+### Three Drift Patterns (All Cross-Reference Mismatches)
 
-**Pattern 1: Convergence date consistency** ⏳ HYPOTHESIZED (preventative, not yet observed)
-- Convergence edge declares "sources meet at DATE"
-- Project Terminal Dates don't match expected shared date
-- **Why Phase 1:** Shares underlying validation logic with Pattern 3 (both check "does this value/reference match expectation?"). Cheap to add when building Pattern 3's reference checker.
-- **Severity:** High if it occurs (breaks shared deadline assumption)
+1. **Convergence date drift** (existing bug, e.g., Academy/79th St)
+   - Convergence edge says "sources meet at DATE"
+   - Project Terminal Dates don't match
 
-**Pattern 2: Convergence source reference validity** ⏳ HYPOTHESIZED (preventative, not yet observed)
-- Convergence edge references a source Project by ID
-- Project is deleted or ceases to exist
-- Edge points to nothing
-- **Cost Analysis:** Doesn't naturally share code with Pattern 4. Pattern 2 is forward lookup ("does this reference resolve?"), Pattern 4 is backward impact ("what breaks when name changes?"). HOWEVER, if Pattern 4's validator uses an extensible reference-resolver registry, Pattern 2 becomes cheap — just register one more resolver. Recommend: design Pattern 4 with resolver registry from start, makes Pattern 2 free to add.
-- **Decision:** Include in Phase 1 if Pattern 4 uses resolver pattern; defer if Pattern 4 hardcodes entity types.
-- **Severity:** High (broken reference in Convergence Declaration)
+2. **Convergence naming drift** (e.g., Desiree)
+   - Convergence edge references Project by name
+   - Project name changes, edge is orphaned
+   - Or: Project is deleted, edge still points to it
 
-**Pattern 3: Deliverable↔Artifact parent reference validity** ✅ OBSERVED (IC Season 1-4/F8 GUM gap)
-- Artifact names parent Deliverable ID
-- Parent Deliverable is deleted
-- Reference is now broken
-- **Why Phase 1:** Real incident, already identified. Core check for structural integrity.
-- **Severity:** Medium (lineage broken, but UI can still render)
+3. **Deliverable↔Artifact parent drift** (structural consistency)
+   - Artifact names parent Deliverable ID
+   - Parent Deliverable is deleted or renamed
+   - Reference is now broken
 
-**Pattern 4: Cross-Tab Naming Consistency** ✅ OBSERVED (Desiree project name drift)
-- Any entity's name changes (e.g., Project renamed)
-- References elsewhere still use old name (e.g., Convergence edge, Deliverable parent)
-- References become stale/broken
-- **Why Phase 1:** Real incident from tonight. Foundational for maintaining referential integrity across state.
-- **Severity:** Variable (depends on reference criticality)
+### One Generalized Validator
 
-### Generalized Validator Pattern (Extensible From Start)
+**Pattern:** Cross-reference integrity checker
 
-**Architecture Options:**
-
-**Option A: Flat check registry (simpler, less extensible for Pattern 2)**
-```javascript
-interface CheckResult { isValid: boolean, issues: Issue[] }
-
-export function validateCrossReferenceIntegrity(state) {
-  const issues = [];
-  issues.push(...validateConvergenceDates(state));
-  issues.push(...validateConvergenceReferences(state));
-  issues.push(...validateArtifactParents(state));
-  issues.push(...validateNamingConsistency(state));
-  return { isConsistent: issues.length === 0, issues };
-}
 ```
-**Cost of Pattern 2:** Bespoke lookup logic, ~50 lines, deferred to Phase 2.
-
-**Option B: Reference resolver registry (more extensible, makes Pattern 2 cheap)**
-```javascript
-const REFERENCE_RESOLVERS = {
-  'artifact-parent': (state, parentId) => state.projects.byId[parentId],
-  'convergence-source': (state, sourceId) => state.matrix.projectsById[sourceId],
-  // new resolvers register here easily
-};
-
-export function validateReferenceIntegrity(state) {
-  const issues = [];
-  // All checks use resolver registry
-  issues.push(...validateConvergenceDates(state, REFERENCE_RESOLVERS));
-  issues.push(...validateArtifactParents(state, REFERENCE_RESOLVERS));
-  issues.push(...validateNamingConsistency(state, REFERENCE_RESOLVERS));
-  issues.push(...validateConvergenceSources(state, REFERENCE_RESOLVERS)); // Pattern 2, cheap
-  return { isConsistent: issues.length === 0, issues };
+interface CrossReferenceCheck {
+  name: string;
+  validate(state): { isValid: boolean, issues: Issue[] }
 }
+
+// Registered checks:
+ConvergenceDateConsistencyCheck
+ConvergenceReferenceCheck (names, IDs)
+DeliverableArtifactParentCheck
+NamingConsistencyCheck
 ```
-**Cost of Pattern 2:** One resolver registration, ~5 lines, included in Phase 1.
 
-**Recommendation:** Build Option B from start. Minimal extra complexity, but enables Pattern 2 to be included in Phase 1 with zero implementation cost.
+Each check:
+- Runs independently
+- Returns structured issues (not hard failures)
+- Issues are advisory flags, not gate failures
 
-### Implementation Scope (Phase 1, 3 or 4 checks depending on architecture choice)
+**Benefits:**
+- One validation infrastructure, multiple checks
+- Extensible (new checks added without restructuring)
+- Separates concern (each check is responsible for one relationship)
+- Efficient (batch all at once, not scattered through code)
+
+### Implementation Scope
 
 Create one `crossReferenceIntegrityValidator.js`:
-- **Option A implementation:** 3 checks (Patterns 1, 3, 4)
-- **Option B implementation:** 4 checks (Patterns 1, 2, 3, 4)
-
-Recommended: **Option B** for extensibility and to include Pattern 2 with no extra cost.
+```javascript
+export function validateCrossReferenceIntegrity(state) {
+  const issues = [];
+  
+  // Check 1: Convergence date consistency
+  issues.push(...validateConvergenceDates(state));
+  
+  // Check 2: Convergence references validity
+  issues.push(...validateConvergenceReferences(state));
+  
+  // Check 3: Deliverable↔Artifact parent links
+  issues.push(...validateArtifactParents(state));
+  
+  // Check 4: Naming consistency
+  issues.push(...validateNamingConsistency(state));
+  
+  return { isConsistent: issues.length === 0, issues };
+}
+```
 
 Call same function for:
 - Convergence enforcement
@@ -206,55 +181,29 @@ Call same function for:
 
 ---
 
-## Phase 1 Minimal Build (3 Confirmed + 1 Conditional Pattern)
+## Phase 1 Minimal Build (Recommended Scope)
 
-### What's Definitely In
+### What's In
 
-1. **Before-Save Validation Pass** (Investigation 3)
+1. **Pre-commit validation pass** (Investigation 3)
    - Single function: `validateConvergenceConsistency(state)`
-   - Check Convergence edges before cycle apply/save (application-level)
+   - Check Convergence edges before cycle apply
    - Return advisory flags (not blocking)
 
-2. **Cross-Reference Integrity Checker** (Investigation 4)
-   
-   **Pattern 1: Convergence Date Consistency** ✅ IN PHASE 1
-   - Check all Convergence edges against Project Terminal Dates
-   - Shares validation logic with Pattern 3 (both check value/reference match)
-   - Hypothesized (preventative infrastructure for future Convergence edits)
-   - Low cost: reuses Pattern 3's reference checker framework
-   
-   **Pattern 3: Deliverable↔Artifact Parent Integrity** ✅ IN PHASE 1
-   - Check Artifacts' parent Deliverable references
-   - OBSERVED: IC Season 1-4/F8 GUM gap
-   - Core structural integrity check
-   
-   **Pattern 4: Cross-Tab Naming Consistency** ✅ IN PHASE 1
-   - Check if entity name changes break references elsewhere
-   - OBSERVED: Desiree project name drift
-   - Foundational for referential integrity across state
-   
-3. **Advisory Flag Type** (new)
+2. **Cross-reference integrity checker** (Investigation 4, v1)
+   - Start with two checks: Convergence dates + Deliverable↔Artifact parents
+   - Extensible pattern for future checks
+   - Same call signature for all validation scenarios
+
+3. **Advisory flag type** (new)
    - Like plan-quality flags
    - Rendered in UI without blocking
-   - Operator can see conflicts and choose to proceed or reconfigure
-
-### Pattern 2: Conditional on Validator Design
-
-**Pattern 2: Convergence Source Reference Validity**
-- Check if Projects referenced in Convergence edges still exist
-- Hypothesized (preventative infrastructure)
-- **Cost depends on implementation architecture:**
-  - If Pattern 4's validator uses extensible reference-resolver registry: Pattern 2 is cheap (~1 resolver registration)
-  - If Pattern 4 hardcodes entity types: Pattern 2 needs separate lookup logic (~50 lines)
-
-**Recommendation:** Include Pattern 2 in Phase 1 IF validator is designed with resolver registry from start (makes Pattern 2 free). Otherwise defer to Phase 2.
-
-**Decision point:** User approval needed on validator architecture before final Phase 1 scope is locked.
 
 ### What's NOT In Phase 1
 
-- Real-time checking wired into every date change (event overhead too high, noisy warnings)
-- Hard-blocking gate failure codes (violates Learning Boundary: advisory-only, operator accepts)
+- Real-time checking wired into every date change (defer to Phase 2)
+- Hard-blocking gate failure codes (advisory-only per Learning Boundary)
+- All four drift patterns (start with two, add naming + reference checks in Phase 2)
 
 ### Scope Justification
 

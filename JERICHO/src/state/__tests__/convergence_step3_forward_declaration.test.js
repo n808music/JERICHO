@@ -26,18 +26,6 @@ function createEntity(state, id) {
   });
 }
 
-function createVerificationSource(state, id) {
-  const newState = identityReducer(state, {
-    type: 'DECLARE_VERIFICATION_SOURCE',
-    payload: {
-      id,
-      domain: 'test_domain',
-      source: `Test source ${id}`,
-    },
-  });
-  return newState;
-}
-
 function createInitiative(state, id, entityId) {
   return identityReducer(state, {
     type: 'DECLARE_INITIATIVE',
@@ -45,42 +33,17 @@ function createInitiative(state, id, entityId) {
       id,
       name: `Initiative ${id}`,
       owningEntityId: entityId,
-      purpose: `Purpose of ${id}`,
-      classification: 'objective',
-      doneWhen: `When ${id} is complete`,
     },
   });
 }
 
-function createProject(state, id, initiativeId, entityId, sourceId) {
-  // Get owningEntityId from the initiative if not provided
-  let owner = entityId;
-  if (!owner && initiativeId) {
-    const initiative = state.matrix.initiativesById[initiativeId];
-    owner = initiative?.owningEntityId;
-  }
-
-  return identityReducer(state, {
-    type: 'DECLARE_PROJECT',
-    payload: {
-      id,
-      name: `Project ${id}`,
-      owningInitiativeId: initiativeId,
-      owningEntityId: owner,
-      successMetric: `Success of ${id}`,
-      verificationSourceId: sourceId || 'default-source',
-    },
-  });
-}
-
-function createDeliverable(state, id, initiativeId, projectId) {
+function createDeliverable(state, id, initiativeId) {
   const newState = identityReducer(state, {
     type: 'DECLARE_DELIVERABLE',
     payload: {
       id,
       name: `Deliverable ${id}`,
       owningInitiativeId: initiativeId,
-      owningProjectId: projectId,
       requiredBlocks: 5,
     },
   });
@@ -152,7 +115,7 @@ describe('Convergence Step 3: Forward Declaration', () => {
         },
       });
 
-      expect(state.lastPlanError).toBeNull();
+      expect(state.lastPlanError).toBeUndefined();
       expect(state.matrix.convergenceEdgesById['conv-1']).toBeDefined();
       expect(state.matrix.convergenceEdgesById['conv-1'].name).toBe('Aug 15 2026 Convergence');
     });
@@ -160,28 +123,27 @@ describe('Convergence Step 3: Forward Declaration', () => {
 
   describe('Step 3.2: Dependency-Chain Exclusion (Hard Block)', () => {
     it('should reject if two sources are sequentially dependent', () => {
-      // Create two initiatives, then their deliverables, with dependency: i1 -> i2
+      // Create two deliverables with dependency: d1 -> d2
       state = createEntity(state, 'e1');
-      state = createVerificationSource(state, 'src-1');
       state = createInitiative(state, 'i1', 'e1');
-      state = createInitiative(state, 'i2', 'e1');
-      state = createProject(state, 'p1', 'i1', 'e1', 'src-1');
-      state = createProject(state, 'p2', 'i2', 'e1', 'src-1');
-      state = createDeliverable(state, 'd1', 'i1', 'p1');
-      state = createDeliverable(state, 'd2', 'i2', 'p2');
+      state = createDeliverable(state, 'd1', 'i1');
+      state = createDeliverable(state, 'd2', 'i1');
       state = createEntity(state, 'dest');
 
-      // Create dependency: i1 -> i2 (i1 upstream, i2 downstream)
-      // This makes the deliverables sequentially dependent via their parent initiatives
-      state = createDependency(state, 'dep-1', 'i1', 'i2');
+      console.log('Created deliverables:', Object.keys(state.matrix.deliverablesById || {}));
 
-      // Try to declare convergence with i1 and i2 as sources (initiatives, not deliverables)
-      // This should fail because i1 -> i2 is a sequential dependency
+      // Create dependency: d1 -> d2 (d1 upstream, d2 downstream)
+      state = createDependency(state, 'dep-1', 'd1', 'd2');
+
+      console.log('Created dependencies:', Object.keys(state.matrix.dependenciesById || {}));
+
+      // Try to declare convergence with d1 and d2 as sources
+      // This should fail because d1 -> d2 is a sequential dependency
       state = identityReducer(state, {
         type: 'DECLARE_CONVERGENCE',
         payload: {
           id: 'conv-1',
-          fromNodeIds: ['i1', 'i2'],
+          fromNodeIds: ['d1', 'd2'],
           toNodeId: 'dest',
           gives: 'value-prop',
           name: 'Aug 15 2026 Convergence',
@@ -190,18 +152,16 @@ describe('Convergence Step 3: Forward Declaration', () => {
       });
 
       expect(state.lastPlanError?.code).toBe('CONVERGENCE_SOURCES_SEQUENTIAL');
-      expect(state.lastPlanError?.meta?.violatingPair).toEqual(['i1', 'i2']);
+      expect(state.lastPlanError?.meta?.violatingPair).toEqual(['d1', 'd2']);
       expect(state.matrix.convergenceEdgesById['conv-1']).toBeUndefined();
     });
 
     it('should accept if sources are truly parallel (no sequential dependency)', () => {
       // Create two independent deliverables
       state = createEntity(state, 'e1');
-      state = createVerificationSource(state, 'src-1');
       state = createInitiative(state, 'i1', 'e1');
-      state = createProject(state, 'p1', 'i1', 'e1', 'src-1');
-      state = createDeliverable(state, 'd1', 'i1', 'p1');
-      state = createDeliverable(state, 'd2', 'i1', 'p1');
+      state = createDeliverable(state, 'd1', 'i1');
+      state = createDeliverable(state, 'd2', 'i1');
       state = createEntity(state, 'dest');
 
       // No dependency between d1 and d2 — they're parallel
@@ -217,7 +177,7 @@ describe('Convergence Step 3: Forward Declaration', () => {
         },
       });
 
-      expect(state.lastPlanError).toBeNull();
+      expect(state.lastPlanError).toBeUndefined();
       expect(state.matrix.convergenceEdgesById['conv-1']).toBeDefined();
       expect(state.matrix.convergenceEdgesById['conv-1'].fromNodeIds).toEqual(['d1', 'd2']);
     });
@@ -225,13 +185,11 @@ describe('Convergence Step 3: Forward Declaration', () => {
 
   describe('Step 3.3: Deliverable Walkdown', () => {
     it('should discover and store owned deliverables from sources', () => {
-      // Create entity -> initiative -> project -> deliverables
+      // Create entity -> initiative -> deliverables
       state = createEntity(state, 'e1');
-      state = createVerificationSource(state, 'src-1');
       state = createInitiative(state, 'i1', 'e1');
-      state = createProject(state, 'p1', 'i1', 'e1', 'src-1');
-      state = createDeliverable(state, 'd1', 'i1', 'p1');
-      state = createDeliverable(state, 'd2', 'i1', 'p1');
+      state = createDeliverable(state, 'd1', 'i1');
+      state = createDeliverable(state, 'd2', 'i1');
       state = createEntity(state, 'dest');
 
       state = identityReducer(state, {
@@ -258,10 +216,8 @@ describe('Convergence Step 3: Forward Declaration', () => {
   describe('Step 3.4: TargetDate Assignment', () => {
     it('should assign targetDate to discovered deliverables', () => {
       state = createEntity(state, 'e1');
-      state = createVerificationSource(state, 'src-1');
       state = createInitiative(state, 'i1', 'e1');
-      state = createProject(state, 'p1', 'i1', 'e1', 'src-1');
-      state = createDeliverable(state, 'd1', 'i1', 'p1');
+      state = createDeliverable(state, 'd1', 'i1');
       state = createEntity(state, 'dest');
 
       const targetDate = '2026-08-15';

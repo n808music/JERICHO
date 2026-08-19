@@ -1,5 +1,5 @@
+import { projectEnterpriseDisplay } from '../enterprise/enterpriseDisplayProjection';
 import { isHoldableNoun } from '../planQuality/isHoldableNoun';
-import { resolveInitiativeDisplay as globalResolveInitiativeDisplay } from './resolveInitiativeDisplay';
 
 function normalizeText(value) {
   return String(value || '')
@@ -226,9 +226,9 @@ function computeMolecularQuality(block) {
   }
   const hasPlainAction = !isGenericDetail(block?.plainAction);
   const hasSteps = Array.isArray(block?.steps) && block.steps.length > 0;
-  if (!hasPlainAction && !hasSteps) {failureCodes.push('BLOCK_DETAIL_DO_THIS_EMPTY');}
-  if (isGenericDetail(block?.doneWhen)) {failureCodes.push('BLOCK_DETAIL_DONE_WHEN_EMPTY');}
-  if (isGenericDetail(block?.completionAssertion)) {failureCodes.push('MISSING_COMPLETION_ASSERTION');}
+  if (!hasPlainAction && !hasSteps) failureCodes.push('BLOCK_DETAIL_DO_THIS_EMPTY');
+  if (isGenericDetail(block?.doneWhen)) failureCodes.push('BLOCK_DETAIL_DONE_WHEN_EMPTY');
+  if (isGenericDetail(block?.completionAssertion)) failureCodes.push('MISSING_COMPLETION_ASSERTION');
   // ATTESTATION CONTRACT (Truth Communication layer).
   // Per the contract: "Any measurable target entered into the system must be
   // accompanied by Target + Verification Source + Operator Attestation."
@@ -558,6 +558,152 @@ function currentWindowLabel(block, hierarchy = {}) {
   return monthYearFromDayKey(block?.startDayKey || String(block?.start || '').slice(0, 10));
 }
 
+function normalizeLaneLabel(rawLane) {
+  const lane = normalizeText(rawLane);
+  const haystack = lane.toLowerCase();
+  if (!haystack) {
+    return '';
+  }
+  if (/district|civic|corridor|physical footprint|real estate|site control|property|acquisition thesis/.test(haystack)) {
+    return 'Real Estate';
+  }
+  if (/app platform|product\/software|software|product platform|jericho/.test(haystack)) {
+    return 'Product / Software';
+  }
+  if (/album|creative|entertainment|record label|release engine|music/.test(haystack)) {
+    return 'Creative / Music';
+  }
+  if (/media|content|podcast|narrative/.test(haystack)) {
+    return 'Media / Content';
+  }
+  if (/revenue|income|sales|commercial/.test(haystack)) {
+    return 'Revenue';
+  }
+  if (/operations|systems|operator|company/.test(haystack)) {
+    return 'Operations';
+  }
+  if (/institution|education|school|apprenticeship/.test(haystack)) {
+    return 'Institution';
+  }
+  if (/\bcapital\b|\bip\b|legal|patent/.test(haystack)) {
+    return 'Capital / IP';
+  }
+  return lane;
+}
+
+function resolveInitiativeDisplay(block = {}, hierarchy = {}) {
+  const enterpriseProjection = projectEnterpriseDisplay({
+    laneId: normalizeText(block?.laneId || block?.masterPlanLaneId || hierarchy?.lane),
+    laneLabel: normalizeText(hierarchy?.lane || block?.laneLabel || block?.laneName || block?.lane),
+    intakeSignals: { goalText: '', declaredLaneIds: [] },
+  });
+  const explicitInitiative = normalizeText(
+    hierarchy?.initiative ||
+      block?.initiativeName ||
+      block?.projectName ||
+      block?.ventureName ||
+      block?.initiativeTitle ||
+      block?.initiativeLabel ||
+      block?.initiative
+  );
+  const normalizedLane = normalizeLaneLabel(hierarchy?.lane || block?.laneLabel || block?.laneName || block?.lane);
+  const canonicalEntity =
+    enterpriseProjection?.provenanceStatus === 'unsupported' || normalizeText(enterpriseProjection?.displayName) === 'Unknown'
+      ? ''
+      : enterpriseProjection?.displayName || '';
+  const canonicalLaneLabel =
+    normalizeText(block?.laneLabel || block?.laneName || hierarchy?.lane) || normalizedLane || canonicalEntity;
+  const titleHaystack = normalizeLower(
+    [block?.displayTitle, block?.title, block?.label, block?.laneLabel, block?.laneName, explicitInitiative, normalizedLane].join(
+      ' '
+    )
+  );
+
+  if (/jericho system|app platform|onboarding|product platform/.test(titleHaystack)) {
+    return {
+      initiative: 'Jericho System',
+      lane: canonicalLaneLabel || 'Operation Endgame app platform',
+      entity: canonicalEntity || 'Global State Systems',
+    };
+  }
+  if (/album|release engine|blackman|d8 n8|our fearless leader|romance riot/.test(titleHaystack)) {
+    return {
+      initiative: 'Release Engine',
+      lane: canonicalLaneLabel || 'Operation Endgame album release engine',
+      entity: canonicalEntity || 'Global State Corp.',
+    };
+  }
+  if (/podcast|media narrative|help yourself|state of control|content pipeline/.test(titleHaystack)) {
+    return {
+      initiative: /help yourself|imaginary ceo/.test(titleHaystack) ? 'Podcast Pilot' : 'Media Narrative Pipeline',
+      lane: canonicalLaneLabel || 'Operation Endgame media narrative pipeline',
+      entity: canonicalEntity || 'Global State Productions',
+    };
+  }
+  if (/timing-slip|non-negotiables|hard-anchor|dependency sequence|schedule churn|governance/.test(titleHaystack)) {
+    return {
+      initiative: 'Operating System',
+      lane: 'Operation Endgame studio operations system',
+      entity: 'Global State Solutions',
+    };
+  }
+  if (/job-search|income demands|runway pressure|execution calendar/.test(titleHaystack)) {
+    return {
+      initiative: 'Runway Plan',
+      lane: canonicalLaneLabel || 'Operation Endgame runway and income support',
+      entity: 'Capital Path or Revenue Engine',
+    };
+  }
+  if (/services revenue|revenue bridge|offer|sales/.test(titleHaystack)) {
+    return {
+      initiative: /buyer|offer|qualification|proposal|discovery|sales|segment|icp/.test(titleHaystack)
+        ? 'First Offer'
+        : 'Revenue Bridge',
+      lane: canonicalLaneLabel || 'Operation Endgame services revenue bridge',
+      entity: /f8|energy gum|energy gym/.test(titleHaystack) ? 'F8 Energy Co.' : 'Capital Path or Revenue Engine',
+    };
+  }
+  if (/studio operations|operator checklist|operating system/.test(titleHaystack)) {
+    return {
+      initiative: 'Operating System',
+      lane: canonicalLaneLabel || 'Operation Endgame studio operations system',
+      entity: canonicalEntity || 'Global State Solutions',
+    };
+  }
+  if (/institution|apprenticeship|school/.test(titleHaystack)) {
+    return {
+      initiative: /curriculum|compliance/.test(titleHaystack) ? 'Curriculum and Compliance Readiness' : 'Institutional Product',
+      lane: canonicalLaneLabel || 'Operation Endgame apprenticeship institution design',
+      entity: canonicalEntity || 'Global State Academy',
+    };
+  }
+  if (/real estate|district|civic|corridor|property|site/.test(titleHaystack)) {
+    return {
+      initiative: /stakeholder|coalition|agency|partner/.test(titleHaystack) ? 'Stakeholder Map' : 'Real Estate Readiness',
+      lane: canonicalLaneLabel || 'Operation Endgame district coalition development',
+      entity: canonicalEntity || 'Global State Holdings',
+    };
+  }
+  if (/patent|\bip\b|trademark|legal/.test(titleHaystack)) {
+    return {
+      initiative: 'Capital / IP',
+      lane: canonicalLaneLabel || 'Operation Endgame capital stack',
+      entity: canonicalEntity || 'Capital Path or Revenue Engine',
+    };
+  }
+  if (explicitInitiative) {
+    return {
+      initiative: explicitInitiative,
+      lane: canonicalLaneLabel || canonicalEntity || explicitInitiative,
+      entity: canonicalEntity || canonicalLaneLabel || explicitInitiative,
+    };
+  }
+  return {
+    initiative: canonicalLaneLabel || canonicalEntity || 'Unspecified Initiative',
+    lane: canonicalLaneLabel || canonicalEntity,
+    entity: canonicalEntity || canonicalLaneLabel,
+  };
+}
 
 function defaultArtifact(block, initiativeDisplay) {
   return (
@@ -2123,16 +2269,10 @@ export function resolveBlockPlainLanguage(block = {}, context = {}) {
   // (when set) must resolve. Soft mode for empty registry.
   const artifactsById = (context?.matrix && context.matrix.artifactsById) || {};
   const declaredArtifactIds = Object.keys(artifactsById);
-  const initiativeDisplay = globalResolveInitiativeDisplay(block, {
+  const initiativeDisplay = resolveInitiativeDisplay(block, {
     initiative: hierarchy?.initiative,
     lane: hierarchy?.lane,
   });
-
-  // Entity name comes from the structured registry data (Initiative.owner field),
-  // resolved by the global Initiative resolver. This ensures consistency: the same
-  // Initiative always maps to the same owning entity, without pattern matching.
-  const entityLabel = initiativeDisplay?.entity || '';
-
   const title = normalizeText(block?.title || block?.label || block?.displayTitle).toLowerCase();
 
   const baseResult =
@@ -2162,7 +2302,7 @@ export function resolveBlockPlainLanguage(block = {}, context = {}) {
   return {
     ...stabilizedResult,
     laneLabel: initiativeDisplay?.lane || '',
-    entityLabel: entityLabel || '',
+    entityLabel: initiativeDisplay?.entity || '',
     initiativeLabel: initiativeDisplay?.initiative || '',
     projectLabel: initiativeDisplay?.initiative || '',
     expectedOutput: stabilizedResult.artifact,

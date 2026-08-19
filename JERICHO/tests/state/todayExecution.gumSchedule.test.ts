@@ -10,6 +10,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { identityReducer } from '../../src/state/identityStore.js';
 import { computeDerivedState, getAllBlocks } from '../../src/state/identityCompute.js';
 import { deriveExecutionTruthClassification } from '../../src/state/engine/todayAuthority.ts';
+import { resolveBacklogBlocks } from '../../src/core/engine/resolveBacklogBlocks.ts';
 
 // ---------------------------------------------------------------------------
 // Fixture — active_schedule lifecycle with gum-plan blocks already activated
@@ -299,11 +300,14 @@ describe('Box 3: Missed and skipped block actions write canonical execution evid
     expect(evt?.completed).toBe(false);
   });
 
-  it('MISS_BLOCK updates block status in today.blocks', () => {
+  it('MISS_BLOCK moves block to Backlog (Item 2 flow-out design)', () => {
     const base = computeDerivedState(buildBaseState() as any, { type: 'NO_OP' });
     const after = identityReducer(base as any, { type: 'MISS_BLOCK', id: GUM_BLOCK.id });
-    const todayBlock = (after.today?.blocks || []).find((b: any) => b.id === GUM_BLOCK.id);
-    expect(todayBlock?.status).toBe('missed');
+    // Item 2: Missed blocks flow to Backlog, not stay in today.blocks
+    const backlog = resolveBacklogBlocks(after);
+    const backlogBlock = backlog.find((b: any) => b.id === GUM_BLOCK.id);
+    expect(backlogBlock).toBeDefined();
+    expect(backlogBlock?.status).toBe('missed');
   });
 
   it('SKIP_BLOCK writes execution event with status skipped and correct identity', () => {

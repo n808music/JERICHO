@@ -201,22 +201,22 @@ const TEMPLATES = {
 
 function getTemplate(domain, assessedStage) {
   const domainTemplates = TEMPLATES[domain];
-  if (!domainTemplates) {return null;}
+  if (!domainTemplates) return null;
   // Exact stage match first, then 'default'
   return domainTemplates[assessedStage] || domainTemplates['default'] || null;
 }
 
 function findPrimaryAnchor(lane, planAnchors) {
-  if (!planAnchors || planAnchors.length === 0) {return null;}
+  if (!planAnchors || planAnchors.length === 0) return null;
   const sorted = [...planAnchors].sort((a, b) => (a.date < b.date ? -1 : 1));
   // 1. Anchor explicitly linked to this lane
   if (lane.anchorIds && lane.anchorIds.length > 0) {
     const linked = sorted.find((a) => lane.anchorIds.includes(a.id));
-    if (linked) {return linked;}
+    if (linked) return linked;
   }
   // 2. Latest fixed anchor on the plan
   const fixed = sorted.filter((a) => a.isFixed);
-  if (fixed.length > 0) {return fixed[fixed.length - 1];}
+  if (fixed.length > 0) return fixed[fixed.length - 1];
   // 3. Latest anchor overall
   return sorted[sorted.length - 1];
 }
@@ -249,14 +249,14 @@ function normalizeMilestoneTitle(rawTitle, lane) {
   }
 
   // Media lane vague titles
-  if (/^album promo episodes?$/i.test(rawTitle)) {return `Record promo episode for ${laneLabelFull} anchor campaign`;}
-  if (/^anchor promo push$/i.test(rawTitle)) {return `Publish anchor-week promo content for ${laneLabelFull}`;}
-  if (/^anchor tie-in series begins$/i.test(rawTitle)) {return `Begin anchor tie-in content series for ${laneLabelFull}`;}
-  if (/^promo episodes? complete$/i.test(rawTitle)) {return `Publish final promo episode for ${laneLabelFull}`;}
-  if (/^promo push$/i.test(rawTitle)) {return `Execute pre-release promo push for ${laneLabelFull}`;}
+  if (/^album promo episodes?$/i.test(rawTitle)) return `Record promo episode for ${laneLabelFull} anchor campaign`;
+  if (/^anchor promo push$/i.test(rawTitle)) return `Publish anchor-week promo content for ${laneLabelFull}`;
+  if (/^anchor tie-in series begins$/i.test(rawTitle)) return `Begin anchor tie-in content series for ${laneLabelFull}`;
+  if (/^promo episodes? complete$/i.test(rawTitle)) return `Publish final promo episode for ${laneLabelFull}`;
+  if (/^promo push$/i.test(rawTitle)) return `Execute pre-release promo push for ${laneLabelFull}`;
 
   // Distribution shorthand
-  if (/^distribution submitted$/i.test(rawTitle)) {return `Submit distribution package for ${laneLabelFull}`;}
+  if (/^distribution submitted$/i.test(rawTitle)) return `Submit distribution package for ${laneLabelFull}`;
   if (
     canonicalEntity?.companyCategory === 'Project Management' &&
     /^positioning complete$/i.test(rawTitle)
@@ -338,7 +338,7 @@ function stripTrailingReleaseLaunch(label = '') {
 
 function startsWithCanonicalVerb(s) {
   const m = String(s || '').match(/^([\w-]+)/);
-  if (!m) {return false;}
+  if (!m) return false;
   return ACTION_VERB_SET.has(m[1].toLowerCase());
 }
 
@@ -347,19 +347,19 @@ function startsWithCanonicalVerb(s) {
 function decapitalizeUnlessInitialism(s) {
   const str = String(s || '');
   const m = str.match(/^(\S+)/);
-  if (!m) {return str;}
+  if (!m) return str;
   const firstWord = m[1];
   const isInitialism =
     firstWord.length >= 2 &&
     firstWord === firstWord.toUpperCase() &&
     firstWord !== firstWord.toLowerCase();
-  if (isInitialism) {return str;}
+  if (isInitialism) return str;
   return str.charAt(0).toLowerCase() + str.slice(1);
 }
 
 function capitalizeFirst(s) {
   const str = String(s || '');
-  if (!str) {return str;}
+  if (!str) return str;
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
@@ -372,7 +372,7 @@ function capitalizeFirst(s) {
  */
 export function generateMilestonesForLane(plan, lane, planAnchors, nowISO) {
   const template = getTemplate(lane.domain, lane.assessedStage);
-  if (!template || template.length === 0) {return [];}
+  if (!template || template.length === 0) return [];
 
   const anchor = findPrimaryAnchor(lane, planAnchors);
   const today = (nowISO || new Date().toISOString()).slice(0, 10);

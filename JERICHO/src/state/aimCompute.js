@@ -139,10 +139,10 @@ export function computeNextBestMove(
 
   // Filter candidates to exclude those tied to projects with CONSTRAINT barriers
   candidates = candidates.filter((c) => {
-    if (c.kind !== 'scheduled_block') {return true;} // Keep gap_fill and first_move
-    if (!c.deliverableId) {return true;} // Keep if no deliverable
+    if (c.kind !== 'scheduled_block') return true; // Keep gap_fill and first_move
+    if (!c.deliverableId) return true; // Keep if no deliverable
     const deliverable = deliverablesById[c.deliverableId];
-    if (!deliverable) {return true;} // Keep if deliverable unknown
+    if (!deliverable) return true; // Keep if deliverable unknown
     // Check if deliverable's project is blocked
     const blockedProjectIds = new Set();
     for (const barrier of Object.values(barriersById)) {
@@ -336,7 +336,7 @@ function candidateOrder(a, b) {
  * @returns {boolean} True if block's scheduled date is >threshold days away
  */
 export function isLongLeadForFilter(block, longLeadThresholdDays = 90, baseDate = null) {
-  if (!block?.scheduledDate) {return false;}
+  if (!block?.scheduledDate) return false;
   const base = baseDate ? new Date(baseDate) : new Date();
   const scheduled = new Date(block.scheduledDate);
   const daysUntil = (scheduled.getTime() - base.getTime()) / (1000 * 60 * 60 * 24);
@@ -351,7 +351,7 @@ export function isLongLeadForFilter(block, longLeadThresholdDays = 90, baseDate 
  * @returns {boolean} True if Deliverable's targetDate is >threshold days away
  */
 export function isLongLeadForAllocation(deliverable, longLeadThresholdDays = 90, baseDate = null) {
-  if (!deliverable?.targetDate) {return false;}
+  if (!deliverable?.targetDate) return false;
   const base = baseDate ? new Date(baseDate) : new Date();
   const target = new Date(deliverable.targetDate);
   const daysUntil = (target.getTime() - base.getTime()) / (1000 * 60 * 60 * 24);
@@ -390,10 +390,10 @@ export function applyNonDominationFilter(
 
   return todayBlocks.filter((block) => {
     // If block has no deliverableId, allow it (not part of long-lead filtering)
-    if (!block.deliverableId) {return true;}
+    if (!block.deliverableId) return true;
 
     const deliverable = deliverablesById[block.deliverableId];
-    if (!deliverable) {return true;} // Allow if deliverable not found
+    if (!deliverable) return true; // Allow if deliverable not found
 
     // Check if block is long-lead
     if (isLongLeadForFilter(block, longLeadThresholdDays, baseDate)) {
@@ -435,10 +435,10 @@ export function applyBarrierHardFilter(todayBlocks = [], barriersById = {}, deli
 
   return todayBlocks.filter((block) => {
     // Blocks without deliverable ID pass through (not linked to a project)
-    if (!block.deliverableId) {return true;}
+    if (!block.deliverableId) return true;
 
     const deliverable = deliverablesById[block.deliverableId];
-    if (!deliverable) {return true;} // Allow if deliverable not found
+    if (!deliverable) return true; // Allow if deliverable not found
 
     // Exclude if deliverable's owning project is in the blocked set
     if (deliverable.owningProjectId && blockedProjectIds.has(deliverable.owningProjectId)) {
@@ -497,7 +497,7 @@ export function computeAllDeliverableDemands(state) {
  * @returns {string[]} List of downstream Deliverable IDs
  */
 function traverseBlockedItems(deliverableId, dependenciesById = {}) {
-  if (!deliverableId || !dependenciesById) {return [];}
+  if (!deliverableId || !dependenciesById) return [];
 
   const visited = new Set();
   const queue = [deliverableId];
@@ -505,12 +505,12 @@ function traverseBlockedItems(deliverableId, dependenciesById = {}) {
 
   while (queue.length > 0) {
     const current = queue.shift();
-    if (visited.has(current)) {continue;}
+    if (visited.has(current)) continue;
     visited.add(current);
 
     // Find all dependencies where 'current' is the blocker (upstream)
     for (const dep of Object.values(dependenciesById)) {
-      if (!dep) {continue;}
+      if (!dep) continue;
       if (dep.blockerId === current && dep.blockedId && !visited.has(dep.blockedId)) {
         queue.push(dep.blockedId);
         blocked.push(dep.blockedId);
@@ -529,7 +529,7 @@ function traverseBlockedItems(deliverableId, dependenciesById = {}) {
  */
 function findOwningInitiativeForDeliverable(itemId, matrix = {}) {
   const deliverable = matrix.deliverablesById?.[itemId];
-  if (!deliverable) {return null;}
+  if (!deliverable) return null;
   return deliverable.owningInitiativeId || null;
 }
 
@@ -540,13 +540,13 @@ function findOwningInitiativeForDeliverable(itemId, matrix = {}) {
  * @returns {string | null} ISO date string or null
  */
 function getMacroDeadlineForInitiative(initiativeId, state = {}) {
-  if (!initiativeId) {return null;}
+  if (!initiativeId) return null;
 
   const initiative = state.matrix?.initiativesById?.[initiativeId];
-  if (!initiative || !initiative.laneId) {return null;}
+  if (!initiative || !initiative.laneId) return null;
 
   const lane = state.masterPlanLanesById?.[initiative.laneId];
-  if (!lane) {return null;}
+  if (!lane) return null;
 
   // Prefer milestone dates if available
   const milestones = Object.values(state.masterPlanMilestonesById || {})
@@ -589,7 +589,7 @@ function computeBlockingChainUrgency(deliverable, state = {}) {
   const initiatives = new Set();
   for (const itemId of blockedItems) {
     const ownerId = findOwningInitiativeForDeliverable(itemId, state.matrix);
-    if (ownerId) {initiatives.add(ownerId);}
+    if (ownerId) initiatives.add(ownerId);
   }
 
   // Get macro-deadlines for all initiatives in the blocked chain
@@ -623,10 +623,10 @@ function computeBlockingChainUrgency(deliverable, state = {}) {
   const daysRemaining = (nearestDeadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
 
   let urgencyBand;
-  if (daysRemaining <= 7) {urgencyBand = 'CRITICAL';}
-  else if (daysRemaining <= 21) {urgencyBand = 'HIGH';}
-  else if (daysRemaining <= 60) {urgencyBand = 'MEDIUM';}
-  else {urgencyBand = 'LOW';}
+  if (daysRemaining <= 7) urgencyBand = 'CRITICAL';
+  else if (daysRemaining <= 21) urgencyBand = 'HIGH';
+  else if (daysRemaining <= 60) urgencyBand = 'MEDIUM';
+  else urgencyBand = 'LOW';
 
   return {
     urgencyBand,
@@ -649,7 +649,7 @@ export function computeDeliverableUrgencyRanking(state = {}) {
   // Compute urgency for each CONFIRMED deliverable
   for (const id of Object.keys(deliverables)) {
     const deliverable = deliverables[id];
-    if (deliverable.reviewStatus !== 'CONFIRMED') {continue;}
+    if (deliverable.reviewStatus !== 'CONFIRMED') continue;
 
     const urgency = computeBlockingChainUrgency(deliverable, state);
     scored[id] = {
@@ -673,7 +673,7 @@ export function computeDeliverableUrgencyRanking(state = {}) {
     const bEntry = scored[b];
 
     const bandDiff = bandOrder[aEntry.urgencyBand] - bandOrder[bEntry.urgencyBand];
-    if (bandDiff !== 0) {return bandDiff;}
+    if (bandDiff !== 0) return bandDiff;
 
     // Within same band, higher demand first
     return bEntry.demandMinutes - aEntry.demandMinutes;

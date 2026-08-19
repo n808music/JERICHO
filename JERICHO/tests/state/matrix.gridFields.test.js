@@ -8,7 +8,7 @@ import { computeDerivedState } from '../../src/state/identityCompute.js';
 function runMatrix(actions) {
   let state = buildBlankIdentityState();
   state.appTime = { ...(state.appTime || {}), nowISO: '2026-07-08T00:00:00.000Z' };
-  for (const a of actions) {state = computeDerivedState(state, a);}
+  for (const a of actions) state = computeDerivedState(state, a);
   return state;
 }
 

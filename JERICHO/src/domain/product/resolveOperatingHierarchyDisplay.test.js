@@ -11,18 +11,17 @@ describe('resolveOperatingHierarchyDisplay', () => {
           phaseLabel: 'P1',
           laneLabel: 'Product / Software',
         },
-        masterPlan: 'Operation Morning Sun',
         operatingCycle: 'June 2026 Review Window',
         sprint: 'Jun 8–Jun 19 Sprint',
         initiative: 'Jericho System',
       })
     ).toEqual({
-      masterPlan: 'Operation Morning Sun',
+      masterPlan: 'Operation Endgame',
       activatedPlan: 'Activated Plan',
       phase: 'P1 Launch / Proof',
       operatingCycle: 'June 2026 Review Window',
       sprint: 'Jun 8–Jun 19 Sprint',
-      lane: 'Jericho System',
+      lane: 'Product / Software',
       initiative: 'Jericho System',
       block: 'Clarify launch-blocker requirements',
       milestoneType: '',
@@ -42,17 +41,16 @@ describe('resolveOperatingHierarchyDisplay', () => {
     expect(result.initiative).toBe('Creative / Entertainment');
   });
 
-  it('resolves initiative from global registry when available', () => {
+  it('projects named initiatives from Operation Endgame substrate labels', () => {
     const result = resolveOperatingHierarchyDisplay({
       block: {
-        title: 'Validate onboarding path',
+        title: 'Validate onboarding path for Operation Endgame app platform in P1 product/software lane',
         phaseLabel: 'P1',
-        laneLabel: 'Creative / Entertainment',
+        laneLabel: 'Operation Endgame app platform',
       },
-      initiative: 'Jericho System',
     });
 
-    expect(result.lane).toBe('Jericho System');
+    expect(result.lane).toBe('Product / Software');
     expect(result.initiative).toBe('Jericho System');
   });
 
@@ -62,15 +60,15 @@ describe('resolveOperatingHierarchyDisplay', () => {
         block: {
           title: 'Stabilize activation checks',
           phaseLabel: 'P2',
-          laneLabel: 'Governance / Policy',
+          laneLabel: 'Operations / Systems',
         },
       })
     ).toMatchObject({
       phase: 'P2 Conversion / Operating System',
       operatingCycle: '',
       sprint: '',
-      lane: 'Governance / Policy',
-      initiative: 'Governance / Policy',
+      lane: 'Operations / Systems',
+      initiative: 'Operations / Systems',
     });
   });
 

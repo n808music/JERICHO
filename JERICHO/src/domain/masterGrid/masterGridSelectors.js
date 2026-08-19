@@ -18,9 +18,9 @@ function ownerParentLabel(matrix, primaryClass, node) {
   const entities = matrix.entitiesById || {};
   const initiatives = matrix.initiativesById || {};
   const projects = matrix.projectsById || {};
-  if (primaryClass === 'Entity') {return '—';}
-  if (primaryClass === 'Initiative') {return nameOf(entities, node.owningEntityId) || '—';}
-  if (primaryClass === 'System') {return nameOf(entities, node.owningEntityId) || '—';}
+  if (primaryClass === 'Entity') return '—';
+  if (primaryClass === 'Initiative') return nameOf(entities, node.owningEntityId) || '—';
+  if (primaryClass === 'System') return nameOf(entities, node.owningEntityId) || '—';
   if (primaryClass === 'Project') {
     const owner = nameOf(entities, node.owningEntityId) || '—';
     const parent = nameOf(initiatives, node.owningInitiativeId) || '—';
@@ -60,13 +60,13 @@ export function selectMasterGridRows(matrix = {}) {
   }
   rows.sort((a, b) => {
     const c = CLASS_ORDER.indexOf(a.primaryClass) - CLASS_ORDER.indexOf(b.primaryClass);
-    if (c !== 0) {return c;}
+    if (c !== 0) return c;
     const pa = a.phase, pb = b.phase;
     if (pa !== pb) {
-      if (pa == null) {return 1;}
-      if (pb == null) {return -1;}
+      if (pa == null) return 1;
+      if (pb == null) return -1;
       const na = Number(pa), nb = Number(pb);
-      if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) {return na - nb;}
+      if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
       return String(pa).localeCompare(String(pb));
     }
     return String(a.name).localeCompare(String(b.name));
@@ -76,6 +76,6 @@ export function selectMasterGridRows(matrix = {}) {
 
 export function countByClass(rows) {
   const out = { total: rows.length, Entity: 0, Initiative: 0, Project: 0, Deliverable: 0, Artifact: 0, System: 0 };
-  for (const r of rows) {out[r.primaryClass] = (out[r.primaryClass] || 0) + 1;}
+  for (const r of rows) out[r.primaryClass] = (out[r.primaryClass] || 0) + 1;
   return out;
 }

@@ -8,7 +8,7 @@ import { buildBlankIdentityState, DEFAULT_PROFILE_ID, rehydratePersistedState } 
 import { applyMasterPlanAction } from '../../src/state/masterPlanStore.js';
 import { computeDerivedState } from '../../src/state/identityCompute.js';
 import { createMinimalCoreMissionContract } from '../../src/domain/core/CoreMissionContractMinimal';
-import { buildSampleProfileFixtureState } from '../../src/dev/sampleProfileRestore.js'';
+import { buildOperationEndgameFixtureState } from '../../src/dev/operationEndgameRestore.js';
 import MasterPlanTimeline from '../../src/ui/masterPlan/MasterPlanTimeline.jsx';
 
 let mockStore = {};
@@ -526,7 +526,7 @@ describe('MasterPlanTimeline rendering', () => {
   });
 
   it('renders the persisted plan view after rehydration instead of falling back to the empty state', async () => {
-    const persisted = JSON.parse(JSON.stringify(buildSampleProfileFixtureState()));
+    const persisted = JSON.parse(JSON.stringify(buildOperationEndgameFixtureState()));
     mockStore = rehydratePersistedState(persisted);
 
     await act(async () => {
@@ -556,7 +556,7 @@ describe('MasterPlanTimeline rendering', () => {
   });
 
   it('renders scheduled agenda horizon and lane filters and preserves the first-cycle preview', async () => {
-    const persisted = JSON.parse(JSON.stringify(buildSampleProfileFixtureState()));
+    const persisted = JSON.parse(JSON.stringify(buildOperationEndgameFixtureState()));
     mockStore = rehydratePersistedState(persisted);
 
     await act(async () => {
@@ -608,7 +608,7 @@ describe('MasterPlanTimeline rendering', () => {
   });
 
   it('does not expose raw internal profile or calendar IDs in Plan UI', async () => {
-    const persisted = JSON.parse(JSON.stringify(buildSampleProfileFixtureState()));
+    const persisted = JSON.parse(JSON.stringify(buildOperationEndgameFixtureState()));
     mockStore = rehydratePersistedState(persisted);
     const activeProfileId = mockStore.activeProfileId;
 
@@ -623,7 +623,7 @@ describe('MasterPlanTimeline rendering', () => {
   });
 
   it('does not show Unassigned label for full-horizon blocks that have lane assignments', async () => {
-    const persisted = JSON.parse(JSON.stringify(buildSampleProfileFixtureState()));
+    const persisted = JSON.parse(JSON.stringify(buildOperationEndgameFixtureState()));
     mockStore = rehydratePersistedState(persisted);
 
     await act(async () => {
@@ -634,7 +634,7 @@ describe('MasterPlanTimeline rendering', () => {
   });
 
   it('does not render constraint hash in normal Plan UI', async () => {
-    const persisted = JSON.parse(JSON.stringify(buildSampleProfileFixtureState()));
+    const persisted = JSON.parse(JSON.stringify(buildOperationEndgameFixtureState()));
     mockStore = rehydratePersistedState(persisted);
 
     await act(async () => {

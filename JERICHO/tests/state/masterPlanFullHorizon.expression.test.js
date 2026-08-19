@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import goldenFixture from '../fixtures/masterPlan/operationEndgame.fullHorizonSchedule.json';
-import { buildFullHorizonMultiLaneFixtureState, setHorizonMode } from '../helpers/masterPlanFullHorizonScenario.js';
+import { buildOperationEndgameState, setHorizonMode } from '../helpers/masterPlanFullHorizonScenario.js';
 import { projectMonthDays } from '../../src/state/identityCompute.js';
 import { compareMonthProjectionToSubstrate, generateFullHorizonTruthAudit } from '../../src/diagnostics/fullHorizonTruthAudit.js';
 
@@ -17,7 +17,7 @@ function withFixtureSubstrate(derived, mode = 'full_horizon') {
 
 describe('master-plan full-horizon expression proof', () => {
   it('Structure and Plan substrate shows dated work through May 2031 when the golden fixture is loaded', () => {
-    const state = withFixtureSubstrate(buildFullHorizonMultiLaneFixtureState(), 'full_horizon');
+    const state = withFixtureSubstrate(buildOperationEndgameState(), 'full_horizon');
     const audit = generateFullHorizonTruthAudit(state, 'full_horizon');
 
     expect(audit.substrateStatus.fullHorizonScheduleBlocks.length).toBe(goldenFixture.length);
@@ -27,7 +27,7 @@ describe('master-plan full-horizon expression proof', () => {
   });
 
   it('Today month projections consume the same block ids as the golden fixture', () => {
-    const state = withFixtureSubstrate(buildFullHorizonMultiLaneFixtureState(), 'full_horizon');
+    const state = withFixtureSubstrate(buildOperationEndgameState(), 'full_horizon');
     const monthDays = projectMonthDays({
       monthKey: '2027-11',
       blocks: state.calendarDisplayBlocks,
@@ -40,7 +40,7 @@ describe('master-plan full-horizon expression proof', () => {
   });
 
   it('P2/P3 phase cards have nonzero work counts and future blocks stay locked', () => {
-    const state = withFixtureSubstrate(buildFullHorizonMultiLaneFixtureState(), 'full_horizon');
+    const state = withFixtureSubstrate(buildOperationEndgameState(), 'full_horizon');
     const p2Blocks = goldenFixture.filter((block) => block.phaseLabel === 'P2');
     const p3Blocks = goldenFixture.filter((block) => block.phaseLabel === 'P3');
 
@@ -51,7 +51,7 @@ describe('master-plan full-horizon expression proof', () => {
   });
 
   it('Horizon toggles can hide fixture visibility without losing the fixture substrate', () => {
-    const base = buildFullHorizonMultiLaneFixtureState();
+    const base = buildOperationEndgameState();
     const expanded = withFixtureSubstrate(base, 'full_horizon');
     const collapsed = withFixtureSubstrate(base, 'current_cycle');
 

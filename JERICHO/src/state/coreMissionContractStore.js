@@ -26,7 +26,7 @@ export function buildCoreMissionContractStateFields() {
 // ─── Profile field management ────────────────────────────────────────────────
 
 export function ensureCoreMissionContractProfileFields(profile) {
-  if (!profile) {return;}
+  if (!profile) return;
   if (!('activeCoreMissionContractId' in profile)) {
     profile.activeCoreMissionContractId = null;
   }

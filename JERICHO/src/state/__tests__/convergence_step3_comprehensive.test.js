@@ -62,7 +62,7 @@ describe('Convergence Step 3: Comprehensive Multi-Part Test', () => {
         verificationSourceId: 'vs-album',
       },
     });
-    if (state.lastPlanError) {console.log('Error creating project:', state.lastPlanError);}
+    if (state.lastPlanError) console.log('Error creating project:', state.lastPlanError);
     console.log('Projects in matrix after declare:', Object.keys(state.matrix.projectsById || {}));
 
     // Create two Deliverables owned by BOTH Initiative and Project
@@ -76,7 +76,7 @@ describe('Convergence Step 3: Comprehensive Multi-Part Test', () => {
         requiredBlocks: 20,
       },
     });
-    if (state.lastPlanError) {console.log('Error creating deliv-recording:', state.lastPlanError);}
+    if (state.lastPlanError) console.log('Error creating deliv-recording:', state.lastPlanError);
 
     state = computeDerivedState(state, {
       type: 'DECLARE_DELIVERABLE',
@@ -88,7 +88,7 @@ describe('Convergence Step 3: Comprehensive Multi-Part Test', () => {
         requiredBlocks: 10,
       },
     });
-    if (state.lastPlanError) {console.log('Error creating deliv-mastering:', state.lastPlanError);}
+    if (state.lastPlanError) console.log('Error creating deliv-mastering:', state.lastPlanError);
 
     // Create destination Entity
     state = computeDerivedState(state, {

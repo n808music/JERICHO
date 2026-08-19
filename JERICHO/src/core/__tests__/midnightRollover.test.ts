@@ -36,11 +36,15 @@ describe('Midnight Rollover', () => {
       expect(shouldRollover({ state, nowISO, timeZone })).toBe(false);
     });
 
-    it('should create MISSED and CREATE events for committed blocks', () => {
+    it('should create MISSED events for incomplete blocks (Item 2 flow-out architecture)', () => {
+      // Setup: yesterday had an incomplete block on 2026-01-12
+      // Today is 2026-01-14, so we're rolling over from 2026-01-13 to 2026-01-14
+      // The block from yesterday (2026-01-12) should still be in today's calendar but incomplete
       const state = {
-        appTime: { timeZone, nowISO, activeDayKey: '2026-01-13' },
+        appTime: { timeZone, nowISO: '2026-01-14T06:00:00.000Z', activeDayKey: '2026-01-14' },
+        lastRolloverDayISO: '2026-01-13', // Yesterday already rolled over
         today: {
-          date: '2026-01-13',
+          date: '2026-01-13', // This is "today" before rollover (2026-01-13)
           blocks: [
             {
               id: 'block-1',
@@ -53,23 +57,24 @@ describe('Midnight Rollover', () => {
             },
           ],
         },
+        executionEvents: [],
       };
 
-      const result = rolloverAtMidnight({ state, nowISO, timeZone });
+      // Call rollover with tomorrow's time (2026-01-14)
+      const result = rolloverAtMidnight({ state, nowISO: '2026-01-14T06:00:00.000Z', timeZone });
 
-      expect(result.eventsEmitted).toHaveLength(2);
+      // Item 2 new architecture: Only MISSED events created (no CREATE/overdue regeneration)
+      expect(result.eventsEmitted).toHaveLength(1);
 
       const missedEvent = result.eventsEmitted.find((e) => e.kind === 'missed');
       expect(missedEvent).toBeDefined();
-      expect(missedEvent.blockId).toBe('block-1');
-      expect(missedEvent.dateISO).toBe('2026-01-13');
-      expect(missedEvent.completed).toBe(false);
+      expect(missedEvent?.blockId).toBe('block-1');
+      expect(missedEvent?.dateISO).toBe('2026-01-13');
+      expect(missedEvent?.completed).toBe(false);
 
+      // Item 2 new architecture: Blocks flow to Backlog (no CREATE events or overdue regeneration)
       const createEvent = result.eventsEmitted.find((e) => e.kind === 'create');
-      expect(createEvent).toBeDefined();
-      expect(createEvent.blockId).toMatch(/^overdue-/);
-      expect(createEvent.dateISO).toBe('2026-01-14');
-      expect(createEvent.completed).toBe(false);
+      expect(createEvent).toBeUndefined();
     });
 
     it('should not touch DONE blocks', () => {
@@ -143,17 +148,18 @@ describe('Midnight Rollover', () => {
         type: 'TICK_NOW',
         nowISO: '2026-01-14T06:00:00.000Z', // midnight rollover
       });
-      expect(result.today.blocks).toHaveLength(2);
 
-      const originalBlock = result.today.blocks.find((b) => b.id === 'block-1');
-      expect(originalBlock).toBeDefined();
-      expect(originalBlock.placementState).toBe('in_progress');
+      // Item 2 new architecture: Incomplete blocks flow to Backlog (not re-injected as overdue)
+      // block-1 is excluded from re-injection due to MISSED event
+      expect(result.today.blocks).toHaveLength(0);
 
-      const overdueBlock = result.today.blocks.find((b) => b.id !== 'block-1' && b.status === 'in_progress');
-      expect(overdueBlock).toBeDefined();
-      expect(overdueBlock.id).toMatch(/^overdue-/);
-      expect(overdueBlock.status).toBe('in_progress');
-      expect(overdueBlock.placementState).toBe('COMMITTED');
+      // Verify block-1 is not in today's blocks (flows to Backlog instead)
+      const block1InToday = result.today.blocks.find((b) => b.id === 'block-1');
+      expect(block1InToday).toBeUndefined();
+
+      // Verify MISSED event was created and block flows to Backlog
+      const missedEvent = result.executionEvents.find((e) => e.kind === 'missed' && e.blockId === 'block-1');
+      expect(missedEvent).toBeDefined();
     });
   });
 

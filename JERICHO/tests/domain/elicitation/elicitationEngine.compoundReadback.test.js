@@ -52,7 +52,7 @@ function driveToReadback({ metric, source }) {
   while (!step.readback && !step.done && guard < 25) {
     const field = step.probe.fieldName;
     const value = script[field];
-    if (value === undefined) {break;}
+    if (value === undefined) break;
     const res = engine.consumeAnswer({ [field]: value });
     engine = res.engine;
     // Apply dispatches to state so matrix is updated with spawned entities (e.g., VS)
@@ -97,7 +97,7 @@ describe('project readback — reopening verificationSource re-asks it', () => {
     let guard = 0;
     while (!s.readback && !s.done && guard < 25) {
       const f = s.probe.fieldName;
-      if (script[f] === undefined) {break;}
+      if (script[f] === undefined) break;
       const r = engine.consumeAnswer({ [f]: script[f] });
       engine = r.engine;
       // Apply dispatches to state so matrix is updated with spawned entities (e.g., VS)

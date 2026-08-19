@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildSampleProfileFixtureState } from '../../src/dev/sampleProfileRestore.js'';
+import { buildOperationEndgameFixtureState } from '../../src/dev/operationEndgameRestore.js';
 import { buildPersistableIdentityState, rehydratePersistedState } from '../../src/state/identityStore.js';
 import { DEFAULT_PROFILE_ID } from '../../src/state/identityStore.js';
 
 describe('master-plan scheduled agenda metadata', () => {
   it('rehydrates a profile-owned current agenda version for Operation Endgame', () => {
-    const state = buildSampleProfileFixtureState();
+    const state = buildOperationEndgameFixtureState();
     const persisted = buildPersistableIdentityState(state);
     const rehydrated = rehydratePersistedState(persisted);
 

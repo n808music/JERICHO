@@ -30,10 +30,9 @@ function createCommittedEvent(blockId, startHour, cycleId = 'cycle-1') {
 }
 
 describe('Rollover property checks', () => {
-  it('emits MISSED + CREATE per committed block and keeps next-day timestamps', () => {
+  it('emits MISSED events per committed block (Item 2 flow-out design)', () => {
     const rng = seededRandom(99);
     const nowISO = '2026-01-14T08:00:00.000Z';
-    const nextDayKey = dayKeyFromISO(nowISO, APP_TIME_ZONE);
     for (let run = 0; run < 20; run += 1) {
       const blockCount = 1 + Math.floor(rng() * 3);
       const state = {
@@ -78,16 +77,10 @@ describe('Rollover property checks', () => {
       };
       const result = rolloverAtMidnight({ state, nowISO, timezone: APP_TIME_ZONE });
       const missed = result.eventsEmitted.filter((event) => event.kind === 'missed');
-      const created = result.eventsEmitted.filter((event) => event.kind === 'create');
+      // Item 2: CREATE events are no longer emitted; incomplete blocks flow to Backlog instead
       expect(missed).toHaveLength(blockCount);
-      expect(created).toHaveLength(blockCount);
       blockIds.forEach((id) => {
         expect(missed.some((event) => event.blockId === id)).toBeTruthy();
-      });
-      created.forEach((event) => {
-        expect(event.blockId).toMatch(/^overdue/);
-        expect(dayKeyFromISO(event.startISO, APP_TIME_ZONE)).toBe(nextDayKey);
-        expect(event.cycleId).toBe('cycle-1');
       });
     }
   });

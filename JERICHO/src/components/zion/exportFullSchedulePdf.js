@@ -2,7 +2,7 @@ const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function toSentence(text) {
   const value = String(text || '').trim();
-  if (!value) {return '';}
+  if (!value) return '';
   return /[.!?]$/.test(value) ? value : `${value}.`;
 }
 
@@ -17,7 +17,7 @@ function formatDayHeading(dayKey) {
 }
 
 function isoTimeToHHMM(iso) {
-  if (!iso || typeof iso !== 'string') {return null;}
+  if (!iso || typeof iso !== 'string') return null;
   const match = iso.match(/T(\d{2}):(\d{2})/);
   return match ? `${match[1]}:${match[2]}` : null;
 }
@@ -43,18 +43,18 @@ function joinTags(...tags) {
 }
 
 function asList(values) {
-  if (!Array.isArray(values)) {return [];}
+  if (!Array.isArray(values)) return [];
   return values.map((v) => String(v)).filter((v) => v.length > 0);
 }
 
 function parseDayKey(dayKey) {
-  if (!dayKey || !/^\d{4}-\d{2}-\d{2}$/.test(String(dayKey))) {return null;}
+  if (!dayKey || !/^\d{4}-\d{2}-\d{2}$/.test(String(dayKey))) return null;
   return new Date(`${dayKey}T12:00:00.000Z`);
 }
 
 function addYears(dayKey, years) {
   const date = parseDayKey(dayKey);
-  if (!date) {return null;}
+  if (!date) return null;
   date.setUTCFullYear(date.getUTCFullYear() + years);
   return date.toISOString().slice(0, 10);
 }
@@ -70,37 +70,37 @@ function summarizeMilestonePhaseBuckets(milestones, blocks, horizonStart, horizo
 
   const bucketed = new Map(buckets.map((bucket) => [bucket.key, []]));
   const addItem = (bucketKey, item) => {
-    if (!bucketed.has(bucketKey)) {return;}
+    if (!bucketed.has(bucketKey)) return;
     const bucket = bucketed.get(bucketKey);
-    if (bucket.some((entry) => entry.date === item.date && entry.title === item.title)) {return;}
+    if (bucket.some((entry) => entry.date === item.date && entry.title === item.title)) return;
     bucket.push(item);
   };
 
   for (const milestone of milestones) {
     const date = String(milestone?.targetDate || '').trim();
-    if (!date) {continue;}
+    if (!date) continue;
     const item = {
       date,
       title: String(milestone?.title || '').trim() || 'Untitled milestone',
       lane: String(milestone?.laneTitle || 'Cross-lane').trim(),
     };
-    if (date <= p1End) {addItem('P1', item);}
-    else if (date <= p2End) {addItem('P2', item);}
-    else {addItem('P3', item);}
+    if (date <= p1End) addItem('P1', item);
+    else if (date <= p2End) addItem('P2', item);
+    else addItem('P3', item);
   }
 
   const strategicBlocks = blocks.filter((block) => ['milestone', 'gate', 'terminal-readiness'].includes(String(block?.blockType || '').trim()));
   for (const block of strategicBlocks) {
     const date = String(block?.dayKey || '').trim();
-    if (!date) {continue;}
+    if (!date) continue;
     const item = {
       date,
       title: String(block?.displayTitle || block?.title || '').trim() || 'Untitled waypoint',
       lane: String(block?.laneTitle || 'Cross-lane').trim(),
     };
-    if (date <= p1End) {addItem('P1', item);}
-    else if (date <= p2End) {addItem('P2', item);}
-    else {addItem('P3', item);}
+    if (date <= p1End) addItem('P1', item);
+    else if (date <= p2End) addItem('P2', item);
+    else addItem('P3', item);
   }
 
   return buckets.map((bucket) => ({
@@ -113,7 +113,7 @@ function summarizeMilestonePhaseBuckets(milestones, blocks, horizonStart, horizo
 
 function formatGateDetail(block) {
   const gate = block?.gateCriteria;
-  if (!gate) {return [];}
+  if (!gate) return [];
   if (typeof gate === 'string') {
     return [{ text: [{ text: 'Gate: ', bold: true }, gate], margin: [0, 0, 0, 1] }];
   }
@@ -127,12 +127,12 @@ function formatGateDetail(block) {
   const failBranch = String(gate?.failBranch || block?.failBranch || '').trim();
   const failCriteria = String(block?.failCriteria || gate?.failCriteria || '').trim();
 
-  if (gateName) {lines.push({ text: [{ text: 'Gate: ', bold: true }, gateName], margin: [0, 0, 0, 1] });}
-  if (purpose) {lines.push({ text: [{ text: 'Purpose: ', bold: true }, toSentence(purpose)], margin: [0, 0, 0, 1] });}
-  if (criteria) {lines.push({ text: [{ text: 'Criteria: ', bold: true }, toSentence(criteria)], margin: [0, 0, 0, 1] });}
-  if (evidence) {lines.push({ text: [{ text: 'Required evidence: ', bold: true }, evidence], margin: [0, 0, 0, 1] });}
-  if (threshold) {lines.push({ text: [{ text: 'Pass threshold: ', bold: true }, threshold], margin: [0, 0, 0, 1] });}
-  if (passBranch) {lines.push({ text: [{ text: 'If passed: ', bold: true }, passBranch], margin: [0, 0, 0, 1] });}
+  if (gateName) lines.push({ text: [{ text: 'Gate: ', bold: true }, gateName], margin: [0, 0, 0, 1] });
+  if (purpose) lines.push({ text: [{ text: 'Purpose: ', bold: true }, toSentence(purpose)], margin: [0, 0, 0, 1] });
+  if (criteria) lines.push({ text: [{ text: 'Criteria: ', bold: true }, toSentence(criteria)], margin: [0, 0, 0, 1] });
+  if (evidence) lines.push({ text: [{ text: 'Required evidence: ', bold: true }, evidence], margin: [0, 0, 0, 1] });
+  if (threshold) lines.push({ text: [{ text: 'Pass threshold: ', bold: true }, threshold], margin: [0, 0, 0, 1] });
+  if (passBranch) lines.push({ text: [{ text: 'If passed: ', bold: true }, passBranch], margin: [0, 0, 0, 1] });
   if (failCriteria || failBranch) {
     lines.push({
       text: [
@@ -147,7 +147,7 @@ function formatGateDetail(block) {
 
 function formatDependencyAuditSummary(report) {
   const audit = report?.dependencyAudit;
-  if (!audit) {return [];}
+  if (!audit) return [];
   const counts = audit.failureCounts || {};
   return [
     {
@@ -226,7 +226,7 @@ function groupBlocksByDay(blocks = []) {
   const groups = new Map();
   for (const block of blocks) {
     const key = block?.dayKey || '(no day)';
-    if (!groups.has(key)) {groups.set(key, []);}
+    if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(block);
   }
   const sortedDays = Array.from(groups.keys()).sort();
@@ -303,7 +303,7 @@ export function buildFullSchedulePdfDocDefinition(bundle) {
     const milestoneBuckets = summarizeMilestonePhaseBuckets(milestones, blocks, horizonStart, horizonEnd);
     content.push({ text: 'Key milestones', style: 'sectionHeading', margin: [0, 0, 0, 4] });
     for (const bucket of milestoneBuckets) {
-      if (!bucket.items.length) {continue;}
+      if (!bucket.items.length) continue;
       content.push({ text: bucket.label, bold: true, margin: [0, 0, 0, 2] });
       content.push({
         ul: bucket.items.map((item) => `${item.date} · ${item.lane} · ${item.title}`),

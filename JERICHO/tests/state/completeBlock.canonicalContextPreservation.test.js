@@ -179,7 +179,7 @@ describe('COMPLETE_BLOCK on first activated calendar block', () => {
     const completedCanonical = findHardAnchorBlock(getCanonicalBlocks(completed));
 
     [completedTodayBlock, completedCycleBlock, completedCanonical].forEach((block) => {
-      if (!block) {return;}
+      if (!block) return;
       expect(block).toEqual(
         expect.objectContaining({
           laneId: 'lane-operations',

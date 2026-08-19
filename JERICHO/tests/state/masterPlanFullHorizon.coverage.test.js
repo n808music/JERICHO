@@ -5,10 +5,10 @@ import {
   getFullHorizonCoverageLabel,
 } from '../../src/domain/masterPlan/fullHorizonCoverageAudit.js';
 import { deriveMasterPlanPhaseModel } from '../../src/domain/masterPlan/masterPlanPhaseModel.js';
-import { buildFullHorizonMultiLaneFixtureState, getActivePlan, setHorizonMode } from '../helpers/masterPlanFullHorizonScenario.js';
+import { buildOperationEndgameState, getActivePlan, setHorizonMode } from '../helpers/masterPlanFullHorizonScenario.js';
 
 function buildBaselineExpandedState() {
-  return setHorizonMode(buildFullHorizonMultiLaneFixtureState(), 'full_horizon');
+  return setHorizonMode(buildOperationEndgameState(), 'full_horizon');
 }
 
 function buildAudit(blocks, state = buildBaselineExpandedState()) {
@@ -86,10 +86,10 @@ describe('master-plan full-horizon coverage audit', () => {
     const state = buildBaselineExpandedState();
     const collapsed = (state.fullHorizonScheduleBlocks || []).filter((block) => {
       const year = String(block.dayKey || '').slice(0, 4);
-      if (year === '2032') {
-        return String(block.dayKey || '') === '2032-03-15';
-      }
       if (year === '2031') {
+        return String(block.dayKey || '') === '2031-05-11';
+      }
+      if (year === '2030') {
         return String(block.dayKey || '').endsWith('-01');
       }
       return true;
@@ -99,11 +99,11 @@ describe('master-plan full-horizon coverage audit', () => {
     expect(audit.reasonCodes).toEqual(expect.arrayContaining(['LATE_HORIZON_DENSITY_COLLAPSE']));
   });
 
-  it('passes fullHorizonCovered when meaningful work reaches through March 2032', () => {
+  it('passes fullHorizonCovered when meaningful work reaches through May 2031', () => {
     const state = buildBaselineExpandedState();
     const audit = buildAudit(state.fullHorizonScheduleBlocks || [], state);
 
-    expect(audit.lastMeaningfulWorkDate).toBe('2032-03-15');
+    expect(audit.lastMeaningfulWorkDate).toBe('2031-05-11');
     expect(audit.fullHorizonCovered).toBe(true);
   });
 
@@ -112,7 +112,7 @@ describe('master-plan full-horizon coverage audit', () => {
     const audit = buildAudit(state.fullHorizonScheduleBlocks || [], state);
 
     expect(audit.lastMeaningfulWorkDate).toBeDefined();
-    expect(audit.expectedTerminalDate).toBe('2032-03-15');
+    expect(audit.expectedTerminalDate).toBe('2031-05-11');
   });
 
   it('does not expose Full horizon covered label unless fullHorizonCovered is true', () => {

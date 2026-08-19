@@ -62,9 +62,9 @@ export function buildScheduledBlocksFromDeterministicResult({
   timeZone = 'UTC',
   dayStartTime = '09:00',
 } = {}) {
-  if (!result || result.status === 'INFEASIBLE') {return [];}
+  if (!result || result.status === 'INFEASIBLE') return [];
   const proposedBlocks = Array.isArray(result.proposedBlocks) ? result.proposedBlocks : [];
-  if (proposedBlocks.length === 0) {return [];}
+  if (proposedBlocks.length === 0) return [];
 
   const projectsById = matrix.projectsById || {};
   const entitiesById = matrix.entitiesById || {};

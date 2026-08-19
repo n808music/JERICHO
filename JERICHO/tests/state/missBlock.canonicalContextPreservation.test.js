@@ -148,7 +148,7 @@ describe('MISS_BLOCK on first activated calendar block', () => {
     const missedCanonical = findHardAnchorBlock(getCanonicalBlocks(missed));
 
     [missedTodayBlock, missedCycleBlock, missedCanonical].forEach((block) => {
-      if (!block) {return;}
+      if (!block) return;
       expect(block).toEqual(
         expect.objectContaining({
           laneId: 'lane-operations',

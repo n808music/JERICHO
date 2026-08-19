@@ -5,10 +5,10 @@ import { projectBlockForDisplay } from '../../src/domain/masterPlan/blockDisplay
 import { auditFullHorizonCoverage } from '../../src/domain/masterPlan/fullHorizonCoverageAudit.js';
 import { evaluateFullHorizonPlanQuality } from '../../src/domain/masterPlan/fullHorizonPlanQuality.js';
 import { deriveMasterPlanPhaseModel } from '../../src/domain/masterPlan/masterPlanPhaseModel.js';
-import { buildFullHorizonMultiLaneFixtureState, getActivePlan, setHorizonMode } from '../helpers/masterPlanFullHorizonScenario.js';
+import { buildOperationEndgameState, getActivePlan, setHorizonMode } from '../helpers/masterPlanFullHorizonScenario.js';
 
 function buildGeneratedState(options = {}) {
-  return setHorizonMode(buildFullHorizonMultiLaneFixtureState(options), 'full_horizon');
+  return setHorizonMode(buildOperationEndgameState(options), 'full_horizon');
 }
 
 function buildQualityContext(state) {

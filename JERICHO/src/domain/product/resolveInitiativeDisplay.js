@@ -1,11 +1,9 @@
-import { getInitiativeRegistrySyncOrEmpty } from './initiativeRegistryLoader.js';
-import { resolveLaneEntity } from '../enterprise/laneToEntity.ts';
+import { OPERATION_ENDGAME_INITIATIVES } from './operationEndgameInitiativeRegistry.js';
 
-// Initiative resolver: derives initiative names and lanes from live matrix data.
-// The registry is loaded from the Operation Morning Sun Google Sheet at app startup.
-// Supports explicit names from context, alias matching against matrix data, and fallback lanes.
-//
-// To preload the registry at startup, call initializeInitiativeRegistry() once in your app init.
+// D1 bridge only: this resolver improves initiative display for the current
+// Operation Endgame plan. Future multi-entity plans should derive initiative
+// structure from explicit Organizational Architecture Intake rather than
+// relying on alias projection alone.
 
 function normalizeText(value) {
   return String(value || '')
@@ -47,18 +45,16 @@ function candidateHaystacks(block, context = {}) {
     .filter(Boolean);
 }
 
-function findRegistryMatch(block, context = {}, registry = null) {
-  // Use provided registry, or fall back to the live-loaded registry
-  const effectiveRegistry = registry || context?.registry || getInitiativeRegistrySyncOrEmpty();
+function findRegistryMatch(block, context = {}, registry = OPERATION_ENDGAME_INITIATIVES) {
   const haystacks = candidateHaystacks(block, context);
   let bestMatch = null;
 
-  for (const entry of effectiveRegistry || []) {
+  for (const entry of registry || []) {
     const aliases = Array.isArray(entry?.aliases) ? entry.aliases.map(lowerText).filter(Boolean) : [];
     for (const alias of aliases) {
-      if (!alias) {continue;}
+      if (!alias) continue;
       const hit = haystacks.find((haystack) => haystack.includes(alias));
-      if (!hit) {continue;}
+      if (!hit) continue;
       const score = alias.length;
       if (!bestMatch || score > bestMatch.score) {
         bestMatch = {
@@ -81,73 +77,31 @@ export function resolveInitiativeDisplay(block = {}, context = {}) {
     normalizeText(block?.laneLabel || block?.laneName || block?.lane);
 
   if (explicitName) {
-    // When an explicit initiative name is provided, look it up in the registry
-    // to get the owner. This ensures entity resolution is consistent with the registry.
-    const registry = context?.registry || getInitiativeRegistrySyncOrEmpty();
-    const registryEntry = registry.find((entry) => {
-      const entryNameLower = lowerText(entry.name);
-      const explicitLower = lowerText(explicitName);
-      return entryNameLower === explicitLower;
-    });
-
-    if (registryEntry && registryEntry.owner) {
-      return {
-        initiative: registryEntry.name,
-        lane: registryEntry.name,
-        entity: normalizeText(registryEntry.owner),
-        confidence: 'high',
-        source: 'explicit:registry',
-        id: registryEntry.id,
-      };
-    }
-
-    // Explicit name provided but not found in registry; use fallback entity
     return {
       initiative: explicitName,
-      lane: explicitName,
-      entity: fallbackLane || '',
+      lane: fallbackLane,
       confidence: 'high',
       source: 'explicit',
     };
   }
 
-  const matched = findRegistryMatch(block, context, context?.registry || getInitiativeRegistrySyncOrEmpty());
+  const matched = findRegistryMatch(block, context, context?.registry || OPERATION_ENDGAME_INITIATIVES);
   if (matched?.entry) {
     return {
       initiative: matched.entry.name,
-      lane: matched.entry.name, // Use initiative name as lane (retired lane taxonomy)
-      entity: normalizeText(matched.entry.owner) || fallbackLane || '',
+      lane: normalizeText(matched.entry.laneLabel) || fallbackLane,
       confidence: 'high',
       source: matched.source,
       id: matched.entry.id,
     };
   }
 
-  // No registry match and no explicit initiative: return unresolved state.
-  // This signals that the block lacks sufficient context for proper entity resolution.
-  // Callers should provide explicit initiative or ensure block fields match registry aliases.
   return {
-    initiative: fallbackLane || 'Unspecified Initiative',
-    lane: fallbackLane || 'Unspecified Initiative',
-    entity: '', // No entity resolution without a known Initiative
+    initiative: fallbackLane,
+    lane: fallbackLane,
     confidence: 'fallback',
-    source: 'fallback',
+    source: 'lane',
   };
-}
-
-/**
- * Preload the live initiative registry from the Google Sheet.
- * Call this once at app startup to populate the registry before rendering.
- * If not called, the resolver will use an empty registry until async loading completes.
- */
-export async function initializeInitiativeRegistry() {
-  const { loadInitiativeRegistry } = await import('./initiativeRegistryLoader.js');
-  try {
-    await loadInitiativeRegistry();
-    console.log('[resolveInitiativeDisplay] Initiative registry loaded from Operation Morning Sun matrix.');
-  } catch (error) {
-    console.error('[resolveInitiativeDisplay] Failed to initialize registry:', error.message);
-  }
 }
 
 export default resolveInitiativeDisplay;

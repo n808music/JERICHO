@@ -48,9 +48,6 @@ import { getDeadlineDayKey } from '../core/deadline.ts';
 
 import { generateDeterministicPlan } from '../core/deterministicPlanGenerator.ts';
 import { buildCausalChainStepsFromMatrix } from '../domain/masterGrid/causalChainFromMatrix.js';
-import { resolveConvergenceBuffers } from '../domain/masterGrid/resolveConvergenceBuffers.js';
-import { computeSpineWindows, computeInitiativePhase, validateInitiativePhaseHierarchy } from '../domain/masterGrid/spinePhaseComputation.js';
-import { validateCrossReferenceIntegrity } from './engine/crossReferenceIntegrityValidator.js';
 import { seedCapacityFromLegacyConstraints } from '../domain/masterGrid/capacityFromLegacy.js';
 import { buildConstraintsFromMatrix } from '../domain/masterGrid/constraintsFromMatrix.js';
 import { buildScheduledBlocksFromDeterministicResult } from '../domain/masterGrid/scheduledBlocksFromDeterministicResult.js';
@@ -244,20 +241,20 @@ export function stableHashObject(obj) {
  * @returns {Array<{ sourceIds: string[], targetDate: string }>}
  */
 export function detectConvergenceCandidates(matrix) {
-  if (!matrix || typeof matrix !== 'object') {return [];}
+  if (!matrix || typeof matrix !== 'object') return [];
 
   const targetDateById = {};
 
   Object.values(matrix.deliverablesById || {}).forEach((d) => {
-    if (d?.id && d.targetDate) {targetDateById[d.id] = d.targetDate;}
+    if (d?.id && d.targetDate) targetDateById[d.id] = d.targetDate;
   });
   Object.values(matrix.artifactsById || {}).forEach((a) => {
-    if (a?.id && a.targetDate) {targetDateById[a.id] = a.targetDate;}
+    if (a?.id && a.targetDate) targetDateById[a.id] = a.targetDate;
   });
 
   const byDate = {};
   Object.entries(targetDateById).forEach(([nodeId, targetDate]) => {
-    if (!byDate[targetDate]) {byDate[targetDate] = [];}
+    if (!byDate[targetDate]) byDate[targetDate] = [];
     byDate[targetDate].push(nodeId);
   });
 
@@ -265,7 +262,7 @@ export function detectConvergenceCandidates(matrix) {
   const clusters = [];
 
   Object.entries(byDate).forEach(([targetDate, nodeIds]) => {
-    if (!nodeIds || nodeIds.length < 2) {return;}
+    if (!nodeIds || nodeIds.length < 2) return;
 
     const sortedIds = [...nodeIds].sort();
 
@@ -318,7 +315,7 @@ export function detectConvergenceCandidates(matrix) {
 export function updateConvergenceDetectionState(state, candidates) {
   const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
   const matrix = draft.matrix;
-  if (!matrix) {return draft;}
+  if (!matrix) return draft;
 
   const now = draft.appTime?.nowISO || new Date().toISOString();
   const existing = matrix.convergenceDetectionState || {
@@ -337,7 +334,7 @@ export function updateConvergenceDetectionState(state, candidates) {
   // Deliverable/Artifact AND still carry the same targetDate the
   // question was raised against.
   const validQuestions = (existing.pendingQuestions || []).filter((q) => {
-    if (!q || !Array.isArray(q.sourceIds) || q.sourceIds.length === 0) {return false;}
+    if (!q || !Array.isArray(q.sourceIds) || q.sourceIds.length === 0) return false;
     return q.sourceIds.every((id) => {
       const node = matrix.deliverablesById?.[id] || matrix.artifactsById?.[id];
       return node && node.targetDate === q.targetDate;
@@ -347,7 +344,7 @@ export function updateConvergenceDetectionState(state, candidates) {
   // Rebuild pending questions from the freshly detected candidate clusters.
   const newQuestions = [];
   (Array.isArray(candidates) ? candidates : []).forEach((cluster) => {
-    if (!cluster || !Array.isArray(cluster.sourceIds) || !cluster.targetDate) {return;}
+    if (!cluster || !Array.isArray(cluster.sourceIds) || !cluster.targetDate) return;
     const qId = generateQuestionId(cluster.sourceIds, cluster.targetDate);
     const alreadyAnswered = Boolean(answered[qId]);
     const alreadyPending = validQuestions.some((q) => q.id === qId) ||
@@ -369,9 +366,9 @@ export function updateConvergenceDetectionState(state, candidates) {
   // indefinitely once their superset peer exists.
   const validQuestionsDeduped = validQuestions.filter((vq1) => {
     const isSubsumed = validQuestions.some((vq2) => {
-      if (vq1.id === vq2.id) {return false;} // Skip self-comparison
-      if (vq1.targetDate !== vq2.targetDate) {return false;}
-      if (vq1.sourceIds.length >= vq2.sourceIds.length) {return false;}
+      if (vq1.id === vq2.id) return false; // Skip self-comparison
+      if (vq1.targetDate !== vq2.targetDate) return false;
+      if (vq1.sourceIds.length >= vq2.sourceIds.length) return false;
       // vq1's sourceIds must be a strict subset of vq2's
       return vq1.sourceIds.every((id) => vq2.sourceIds.includes(id));
     });
@@ -385,8 +382,8 @@ export function updateConvergenceDetectionState(state, candidates) {
   // cluster exists, then dc3 joins to form dc1+dc2+dc3 cluster).
   const prunedValidQuestions = validQuestionsDeduped.filter((vq) => {
     const isSubsumed = newQuestions.some((nq) => {
-      if (vq.targetDate !== nq.targetDate) {return false;}
-      if (vq.sourceIds.length >= nq.sourceIds.length) {return false;}
+      if (vq.targetDate !== nq.targetDate) return false;
+      if (vq.sourceIds.length >= nq.sourceIds.length) return false;
       // vq's sourceIds must be a strict subset of nq's
       return vq.sourceIds.every((id) => nq.sourceIds.includes(id));
     });
@@ -398,9 +395,9 @@ export function updateConvergenceDetectionState(state, candidates) {
   // (and independently of) the larger cluster containing it.
   const finalNewQuestions = newQuestions.filter((nq1) => {
     const isSubsumed = newQuestions.some((nq2) => {
-      if (nq1.id === nq2.id) {return false;} // Skip self-comparison
-      if (nq1.targetDate !== nq2.targetDate) {return false;}
-      if (nq1.sourceIds.length >= nq2.sourceIds.length) {return false;}
+      if (nq1.id === nq2.id) return false; // Skip self-comparison
+      if (nq1.targetDate !== nq2.targetDate) return false;
+      if (nq1.sourceIds.length >= nq2.sourceIds.length) return false;
       // nq1's sourceIds must be a strict subset of nq2's
       return nq1.sourceIds.every((id) => nq2.sourceIds.includes(id));
     });
@@ -434,7 +431,7 @@ export function updateConvergenceDetectionState(state, candidates) {
 export const _internal = { detectConvergenceCandidates };
 
 export function applyEnterpriseIdentityAudit(next) {
-  if (!next || typeof next !== 'object') {return;}
+  if (!next || typeof next !== 'object') return;
   const profile = next.profilesById?.[next.activeProfileId] || null;
   const activeMissionId = profile?.activeCoreMissionContractId || null;
   const contract = activeMissionId ? next.coreMissionContractsById?.[activeMissionId] || null : null;
@@ -501,7 +498,7 @@ const DEFAULT_PROFILE_LABEL = 'Local Profile';
 
 // Part D: Backfill confirmation provenance on all existing CONFIRMED nodes
 export function normalizeConfirmationProvenance(state) {
-  if (!state.matrix) {return;}
+  if (!state.matrix) return;
   const nodeArrays = [
     state.matrix.entitiesById,
     state.matrix.initiativesById,
@@ -512,7 +509,7 @@ export function normalizeConfirmationProvenance(state) {
     state.matrix.capacityById,
   ];
   for (const nodeMap of nodeArrays) {
-    if (!nodeMap || typeof nodeMap !== 'object') {continue;}
+    if (!nodeMap || typeof nodeMap !== 'object') continue;
     for (const node of Object.values(nodeMap)) {
       if (node && node.reviewStatus === 'CONFIRMED' && !node.confirmedAt) {
         node.confirmedAt = null;
@@ -521,67 +518,6 @@ export function normalizeConfirmationProvenance(state) {
       }
     }
   }
-}
-
-/**
- * Auto-compute Initiative Phases from spine windows and Terminal Deadlines.
- * Per doctrine (Phase Assignment Rule), Phase is computed from each Initiative's
- * Terminal Deadline against the spine windows. This runs after spine or deadline changes.
- */
-function computeInitiativePhasesForAll(state) {
-  if (!state.matrix?.initiativesById || !Array.isArray(state.matrix?.spineInitiativeIds) || state.matrix.spineInitiativeIds.length === 0) {
-    return;
-  }
-
-  const spineInitiatives = (state.matrix.spineInitiativeIds || [])
-    .map((spineId) => state.matrix.initiativesById?.[spineId])
-    .filter(Boolean);
-  const spineWindows = computeSpineWindows(spineInitiatives);
-
-  for (const [initiativeId, initiative] of Object.entries(state.matrix.initiativesById || {})) {
-    const computedPhase = computeInitiativePhase(initiative, spineWindows);
-    const phaseValue = computedPhase === null || computedPhase === 'CROSS_PHASE' ? null : String(computedPhase);
-    state.matrix.initiativesById[initiativeId] = { ...initiative, phase: phaseValue };
-
-    // Validate parent-child hierarchy if parent exists
-    if (initiative.parentInitiativeId && computedPhase !== null && computedPhase !== 'CROSS_PHASE') {
-      const parentInitiative = state.matrix.initiativesById?.[initiative.parentInitiativeId];
-      if (parentInitiative) {
-        const parentPhase = computeInitiativePhase(parentInitiative, spineWindows);
-        const hierarchyValidation = validateInitiativePhaseHierarchy(computedPhase, parentPhase);
-        if (!hierarchyValidation.valid) {
-          state.lastPlanWarning = state.lastPlanWarning || {
-            code: 'INITIATIVE_PHASE_HIERARCHY_VIOLATION',
-            reason: hierarchyValidation.message,
-            initiativeId,
-            parentInitiativeId: initiative.parentInitiativeId,
-            childPhase: computedPhase,
-            parentPhase,
-          };
-        }
-      }
-    }
-  }
-}
-
-/**
- * Spine declaration: operator-declared list of Initiative IDs defining phase windows.
- */
-function declareSpine(state, payload = {}) {
-  if (!state?.matrix) return;
-  const spineInitiativeIds = Array.isArray(payload?.spineInitiativeIds)
-    ? payload.spineInitiativeIds.filter(Boolean).map((id) => String(id).trim()).filter(Boolean)
-    : [];
-  const invalidIds = spineInitiativeIds.filter((id) => !state.matrix.initiativesById?.[id]);
-  if (invalidIds.length > 0) {
-    state.lastPlanError = {
-      code: 'SPINE_INITIATIVE_NOT_FOUND',
-      reason: `Spine declaration references unknown Initiative(s): ${invalidIds.join(', ')}`,
-      meta: { invalidIds },
-    };
-    return;
-  }
-  state.matrix.spineInitiativeIds = spineInitiativeIds;
 }
 
 export function computeDerivedState(state, action) {
@@ -679,7 +615,7 @@ export function computeDerivedState(state, action) {
         const matrix = next.matrix || {};
         for (const slice of ['entitiesById', 'initiativesById', 'projectsById', 'artifactsById', 'systemsById']) {
           const map = matrix[slice];
-          if (!map) {continue;}
+          if (!map) continue;
           for (const id of Object.keys(map)) {
             if (map[id] && map[id].reviewStatus === 'DRAFT') {
               map[id] = { ...map[id], reviewStatus: 'CONFIRMED' };
@@ -704,7 +640,7 @@ export function computeDerivedState(state, action) {
               'Intake marked complete while its in-flight session still held uncommitted answers; the session was preserved for resume rather than discarded.',
           };
         } else {
-          if (session) {delete next.intakeSessionByCycleId[cycleId];}
+          if (session) delete next.intakeSessionByCycleId[cycleId];
           next.intakeCommitWarning = null;
         }
       }
@@ -899,7 +835,6 @@ export function computeDerivedState(state, action) {
       break;
     case 'END_CYCLE':
       endCycle(next, action.cycleId);
-      checkCrossReferenceIntegrity(next);
       break;
     case 'ARCHIVE_AND_CLONE_CYCLE':
       archiveAndCloneCycle(next, action.cycleId, action.overrides);
@@ -1290,14 +1225,8 @@ export function computeDerivedState(state, action) {
     case 'SET_INITIATIVE_PHASE':
       setInitiativePhase(next, action.payload || {});
       break;
-    case 'DECLARE_SPINE':
-      declareSpine(next, action.payload || {});
-      break;
     case 'DECLARE_PRICING_STRATEGY':
       declarePricingStrategy(next, action.payload || {});
-      break;
-    case 'DECLARE_SEQUENCING_STRATEGY':
-      declareSequencingStrategy(next, action.payload || {});
       break;
     case 'DECLARE_SYSTEM':
       declareSystem(next, action.payload || {});
@@ -1647,12 +1576,6 @@ export function computeDerivedState(state, action) {
       next = updateConvergenceDetectionState(next, convergenceCandidates);
     }
   }
-
-  // Task B Approval: Wire auto-calling of Phase computation (2026-08-16)
-  // Per doctrine: Phase is computed from spine windows + Terminal Deadline, never hand-typed.
-  // Auto-calling runs after all mutations complete, updating all Initiative phases deterministically.
-  // Retroactive audit (Task B) has confirmed all Phase values compute correctly with zero anomalies.
-  computeInitiativePhasesForAll(next);
 
   return next;
 }
@@ -2621,9 +2544,9 @@ function buildAdmissionAuditIntakeText(state, cycleId = null) {
   ].filter(Boolean);
   return sources
     .flatMap((source) => {
-      if (typeof source === 'string') {return [source];}
-      if (Array.isArray(source)) {return source;}
-      if (source && typeof source === 'object') {return Object.values(source);}
+      if (typeof source === 'string') return [source];
+      if (Array.isArray(source)) return source;
+      if (source && typeof source === 'object') return Object.values(source);
       return [];
     })
     .map((value) => (typeof value === 'string' ? value : JSON.stringify(value)))
@@ -2687,13 +2610,13 @@ function normalizeStableWorkType(value, fallback = 'Execution') {
   if (!normalized) {
     return fallback;
   }
-  if (normalized === 'validation') {return 'Validation';}
-  if (normalized === 'review') {return 'Review';}
-  if (normalized === 'readiness') {return 'Readiness';}
-  if (normalized === 'gate') {return 'Gate';}
-  if (normalized === 'monitoring' || normalized === 'audit') {return 'Monitoring';}
-  if (normalized === 'planning') {return 'Planning';}
-  if (normalized === 'execution' || normalized === 'action') {return 'Execution';}
+  if (normalized === 'validation') return 'Validation';
+  if (normalized === 'review') return 'Review';
+  if (normalized === 'readiness') return 'Readiness';
+  if (normalized === 'gate') return 'Gate';
+  if (normalized === 'monitoring' || normalized === 'audit') return 'Monitoring';
+  if (normalized === 'planning') return 'Planning';
+  if (normalized === 'execution' || normalized === 'action') return 'Execution';
   return String(value || '').trim() || fallback;
 }
 
@@ -2939,10 +2862,10 @@ function enforceExecutionStartBoundary(state) {
   const activeCycleId = state.activeCycleId || null;
   const activeCycle = activeCycleId ? (state.cyclesById?.[activeCycleId] || null) : null;
   const executionStartDayKey = activeCycle?.executionStartDayKey || null;
-  if (!executionStartDayKey) {return;}
+  if (!executionStartDayKey) return;
   const isEvidenced = (blockId) => {
     const id = String(blockId || '').trim();
-    if (!id) {return false;}
+    if (!id) return false;
     return (state.executionEvents || []).some((e) => {
       const eid = String(e?.blockId || '').trim();
       const kind = String(e?.kind || '').trim().toLowerCase();
@@ -3123,7 +3046,7 @@ function ensureDeliverablesStore(state) {
 // pattern. See src/domain/masterGrid/capacityFromLegacy.js for the pure seeding logic and
 // docs/superpowers/specs/2026-07-13-unified-schedule-generation-design.md §7.3.
 function ensureCapacitySeed(state) {
-  if (!state.matrix) {return;}
+  if (!state.matrix) return;
   const cycle = getActiveCycle(state);
   const seeded = seedCapacityFromLegacyConstraints({
     matrix: state.matrix,
@@ -3131,7 +3054,7 @@ function ensureCapacitySeed(state) {
     availabilityPolicyWorkWindows: state.availabilityPolicy?.workWindows || null,
     strategyConstraints: cycle?.strategy?.constraints || null,
   });
-  if (!seeded) {return;}
+  if (!seeded) return;
   if (!state.matrix.capacityById) {
     state.matrix.capacityById = {};
   }
@@ -3144,9 +3067,9 @@ function ensureCapacitySeed(state) {
 // missing row or an already-CONFIRMED row is a no-op.
 function confirmCapacity(state, payload = {}) {
   const id = payload?.id || null;
-  if (!id || !state.matrix?.capacityById) {return;}
+  if (!id || !state.matrix?.capacityById) return;
   const row = state.matrix.capacityById[id];
-  if (!row || row.reviewStatus === 'CONFIRMED') {return;}
+  if (!row || row.reviewStatus === 'CONFIRMED') return;
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
   state.matrix.capacityById[id] = {
     ...row,
@@ -4387,11 +4310,11 @@ function mergePriorTodayBlocks(state, previousBlocks = []) {
   if (!previousBlocks.length) {
     return;
   }
-  // Item 2 Step 6 Fix: Also exclude blocks with 'missed' events
-  // Blocks that flow to Backlog should not be re-injected into today's calendar
+  // Item 2 Step 6 Fix: Only exclude blocks with 'delete' events
+  // Missed blocks stay in today.blocks; Backlog membership is derived from event ledger
   const deletedIds = new Set(
     (state.executionEvents || [])
-      .filter((event) => (event?.kind === 'delete' || event?.kind === 'missed') && event?.blockId)
+      .filter((event) => event?.kind === 'delete' && event?.blockId)
       .map((event) => event.blockId)
   );
   const existingIds = new Set((state.today?.blocks || []).map((block) => block?.id));
@@ -4665,18 +4588,10 @@ function generateColdPlanForCycle(state, { rebaseMode = 'NONE' } = {}) {
     // through to the generic 3-tier default. Empty matrix -> [] -> generator's own
     // fallback still applies, unchanged.
     const manualCausalChainSteps = cycle.goalContract?.execution?.causalChainSteps;
-    const baseChainSteps =
+    const causalChainSteps =
       manualCausalChainSteps && manualCausalChainSteps.length > 0
         ? manualCausalChainSteps
         : buildCausalChainStepsFromMatrix(state.matrix);
-
-    // Resolve Convergence buffers (2026-08-13 Gap 3): compute synchronized target dates
-    // for projects linked via Convergence edges with buffer constraints.
-    const bufferAdjustments = resolveConvergenceBuffers(state.matrix);
-    const causalChainSteps = baseChainSteps.map((step) => ({
-      ...step,
-      synchronizedDate: bufferAdjustments.get(step.projectId) || null,
-    }));
 
     // Same precedence as causalChainSteps above: an explicitly-set cycle.strategy.constraints
     // wins if the operator (or SET_STRATEGY/SET_SCHEDULING_CONSTRAINTS) put something there;
@@ -6322,7 +6237,7 @@ function buildMasterPlanReadinessCandidates(plan, lanes = [], weeklyCapacityHour
   if (hasFixedAnchors) {
     candidates.push({
       key: 'confirm-hard-anchors',
-      title: 'Validate hard-anchor protection rules',
+      title: 'Validate Operation Endgame hard-anchor protection rules',
       minutes: 45,
       practice: 'FOCUS',
       priority: 125,
@@ -6522,13 +6437,13 @@ function titleStartsWithActionVerb(text) {
 function lowercaseUnlessInitialism(text) {
   const str = String(text || '');
   const m = str.match(/^(\S+)/);
-  if (!m) {return str;}
+  if (!m) return str;
   const firstWord = m[1];
   const isInitialism =
     firstWord.length >= 2 &&
     firstWord === firstWord.toUpperCase() &&
     firstWord !== firstWord.toLowerCase();
-  if (isInitialism) {return str;}
+  if (isInitialism) return str;
   return str.charAt(0).toLowerCase() + str.slice(1);
 }
 
@@ -6643,8 +6558,8 @@ function actionizeMasterPlanCandidateTitle(candidate = {}) {
 // Guards against OLD plans created before normalizeMilestoneTitle was applied at intake time.
 function safeBlockTitle(rawTitle, lane) {
   const t = String(rawTitle || '').trim();
-  if (/^drop$/i.test(t)) {return `Release ${lane?.title || 'project'}`;}
-  if (/^launch$/i.test(t)) {return `Launch ${lane?.title || 'product'}`;}
+  if (/^drop$/i.test(t)) return `Release ${lane?.title || 'project'}`;
+  if (/^launch$/i.test(t)) return `Launch ${lane?.title || 'product'}`;
   return t;
 }
 
@@ -6660,7 +6575,7 @@ function tryDecomposeNumericRangeCandidate(candidate) {
     const base = parenMatch[1].replace(/\s*\bbatch\b\s*/i, ' ').replace(/\s+/g, ' ').trim();
     const start = parseInt(parenMatch[2], 10);
     const end = parseInt(parenMatch[3], 10);
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || end - start > 9) {return null;}
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || end - start > 9) return null;
     return Array.from({ length: end - start + 1 }, (_, i) => {
       const n = start + i;
       return {
@@ -6678,7 +6593,7 @@ function tryDecomposeNumericRangeCandidate(candidate) {
     const start = parseInt(inlineMatch[2], 10);
     const end = parseInt(inlineMatch[3], 10);
     const post = inlineMatch[4].trim();
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || end - start > 9) {return null;}
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || end - start > 9) return null;
     return Array.from({ length: end - start + 1 }, (_, i) => {
       const n = start + i;
       const atomicTitle = [`${pre} episode ${n}`, post].filter(Boolean).join(' ').trim();
@@ -6779,11 +6694,11 @@ function buildLaneCadenceCandidates(lanes, todayDayKey, windowEndDayKey, timeZon
   for (const lane of activeLanes) {
     const domain = String(lane?.domain || '').trim().toLowerCase();
     const templates = LANE_RECURRING_WORK[domain] || [];
-    if (templates.length === 0) {continue;}
+    if (templates.length === 0) continue;
     const laneLabel = lane.title || `${domain} work`;
     const laneId = lane.id;
     const startDate = addDays(todayDayKey, 7, timeZone);
-    if (!startDate || startDate > windowEndDayKey) {continue;}
+    if (!startDate || startDate > windowEndDayKey) continue;
     let cursor = startDate;
     let templateIdx = 0;
     while (cursor && cursor <= windowEndDayKey) {
@@ -8034,34 +7949,9 @@ function applyLongHorizonCalendarBlocks(state) {
   const allForecastBlocks = [];
   for (const phase of phaseModel.phases) {
     // Skip phases that start entirely beyond the selected horizon
-    if (horizonEndForMode && phase.startBoundary > horizonEndForMode) {continue;}
-
-    // Extract real P1 commitment dayKeys for pacing doctrine
-    // (real commitments = milestones with explicit origin='user', excluding system-generated and unknown-provenance)
-    let p1RealCommitmentDayKeys = [];
-    if (phase.label === 'P1') {
-      const allMilestonesInPhase = (phase.laneParticipation || []).flatMap((lane) => {
-        const laneId = lane.laneId || lane.id;
-        return Object.values(state?.masterPlanMilestonesById || {})
-          .filter((m) => m.laneId === laneId && m.targetDate);
-      });
-
-      // Log warning for unknown-provenance milestones (pre-existing data without explicit origin)
-      const unknownMilestones = allMilestonesInPhase.filter((m) => m.generated === 'unknown');
-      if (unknownMilestones.length > 0) {
-        console.warn(
-          `[pacing-doctrine] Excluding ${unknownMilestones.length} milestone(s) with unknown provenance from P1 real-commitment calculation. ` +
-          `These have no origin field set (pre-existing data). Titles: ${unknownMilestones.map((m) => m.title).join(', ')}`
-        );
-      }
-
-      const p1Milestones = allMilestonesInPhase.filter((m) => m.generated === 'user');
-      p1RealCommitmentDayKeys = p1Milestones.map((m) => m.targetDate).sort();
-    }
-
+    if (horizonEndForMode && phase.startBoundary > horizonEndForMode) continue;
     const blocks = deriveForecastBlocks({
       plan, phase, horizonEndDayKey: horizonEndForMode, cycleEndDayKey,
-      p1RealCommitmentDayKeys,
     });
     allForecastBlocks.push(...blocks);
   }
@@ -8194,7 +8084,7 @@ function applyLongHorizonCalendarBlocks(state) {
 
     // Check phase-specific issues
     for (const phase of phaseModel.phases) {
-      if (horizonEndForMode < phase.startBoundary) {continue;} // Phase not in scope
+      if (horizonEndForMode < phase.startBoundary) continue; // Phase not in scope
       const phaseBlocks = (fullHorizonScheduleBlocks || []).filter(b => b.phaseLabel === phase.label);
       if (phaseBlocks.length === 0) {
         coverageFailureReasonCodes.push(`PHASE_EXISTS_WITHOUT_SCHEDULED_WORK:${phase.label}`);
@@ -8214,7 +8104,7 @@ function applyLongHorizonCalendarBlocks(state) {
     });
     state.fullHorizonScheduleBlocks = projectedForecastBlocks;
     state.calendarDisplayBlocks = suppressTodayForecastForFreshCycle ? [] : projectedForecastBlocks;
-    if (!IS_PRODUCTION) {console.warn('Full-horizon expansion failed:', err && err.message);}
+    if (!IS_PRODUCTION) console.warn('Full-horizon expansion failed:', err && err.message);
     coverageFailureReasonCodes.push('FULL_HORIZON_SCHEDULE_EXPANSION_MISSING');
     
     // Still check allForecastBlocks for P2/P3 presence
@@ -8292,14 +8182,14 @@ function applyExecutionCorrection(state) {
   const executionCorrectionByGoal = {};
   const goalIds = Object.keys(state.goalPolicyByGoalId || {});
   goalIds.forEach((goalId) => {
-    if (!goalId) {return;}
+    if (!goalId) return;
     const cycle = resolveCycleForGoal(state, goalId);
     const executionEvents = getCanonicalExecutionEventsForCycleGoal(state, cycle?.id || null, goalId);
     const externalEvidenceEvents = getCanonicalExternalEvidenceEventsForCycleGoal(state, cycle?.id || null, goalId);
     const planMutationEvents = (Array.isArray(state.planMutationEvents) ? state.planMutationEvents : []).filter((event) => {
-      if (!event?.blockId) {return false;}
-      if (goalId && event?.goalId && event.goalId !== goalId) {return false;}
-      if (cycle?.id && event?.cycleId && event.cycleId !== cycle.id) {return false;}
+      if (!event?.blockId) return false;
+      if (goalId && event?.goalId && event.goalId !== goalId) return false;
+      if (cycle?.id && event?.cycleId && event.cycleId !== cycle.id) return false;
       return true;
     });
     const canonicalActions = getCanonicalCycleActions(cycle);
@@ -8326,9 +8216,9 @@ function applySystemShotClock(state) {
     const executionContract = cycle?.goalContract || state.goalExecutionContract || null;
     const executionEvents = getCanonicalExecutionEventsForCycleGoal(state, cycle?.id || null, goalId);
     const blocks = getAllBlocks(state).filter((block) => {
-      if (!block?.id) {return false;}
-      if (goalId && block?.goalId && block.goalId !== goalId) {return false;}
-      if (cycle?.id && block?.cycleId && block.cycleId !== cycle.id) {return false;}
+      if (!block?.id) return false;
+      if (goalId && block?.goalId && block.goalId !== goalId) return false;
+      if (cycle?.id && block?.cycleId && block.cycleId !== cycle.id) return false;
       return true;
     });
     systemShotClockByGoal[goalId] = deriveSystemShotClock({
@@ -8504,8 +8394,9 @@ function recoverCanonicalContractForCycle(state, cycle = null, contract = null) 
     goalId: inferredGoalId,
     goalText: contract?.goalText || goalText || null,
     goalLabel: contract?.goalLabel || goalText || null,
-    // REMOVED: startDayKey, endDayKey, deadlineISO — these are time-relative and must be derived
-    // fresh on every read via activeScheduledLoop.resolveStartDayKey/resolveDeadlineISO, never frozen here
+    startDayKey: contract?.startDayKey || startDayKey || null,
+    endDayKey: contract?.endDayKey || endDayKey || null,
+    deadlineISO: contract?.deadlineISO || endDayKey || null,
   };
 
   cycle.goalContract = {
@@ -8538,7 +8429,8 @@ function recoverCanonicalContractForCycle(state, cycle = null, contract = null) 
     ...(state.goalExecutionContract || {}),
     goalId: inferredGoalId,
     goalText: state?.goalExecutionContract?.goalText || goalText || null,
-    // REMOVED: startDayKey, endDayKey — these must come from activeScheduledLoop selectors on every read
+    startDayKey: state?.goalExecutionContract?.startDayKey || startDayKey || null,
+    endDayKey: state?.goalExecutionContract?.endDayKey || endDayKey || null,
   };
   state.activeGoalId = state.activeGoalId || inferredGoalId;
   if (cycle?.id && state?.cyclesById?.[cycle.id]) {
@@ -10470,7 +10362,7 @@ function dayKeyUTC(iso) {
 }
 
 export function getBlockDayKey(block) {
-  if (!block) {return null;}
+  if (!block) return null;
   const localizedFromStart = dayKeyFromISO(block?.start || block?.startISO || '', APP_TIME_ZONE);
   if (localizedFromStart) {
     return localizedFromStart;
@@ -11418,7 +11310,6 @@ function rehydrateSuggestionOverrides(suggestions = [], events = []) {
       target.status = 'dismissed';
     }
   });
-
   return next;
 }
 
@@ -12239,7 +12130,7 @@ function deleteCycle(state, cycleId) {
     const survivingBlocks = {};
     if (state.blockStore?.blocks) {
       Object.entries(state.blockStore.blocks).forEach(([id, block]) => {
-        if (block) {survivingBlocks[id] = block;}
+        if (block) survivingBlocks[id] = block;
       });
     }
     clearActiveCycleSessionState(state);
@@ -14273,7 +14164,7 @@ function rebaseSchedule(state, payload = {}) {
       if (dayKey && dayKey >= executionStartDayKey) {
         const startMin = parseHHMMToMinutes(String((block?.startISO || block?.start || '').slice(11, 16) || '09:00'));
         const durationMinutes = Math.max(1, Number(block?.durationMinutes || 30));
-        if (!occupiedByDayKey.has(dayKey)) {occupiedByDayKey.set(dayKey, []);}
+        if (!occupiedByDayKey.has(dayKey)) occupiedByDayKey.set(dayKey, []);
         occupiedByDayKey.get(dayKey).push({ startMin, endMin: startMin + durationMinutes });
         dailyCounts.set(dayKey, (dailyCounts.get(dayKey) || 0) + 1);
         const weekKey = weekKeyForDay(dayKey);
@@ -14337,7 +14228,7 @@ function rebaseSchedule(state, payload = {}) {
       status: String(block?.status || '').trim().toLowerCase() === 'completed' ? 'completed' : 'planned',
     };
     rebasedBlocks.push(rebased);
-    if (!occupiedByDayKey.has(slot.dayKey)) {occupiedByDayKey.set(slot.dayKey, []);}
+    if (!occupiedByDayKey.has(slot.dayKey)) occupiedByDayKey.set(slot.dayKey, []);
     occupiedByDayKey.get(slot.dayKey).push({
       startMin: slot.startMin,
       endMin: slot.startMin + Math.max(1, Number(block?.durationMinutes || 30)),
@@ -16120,7 +16011,7 @@ function applyNextSuggestion(state) {
 // ─────────────────────────────────────────────────────────────────────────
 
 function ensureMatrixSlot(state) {
-  if (!state || typeof state !== 'object') {return;}
+  if (!state || typeof state !== 'object') return;
   if (!state.matrix || typeof state.matrix !== 'object') {
     state.matrix = {
       verificationSourcesById: {},
@@ -16151,21 +16042,21 @@ function ensureMatrixSlot(state) {
     };
     return;
   }
-  if (!state.matrix.verificationSourcesById) {state.matrix.verificationSourcesById = {};}
-  if (!state.matrix.entitiesById) {state.matrix.entitiesById = {};}
-  if (!state.matrix.initiativesById) {state.matrix.initiativesById = {};}
-  if (!state.matrix.systemsById) {state.matrix.systemsById = {};}
-  if (!state.matrix.projectsById) {state.matrix.projectsById = {};}
-  if (!state.matrix.deliverablesById) {state.matrix.deliverablesById = {};}
-  if (!state.matrix.artifactsById) {state.matrix.artifactsById = {};}
-  if (!state.matrix.dependenciesById) {state.matrix.dependenciesById = {};}
-  if (!state.matrix.convergenceEdgesById) {state.matrix.convergenceEdgesById = {};}
-  if (!state.matrix.matrixLinksById) {state.matrix.matrixLinksById = {};}
-  if (!state.matrix.milestonesById) {state.matrix.milestonesById = {};}
-  if (!state.matrix.resourceProfilesById) {state.matrix.resourceProfilesById = {};}
-  if (!state.matrix.capacityById) {state.matrix.capacityById = {};}
-  if (!('bindingConstraint' in state.matrix)) {state.matrix.bindingConstraint = null;}
-  if (!state.matrix.bootstrap) {state.matrix.bootstrap = { candidates: [], selectedNodeId: null };}
+  if (!state.matrix.verificationSourcesById) state.matrix.verificationSourcesById = {};
+  if (!state.matrix.entitiesById) state.matrix.entitiesById = {};
+  if (!state.matrix.initiativesById) state.matrix.initiativesById = {};
+  if (!state.matrix.systemsById) state.matrix.systemsById = {};
+  if (!state.matrix.projectsById) state.matrix.projectsById = {};
+  if (!state.matrix.deliverablesById) state.matrix.deliverablesById = {};
+  if (!state.matrix.artifactsById) state.matrix.artifactsById = {};
+  if (!state.matrix.dependenciesById) state.matrix.dependenciesById = {};
+  if (!state.matrix.convergenceEdgesById) state.matrix.convergenceEdgesById = {};
+  if (!state.matrix.matrixLinksById) state.matrix.matrixLinksById = {};
+  if (!state.matrix.milestonesById) state.matrix.milestonesById = {};
+  if (!state.matrix.resourceProfilesById) state.matrix.resourceProfilesById = {};
+  if (!state.matrix.capacityById) state.matrix.capacityById = {};
+  if (!('bindingConstraint' in state.matrix)) state.matrix.bindingConstraint = null;
+  if (!state.matrix.bootstrap) state.matrix.bootstrap = { candidates: [], selectedNodeId: null };
   if (!state.matrix.convergenceDetectionState) {
     state.matrix.convergenceDetectionState = {
       pendingQuestions: [],
@@ -16206,20 +16097,20 @@ function declareVerificationSource(state, payload = {}) {
 function updateVerificationSource(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
-  if (!id) {return;}
+  if (!id) return;
   const existing = state.matrix.verificationSourcesById[id];
-  if (!existing) {return;}
+  if (!existing) return;
   const patch = {};
-  if (payload.domain !== undefined) {patch.domain = String(payload.domain || '').trim();}
-  if (payload.source !== undefined) {patch.source = String(payload.source || '').trim();}
-  if (payload.notes !== undefined) {patch.notes = String(payload.notes || '').trim() || null;}
+  if (payload.domain !== undefined) patch.domain = String(payload.domain || '').trim();
+  if (payload.source !== undefined) patch.source = String(payload.source || '').trim();
+  if (payload.notes !== undefined) patch.notes = String(payload.notes || '').trim() || null;
   state.matrix.verificationSourcesById[id] = { ...existing, ...patch };
 }
 
 function removeVerificationSource(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
-  if (!id) {return;}
+  if (!id) return;
   delete state.matrix.verificationSourcesById[id];
 }
 
@@ -16229,8 +16120,8 @@ function removeVerificationSource(state, payload = {}) {
 //  function) must be declared once. Lanes and blocks reference nodes by id
 //  via `entityId`. The gate code UNDECLARED_NODE fires when a block
 //  references an entity that is not in the registry. The SEED_CANONICAL_
-//  ENTITIES action provides a fast path to populate reference entities
-//  from ENTERPRISE_IDENTITY_MAP — idempotent and
+//  ENTITIES action provides a fast path to populate the 8 Operation Endgame
+//  reference entities from ENTERPRISE_IDENTITY_MAP — idempotent and
 //  non-destructive of any operator-declared nodes.
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -16271,25 +16162,25 @@ function declareNode(state, payload = {}) {
 function updateNode(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
-  if (!id) {return;}
+  if (!id) return;
   const existing = state.matrix.entitiesById[id];
-  if (!existing) {return;}
+  if (!existing) return;
   const patch = {};
-  if (payload.name !== undefined) {patch.name = String(payload.name || '').trim();}
-  if (payload.purpose !== undefined) {patch.purpose = String(payload.purpose || '').trim() || null;}
+  if (payload.name !== undefined) patch.name = String(payload.name || '').trim();
+  if (payload.purpose !== undefined) patch.purpose = String(payload.purpose || '').trim() || null;
   if (payload.currentStatus !== undefined)
-    {patch.currentStatus = String(payload.currentStatus || '').trim() || null;}
+    patch.currentStatus = String(payload.currentStatus || '').trim() || null;
   if (payload.desiredFutureState !== undefined)
-    {patch.desiredFutureState = String(payload.desiredFutureState || '').trim() || null;}
-  if (Array.isArray(payload.roleTags)) {patch.roleTags = payload.roleTags.filter(Boolean);}
-  if (payload.notes !== undefined) {patch.notes = String(payload.notes || '').trim() || null;}
+    patch.desiredFutureState = String(payload.desiredFutureState || '').trim() || null;
+  if (Array.isArray(payload.roleTags)) patch.roleTags = payload.roleTags.filter(Boolean);
+  if (payload.notes !== undefined) patch.notes = String(payload.notes || '').trim() || null;
   state.matrix.entitiesById[id] = { ...existing, ...patch };
 }
 
 function removeNode(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
-  if (!id) {return;}
+  if (!id) return;
   delete state.matrix.entitiesById[id];
 }
 
@@ -16342,7 +16233,7 @@ function seedCanonicalEntities(state, payload = {}) {
     const id = canonicalNodeIdFromDisplayName(entity.displayName);
     // Non-destructive — preserve operator-declared values if a node with
     // this id already exists.
-    if (state.matrix.entitiesById[id]) {return;}
+    if (state.matrix.entitiesById[id]) return;
     state.matrix.entitiesById[id] = {
       id,
       name: entity.displayName,
@@ -16409,10 +16300,8 @@ function declareEntity(state, payload = {}) {
     confirmedAt: payload?.confirmedAt || null,
     confirmedBy: String(payload?.confirmedBy || '').trim() || null,
     confirmationSource: String(payload?.confirmationSource || '').trim() || null,
-    description: String(payload?.description || '').trim() || null,
-    notes: String(payload?.notes || '').trim() || null,
   };
-  if (payload?.doneWhen) {entry.doneWhen = String(payload.doneWhen).trim();}
+  if (payload?.doneWhen) entry.doneWhen = String(payload.doneWhen).trim();
   state.matrix.entitiesById[id] = entry;
 }
 
@@ -16452,16 +16341,15 @@ function declareInitiative(state, payload = {}) {
   // §2 under-tag must not leave the matrix internally inconsistent.
   for (const ownerId of owningEntityIds) {
     const owner = state.matrix.entitiesById?.[ownerId];
-    if (!owner) {continue;}
+    if (!owner) continue;
     const tags = Array.isArray(owner.roleTags) ? owner.roleTags : [];
-    if (!tags.includes('initiative')) {owner.roleTags = [...tags, 'initiative'];}
+    if (!tags.includes('initiative')) owner.roleTags = [...tags, 'initiative'];
   }
   state.matrix.initiativesById[id] = {
     id,
     name,
     owningEntityId: owningEntityIds[0] || owningEntityId || null,
     owningEntityIds,
-    parentInitiativeId: String(payload?.parentInitiativeId || '').trim() || null,
     crossCutting: Boolean(payload?.crossCutting),
     purpose,
     purposeFor: String(payload?.purposeFor || '').trim() || null,
@@ -16481,11 +16369,6 @@ function declareInitiative(state, payload = {}) {
     riskClassification: String(payload?.riskClassification || '').trim() || null,
     pricingStrategy: String(payload?.pricingStrategy || '').trim() || null,
     pricingReasoning: String(payload?.pricingReasoning || '').trim() || null,
-    function: String(payload?.function || '').trim() || null,
-    terminalDeadline: String(payload?.terminalDeadline || '').trim() || null,
-    nextMilestoneDeadline: String(payload?.nextMilestoneDeadline || '').trim() || null,
-    nextMilestoneDescription: String(payload?.nextMilestoneDescription || '').trim() || null,
-    notes: String(payload?.notes || '').trim() || null,
   };
 }
 
@@ -16559,58 +16442,6 @@ function declarePricingStrategy(state, payload = {}) {
   };
 }
 
-// Sequencing strategy declaration for an initiative.
-// Updates riskClassification, sequencingStrategy, and optional sequencingReasoning.
-// Shares riskClassification field with Pricing Strategy (Phase 1 locked).
-function declareSequencingStrategy(state, payload = {}) {
-  ensureMatrixSlot(state);
-  const initiativeId = String(payload?.initiativeId || '').trim();
-  if (!initiativeId) {
-    state.lastPlanError = {
-      code: 'SEQUENCING_STRATEGY_INVALID',
-      reason: 'Declaring sequencing strategy requires an initiativeId.',
-      meta: { initiativeId },
-    };
-    return;
-  }
-  const existing = state.matrix.initiativesById?.[initiativeId];
-  if (!existing) {
-    state.lastPlanError = {
-      code: 'SEQUENCING_STRATEGY_INITIATIVE_NOT_FOUND',
-      reason: `Initiative ${initiativeId} not found.`,
-      meta: { initiativeId },
-    };
-    return;
-  }
-
-  const riskClassification = String(payload?.riskClassification || '').trim() || null;
-  const sequencingStrategy = String(payload?.sequencingStrategy || '').trim() || null;
-  const sequencingReasoning = payload?.sequencingReasoning ? String(payload.sequencingReasoning).trim() : null;
-
-  // Update initiative with sequencing strategy
-  // Note: riskClassification is shared with Pricing Strategy (same field)
-  state.matrix.initiativesById[initiativeId] = {
-    ...existing,
-    riskClassification,
-    sequencingStrategy,
-    sequencingReasoning,
-  };
-}
-
-// Cross-reference integrity check: detects drift in Convergence dates, references, etc.
-// Called before cycle apply/save to catch inconsistencies early.
-// Issues are advisory (non-blocking); operator chooses whether to proceed.
-function checkCrossReferenceIntegrity(state) {
-  const result = validateCrossReferenceIntegrity(state);
-
-  // Store issues on state for UI rendering
-  // Clear previous issues each time (state may have changed)
-  state.referenceIntegrityIssues = result.issues;
-  state.referenceIntegrityStatus = result.isConsistent ? 'consistent' : 'drift_detected';
-
-  return result;
-}
-
 // Section 4 system declared through the elicitation engine (DECLARE_SYSTEM).
 // owningEntityId nullable (null = entity-less). activationCondition is optional
 // — included in the stored record only when the payload carries it.
@@ -16637,7 +16468,7 @@ function declareSystem(state, payload = {}) {
     const owner = state.matrix.entitiesById?.[owningEntityId];
     if (owner) {
       const tags = Array.isArray(owner.roleTags) ? owner.roleTags : [];
-      if (!tags.includes('system')) {owner.roleTags = [...tags, 'system'];}
+      if (!tags.includes('system')) owner.roleTags = [...tags, 'system'];
     }
   }
   const entry = {
@@ -16654,11 +16485,8 @@ function declareSystem(state, payload = {}) {
     confirmedAt: payload?.confirmedAt || null,
     confirmedBy: String(payload?.confirmedBy || '').trim() || null,
     confirmationSource: String(payload?.confirmationSource || '').trim() || null,
-    mechanism: String(payload?.mechanism || '').trim() || null,
-    feedsInto: String(payload?.feedsInto || '').trim() || null,
-    notes: String(payload?.notes || '').trim() || null,
   };
-  if (payload?.activationCondition) {entry.activationCondition = String(payload.activationCondition).trim();}
+  if (payload?.activationCondition) entry.activationCondition = String(payload.activationCondition).trim();
   state.matrix.systemsById[id] = entry;
 }
 
@@ -16730,50 +16558,14 @@ function declareProject(state, payload = {}) {
     confirmedBy: String(payload?.confirmedBy || '').trim() || null,
     confirmationSource: String(payload?.confirmationSource || '').trim() || null,
   };
-
-  // Task 6: Validate Project↔Initiative Phase hierarchy.
-  // Compute both Project and Initiative phases from spine windows.
-  const projectOwningInitiativeId = state.matrix.projectsById[id]?.owningInitiativeId;
-  if (projectOwningInitiativeId) {
-    const projOwningInit = state.matrix.initiativesById?.[projectOwningInitiativeId];
-    if (projOwningInit) {
-      const spines = (state.matrix.spineInitiativeIds || [])
-        .map((sid) => state.matrix.initiativesById?.[sid])
-        .filter(Boolean);
-      const windows = computeSpineWindows(spines);
-      const projPhase = computeInitiativePhase({ targetDate: payload?.targetDate }, windows);
-      const initPhase = computeInitiativePhase(projOwningInit, windows);
-      if (
-        projPhase !== null &&
-        projPhase !== 'CROSS_PHASE' &&
-        initPhase !== null &&
-        initPhase !== 'CROSS_PHASE' &&
-        projPhase < initPhase
-      ) {
-        const validation = validateInitiativePhaseHierarchy(projPhase, initPhase);
-        if (!validation.valid) {
-          state.lastPlanWarning = state.lastPlanWarning || {
-            code: 'PROJECT_PHASE_HIERARCHY_VIOLATION',
-            reason: validation.message,
-            projectId: id,
-            projectName: name,
-            initiativeId: projectOwningInitiativeId,
-            initiativeName: projOwningInit.name || projectOwningInitiativeId,
-            projectPhase: projPhase,
-            initiativePhase: initPhase,
-          };
-        }
-      }
-    }
-  }
 }
 
 function updateProject(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
-  if (!id) {return;}
+  if (!id) return;
   const existing = state.matrix.projectsById[id];
-  if (!existing) {return;}
+  if (!existing) return;
   // Enforce cross-section integrity on patched fields BEFORE writing.
   if (payload.owningEntityId !== undefined) {
     const nextOwner = String(payload.owningEntityId || '').trim();
@@ -16798,65 +16590,27 @@ function updateProject(state, payload = {}) {
     }
   }
   const patch = {};
-  if (payload.name !== undefined) {patch.name = String(payload.name || '').trim();}
-  if (payload.owningEntityId !== undefined) {patch.owningEntityId = String(payload.owningEntityId).trim();}
+  if (payload.name !== undefined) patch.name = String(payload.name || '').trim();
+  if (payload.owningEntityId !== undefined) patch.owningEntityId = String(payload.owningEntityId).trim();
   if (payload.owningInitiativeId !== undefined)
-    {patch.owningInitiativeId = String(payload.owningInitiativeId || '').trim() || null;}
-  if (payload.status !== undefined) {patch.status = String(payload.status || '').trim() || null;}
+    patch.owningInitiativeId = String(payload.owningInitiativeId || '').trim() || null;
+  if (payload.status !== undefined) patch.status = String(payload.status || '').trim() || null;
   if (payload.desiredOutcome !== undefined)
-    {patch.desiredOutcome = String(payload.desiredOutcome || '').trim() || null;}
-  if (payload.targetDate !== undefined) {patch.targetDate = String(payload.targetDate || '').trim() || null;}
-  if (payload.successMetric !== undefined) {patch.successMetric = String(payload.successMetric || '').trim();}
+    patch.desiredOutcome = String(payload.desiredOutcome || '').trim() || null;
+  if (payload.targetDate !== undefined) patch.targetDate = String(payload.targetDate || '').trim() || null;
+  if (payload.successMetric !== undefined) patch.successMetric = String(payload.successMetric || '').trim();
   if (payload.verificationSourceId !== undefined)
-    {patch.verificationSourceId = String(payload.verificationSourceId).trim();}
+    patch.verificationSourceId = String(payload.verificationSourceId).trim();
   if (payload.evidenceProduced !== undefined)
-    {patch.evidenceProduced = String(payload.evidenceProduced || '').trim() || null;}
-  if (payload.notes !== undefined) {patch.notes = String(payload.notes || '').trim() || null;}
-  const updated = { ...existing, ...patch };
-  state.matrix.projectsById[id] = updated;
-
-  // Task 6: Re-validate Project↔Initiative Phase hierarchy after update
-  if (payload.targetDate !== undefined || payload.owningInitiativeId !== undefined) {
-    const updateOwningInitId = updated.owningInitiativeId;
-    if (updateOwningInitId) {
-      const updateOwningInit = state.matrix.initiativesById?.[updateOwningInitId];
-      if (updateOwningInit) {
-        const spines = (state.matrix.spineInitiativeIds || [])
-          .map((sid) => state.matrix.initiativesById?.[sid])
-          .filter(Boolean);
-        const windows = computeSpineWindows(spines);
-        const projPhase = computeInitiativePhase({ targetDate: updated.targetDate }, windows);
-        const initPhase = computeInitiativePhase(updateOwningInit, windows);
-        if (
-          projPhase !== null &&
-          projPhase !== 'CROSS_PHASE' &&
-          initPhase !== null &&
-          initPhase !== 'CROSS_PHASE' &&
-          projPhase < initPhase
-        ) {
-          const validation = validateInitiativePhaseHierarchy(projPhase, initPhase);
-          if (!validation.valid) {
-            state.lastPlanWarning = state.lastPlanWarning || {
-              code: 'PROJECT_PHASE_HIERARCHY_VIOLATION',
-              reason: validation.message,
-              projectId: id,
-              projectName: updated.name,
-              initiativeId: updateOwningInitId,
-              initiativeName: updateOwningInit.name || updateOwningInitId,
-              projectPhase: projPhase,
-              initiativePhase: initPhase,
-            };
-          }
-        }
-      }
-    }
-  }
+    patch.evidenceProduced = String(payload.evidenceProduced || '').trim() || null;
+  if (payload.notes !== undefined) patch.notes = String(payload.notes || '').trim() || null;
+  state.matrix.projectsById[id] = { ...existing, ...patch };
 }
 
 function removeProject(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
-  if (!id) {return;}
+  if (!id) return;
   delete state.matrix.projectsById[id];
 }
 
@@ -16867,8 +16621,8 @@ function removeProject(state, payload = {}) {
 // ─────────────────────────────────────────────────────────────────────────
 
 function computeLegalFormationBarriers(state) {
-  if (!state?.matrix) {return;}
-  if (!state.matrix.entitiesById || !state.matrix.projectsById) {return;}
+  if (!state?.matrix) return;
+  if (!state.matrix.entitiesById || !state.matrix.projectsById) return;
 
   state.matrix.barriersById = state.matrix.barriersById || {};
 
@@ -16885,19 +16639,19 @@ function computeLegalFormationBarriers(state) {
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
 
   for (const [entityId, entity] of Object.entries(entities)) {
-    if (!entity) {continue;}
+    if (!entity) continue;
     // Skip formed entities
-    if (entity.legallyFormed === true) {continue;}
+    if (entity.legallyFormed === true) continue;
     // Skip incomplete entities (must have name to emit a barrier message)
-    if (!entity.name) {continue;}
+    if (!entity.name) continue;
 
     // Find all projects owned by this entity that require legal formation
     for (const [projectId, project] of Object.entries(projects)) {
-      if (!project) {continue;}
-      if (project.owningEntityId !== entityId) {continue;}
-      if (project.requiresLegalFormation !== true) {continue;}
+      if (!project) continue;
+      if (project.owningEntityId !== entityId) continue;
+      if (project.requiresLegalFormation !== true) continue;
       // Skip incomplete projects (must have name to emit a barrier message)
-      if (!project.name) {continue;}
+      if (!project.name) continue;
 
       // Barrier found: unformed entity owns a project that requires formation
       const barrierId = `barrier-legal-${entityId}-${projectId}`;
@@ -16974,16 +16728,13 @@ function declareMatrixDeliverable(state, payload = {}) {
     confirmedAt: payload?.confirmedAt || null,
     confirmedBy: String(payload?.confirmedBy || '').trim() || null,
     confirmationSource: String(payload?.confirmationSource || '').trim() || null,
-    workState: String(payload?.workState || '').trim() || null,
-    executingEntityId: String(payload?.executingEntityId || '').trim() || null,
-    notes: String(payload?.notes || '').trim() || null,
   };
 }
 
 function removeMatrixDeliverable(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
-  if (!id) {return;}
+  if (!id) return;
   delete state.matrix.deliverablesById[id];
 }
 
@@ -17061,9 +16812,6 @@ function declareArtifact(state, payload = {}) {
     return;
   }
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
-  const parentDeliverableIds = Array.isArray(payload?.parentDeliverableIds)
-    ? payload.parentDeliverableIds.map((id) => String(id || '').trim()).filter(Boolean)
-    : [];
   state.matrix.artifactsById[id] = {
     id,
     name,
@@ -17082,17 +16830,15 @@ function declareArtifact(state, payload = {}) {
     confirmedAt: payload?.confirmedAt || null,
     confirmedBy: String(payload?.confirmedBy || '').trim() || null,
     confirmationSource: String(payload?.confirmationSource || '').trim() || null,
-    satisfactionMode: String(payload?.satisfactionMode || '').trim() || null,
-    parentDeliverableIds,
   };
 }
 
 function updateArtifact(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
-  if (!id) {return;}
+  if (!id) return;
   const existing = state.matrix.artifactsById[id];
-  if (!existing) {return;}
+  if (!existing) return;
   if (payload.producingProjectId !== undefined) {
     const nextProducer = String(payload.producingProjectId || '').trim();
     if (!nextProducer || !state.matrix.projectsById[nextProducer]) {
@@ -17128,22 +16874,22 @@ function updateArtifact(state, payload = {}) {
     }
   }
   const patch = {};
-  if (payload.name !== undefined) {patch.name = String(payload.name || '').trim();}
-  if (payload.producingProjectId !== undefined) {patch.producingProjectId = String(payload.producingProjectId).trim();}
+  if (payload.name !== undefined) patch.name = String(payload.name || '').trim();
+  if (payload.producingProjectId !== undefined) patch.producingProjectId = String(payload.producingProjectId).trim();
   if (Array.isArray(payload.consumingProjectIds))
-    {patch.consumingProjectIds = payload.consumingProjectIds.map((cid) => String(cid || '').trim()).filter(Boolean);}
-  if (payload.completionEvidence !== undefined) {patch.completionEvidence = String(payload.completionEvidence || '').trim();}
-  if (payload.verificationSourceId !== undefined) {patch.verificationSourceId = String(payload.verificationSourceId).trim();}
+    patch.consumingProjectIds = payload.consumingProjectIds.map((cid) => String(cid || '').trim()).filter(Boolean);
+  if (payload.completionEvidence !== undefined) patch.completionEvidence = String(payload.completionEvidence || '').trim();
+  if (payload.verificationSourceId !== undefined) patch.verificationSourceId = String(payload.verificationSourceId).trim();
   if (payload.operatorAttestationMethod !== undefined)
-    {patch.operatorAttestationMethod = String(payload.operatorAttestationMethod || '').trim();}
-  if (payload.notes !== undefined) {patch.notes = String(payload.notes || '').trim() || null;}
+    patch.operatorAttestationMethod = String(payload.operatorAttestationMethod || '').trim();
+  if (payload.notes !== undefined) patch.notes = String(payload.notes || '').trim() || null;
   state.matrix.artifactsById[id] = { ...existing, ...patch };
 }
 
 function removeArtifact(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
-  if (!id) {return;}
+  if (!id) return;
   delete state.matrix.artifactsById[id];
 }
 
@@ -17154,8 +16900,8 @@ function reachesDependency(from, to, edges) {
   const queue = [from];
   while (queue.length > 0) {
     const current = queue.shift();
-    if (current === to) {return true;}
-    if (visited.has(current)) {continue;}
+    if (current === to) return true;
+    if (visited.has(current)) continue;
     visited.add(current);
     for (const edge of edges) {
       if (edge.downstreamId === current) {
@@ -17281,12 +17027,12 @@ function validateSourcesNotSequentiallyDependent(sourceIds = [], dependenciesByI
 
     while (queue.length > 0) {
       const current = queue.shift();
-      if (visited.has(current)) {continue;}
+      if (visited.has(current)) continue;
       visited.add(current);
 
       // Find all dependencies where 'current' is upstream
       for (const dep of Object.values(dependenciesById || {})) {
-        if (!dep) {continue;}
+        if (!dep) continue;
         if (dep.upstreamId === current && dep.downstreamId && !visited.has(dep.downstreamId)) {
           queue.push(dep.downstreamId);
           reachable.push(dep.downstreamId);
@@ -17296,7 +17042,7 @@ function validateSourcesNotSequentiallyDependent(sourceIds = [], dependenciesByI
 
     // Check if any other source is reachable from this one (sequential dependency)
     for (const otherSourceId of sourceIds) {
-      if (otherSourceId === sourceId) {continue;}
+      if (otherSourceId === sourceId) continue;
       if (reachable.includes(otherSourceId)) {
         return {
           isSequential: true,
@@ -17516,13 +17262,6 @@ function declareConvergence(state, payload = {}) {
     }
   }
 
-  // Buffer specification (2026-08-13 Gap 3: Convergence buffer resolution)
-  const bufferType = String(payload?.bufferType || '').trim() || null;
-  const bufferDays = Number(payload?.bufferDays) || null;
-  const toleranceDays = Number(payload?.toleranceDays) || null;
-  const precedingProjectId = String(payload?.precedingProjectId || '').trim() || null;
-  const followingProjectId = String(payload?.followingProjectId || '').trim() || null;
-
   state.matrix.convergenceEdgesById[id] = {
     id,
     name, // Step 3: operator-chosen name (editable)
@@ -17539,14 +17278,7 @@ function declareConvergence(state, payload = {}) {
     supersededBy: null, // Step 4: links to subsequent edge if superseded
     broken: Boolean(payload?.broken) || false,
     label: String(payload?.label || '').trim() || null,
-    // Buffer specification (2026-08-13 Gap 3)
-    bufferType, // 'sequential' | 'parallel'
-    bufferDays, // For sequential buffers
-    toleranceDays, // For parallel buffers
-    precedingProjectId, // Sequential: which source is first
-    followingProjectId, // Sequential: which source is second
     declaredAtISO: nowISO,
-    notes: String(payload?.notes || '').trim() || null,
   };
 
   // Step 3 Piece 3: Update triggering edge to point back to this new edge
