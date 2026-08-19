@@ -8,28 +8,28 @@ import { applyMasterPlanAction } from '../state/masterPlanStore.js';
 import { APP_TIME_ZONE, dayKeyFromISO } from '../state/time/time.ts';
 import { IS_PRODUCTION } from '../utils/runtimeEnv.js';
 
-export const OPERATION_ENDGAME_GOAL_TEXT =
-  'Coordinate Operation Endgame as a 5-year multi-lane master plan across product, creative, media, operations, revenue, capital, institution, and civic pathways.';
-export const OPERATION_ENDGAME_SUCCESS_STATE =
+export const SAMPLE_GOAL_TEXT =
+  'Coordinate [Enterprise] as a 5-year multi-lane master plan across product, creative, media, operations, revenue, capital, institution, and civic pathways.';
+export const SAMPLE_SUCCESS_STATE =
   'Build an active scaling ecosystem with validated product, creative, media, operations, revenue, capital, institution, and civic pathways through the 2031 strategic horizon.';
 // Falsifiable terminal target: each active lane must show externally verifiable
 // proof of scale by 2031-05-19. Specific dollar/user/audience thresholds are
 // intentionally left to the next plan-quality review so the seed does not
 // fabricate numbers the user hasn't stated.
-export const OPERATION_ENDGAME_OUTCOME_TARGET =
+export const SAMPLE_OUTCOME_TARGET =
   'By 2031-05-19, every active lane shows externally verifiable proof of scale: a shipping product with a paying user base, a published creative catalog with sustained audience, a recurring revenue stream, and a funded capital pathway or signed institutional/civic partnership. Specific dollar, user, and audience thresholds to be set at the next plan-quality review.';
-export const OPERATION_ENDGAME_CONSTRAINT =
+export const SAMPLE_CONSTRAINT =
   'Capital is constrained and near-term revenue matters. The system must coordinate multiple lanes without losing full-horizon truth.';
-export const OPERATION_ENDGAME_NON_NEGOTIABLE =
+export const SAMPLE_NON_NEGOTIABLE =
   'Ownership, execution discipline, and mission continuity cannot slip.';
 
 const DEFAULT_NOW_ISO = '2026-05-19T12:00:00.000Z';
 const DEFAULT_TODAY_DATE = '2026-05-19';
 const DEFAULT_HORIZON_END = '2031-05-19';
 const DEFAULT_HORIZON_MONTHS = 60;
-export const OPERATION_ENDGAME_REFERENCE_PROFILE_ID = 'profile-james-endgame';
-export const OPERATION_ENDGAME_REFERENCE_PROFILE_DISPLAY_NAME = 'James / Operation Endgame';
-export const OPERATION_ENDGAME_REFERENCE_PROFILE_ROLE = 'GSS founder';
+export const SAMPLE_REFERENCE_PROFILE_ID = 'profile-james-endgame';
+export const SAMPLE_REFERENCE_PROFILE_DISPLAY_NAME = 'James / [Enterprise]';
+export const SAMPLE_REFERENCE_PROFILE_ROLE = 'GSS founder';
 const FOUNDATION_ANCHOR_DATE = '2026-06-15';
 const PRIMARY_ANCHOR_DATE = '2026-10-17';
 const P2_GATE_DATE = '2028-06-15';
@@ -100,7 +100,7 @@ function buildLaneAnswers(index, config) {
 function buildLaneConfigs() {
   return [
     {
-      title: 'Operation Endgame product platform',
+      title: '[Enterprise] product platform',
       domain: 'product',
       role: 'revenue-engine',
       activation: 'active',
@@ -108,7 +108,7 @@ function buildLaneConfigs() {
       description: 'Product lane is active and building the platform, onboarding path, and proof substrate.',
     },
     {
-      title: 'Operation Endgame album release engine',
+      title: '[Enterprise] album release engine',
       domain: 'creative',
       role: 'proof-artifact',
       activation: 'active',
@@ -116,7 +116,7 @@ function buildLaneConfigs() {
       description: 'Creative lane is active and anchored to the October 17 album drop proof event.',
     },
     {
-      title: 'Operation Endgame media narrative pipeline',
+      title: '[Enterprise] media narrative pipeline',
       domain: 'media',
       role: 'audience-engine',
       activation: 'active',
@@ -124,7 +124,7 @@ function buildLaneConfigs() {
       description: 'Media lane is active and translating strategic proof into repeatable audience narrative.',
     },
     {
-      title: 'Operation Endgame brand and operations system',
+      title: '[Enterprise] brand and operations system',
       domain: 'brand',
       role: 'operating-system',
       activation: 'active',
@@ -132,7 +132,7 @@ function buildLaneConfigs() {
       description: 'Brand and operations lane is active and stabilizing the execution system around the mission.',
     },
     {
-      title: 'Operation Endgame runway bridge',
+      title: '[Enterprise] runway bridge',
       domain: 'income',
       role: 'runway-protection',
       activation: 'active',
@@ -140,7 +140,7 @@ function buildLaneConfigs() {
       description: 'Income lane is active and protecting runway while the larger ecosystem compounds.',
     },
     {
-      title: 'Operation Endgame capital stack',
+      title: '[Enterprise] capital stack',
       domain: 'capital',
       role: 'asset-path',
       activation: 'incubating',
@@ -148,7 +148,7 @@ function buildLaneConfigs() {
       description: 'Capital lane is incubating until current proof and revenue support direct expansion.',
     },
     {
-      title: 'Operation Endgame institution design',
+      title: '[Enterprise] institution design',
       domain: 'institution',
       role: 'institution-builder',
       activation: 'incubating',
@@ -156,7 +156,7 @@ function buildLaneConfigs() {
       description: 'Institution lane is incubating until the operating model has stronger proof and repeatability.',
     },
     {
-      title: 'Operation Endgame civic coalition path',
+      title: '[Enterprise] civic coalition path',
       domain: 'civic',
       role: 'district-builder',
       activation: 'incubating',
@@ -375,19 +375,19 @@ function retargetProfileScopedCollections(state, sourceProfileId, targetProfileI
   });
 }
 
-export function promoteOperationEndgameReferenceProfile(
+export function promoteSampleProfileReferenceProfile(
   state,
   {
-    profileId = OPERATION_ENDGAME_REFERENCE_PROFILE_ID,
-    displayName = OPERATION_ENDGAME_REFERENCE_PROFILE_DISPLAY_NAME,
-    roleLabel = OPERATION_ENDGAME_REFERENCE_PROFILE_ROLE,
+    profileId = SAMPLE_REFERENCE_PROFILE_ID,
+    displayName = SAMPLE_REFERENCE_PROFILE_DISPLAY_NAME,
+    roleLabel = SAMPLE_REFERENCE_PROFILE_ROLE,
   } = {}
 ) {
   if (!state?.profilesById?.[DEFAULT_PROFILE_ID]) {
     return state;
   }
 
-  const targetProfileId = String(profileId || OPERATION_ENDGAME_REFERENCE_PROFILE_ID).trim();
+  const targetProfileId = String(profileId || SAMPLE_REFERENCE_PROFILE_ID).trim();
   const masterCalendarId = `calendar-${targetProfileId}`;
   const sourceProfile = state.profilesById[DEFAULT_PROFILE_ID];
   const promotedProfile = {
@@ -485,11 +485,11 @@ function addP2Milestones(state, nowISO) {
   return state;
 }
 
-export function buildPersistableOperationEndgameFixtureState(state) {
+export function buildPersistableSampleProfileFixtureState(state) {
   return buildPersistableIdentityState(state);
 }
 
-export function buildOperationEndgameFixtureState(options = {}) {
+export function buildSampleProfileFixtureState(options = {}) {
   const {
     nowISO = DEFAULT_NOW_ISO,
     todayDate = DEFAULT_TODAY_DATE,
@@ -507,11 +507,11 @@ export function buildOperationEndgameFixtureState(options = {}) {
   const state = buildBlankIdentityState({ timeZone: APP_TIME_ZONE, nowISO, todayDate });
   const laneConfigs = buildLaneConfigs();
   const answers = {
-    step_1: OPERATION_ENDGAME_GOAL_TEXT,
-    step_2: OPERATION_ENDGAME_SUCCESS_STATE,
+    step_1: SAMPLE_GOAL_TEXT,
+    step_2: SAMPLE_SUCCESS_STATE,
     step_3: { horizonEnd, months: declaredHorizonMonths, label: '5 years through 2031' },
-    step_5: OPERATION_ENDGAME_CONSTRAINT,
-    step_6: OPERATION_ENDGAME_NON_NEGOTIABLE,
+    step_5: SAMPLE_CONSTRAINT,
+    step_6: SAMPLE_NON_NEGOTIABLE,
   };
 
   laneConfigs.forEach((config, index) => {
@@ -571,12 +571,12 @@ export function buildOperationEndgameFixtureState(options = {}) {
   const { planId, plan } = getFixturePlan(next);
 
   if (planId && plan) {
-    plan.title = 'Operation Endgame';
-    plan.coreMission = OPERATION_ENDGAME_GOAL_TEXT;
-    plan.masterPlanSummary = OPERATION_ENDGAME_GOAL_TEXT;
-    plan.northStarOutcome = OPERATION_ENDGAME_SUCCESS_STATE;
-    plan.outcomeTarget = OPERATION_ENDGAME_OUTCOME_TARGET;
-    plan.successStandard = OPERATION_ENDGAME_SUCCESS_STATE;
+    plan.title = '[Enterprise]';
+    plan.coreMission = SAMPLE_GOAL_TEXT;
+    plan.masterPlanSummary = SAMPLE_GOAL_TEXT;
+    plan.northStarOutcome = SAMPLE_SUCCESS_STATE;
+    plan.outcomeTarget = SAMPLE_OUTCOME_TARGET;
+    plan.successStandard = SAMPLE_SUCCESS_STATE;
     plan.executionHorizon = '60 months through 2031';
     plan.horizonStart = todayDate;
     plan.horizonEnd = horizonEnd;
@@ -585,9 +585,9 @@ export function buildOperationEndgameFixtureState(options = {}) {
     plan.financialConstraint = {
       exists: true,
       urgency: 'high',
-      notes: OPERATION_ENDGAME_CONSTRAINT,
+      notes: SAMPLE_CONSTRAINT,
     };
-    plan.nonNegotiables = [OPERATION_ENDGAME_NON_NEGOTIABLE];
+    plan.nonNegotiables = [SAMPLE_NON_NEGOTIABLE];
   }
 
   addP2Milestones(next, nowISO);
@@ -605,7 +605,7 @@ export function buildOperationEndgameFixtureState(options = {}) {
   }
   if (seededGoal) {
     seededGoal.activeCycleId = null;
-    seededGoal.title = 'Operation Endgame';
+    seededGoal.title = '[Enterprise]';
   }
   if (seededCycle) {
     seededCycle.status = 'archived';
@@ -685,11 +685,11 @@ export function buildOperationEndgameFixtureState(options = {}) {
   return next;
 }
 
-export function buildOperationEndgameReferenceState(options = {}) {
-  return promoteOperationEndgameReferenceProfile(buildOperationEndgameFixtureState(options), options);
+export function buildSampleProfileReferenceState(options = {}) {
+  return promoteSampleProfileReferenceProfile(buildSampleProfileFixtureState(options), options);
 }
 
-export function summarizeOperationEndgameFixtureState(state) {
+export function summarizeSampleProfileFixtureState(state) {
   const { profile, planId, plan } = getFixturePlan(state);
   const activeCycle = state?.activeCycleId ? state?.cyclesById?.[state.activeCycleId] || null : null;
   const agendaVersionId = String(plan?.currentAgendaVersionId || '').trim() || null;
@@ -736,17 +736,17 @@ function getCoverageState(state) {
   return 'unresolved';
 }
 
-export function previewOperationEndgameFixture(options = {}) {
+export function previewSampleProfileFixture(options = {}) {
   if (IS_PRODUCTION) {
-    throw new Error('Operation Endgame restore fixture is unavailable in production.');
+    throw new Error('[Enterprise] restore fixture is unavailable in production.');
   }
-  const state = buildOperationEndgameFixtureState(options);
-  const summary = summarizeOperationEndgameFixtureState(state);
-  console.info('[Jericho] Operation Endgame fixture preview', summary);
+  const state = buildSampleProfileFixtureState(options);
+  const summary = summarizeSampleProfileFixtureState(state);
+  console.info('[Jericho] [Enterprise] fixture preview', summary);
   return { state, summary };
 }
 
-export function restoreOperationEndgameFixture({
+export function restoreSampleProfileFixture({
   targetWindow = typeof window !== 'undefined' ? window : null,
   storage = targetWindow?.localStorage || null,
   backup = true,
@@ -754,10 +754,10 @@ export function restoreOperationEndgameFixture({
   ...fixtureOptions
 } = {}) {
   if (IS_PRODUCTION) {
-    throw new Error('Operation Endgame restore fixture is unavailable in production.');
+    throw new Error('[Enterprise] restore fixture is unavailable in production.');
   }
   if (!storage) {
-    throw new Error('Operation Endgame restore fixture requires localStorage.');
+    throw new Error('[Enterprise] restore fixture requires localStorage.');
   }
 
   const previousRaw = storage.getItem(STORAGE_KEY);
@@ -773,8 +773,8 @@ export function restoreOperationEndgameFixture({
         backupError: null,
       };
 
-  const state = preserveExistingProfileMetadata(buildOperationEndgameFixtureState(fixtureOptions), previousState);
-  const persistableState = buildPersistableOperationEndgameFixtureState(state);
+  const state = preserveExistingProfileMetadata(buildSampleProfileFixtureState(fixtureOptions), previousState);
+  const persistableState = buildPersistableSampleProfileFixtureState(state);
   storage.setItem(STORAGE_KEY, JSON.stringify(persistableState));
   const summary = {
     wroteKey: STORAGE_KEY,
@@ -783,9 +783,9 @@ export function restoreOperationEndgameFixture({
     backupPointer: backupSummary.backupPointer,
     backupError: backupSummary.backupError,
     prunedBackupKeys: backupSummary.prunedKeys,
-    ...summarizeOperationEndgameFixtureState(state),
+    ...summarizeSampleProfileFixtureState(state),
   };
-  console.info('[Jericho] Operation Endgame restore fixture written', summary);
+  console.info('[Jericho] [Enterprise] restore fixture written', summary);
 
   if (reload && typeof targetWindow?.location?.reload === 'function') {
     targetWindow.location.reload();
@@ -794,15 +794,15 @@ export function restoreOperationEndgameFixture({
   return summary;
 }
 
-export function installOperationEndgameRestore(targetWindow = typeof window !== 'undefined' ? window : null, options = {}) {
+export function installSampleProfileRestore(targetWindow = typeof window !== 'undefined' ? window : null, options = {}) {
   const isProduction = typeof options?.isProduction === 'boolean' ? options.isProduction : IS_PRODUCTION;
   if (isProduction || !targetWindow) {
     return false;
   }
 
-  targetWindow.__jerichoPreviewOperationEndgame = (fixtureOptions = {}) => previewOperationEndgameFixture(fixtureOptions);
+  targetWindow.__jerichoPreviewOperationEndgame = (fixtureOptions = {}) => previewSampleProfileFixture(fixtureOptions);
   targetWindow.__jerichoRestoreOperationEndgame = (fixtureOptions = {}) =>
-    restoreOperationEndgameFixture({ ...fixtureOptions, targetWindow });
+    restoreSampleProfileFixture({ ...fixtureOptions, targetWindow });
   console.info(
     '[Jericho] Dev restore available: await window.__jerichoRestoreOperationEndgame({ reload: true })'
   );

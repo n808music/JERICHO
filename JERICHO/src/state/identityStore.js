@@ -1960,12 +1960,12 @@ export function IdentityProvider({ children, initialState }) {
     if (IS_PRODUCTION) {
       return null;
     }
-    const { buildOperationEndgameReferenceState, summarizeOperationEndgameFixtureState } = await import(
-      '../dev/operationEndgameRestore.js'
+    const { buildSampleProfileReferenceState, summarizeSampleProfileFixtureState } = await import(
+      '../dev/sampleProfileRestore.js'
     );
-    const nextState = buildOperationEndgameReferenceState();
+    const nextState = buildSampleProfileReferenceState();
     dispatch({ type: 'APPLY_NEXT_STATE', nextState });
-    return summarizeOperationEndgameFixtureState(nextState);
+    return summarizeSampleProfileFixtureState(nextState);
   }, []);
 
   const attemptGoalAdmission = useCallback(
@@ -2136,10 +2136,10 @@ export function IdentityProvider({ children, initialState }) {
       return undefined;
     }
     let active = true;
-    import('../dev/operationEndgameRestore.js')
-      .then(({ installOperationEndgameRestore }) => {
+    import('../dev/sampleProfileRestore.js')
+      .then(({ installSampleProfileRestore }) => {
         if (active) {
-          installOperationEndgameRestore(window);
+          installSampleProfileRestore(window);
         }
       })
       .catch(() => {

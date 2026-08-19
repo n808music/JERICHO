@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import { evaluateFullHorizonBlockQuality } from '../../src/domain/masterPlan/fullHorizonBlockQuality.js';
 import { deriveMasterPlanPhaseModel } from '../../src/domain/masterPlan/masterPlanPhaseModel.js';
-import { buildOperationEndgameState, getActivePlan, setHorizonMode } from '../helpers/masterPlanFullHorizonScenario.js';
+import { buildFullHorizonMultiLaneFixtureState, getActivePlan, setHorizonMode } from '../helpers/masterPlanFullHorizonScenario.js';
 
 function buildGeneratedState(options = {}) {
-  return setHorizonMode(buildOperationEndgameState(options), 'full_horizon');
+  return setHorizonMode(buildFullHorizonMultiLaneFixtureState(options), 'full_horizon');
 }
 
 function buildContext(state = buildGeneratedState()) {

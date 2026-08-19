@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import goldenFixture from '../fixtures/masterPlan/operationEndgame.fullHorizonSchedule.json';
 import { validateBlockTitle } from '../../src/domain/masterPlan/forecastBlockDerivation.js';
-import { buildOperationEndgameState, setHorizonMode, getActivePlan } from '../helpers/masterPlanFullHorizonScenario.js';
+import { buildFullHorizonMultiLaneFixtureState, setHorizonMode, getActivePlan } from '../helpers/masterPlanFullHorizonScenario.js';
 
 function buildGeneratedState(options = {}) {
-  return setHorizonMode(buildOperationEndgameState(options), 'full_horizon');
+  return setHorizonMode(buildFullHorizonMultiLaneFixtureState(options), 'full_horizon');
 }
 
 function getGeneratedBlocks(state) {

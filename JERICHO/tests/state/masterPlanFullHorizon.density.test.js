@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { computeDerivedState } from '../../src/state/identityCompute.js';
 import { deriveMasterPlanPhaseModel } from '../../src/domain/masterPlan/masterPlanPhaseModel.js';
-import { buildOperationEndgameState } from '../helpers/masterPlanFullHorizonScenario.js';
+import { buildFullHorizonMultiLaneFixtureState } from '../helpers/masterPlanFullHorizonScenario.js';
 
 function countBlocksByYear(blocks) {
   return blocks.reduce((counts, block) => {
@@ -55,7 +55,7 @@ function setFullHorizonMode(derived) {
 
 describe('master-plan full-horizon density correction', () => {
   it('keeps terminal year density above 35% of the plan peak year', () => {
-    const derived = setFullHorizonMode(buildOperationEndgameState());
+    const derived = setFullHorizonMode(buildFullHorizonMultiLaneFixtureState());
     const blocks = Array.isArray(derived.fullHorizonScheduleBlocks) ? derived.fullHorizonScheduleBlocks : [];
     const counts = countBlocksByYear(blocks);
     const peakYearCount = Math.max(...Object.values(counts), 0);
@@ -69,7 +69,7 @@ describe('master-plan full-horizon density correction', () => {
   });
 
   it('keeps P3 starting before the final 12 months so it is not only a terminal review tail', () => {
-    const derived = setFullHorizonMode(buildOperationEndgameState());
+    const derived = setFullHorizonMode(buildFullHorizonMultiLaneFixtureState());
     const plan = getActivePlan(derived);
     const blocks = Array.isArray(derived.fullHorizonScheduleBlocks) ? derived.fullHorizonScheduleBlocks : [];
     const lanes = (plan?.laneIds || []).map((id) => derived.masterPlanLanesById?.[id]).filter(Boolean);
@@ -83,7 +83,7 @@ describe('master-plan full-horizon density correction', () => {
   });
 
   it('avoids active primary lane gaps beyond 45 days in the restored agenda', () => {
-    const derived = setFullHorizonMode(buildOperationEndgameState());
+    const derived = setFullHorizonMode(buildFullHorizonMultiLaneFixtureState());
     const plan = getActivePlan(derived);
     const laneIds = Array.isArray(plan?.laneIds) ? plan.laneIds : [];
     const blocks = Array.isArray(derived.fullHorizonScheduleBlocks) ? derived.fullHorizonScheduleBlocks : [];
@@ -93,14 +93,14 @@ describe('master-plan full-horizon density correction', () => {
   });
 
   it('does not create executable future forecast blocks in full-horizon agenda', () => {
-    const derived = setFullHorizonMode(buildOperationEndgameState());
+    const derived = setFullHorizonMode(buildFullHorizonMultiLaneFixtureState());
     const blocks = Array.isArray(derived.fullHorizonScheduleBlocks) ? derived.fullHorizonScheduleBlocks : [];
 
     expect(blocks.every((block) => block?.executionEligibility === 'locked' || block?.executionEligibility === false || block?.executionEligibility == null)).toBe(true);
   });
 
   it('keeps P3 as a meaningful phase with a substantial duration and lane coverage', () => {
-    const derived = setFullHorizonMode(buildOperationEndgameState());
+    const derived = setFullHorizonMode(buildFullHorizonMultiLaneFixtureState());
     const plan = getActivePlan(derived);
     const blocks = Array.isArray(derived.fullHorizonScheduleBlocks) ? derived.fullHorizonScheduleBlocks : [];
     const lanes = (plan?.laneIds || []).map((id) => derived.masterPlanLanesById?.[id]).filter(Boolean);
@@ -120,7 +120,7 @@ describe('master-plan full-horizon density correction', () => {
   });
 
   it('keeps a real P2 to P3 handoff buffer so scale is not just a next-day tail', () => {
-    const derived = setFullHorizonMode(buildOperationEndgameState());
+    const derived = setFullHorizonMode(buildFullHorizonMultiLaneFixtureState());
     const plan = getActivePlan(derived);
     const lanes = (plan?.laneIds || []).map((id) => derived.masterPlanLanesById?.[id]).filter(Boolean);
     const milestones = lanes.flatMap((lane) => (lane.milestoneIds || []).map((id) => derived.masterPlanMilestonesById?.[id]).filter(Boolean));

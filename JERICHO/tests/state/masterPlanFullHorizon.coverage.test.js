@@ -5,10 +5,10 @@ import {
   getFullHorizonCoverageLabel,
 } from '../../src/domain/masterPlan/fullHorizonCoverageAudit.js';
 import { deriveMasterPlanPhaseModel } from '../../src/domain/masterPlan/masterPlanPhaseModel.js';
-import { buildOperationEndgameState, getActivePlan, setHorizonMode } from '../helpers/masterPlanFullHorizonScenario.js';
+import { buildFullHorizonMultiLaneFixtureState, getActivePlan, setHorizonMode } from '../helpers/masterPlanFullHorizonScenario.js';
 
 function buildBaselineExpandedState() {
-  return setHorizonMode(buildOperationEndgameState(), 'full_horizon');
+  return setHorizonMode(buildFullHorizonMultiLaneFixtureState(), 'full_horizon');
 }
 
 function buildAudit(blocks, state = buildBaselineExpandedState()) {

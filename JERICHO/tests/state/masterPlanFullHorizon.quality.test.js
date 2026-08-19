@@ -4,11 +4,12 @@ import { auditFullHorizonCoverage } from '../../src/domain/masterPlan/fullHorizo
 import { evaluateFullHorizonBlockQuality } from '../../src/domain/masterPlan/fullHorizonBlockQuality.js';
 import { evaluateFullHorizonPlanQuality } from '../../src/domain/masterPlan/fullHorizonPlanQuality.js';
 import { deriveMasterPlanPhaseModel } from '../../src/domain/masterPlan/masterPlanPhaseModel.js';
-import { buildOperationEndgameFixtureState } from '../../src/dev/operationEndgameRestore.js';
-import { buildOperationEndgameState, getActivePlan, setHorizonMode } from '../helpers/masterPlanFullHorizonScenario.js';
+import { buildFullHorizonMultiLaneFixtureState, getActivePlan, setHorizonMode } from '../helpers/masterPlanFullHorizonScenario.js';
 
 function buildGeneratedState(options = {}) {
-  return setHorizonMode(buildOperationEndgameState(options), 'full_horizon');
+  // E3 FIX (2026-08-19): Renamed to functional name (was buildFullHorizonMultiLaneFixtureState).
+  // Produces complete multi-lane full-horizon fixture (72 months, all phases).
+  return setHorizonMode(buildFullHorizonMultiLaneFixtureState(options), 'full_horizon');
 }
 
 function buildContext(state = buildGeneratedState()) {
@@ -378,7 +379,7 @@ describe('master-plan full-horizon quality gate', () => {
   });
 
   it('does not silently trust a major middle phase with zero named milestones', () => {
-    const state = buildOperationEndgameFixtureState();
+    const state = buildFullHorizonMultiLaneFixtureState();
     const plan = state.masterPlansById[state.profilesById[state.activeProfileId].activeMasterPlanId];
     const p2LaneIds = (plan?.laneIds || []).filter((laneId) => {
       const lane = state?.masterPlanLanesById?.[laneId];
@@ -472,7 +473,7 @@ describe('master-plan full-horizon quality gate', () => {
   });
 
   it('flags active-lane milestone coverage gaps when only a minority of active P2 lanes have named milestones', () => {
-    const state = buildOperationEndgameFixtureState();
+    const state = buildFullHorizonMultiLaneFixtureState();
     const plan = state.masterPlansById[state.profilesById[state.activeProfileId].activeMasterPlanId];
     const p2LaneIds = (plan?.laneIds || []).filter((laneId) => {
       const lane = state?.masterPlanLanesById?.[laneId];
@@ -630,7 +631,7 @@ describe('master-plan full-horizon quality gate', () => {
   });
 
   it('keeps the Operation Endgame fixture inspectable under the official MVP standard', () => {
-    const state = buildOperationEndgameFixtureState();
+    const state = buildFullHorizonMultiLaneFixtureState();
     const quality = state.fullHorizonPlanQuality;
 
     expect(quality?.mvpStandard?.status).toBe(quality?.standardStatus);

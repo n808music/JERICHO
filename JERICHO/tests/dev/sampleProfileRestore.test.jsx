@@ -4,15 +4,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen } from '@testing-library/react';
 
 import {
-  buildOperationEndgameReferenceState,
-  buildOperationEndgameFixtureState,
-  buildPersistableOperationEndgameFixtureState,
-  installOperationEndgameRestore,
-  OPERATION_ENDGAME_REFERENCE_PROFILE_DISPLAY_NAME,
-  OPERATION_ENDGAME_REFERENCE_PROFILE_ID,
-  restoreOperationEndgameFixture,
-  summarizeOperationEndgameFixtureState,
-} from '../../src/dev/operationEndgameRestore.js';
+  buildSampleProfileReferenceState,
+  buildSampleProfileFixtureState,
+  buildPersistableSampleProfileFixtureState,
+  installSampleProfileRestore,
+  SAMPLE_REFERENCE_PROFILE_DISPLAY_NAME,
+  SAMPLE_REFERENCE_PROFILE_ID,
+  restoreSampleProfileFixture,
+  summarizeSampleProfileFixtureState,
+} from '../../src/dev/sampleProfileRestore.js';
 import MasterPlanTimeline from '../../src/ui/masterPlan/MasterPlanTimeline.jsx';
 import { DEFAULT_PROFILE_ID, rehydratePersistedState } from '../../src/state/identityStore.js';
 import { APP_TIME_ZONE } from '../../src/state/time/time.ts';
@@ -45,7 +45,7 @@ vi.mock('../../src/state/identityStore.js', async () => {
   };
 });
 
-describe('Operation Endgame dev restore fixture', () => {
+describe('[Sample Enterprise] dev restore fixture', () => {
   afterEach(() => {
     cleanup();
     mockStore = {};
@@ -55,8 +55,8 @@ describe('Operation Endgame dev restore fixture', () => {
   });
 
   it('builds a coherent profile-owned master plan with valid active pointers and no orphan cycle', () => {
-    const state = buildOperationEndgameFixtureState();
-    const summary = summarizeOperationEndgameFixtureState(state);
+    const state = buildSampleProfileFixtureState();
+    const summary = summarizeSampleProfileFixtureState(state);
     const profile = state.profilesById[DEFAULT_PROFILE_ID];
     const plan = state.masterPlansById[summary.activeMasterPlanId];
     const goal = state.goalsById[summary.activeGoalId];
@@ -91,7 +91,7 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(profile.scheduleConstraintVersionIds || []).toContain(summary.constraintVersionId);
     expect(goal.profileId).toBe(DEFAULT_PROFILE_ID);
     expect(goal.activeCycleId || null).toBeNull();
-    expect(plan.coreMission).toMatch(/Operation Endgame/i);
+    expect(plan.coreMission).toMatch(/[Sample Enterprise]/i);
     expect(plan.declaredHorizonMonths).toBe(60);
     expect(plan.horizonEnd).toBe('2031-05-19');
     expect(plan.currentAgendaVersionId).toBe(summary.agendaVersionId);
@@ -155,10 +155,10 @@ describe('Operation Endgame dev restore fixture', () => {
   });
 
   it('keeps the master-plan horizon on May 19 while resolving live appTime from the runtime date', () => {
-    const state = buildOperationEndgameFixtureState({
+    const state = buildSampleProfileFixtureState({
       appNowISO: '2026-06-13T12:00:00.000Z',
     });
-    const summary = summarizeOperationEndgameFixtureState(state);
+    const summary = summarizeSampleProfileFixtureState(state);
     const plan = state.masterPlansById[summary.activeMasterPlanId];
 
     expect(plan.horizonStart).toBe('2026-05-19');
@@ -169,9 +169,9 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(state.today.date).toBe('2026-06-13');
   });
 
-  it('keeps canonical Operation Endgame mission text free of demo revenue and fixture user-target contamination', () => {
-    const state = buildOperationEndgameFixtureState();
-    const summary = summarizeOperationEndgameFixtureState(state);
+  it('keeps canonical [Sample Enterprise] mission text free of demo revenue and fixture user-target contamination', () => {
+    const state = buildSampleProfileFixtureState();
+    const summary = summarizeSampleProfileFixtureState(state);
     const plan = state.masterPlansById[summary.activeMasterPlanId];
     const goal = state.goalsById[summary.activeGoalId];
     const canonicalTexts = [
@@ -187,10 +187,10 @@ describe('Operation Endgame dev restore fixture', () => {
       .filter((value) => typeof value === 'string')
       .join(' || ');
 
-    expect(canonicalTexts).toContain('Coordinate Operation Endgame as a 5-year multi-lane master plan');
+    expect(canonicalTexts).toContain('Coordinate [Sample Enterprise] as a 5-year multi-lane master plan');
     expect(canonicalTexts).not.toMatch(/10k users|10,000 users/i);
     expect(canonicalTexts).not.toMatch(/grow revenue to \$10k\/month/i);
-    // Phase 2 contract: Operation Endgame seeds a falsifiable terminal target
+    // Phase 2 contract: [Sample Enterprise] seeds a falsifiable terminal target
     // anchored to 2031-05-19. The negative regexes above still guard against
     // fabricated user/dollar numbers — the target is structural, not numeric.
     expect(plan?.outcomeTarget).toBeTruthy();
@@ -204,7 +204,7 @@ describe('Operation Endgame dev restore fixture', () => {
     storage.setItem('jericho-identity-backup:old-1', JSON.stringify({ old: 1 }));
     storage.setItem('jericho-identity-backup:old-2', JSON.stringify({ old: 2 }));
 
-    const summary = restoreOperationEndgameFixture({ reload: false, storage });
+    const summary = restoreSampleProfileFixture({ reload: false, storage });
     const written = JSON.parse(storage.getItem('jericho-identity'));
     const backupRaw = summary.backupKey ? storage.getItem(summary.backupKey) : null;
 
@@ -238,10 +238,10 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(rehydratedAgenda?.blockCount).toBe((rehydrated.fullHorizonScheduleBlocks || []).length);
   });
 
-  it('restoring Operation Endgame does not pin persisted live appTime to the fixture horizon start', () => {
+  it('restoring [Sample Enterprise] does not pin persisted live appTime to the fixture horizon start', () => {
     const storage = createStorageMock();
 
-    restoreOperationEndgameFixture({
+    restoreSampleProfileFixture({
       reload: false,
       storage,
       appNowISO: '2026-06-13T12:00:00.000Z',
@@ -291,7 +291,7 @@ describe('Operation Endgame dev restore fixture', () => {
       },
     };
 
-    const summary = restoreOperationEndgameFixture({
+    const summary = restoreSampleProfileFixture({
       reload: false,
       storage,
       nowISO: '2026-05-20T00:00:00.000Z',
@@ -325,7 +325,7 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(compactBackup.activeProfileId).toBeNull();
   });
 
-  it('preserves existing named profile metadata while restoring Operation Endgame', () => {
+  it('preserves existing named profile metadata while restoring [Sample Enterprise]', () => {
     const storage = createStorageMock();
     storage.setItem(
       'jericho-identity',
@@ -350,7 +350,7 @@ describe('Operation Endgame dev restore fixture', () => {
       })
     );
 
-    restoreOperationEndgameFixture({ reload: false, storage });
+    restoreSampleProfileFixture({ reload: false, storage });
     const written = JSON.parse(storage.getItem('jericho-identity'));
     const rehydrated = rehydratePersistedState(written);
     const profile = rehydrated.profilesById[DEFAULT_PROFILE_ID];
@@ -369,30 +369,30 @@ describe('Operation Endgame dev restore fixture', () => {
   });
 
   it('builds a product-facing reference profile that is not the placeholder local profile', () => {
-    const state = buildOperationEndgameReferenceState();
-    const profile = state.profilesById[OPERATION_ENDGAME_REFERENCE_PROFILE_ID];
+    const state = buildSampleProfileReferenceState();
+    const profile = state.profilesById[SAMPLE_REFERENCE_PROFILE_ID];
     const plan = profile?.activeMasterPlanId ? state.masterPlansById[profile.activeMasterPlanId] : null;
 
-    expect(state.activeProfileId).toBe(OPERATION_ENDGAME_REFERENCE_PROFILE_ID);
+    expect(state.activeProfileId).toBe(SAMPLE_REFERENCE_PROFILE_ID);
     expect(state.profilesById[DEFAULT_PROFILE_ID]).toBeUndefined();
-    expect(profile.displayName).toBe(OPERATION_ENDGAME_REFERENCE_PROFILE_DISPLAY_NAME);
-    expect(profile.label).toBe(OPERATION_ENDGAME_REFERENCE_PROFILE_DISPLAY_NAME);
-    expect(profile.masterCalendarId).toBe(`calendar-${OPERATION_ENDGAME_REFERENCE_PROFILE_ID}`);
-    expect(state.masterCalendarsById[profile.masterCalendarId]?.profileId).toBe(OPERATION_ENDGAME_REFERENCE_PROFILE_ID);
-    expect(state.goalsById[state.activeGoalId]?.profileId).toBe(OPERATION_ENDGAME_REFERENCE_PROFILE_ID);
-    expect(plan?.profileId).toBe(OPERATION_ENDGAME_REFERENCE_PROFILE_ID);
+    expect(profile.displayName).toBe(SAMPLE_REFERENCE_PROFILE_DISPLAY_NAME);
+    expect(profile.label).toBe(SAMPLE_REFERENCE_PROFILE_DISPLAY_NAME);
+    expect(profile.masterCalendarId).toBe(`calendar-${SAMPLE_REFERENCE_PROFILE_ID}`);
+    expect(state.masterCalendarsById[profile.masterCalendarId]?.profileId).toBe(SAMPLE_REFERENCE_PROFILE_ID);
+    expect(state.goalsById[state.activeGoalId]?.profileId).toBe(SAMPLE_REFERENCE_PROFILE_ID);
+    expect(plan?.profileId).toBe(SAMPLE_REFERENCE_PROFILE_ID);
     expect(plan?.horizonEnd).toBe('2031-05-19');
     expect(state.profileAccess).toMatchObject({
       status: 'profile_selected',
-      selectedProfileId: OPERATION_ENDGAME_REFERENCE_PROFILE_ID,
+      selectedProfileId: SAMPLE_REFERENCE_PROFILE_ID,
     });
     expect(state.fullHorizonPlanQuality?.standardStatus).toBe('trusted_plan');
     expect(state.fullHorizonPlanQuality?.mvpStandard?.reasonCodes || []).toEqual([]);
   });
 
   it('writes a compact persisted payload when the fully derived fixture would exceed the active identity quota', () => {
-    const fullState = buildOperationEndgameFixtureState();
-    const persistableState = buildPersistableOperationEndgameFixtureState(fullState);
+    const fullState = buildSampleProfileFixtureState();
+    const persistableState = buildPersistableSampleProfileFixtureState(fullState);
     const fullRaw = JSON.stringify(fullState);
     const persistableRaw = JSON.stringify(persistableState);
     const quotaThreshold = Math.floor((fullRaw.length + persistableRaw.length) / 2);
@@ -427,7 +427,7 @@ describe('Operation Endgame dev restore fixture', () => {
 
     expect(persistableRaw.length).toBeLessThan(fullRaw.length);
 
-    const summary = restoreOperationEndgameFixture({ reload: false, storage });
+    const summary = restoreSampleProfileFixture({ reload: false, storage });
     const writtenRaw = storage.getItem('jericho-identity');
     const written = JSON.parse(writtenRaw);
     const rehydrated = rehydratePersistedState(written);
@@ -454,7 +454,7 @@ describe('Operation Endgame dev restore fixture', () => {
       location: { reload: vi.fn() },
     };
 
-    const installed = installOperationEndgameRestore(fakeWindow, { isProduction: true });
+    const installed = installSampleProfileRestore(fakeWindow, { isProduction: true });
 
     expect(installed).toBe(false);
     expect(fakeWindow.__jerichoRestoreOperationEndgame).toBeUndefined();
@@ -462,7 +462,7 @@ describe('Operation Endgame dev restore fixture', () => {
   });
 
   it('renders Plan from the seeded fixture state', async () => {
-    mockStore = buildOperationEndgameFixtureState();
+    mockStore = buildSampleProfileFixtureState();
 
     await act(async () => {
       render(<MasterPlanTimeline />);
@@ -478,7 +478,7 @@ describe('Operation Endgame dev restore fixture', () => {
     expect(screen.getByTestId('phase-card-p3')).toHaveTextContent(/Forecast workload recognized:/i);
   });
 
-  it('renders full-horizon Operation Endgame plan without duplicate React key warnings', async () => {
+  it('renders full-horizon [Sample Enterprise] plan without duplicate React key warnings', async () => {
     const keyWarnings = [];
     const errSpy = vi.spyOn(console, 'error').mockImplementation((...args) => {
       const msg = args.join(' ');
@@ -487,7 +487,7 @@ describe('Operation Endgame dev restore fixture', () => {
       }
     });
 
-    mockStore = buildOperationEndgameFixtureState();
+    mockStore = buildSampleProfileFixtureState();
 
     await act(async () => {
       render(<MasterPlanTimeline />);
