@@ -4,11 +4,12 @@ import { auditFullHorizonCoverage } from '../../src/domain/masterPlan/fullHorizo
 import { evaluateFullHorizonBlockQuality } from '../../src/domain/masterPlan/fullHorizonBlockQuality.js';
 import { evaluateFullHorizonPlanQuality } from '../../src/domain/masterPlan/fullHorizonPlanQuality.js';
 import { deriveMasterPlanPhaseModel } from '../../src/domain/masterPlan/masterPlanPhaseModel.js';
-import { buildOperationEndgameFixtureState } from '../../src/dev/operationEndgameRestore.js';
-import { buildOperationEndgameState, getActivePlan, setHorizonMode } from '../helpers/masterPlanFullHorizonScenario.js';
+import { buildFullHorizonMultiLaneFixtureState, getActivePlan, setHorizonMode } from '../helpers/masterPlanFullHorizonScenario.js';
 
 function buildGeneratedState(options = {}) {
-  return setHorizonMode(buildOperationEndgameState(options), 'full_horizon');
+  // E3 FIX (2026-08-19): Renamed to functional name (was buildFullHorizonMultiLaneFixtureState).
+  // Produces complete multi-lane full-horizon fixture (72 months, all phases).
+  return setHorizonMode(buildFullHorizonMultiLaneFixtureState(options), 'full_horizon');
 }
 
 function buildContext(state = buildGeneratedState()) {
@@ -220,7 +221,7 @@ describe('master-plan full-horizon quality gate', () => {
       (block) =>
         String(block.dayKey || '') < '2029-01-01' ||
         String(block.dayKey || '') === '2029-01-01' ||
-        String(block.dayKey || '') === '2031-05-11'
+        String(block.dayKey || '') === '2032-03-15'
     );
 
     const quality = evaluateForState(state, blocks);
@@ -378,7 +379,7 @@ describe('master-plan full-horizon quality gate', () => {
   });
 
   it('does not silently trust a major middle phase with zero named milestones', () => {
-    const state = buildOperationEndgameFixtureState();
+    const state = buildFullHorizonMultiLaneFixtureState();
     const plan = state.masterPlansById[state.profilesById[state.activeProfileId].activeMasterPlanId];
     const p2LaneIds = (plan?.laneIds || []).filter((laneId) => {
       const lane = state?.masterPlanLanesById?.[laneId];
@@ -472,7 +473,7 @@ describe('master-plan full-horizon quality gate', () => {
   });
 
   it('flags active-lane milestone coverage gaps when only a minority of active P2 lanes have named milestones', () => {
-    const state = buildOperationEndgameFixtureState();
+    const state = buildFullHorizonMultiLaneFixtureState();
     const plan = state.masterPlansById[state.profilesById[state.activeProfileId].activeMasterPlanId];
     const p2LaneIds = (plan?.laneIds || []).filter((laneId) => {
       const lane = state?.masterPlanLanesById?.[laneId];
@@ -630,7 +631,7 @@ describe('master-plan full-horizon quality gate', () => {
   });
 
   it('keeps the Operation Endgame fixture inspectable under the official MVP standard', () => {
-    const state = buildOperationEndgameFixtureState();
+    const state = buildFullHorizonMultiLaneFixtureState();
     const quality = state.fullHorizonPlanQuality;
 
     expect(quality?.mvpStandard?.status).toBe(quality?.standardStatus);
@@ -653,7 +654,7 @@ describe('master-plan full-horizon quality gate', () => {
     // Snap all blocks to Tuesday/Wednesday only to simulate the pre-fix clustering
     const clusterBlocks = cloneBlocks(state.fullHorizonScheduleBlocks).map((block) => {
       const dk = String(block.dayKey || '');
-      if (!dk) return block;
+      if (!dk) {return block;}
       const d = new Date(`${dk}T12:00:00.000Z`);
       const utcDow = d.getUTCDay();
       // Push every block to the nearest Tuesday (DOW 2)
@@ -675,13 +676,13 @@ describe('master-plan full-horizon quality gate', () => {
     const dowSet = new Set();
     for (const b of blocks) {
       const dk = b.dayKey || b.date;
-      if (dk) dowSet.add(new Date(`${dk}T12:00:00.000Z`).getUTCDay());
+      if (dk) {dowSet.add(new Date(`${dk}T12:00:00.000Z`).getUTCDay());}
     }
     expect(dowSet.size).toBeGreaterThanOrEqual(4);
     const counts = {};
     for (const b of blocks) {
       const dk = b.dayKey || b.date;
-      if (!dk) continue;
+      if (!dk) {continue;}
       const dow = new Date(`${dk}T12:00:00.000Z`).getUTCDay();
       counts[dow] = (counts[dow] || 0) + 1;
     }

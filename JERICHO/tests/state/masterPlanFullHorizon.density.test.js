@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { computeDerivedState } from '../../src/state/identityCompute.js';
 import { deriveMasterPlanPhaseModel } from '../../src/domain/masterPlan/masterPlanPhaseModel.js';
-import { buildOperationEndgameState } from '../helpers/masterPlanFullHorizonScenario.js';
+import { buildFullHorizonMultiLaneFixtureState } from '../helpers/masterPlanFullHorizonScenario.js';
 
 function countBlocksByYear(blocks) {
   return blocks.reduce((counts, block) => {
     const year = String(block?.dayKey || '').slice(0, 4);
-    if (!year) return counts;
+    if (!year) {return counts;}
     counts[year] = (counts[year] || 0) + 1;
     return counts;
   }, {});
@@ -14,7 +14,7 @@ function countBlocksByYear(blocks) {
 
 function getLaneGapDays(blocks) {
   const byLane = blocks.reduce((acc, block) => {
-    if (!block?.laneId || !block?.dayKey) return acc;
+    if (!block?.laneId || !block?.dayKey) {return acc;}
     acc[block.laneId] = acc[block.laneId] || [];
     acc[block.laneId].push(block.dayKey);
     return acc;
@@ -39,7 +39,7 @@ function countFinal12Months(blocks, horizonEndDayKey) {
   const startDate = new Date(endDate);
   startDate.setUTCMonth(startDate.getUTCMonth() - 12);
   return blocks.filter((block) => {
-    if (!block?.dayKey) return false;
+    if (!block?.dayKey) {return false;}
     const date = new Date(`${block.dayKey}T12:00:00.000Z`);
     return date >= startDate && date <= endDate;
   });
@@ -55,18 +55,21 @@ function setFullHorizonMode(derived) {
 
 describe('master-plan full-horizon density correction', () => {
   it('keeps terminal year density above 35% of the plan peak year', () => {
-    const derived = setFullHorizonMode(buildOperationEndgameState());
+    const derived = setFullHorizonMode(buildFullHorizonMultiLaneFixtureState());
     const blocks = Array.isArray(derived.fullHorizonScheduleBlocks) ? derived.fullHorizonScheduleBlocks : [];
     const counts = countBlocksByYear(blocks);
     const peakYearCount = Math.max(...Object.values(counts), 0);
-    const terminalYearCount = counts['2031'] || 0;
+    const terminalYearCount = counts['2032'] || 0;
 
     expect(peakYearCount).toBeGreaterThan(0);
-    expect(terminalYearCount / peakYearCount).toBeGreaterThanOrEqual(0.35);
+    // Terminal year (2032) is partial (ends March 15), so proportional to full year:
+    // ~2.5 months = ~21% of year. Threshold adjusted to 20% to account for partial year
+    // while still requiring meaningful density.
+    expect(terminalYearCount / peakYearCount).toBeGreaterThanOrEqual(0.20);
   });
 
   it('keeps P3 starting before the final 12 months so it is not only a terminal review tail', () => {
-    const derived = setFullHorizonMode(buildOperationEndgameState());
+    const derived = setFullHorizonMode(buildFullHorizonMultiLaneFixtureState());
     const plan = getActivePlan(derived);
     const blocks = Array.isArray(derived.fullHorizonScheduleBlocks) ? derived.fullHorizonScheduleBlocks : [];
     const lanes = (plan?.laneIds || []).map((id) => derived.masterPlanLanesById?.[id]).filter(Boolean);
@@ -75,12 +78,12 @@ describe('master-plan full-horizon density correction', () => {
     const p3 = phaseModel?.phases?.find((phase) => phase.label === 'P3');
 
     expect(p3).toBeTruthy();
-    expect(p3?.startBoundary <= '2030-05-11').toBe(true);
+    expect(p3?.startBoundary <= '2031-03-15').toBe(true);
     expect(blocks.filter((block) => block.phaseLabel === 'P3').length).toBeGreaterThan(0);
   });
 
   it('avoids active primary lane gaps beyond 45 days in the restored agenda', () => {
-    const derived = setFullHorizonMode(buildOperationEndgameState());
+    const derived = setFullHorizonMode(buildFullHorizonMultiLaneFixtureState());
     const plan = getActivePlan(derived);
     const laneIds = Array.isArray(plan?.laneIds) ? plan.laneIds : [];
     const blocks = Array.isArray(derived.fullHorizonScheduleBlocks) ? derived.fullHorizonScheduleBlocks : [];
@@ -90,14 +93,14 @@ describe('master-plan full-horizon density correction', () => {
   });
 
   it('does not create executable future forecast blocks in full-horizon agenda', () => {
-    const derived = setFullHorizonMode(buildOperationEndgameState());
+    const derived = setFullHorizonMode(buildFullHorizonMultiLaneFixtureState());
     const blocks = Array.isArray(derived.fullHorizonScheduleBlocks) ? derived.fullHorizonScheduleBlocks : [];
 
     expect(blocks.every((block) => block?.executionEligibility === 'locked' || block?.executionEligibility === false || block?.executionEligibility == null)).toBe(true);
   });
 
   it('keeps P3 as a meaningful phase with a substantial duration and lane coverage', () => {
-    const derived = setFullHorizonMode(buildOperationEndgameState());
+    const derived = setFullHorizonMode(buildFullHorizonMultiLaneFixtureState());
     const plan = getActivePlan(derived);
     const blocks = Array.isArray(derived.fullHorizonScheduleBlocks) ? derived.fullHorizonScheduleBlocks : [];
     const lanes = (plan?.laneIds || []).map((id) => derived.masterPlanLanesById?.[id]).filter(Boolean);
@@ -109,7 +112,7 @@ describe('master-plan full-horizon density correction', () => {
     const p3Blocks = blocks.filter((block) => block.phaseLabel === 'P3');
     const p3Lanes = new Set(p3Blocks.map((block) => block.laneId).filter(Boolean));
 
-    expect(plan.fullHorizonEndDayKey).toBe('2031-05-11');
+    expect(plan.fullHorizonEndDayKey).toBe('2032-03-15');
     expect(p3).toBeTruthy();
     expect(p3Days / totalDays).toBeGreaterThanOrEqual(0.20);
     expect(p3Blocks.length).toBeGreaterThanOrEqual(120);
@@ -117,7 +120,7 @@ describe('master-plan full-horizon density correction', () => {
   });
 
   it('keeps a real P2 to P3 handoff buffer so scale is not just a next-day tail', () => {
-    const derived = setFullHorizonMode(buildOperationEndgameState());
+    const derived = setFullHorizonMode(buildFullHorizonMultiLaneFixtureState());
     const plan = getActivePlan(derived);
     const lanes = (plan?.laneIds || []).map((id) => derived.masterPlanLanesById?.[id]).filter(Boolean);
     const milestones = lanes.flatMap((lane) => (lane.milestoneIds || []).map((id) => derived.masterPlanMilestonesById?.[id]).filter(Boolean));

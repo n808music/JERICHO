@@ -2,22 +2,22 @@ import { describe, expect, it } from 'vitest';
 import { buildFullSchedulePdfDocDefinition } from './exportFullSchedulePdf.js';
 
 function flatten(node, out = []) {
-  if (node == null) return out;
+  if (node == null) {return out;}
   if (typeof node === 'string' || typeof node === 'number') {
     out.push(String(node));
     return out;
   }
   if (Array.isArray(node)) {
-    for (const child of node) flatten(child, out);
+    for (const child of node) {flatten(child, out);}
     return out;
   }
   if (typeof node === 'object') {
-    if (node.text != null) flatten(node.text, out);
-    if (node.columns) flatten(node.columns, out);
-    if (node.stack) flatten(node.stack, out);
-    if (node.ul) flatten(node.ul, out);
-    if (node.ol) flatten(node.ol, out);
-    if (node.table?.body) flatten(node.table.body, out);
+    if (node.text != null) {flatten(node.text, out);}
+    if (node.columns) {flatten(node.columns, out);}
+    if (node.stack) {flatten(node.stack, out);}
+    if (node.ul) {flatten(node.ul, out);}
+    if (node.ol) {flatten(node.ol, out);}
+    if (node.table?.body) {flatten(node.table.body, out);}
   }
   return out;
 }

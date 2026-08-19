@@ -8,7 +8,7 @@ import {
 import { applyMasterPlanAction } from '../../src/state/masterPlanStore.js';
 import { deriveForecastBlocks, validateBlockTitle } from '../../src/domain/masterPlan/forecastBlockDerivation.js';
 import { deriveMasterPlanPhaseModel } from '../../src/domain/masterPlan/masterPlanPhaseModel.js';
-import { buildOperationEndgameState } from './masterPlanFullHorizonScenario.js';
+import { buildFullHorizonMultiLaneFixtureState } from './masterPlanFullHorizonScenario.js';
 
 export { DEFAULT_PROFILE_ID, projectMonthDays, projectWeekDays, getBlockDayKey, deriveForecastBlocks, validateBlockTitle };
 
@@ -50,7 +50,7 @@ export function getPlan(derived) {
 
 export function getPhaseModel(derived) {
   const plan = getPlan(derived);
-  if (!plan) return null;
+  if (!plan) {return null;}
   const lanes = (plan.laneIds || []).map((id) => derived.masterPlanLanesById?.[id]).filter(Boolean);
   const milestones = lanes
     .flatMap((lane) => (lane.milestoneIds || []).map((id) => derived.masterPlanMilestonesById?.[id]))
@@ -79,7 +79,7 @@ export function getBlocksByPhase(derived, phaseLabel) {
 }
 
 export function buildFreshMasterPlanCycleState() {
-  const established = buildOperationEndgameState();
+  const established = buildFullHorizonMultiLaneFixtureState();
   return computeDerivedState(established, {
     type: 'START_NEW_CYCLE_WITH_DECISION',
     payload: { mode: 'archive' },

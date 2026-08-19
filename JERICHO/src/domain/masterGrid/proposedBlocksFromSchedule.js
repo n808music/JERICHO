@@ -26,7 +26,7 @@
  * @returns {Array<object>} proposal objects with status:'suggested', ready for setCycleProposedBlocks
  */
 export function buildProposedBlocksFromSchedule(scheduledBlocks = [], { domain = 'FOCUS', createdAtISO = '' } = {}) {
-  if (!Array.isArray(scheduledBlocks) || scheduledBlocks.length === 0) return [];
+  if (!Array.isArray(scheduledBlocks) || scheduledBlocks.length === 0) {return [];}
 
   return scheduledBlocks.map((block) => ({
     id: block.id,

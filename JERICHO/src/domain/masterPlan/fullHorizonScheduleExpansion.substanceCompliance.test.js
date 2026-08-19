@@ -174,7 +174,7 @@ describe('Generator substrate compliance: execution blocks must carry all 5 fiel
     const execBlocks = getExecutionBlocks(blocks);
     const failing = execBlocks.filter((b) => {
       const ref = b.consumedByRef;
-      if (!ref || !ref.id || !ref.type) return true;
+      if (!ref || !ref.id || !ref.type) {return true;}
       return VAGUE.has(String(ref.id).toLowerCase().trim());
     });
     expect(failing.map((b) => ({ id: b.id, blockType: b.blockType, consumedByRef: b.consumedByRef }))).toEqual([]);
@@ -267,7 +267,7 @@ describe('Generator temporal workload compliance', () => {
       const phase = b?.phaseLabel?.toUpperCase();
       if (phase && blocksByPhase[phase]) {
         const isExempt = EXEMPT.has(b.blockType) || b.owner === 'reviewer' || b.owner === 'system';
-        if (!isExempt) blocksByPhase[phase].push(b);
+        if (!isExempt) {blocksByPhase[phase].push(b);}
       }
     });
     expect(blocksByPhase['P1'].length).toBeGreaterThan(0);

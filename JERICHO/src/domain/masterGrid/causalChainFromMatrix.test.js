@@ -25,8 +25,8 @@ describe('buildCausalChainStepsFromMatrix', () => {
       },
     };
     expect(buildCausalChainStepsFromMatrix(matrix)).toEqual([
-      { sequence: 1, description: 'Ship MVP', projectId: 'p1' },
-      { sequence: 2, description: 'Harden Auth', projectId: 'p2' },
+      { sequence: 1, description: 'Ship MVP', projectId: 'p1', targetDate: null },
+      { sequence: 2, description: 'Harden Auth', projectId: 'p2', targetDate: null },
     ]);
   });
 
@@ -38,7 +38,7 @@ describe('buildCausalChainStepsFromMatrix', () => {
       },
     };
     expect(buildCausalChainStepsFromMatrix(matrix)).toEqual([
-      { sequence: 1, description: 'Confirmed Work', projectId: 'p1' },
+      { sequence: 1, description: 'Confirmed Work', projectId: 'p1', targetDate: null },
     ]);
   });
 

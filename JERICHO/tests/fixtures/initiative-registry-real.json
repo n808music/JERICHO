@@ -1,0 +1,186 @@
+{
+  "timestamp": "2026-08-17T01:13:02.769Z",
+  "notes": "Terminal Deadline data added for roster-completeness auditing. Dates represent real commitments within planning horizon (P3 end: ~2026-11-30).",
+  "initiatives": [
+    {
+      "id": "global-state-solutions-foundation",
+      "name": "Global State Solutions Foundation",
+      "owner": "Global State Solutions",
+      "terminalDeadline": "2026-10-15"
+    },
+    {
+      "id": "help-your-self-broadcast-foundation-new",
+      "name": "Help Your Self Broadcast Foundation (NEW)",
+      "owner": "Global State Productions",
+      "terminalDeadline": "2026-12-01"
+    },
+    {
+      "id": "help-your-self-broadcast",
+      "name": "Help Your Self Broadcast",
+      "owner": "Global State Productions",
+      "terminalDeadline": "2026-09-30"
+    },
+    {
+      "id": "global-state-corp-foundation",
+      "name": "Global State Corp. Foundation",
+      "owner": "Global State Corp.",
+      "terminalDeadline": "2026-11-15"
+    },
+    {
+      "id": "state-of-control-foundation-",
+      "name": "state of control foundation ",
+      "owner": "Global State Productions",
+      "terminalDeadline": "2026-08-31"
+    },
+    {
+      "id": "the-jericho-system",
+      "name": "The Jericho System",
+      "owner": "Global State Systems",
+      "terminalDeadline": "2026-10-31"
+    },
+    {
+      "id": "global-state-productions-foundation",
+      "name": "Global State Productions Foundation",
+      "owner": "Global State Productions",
+      "terminalDeadline": "2026-11-30"
+    },
+    {
+      "id": "global-state-systems-foundation",
+      "name": "Global State Systems Foundation",
+      "owner": "Global State Systems",
+      "terminalDeadline": "2026-10-15"
+    },
+    {
+      "id": "global-state-holdings-foundation",
+      "name": "Global State Holdings Foundation",
+      "owner": "Global State Holdings",
+      "terminalDeadline": "2026-11-20"
+    },
+    {
+      "id": "marketing-flywheel-foundation-new",
+      "name": "Marketing Flywheel Foundation (NEW)",
+      "owner": "Global State Solutions",
+      "terminalDeadline": "2027-02-15"
+    },
+    {
+      "id": "global-state-academy-foundation",
+      "name": "Global State Academy Foundation",
+      "owner": "Global State Academy",
+      "terminalDeadline": "2026-09-15"
+    },
+    {
+      "id": "f8-energy-foundation",
+      "name": "F8 Energy Foundation",
+      "owner": "F8 Energy",
+      "terminalDeadline": "2026-11-30"
+    },
+    {
+      "id": "79th-street-renovation-foundation-new",
+      "name": "79th Street Renovation Foundation (NEW)",
+      "owner": "Global State Holdings",
+      "terminalDeadline": "2027-01-30"
+    },
+    {
+      "id": "first-academy-building-foundation-new",
+      "name": "First Academy Building Foundation (NEW)",
+      "owner": "Global State Academy",
+      "terminalDeadline": "2027-03-31"
+    },
+    {
+      "id": "-hys-batch-1-milestone",
+      "name": "— HYS Batch 1 milestone",
+      "owner": "Global State Productions",
+      "terminalDeadline": "2026-10-20"
+    },
+    {
+      "id": "our-fearless-leader-7-seals-foundation-new",
+      "name": "Our Fearless Leader: 7 Seals Foundation (NEW)",
+      "owner": "Global State Corp.",
+      "terminalDeadline": "2026-12-15"
+    },
+    {
+      "id": "the-imaginary-ceo-foundation-new",
+      "name": "The Imaginary CEO Foundation (NEW)",
+      "owner": "Global State Productions",
+      "terminalDeadline": "2026-11-10"
+    },
+    {
+      "id": "seeds-of-destruction-foundation-new",
+      "name": "Seeds of Destruction Foundation (NEW)",
+      "owner": "Global State Corp.",
+      "terminalDeadline": "2027-02-28"
+    },
+    {
+      "id": "marketing-flywheel-audience-capture",
+      "name": "Marketing Flywheel — Audience Capture",
+      "owner": "Global State Solutions",
+      "terminalDeadline": "2026-09-30"
+    },
+    {
+      "id": "our-fearless-leader-7-seals",
+      "name": "Our Fearless Leader: 7 Seals",
+      "owner": "Global State Corp.",
+      "terminalDeadline": "2026-11-30"
+    },
+    {
+      "id": "i-am-the-state-foundation-new",
+      "name": "I Am The State Foundation (NEW)",
+      "owner": "Global State Corp.",
+      "terminalDeadline": "2026-10-05"
+    },
+    {
+      "id": "f8-energy-gum-foundation-new",
+      "name": "F8 Energy GUM Foundation (NEW)",
+      "owner": "F8 Energy",
+      "terminalDeadline": "2026-12-20"
+    },
+    {
+      "id": "state-of-control",
+      "name": "State of Control",
+      "owner": "Global State Productions",
+      "terminalDeadline": "2026-09-15"
+    },
+    {
+      "id": "the-imaginary-ceo",
+      "name": "The Imaginary CEO",
+      "owner": "Global State Productions",
+      "terminalDeadline": "2026-11-05"
+    },
+    {
+      "id": "79th-street-renovation",
+      "name": "79th Street Renovation",
+      "owner": "Global State Holdings",
+      "terminalDeadline": "2027-01-15"
+    },
+    {
+      "id": "f8-energy-productionoperations",
+      "name": "F8 Energy — Production/Operations",
+      "owner": "F8 Energy",
+      "terminalDeadline": "2026-10-10"
+    },
+    {
+      "id": "seeds-of-destruction",
+      "name": "Seeds of Destruction",
+      "owner": "Global State Corp.",
+      "terminalDeadline": "2026-11-25"
+    },
+    {
+      "id": "f8-energy-gum-production-",
+      "name": "F8 Energy GUM production ",
+      "owner": "F8 Energy",
+      "terminalDeadline": "2026-12-10"
+    },
+    {
+      "id": "first-academy-building",
+      "name": "First Academy Building",
+      "owner": "Global State Academy",
+      "terminalDeadline": "2027-01-31"
+    },
+    {
+      "id": "i-am-the-state",
+      "name": "I Am The State",
+      "owner": "Global State Corp.",
+      "terminalDeadline": "2026-10-01"
+    }
+  ]
+}

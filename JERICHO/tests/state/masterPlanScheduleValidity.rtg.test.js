@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { computeDerivedState } from '../../src/state/identityCompute.js';
-import { buildOperationEndgameState, setHorizonMode } from '../helpers/masterPlanFullHorizonScenario.js';
+import { buildFullHorizonMultiLaneFixtureState, setHorizonMode } from '../helpers/masterPlanFullHorizonScenario.js';
 
 const NINE_AM = 9 * 60;
 const THREE_PM = 15 * 60;
@@ -30,7 +30,7 @@ function localMinutesForISO(iso, timeZone) {
 }
 
 function buildChicagoWindowState() {
-  const base = buildOperationEndgameState({
+  const base = buildFullHorizonMultiLaneFixtureState({
     nowISO: '2026-06-04T15:00:00.000Z',
     todayDate: '2026-06-04',
   });
