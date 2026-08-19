@@ -8502,9 +8502,8 @@ function recoverCanonicalContractForCycle(state, cycle = null, contract = null) 
     goalId: inferredGoalId,
     goalText: contract?.goalText || goalText || null,
     goalLabel: contract?.goalLabel || goalText || null,
-    startDayKey: contract?.startDayKey || startDayKey || null,
-    endDayKey: contract?.endDayKey || endDayKey || null,
-    deadlineISO: contract?.deadlineISO || endDayKey || null,
+    // REMOVED: startDayKey, endDayKey, deadlineISO — these are time-relative and must be derived
+    // fresh on every read via activeScheduledLoop.resolveStartDayKey/resolveDeadlineISO, never frozen here
   };
 
   cycle.goalContract = {
@@ -8537,8 +8536,7 @@ function recoverCanonicalContractForCycle(state, cycle = null, contract = null) 
     ...(state.goalExecutionContract || {}),
     goalId: inferredGoalId,
     goalText: state?.goalExecutionContract?.goalText || goalText || null,
-    startDayKey: state?.goalExecutionContract?.startDayKey || startDayKey || null,
-    endDayKey: state?.goalExecutionContract?.endDayKey || endDayKey || null,
+    // REMOVED: startDayKey, endDayKey — these must come from activeScheduledLoop selectors on every read
   };
   state.activeGoalId = state.activeGoalId || inferredGoalId;
   if (cycle?.id && state?.cyclesById?.[cycle.id]) {
