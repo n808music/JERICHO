@@ -9,6 +9,8 @@ import {
   buildExternalEvidenceEvent,
   buildExecutionEventFromBlock,
   deriveExecutionTruthClassification,
+  validateBacklogReEntry,
+  buildBacklogReEntryEvent,
 } from './engine/todayAuthority.ts';
 import { appendFrictionEvent, buildFrictionEvent } from './engine/profileExecutionContainment.ts';
 import { APP_TIME_ZONE, addDays, dayKeyFromDate, dayKeyFromISO, nowDayKey } from './time/time.ts';
@@ -1534,6 +1536,69 @@ function identityReducer(state, action) {
       return draft;
     }
     return computeDerivedState(draft, action);
+  }
+
+  // Item 3: Backlog re-entry mechanism (Accept or Reschedule)
+  if (action.type === 'ACCEPT_BACKLOG_ITEM' || action.type === 'RESCHEDULE_BACKLOG_ITEM') {
+    const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
+    const blockId = action.payload?.blockId || action.id;
+
+    // Validate block is in Backlog (most recent event is 'missed')
+    const events = draft.executionEvents || [];
+    const mostRecentEventForBlock = [...events].reverse().find(e => e.blockId === blockId);
+
+    if (!mostRecentEventForBlock || mostRecentEventForBlock.kind !== 'missed') {
+      draft.lastPlanError = {
+        code: 'BLOCK_NOT_IN_BACKLOG',
+        message: `Block ${blockId} is not in Backlog (most recent event is not 'missed')`,
+      };
+      return draft;
+    }
+
+    // Determine the action: accept (use original time) or reschedule (use new time)
+    const isReschedule = action.type === 'RESCHEDULE_BACKLOG_ITEM';
+    const targetDateISO = action.payload?.dateISO || draft.appTime?.activeDayKey || draft.today?.date;
+    const newStartISO = isReschedule ? action.payload?.startISO : mostRecentEventForBlock.startISO;
+    const newEndISO = isReschedule ? action.payload?.endISO : mostRecentEventForBlock.endISO;
+    const reasonCode = isReschedule ? 'BACKLOG_RESCHEDULE' : 'BACKLOG_ACCEPT';
+
+    // Validate constraints (contract window, capacity, conflicts)
+    const validationResult = validateBacklogReEntry(draft, blockId, targetDateISO, newStartISO, newEndISO);
+    if (!validationResult.valid) {
+      draft.lastPlanError = {
+        code: validationResult.code,
+        message: validationResult.message,
+      };
+      return draft;
+    }
+
+    // Build and append the re-entry event using builder
+    const nowISO = draft.appTime?.nowISO || new Date().toISOString();
+    const reentryEvent = buildBacklogReEntryEvent({
+      blockId,
+      reasonCode,
+      targetDateISO,
+      originalStartISO: mostRecentEventForBlock.startISO,
+      originalEndISO: mostRecentEventForBlock.endISO,
+      newStartISO,
+      newEndISO,
+      cycleId: mostRecentEventForBlock.cycleId,
+      goalId: mostRecentEventForBlock.goalId,
+      nowISO,
+    });
+
+    if (!canEmitExecutionEvent(draft.executionEvents || [], reentryEvent, { existingBlockIds: new Set([blockId]) })) {
+      return state;
+    }
+
+    appendExecutionEvent(draft, reentryEvent);
+    appendTransitionTrace(draft, {
+      transition: reasonCode,
+      blockId,
+      label: `${reasonCode === 'BACKLOG_ACCEPT' ? 'Accepted' : 'Rescheduled'} from Backlog`,
+    });
+
+    return computeDerivedState(draft, { type: 'NO_OP' });
   }
 
   if (action.type === 'ADD_EXTERNAL_EVIDENCE') {
