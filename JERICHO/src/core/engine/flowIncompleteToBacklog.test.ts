@@ -56,22 +56,7 @@ describe('Item 2: Flow incomplete blocks to Backlog on day boundary', () => {
         'cycle-1': {
           id: 'cycle-1',
           goalId: 'goal-1',
-          blocks: [
-            {
-              id: 'block-1',
-              label: 'Incomplete task',
-              practice: 'Focus',
-              domain: 'Focus',
-              status: 'in_progress',
-              plannedMinutes: 30,
-              date: '2026-08-19',
-              start: '2026-08-19T09:00:00.000Z',
-              end: '2026-08-19T09:30:00.000Z',
-              cycleId: 'cycle-1',
-              goalId: 'goal-1',
-              placementState: 'COMMITTED',
-            },
-          ],
+          blocks: [], // Empty: blocks from today are the source of truth for rollover
         },
       },
     };
@@ -109,14 +94,16 @@ describe('Item 2: Flow incomplete blocks to Backlog on day boundary', () => {
 
       const createEvents = result.eventsEmitted.filter((e: any) => e.kind === 'create');
       expect(createEvents.length).toBe(1);
-      expect(createEvents[0].blockId).toContain('overdue');
+      // Exact pattern: overdue-{originalBlockId}-{dateKey}
+      expect(createEvents[0].blockId).toMatch(/^overdue-block-1-2026-08-20$/);
 
       // Verify overdue block appears in today.blocks
       const overdueBlockInToday = result.nextState.today.blocks.find((b: any) =>
-        b.id.includes('overdue')
+        b.id.match(/^overdue-block-1-2026-08-20$/)
       );
       expect(overdueBlockInToday).toBeDefined();
       expect(overdueBlockInToday.status).toBe('in_progress');
+      expect(overdueBlockInToday.placementState).toBe('COMMITTED');
     });
 
     it('REGRESSION: Overdue block carries original properties', () => {
@@ -127,7 +114,7 @@ describe('Item 2: Flow incomplete blocks to Backlog on day boundary', () => {
       });
 
       const overdueBlockInToday = result.nextState.today.blocks.find((b: any) =>
-        b.id.includes('overdue')
+        b.id.match(/^overdue-block-1-2026-08-20$/)
       );
 
       expect(overdueBlockInToday.goalId).toBe('goal-1');
@@ -138,26 +125,201 @@ describe('Item 2: Flow incomplete blocks to Backlog on day boundary', () => {
   });
 
   describe('Item 2 desired behavior (after fix)', () => {
-    it.todo('DESIRED: MISSED event recorded (historical record for Fidelity Verdict)');
-    // After Item 2 implementation, rolloverAtMidnight should:
-    // - Emit a MISSED event for block-1 (event.kind === 'missed', event.blockId === 'block-1')
-    // - This event records the execution failure but does NOT trigger auto-regeneration
-    // - The MISSED event feeds into Fidelity Verdict logic for narrative/trust assessment
+    it('DESIRED: MISSED event recorded (historical record for Fidelity Verdict)', () => {
+      // After Item 2 implementation, rolloverAtMidnight should:
+      // - Emit a MISSED event for block-1 (event.kind === 'missed', event.blockId === 'block-1')
+      // - This event records the execution failure but does NOT trigger auto-regeneration
+      // - The MISSED event feeds into Fidelity Verdict logic for narrative/trust assessment
 
-    it.todo('DESIRED: incomplete block flows to Backlog (not regenerated as overdue)');
-    // After Item 2, rolloverAtMidnight should:
-    // - NOT create any new blocks with id containing 'overdue-*' in today.blocks
-    // - NOT emit any 'create' events for overdue regeneration
-    // - Block flows to Backlog (derived state, not stored): most recent event is 'missed' +
-    //   no later reschedule/complete/delete event
-    // - Backlog membership is queried via resolveBacklogBlocks() selector, which computes
-    //   from the event ledger at query time (never hand-written state field)
+      const result = rolloverAtMidnight({
+        state: baseState,
+        nowISO: dayNPlusOneISO,
+        timezone: timeZone,
+      });
 
-    it.todo('DESIRED: CONSTRAINT-tagged blocks also flow to Backlog (no bypass)');
-    // After Item 2:
-    // - CONSTRAINT blocks are subject to the same flow-out logic
-    // - No special handling that keeps them committed on today
-    // - They emit MISSED event + flow to Backlog like any other incomplete block
-    // - Tier assignment (escalated vs. standard backlog) is deferred to Item 5
+      const missedEvents = result.eventsEmitted.filter((e: any) => e.kind === 'missed');
+      expect(missedEvents.length).toBe(1);
+      expect(missedEvents[0].kind).toBe('missed');
+      expect(missedEvents[0].blockId).toBe('block-1');
+      expect(missedEvents[0].status).toBe('missed');
+      // Verify MISSED event exists for Fidelity Verdict to consume
+      expect(missedEvents[0].dateISO).toBe('2026-08-19'); // Yesterday's date
+      expect(missedEvents[0].goalId).toBe('goal-1');
+    });
+
+    it('DESIRED: incomplete block flows to Backlog (not regenerated as overdue)', () => {
+      // After Item 2, rolloverAtMidnight should:
+      // - NOT create any 'create' events (no overdue regeneration)
+      // - NOT add any blocks with id matching /^overdue-/ to today.blocks
+      // - Block flows to Backlog (derived state): most recent event is 'missed' +
+      //   no later reschedule/complete/delete event
+
+      const result = rolloverAtMidnight({
+        state: baseState,
+        nowISO: dayNPlusOneISO,
+        timezone: timeZone,
+      });
+
+      // Assertion 1: No 'create' events (no overdue regeneration)
+      const createEvents = result.eventsEmitted.filter((e: any) => e.kind === 'create');
+      expect(createEvents).toHaveLength(0);
+
+      // Assertion 2: No overdue blocks in today.blocks
+      const overdueBlocksInToday = (result.nextState.today?.blocks || []).filter((b: any) =>
+        b.id.match(/^overdue-/)
+      );
+      expect(overdueBlocksInToday).toHaveLength(0);
+
+      // Assertion 3: block-1 is in Backlog (derived from missed event + no later action)
+      // Backlog membership is computed via resolveBacklogBlocks() selector
+      // which checks: most recent event for blockId is 'missed' + no reschedule/complete/delete after
+      const backlogBlocks = resolveBacklogBlocks(result.nextState);
+      const block1InBacklog = backlogBlocks.find((b: any) => b.id === 'block-1');
+      expect(block1InBacklog).toBeDefined();
+      expect(block1InBacklog?.id).toBe('block-1');
+    });
+
+    it('DESIRED: CONSTRAINT-tagged blocks also flow to Backlog (no bypass)', () => {
+      // After Item 2:
+      // - CONSTRAINT blocks are subject to the same flow-out logic
+      // - No special handling that keeps them committed on today
+      // - They emit MISSED event + flow to Backlog like any other incomplete block
+      // - Tier assignment (escalated vs. standard backlog) is deferred to Item 5
+
+      // Extend baseState to include a CONSTRAINT-tagged block
+      const stateWithConstraint = {
+        ...baseState,
+        today: {
+          blocks: [
+            ...baseState.today.blocks,
+            {
+              id: 'constraint-block-1',
+              label: 'Critical constraint task',
+              practice: 'Focus',
+              domain: 'Focus',
+              status: 'in_progress',
+              plannedMinutes: 60,
+              date: '2026-08-19',
+              start: '2026-08-19T14:00:00.000Z',
+              end: '2026-08-19T15:00:00.000Z',
+              cycleId: 'cycle-1',
+              goalId: 'goal-1',
+              placementState: 'CONSTRAINT', // Mark as CONSTRAINT
+            },
+          ],
+        },
+        cyclesById: {
+          'cycle-1': {
+            ...baseState.cyclesById['cycle-1'],
+            blocks: [
+              ...baseState.cyclesById['cycle-1'].blocks,
+              {
+                id: 'constraint-block-1',
+                label: 'Critical constraint task',
+                practice: 'Focus',
+                domain: 'Focus',
+                status: 'in_progress',
+                plannedMinutes: 60,
+                date: '2026-08-19',
+                start: '2026-08-19T14:00:00.000Z',
+                end: '2026-08-19T15:00:00.000Z',
+                cycleId: 'cycle-1',
+                goalId: 'goal-1',
+                placementState: 'CONSTRAINT',
+              },
+            ],
+          },
+        },
+      };
+
+      const result = rolloverAtMidnight({
+        state: stateWithConstraint,
+        nowISO: dayNPlusOneISO,
+        timezone: timeZone,
+      });
+
+      // Both regular and CONSTRAINT blocks should emit MISSED events
+      const missedEvents = result.eventsEmitted.filter((e: any) => e.kind === 'missed');
+      expect(missedEvents.length).toBe(2);
+      const constraintMissed = missedEvents.find((e: any) => e.blockId === 'constraint-block-1');
+      expect(constraintMissed).toBeDefined();
+
+      // No overdue regeneration for CONSTRAINT blocks either
+      const createEvents = result.eventsEmitted.filter((e: any) => e.kind === 'create');
+      expect(createEvents).toHaveLength(0);
+
+      // CONSTRAINT block flows to Backlog (same as regular blocks, no bypass)
+      const backlogBlocks = resolveBacklogBlocks(result.nextState);
+      const constraintInBacklog = backlogBlocks.find((b: any) => b.id === 'constraint-block-1');
+      expect(constraintInBacklog).toBeDefined();
+      expect(constraintInBacklog?.id).toBe('constraint-block-1');
+    });
+  });
+
+  describe('Item 2 Backlog selector edge cases', () => {
+    it('SELECTOR: missed block with later reschedule is excluded from Backlog', () => {
+      // Test the exclusion logic: a block that was missed but then rescheduled
+      // should NOT be in Backlog (most recent action is reschedule, not missed)
+
+      const stateWithReschedule = {
+        ...baseState,
+        executionEvents: [
+          // Original block misses on day N
+          {
+            id: 'missed-block-2-2026-08-19',
+            blockId: 'block-2',
+            kind: 'missed',
+            dateISO: '2026-08-19',
+            status: 'missed',
+          },
+          // Then it gets rescheduled on day N+1
+          {
+            id: 'reschedule-block-2-2026-08-20',
+            blockId: 'block-2',
+            kind: 'reschedule',
+            dateISO: '2026-08-20',
+            status: 'rescheduled',
+            newDate: '2026-08-21',
+          },
+        ],
+      };
+
+      const backlogBlocks = resolveBacklogBlocks(stateWithReschedule);
+      const block2InBacklog = backlogBlocks.find((b: any) => b.id === 'block-2');
+
+      // block-2 should NOT be in Backlog because its most recent event is reschedule
+      expect(block2InBacklog).toBeUndefined();
+    });
+
+    it('SELECTOR: missed block with later complete is excluded from Backlog', () => {
+      // Test exclusion: a block that was missed but then completed
+      // should NOT be in Backlog (most recent action is complete, not missed)
+
+      const stateWithComplete = {
+        ...baseState,
+        executionEvents: [
+          {
+            id: 'missed-block-3-2026-08-19',
+            blockId: 'block-3',
+            kind: 'missed',
+            dateISO: '2026-08-19',
+            status: 'missed',
+          },
+          {
+            id: 'complete-block-3-2026-08-20',
+            blockId: 'block-3',
+            kind: 'complete',
+            dateISO: '2026-08-20',
+            status: 'completed',
+          },
+        ],
+      };
+
+      const backlogBlocks = resolveBacklogBlocks(stateWithComplete);
+      const block3InBacklog = backlogBlocks.find((b: any) => b.id === 'block-3');
+
+      // block-3 should NOT be in Backlog because its most recent event is complete
+      expect(block3InBacklog).toBeUndefined();
+    });
   });
 });
