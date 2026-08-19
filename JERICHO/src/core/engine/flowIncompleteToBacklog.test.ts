@@ -22,7 +22,11 @@ describe('Item 2: Flow incomplete blocks to Backlog on day boundary', () => {
     dayNISO = '2026-08-19T12:00:00.000Z';
     dayNPlusOneISO = '2026-08-20T12:00:00.000Z';
 
-    // Seed state with a committed but incomplete block on day N
+    // Seed state with a committed but incomplete block on day N.
+    // After rollover at N+1, block-1 should:
+    // 1. Emit a MISSED event (historical record, used by Fidelity Verdict)
+    // 2. Flow to Backlog (derived from: missed event + no later reschedule/complete/delete)
+    // 3. NOT be regenerated as "overdue" in today.blocks (breaking change from current behavior)
     baseState = {
       appTime: {
         nowISO: dayNISO,
@@ -134,33 +138,26 @@ describe('Item 2: Flow incomplete blocks to Backlog on day boundary', () => {
   });
 
   describe('Item 2 desired behavior (after fix)', () => {
-    it('DESIRED: incomplete block flows to Backlog, not regenerated as overdue', () => {
-      // After Item 2 implementation:
-      // - block-1 should NOT appear in today.blocks as "overdue-*"
-      // - block-1 should appear in proposedBlocks (Backlog) with status 'suggested'
-      // - MISSED event should still exist (historical record)
+    it.todo('DESIRED: MISSED event recorded (historical record for Fidelity Verdict)');
+    // After Item 2 implementation, rolloverAtMidnight should:
+    // - Emit a MISSED event for block-1 (event.kind === 'missed', event.blockId === 'block-1')
+    // - This event records the execution failure but does NOT trigger auto-regeneration
+    // - The MISSED event feeds into Fidelity Verdict logic for narrative/trust assessment
 
-      // PLACEHOLDER: This test will be updated to verify flow-out behavior
-      // Currently this is just documenting the desired outcome
-      expect(true).toBe(true); // Placeholder
-    });
+    it.todo('DESIRED: incomplete block flows to Backlog (not regenerated as overdue)');
+    // After Item 2, rolloverAtMidnight should:
+    // - NOT create any new blocks with id containing 'overdue-*' in today.blocks
+    // - NOT emit any 'create' events for overdue regeneration
+    // - Block flows to Backlog (derived state, not stored): most recent event is 'missed' +
+    //   no later reschedule/complete/delete event
+    // - Backlog membership is queried via resolveBacklogBlocks() selector, which computes
+    //   from the event ledger at query time (never hand-written state field)
 
-    it('DESIRED: MISSED event still recorded for narrative/Fidelity Verdict', () => {
-      // After Item 2:
-      // - MISSED event still created (not removed, just consequence changes)
-      // - event.kind === 'missed'
-      // - can be queried by Fidelity Verdict logic
-
-      expect(true).toBe(true); // Placeholder
-    });
-
-    it('DESIRED: CONSTRAINT-tagged blocks also flow to Backlog (no bypass)', () => {
-      // After Item 2:
-      // - CONSTRAINT blocks don't stay committed on today
-      // - CONSTRAINT blocks don't auto-reschedule
-      // - CONSTRAINT blocks flow to Backlog with escalated urgency flag
-
-      expect(true).toBe(true); // Placeholder
-    });
+    it.todo('DESIRED: CONSTRAINT-tagged blocks also flow to Backlog (no bypass)');
+    // After Item 2:
+    // - CONSTRAINT blocks are subject to the same flow-out logic
+    // - No special handling that keeps them committed on today
+    // - They emit MISSED event + flow to Backlog like any other incomplete block
+    // - Tier assignment (escalated vs. standard backlog) is deferred to Item 5
   });
 });
