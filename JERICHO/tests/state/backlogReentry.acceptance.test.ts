@@ -86,7 +86,7 @@ function createBacklogReEntryEvent(blockId: string, action: 'accept' | 'reschedu
   return {
     id: `evt-reentry-${blockId}`,
     blockId,
-    kind: 'reschedule',
+    kind: 'backlog_accept',
     reasonCode: isReschedule ? 'BACKLOG_RESCHEDULE' : 'BACKLOG_ACCEPT',
     dateISO: targetDayKey,
     startISO: `${targetDayKey}T09:00:00.000Z`,
@@ -321,7 +321,7 @@ describe('Item 3: Backlog Re-Entry Mechanism', () => {
         (e: any) => e.blockId === blockId && e.reasonCode === 'BACKLOG_ACCEPT'
       );
       expect(acceptEvent).toBeDefined();
-      expect(acceptEvent?.kind).toBe('reschedule');
+      expect(acceptEvent?.kind).toBe('backlog_accept');
     });
 
     it('re-entered block appears in derived today.blocks after accept', () => {
@@ -409,7 +409,7 @@ describe('Item 3: Backlog Re-Entry Mechanism', () => {
         (e: any) => e.blockId === blockId && e.reasonCode === 'BACKLOG_RESCHEDULE'
       );
       expect(rescheduleEvent).toBeDefined();
-      expect(rescheduleEvent?.kind).toBe('reschedule');
+      expect(rescheduleEvent?.kind).toBe('backlog_accept');
       expect(rescheduleEvent?.startISO).toBe(newStart);
       expect(rescheduleEvent?.endISO).toBe(newEnd);
     });

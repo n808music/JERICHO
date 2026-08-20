@@ -37,7 +37,7 @@ export type ExecutionEvent = {
   lockedUntilDayKey?: string | null;
   requiredSystemBlock?: boolean;
   completed: boolean;
-  kind?: 'complete' | 'create' | 'update' | 'delete' | 'reschedule' | 'missed' | 'skipped';
+  kind?: 'complete' | 'create' | 'update' | 'delete' | 'reschedule' | 'missed' | 'skipped' | 'backlog_accept';
   startISO?: string;
   endISO?: string;
   status?: string;
@@ -691,7 +691,7 @@ export function materializeBlocksFromEvents(
       block.label = preferredTitle;
       block.title = preferredTitle;
     }
-    if (event.kind === 'reschedule' || event.kind === 'create') {
+    if (event.kind === 'reschedule' || event.kind === 'create' || event.kind === 'backlog_accept') {
       if (event.startISO) block.start = event.startISO;
       if (event.endISO) block.end = event.endISO;
     }
@@ -721,7 +721,7 @@ export function materializeBlocksFromEvents(
     if (event.missedAtISO !== undefined) {
       block.missedAtISO = event.missedAtISO;
     }
-    if ((event.kind === 'reschedule' || event.kind === 'create') && event.minutes && !event.endISO && block.start) {
+    if ((event.kind === 'reschedule' || event.kind === 'create' || event.kind === 'backlog_accept') && event.minutes && !event.endISO && block.start) {
       block.end = new Date(new Date(block.start).getTime() + Math.round(event.minutes) * 60 * 1000).toISOString();
     }
     if (event.completed) {
@@ -885,7 +885,7 @@ export function buildBacklogReEntryEvent(params: {
   const event: ExecutionEvent = {
     id: `evt-reentry-${blockId}-${Date.now()}`,
     blockId,
-    kind: 'reschedule',
+    kind: 'backlog_accept',
     reasonCode,
     dateISO: targetDateISO,
     startISO: startISO || `${targetDateISO}T09:00:00.000Z`,
