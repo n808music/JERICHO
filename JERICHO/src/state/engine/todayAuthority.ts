@@ -37,7 +37,7 @@ export type ExecutionEvent = {
   lockedUntilDayKey?: string | null;
   requiredSystemBlock?: boolean;
   completed: boolean;
-  kind?: 'complete' | 'create' | 'update' | 'delete' | 'reschedule' | 'missed' | 'skipped';
+  kind?: 'complete' | 'create' | 'update' | 'delete' | 'reschedule' | 'missed' | 'skipped' | 'backlog_accept';
   startISO?: string;
   endISO?: string;
   status?: string;
@@ -675,7 +675,7 @@ export function materializeBlocksFromEvents(
     }
 
     const fallback = byId.get(event.blockId) || (canonicalBlocks ? canonicalBlocks[event.blockId] : null) || null;
-    if (!fallback && event.kind && event.kind !== 'create' && event.kind !== 'complete') {
+    if (!fallback && event.kind && event.kind !== 'create' && event.kind !== 'complete' && event.kind !== 'backlog_accept') {
       return;
     }
 
@@ -691,7 +691,7 @@ export function materializeBlocksFromEvents(
       block.label = preferredTitle;
       block.title = preferredTitle;
     }
-    if (event.kind === 'reschedule' || event.kind === 'create') {
+    if (event.kind === 'reschedule' || event.kind === 'create' || event.kind === 'backlog_accept') {
       if (event.startISO) block.start = event.startISO;
       if (event.endISO) block.end = event.endISO;
     }
@@ -721,7 +721,7 @@ export function materializeBlocksFromEvents(
     if (event.missedAtISO !== undefined) {
       block.missedAtISO = event.missedAtISO;
     }
-    if ((event.kind === 'reschedule' || event.kind === 'create') && event.minutes && !event.endISO && block.start) {
+    if ((event.kind === 'reschedule' || event.kind === 'create' || event.kind === 'backlog_accept') && event.minutes && !event.endISO && block.start) {
       block.end = new Date(new Date(block.start).getTime() + Math.round(event.minutes) * 60 * 1000).toISOString();
     }
     if (event.completed) {
@@ -771,4 +771,133 @@ export function materializeBlocksFromEvents(
     days,
     todayBlocks: today ? today.blocks : [],
   };
+}
+
+/**
+ * Item 3: Validate Backlog re-entry constraints.
+ *
+ * Checks:
+ * 1. Block is in Backlog (most recent event is 'missed')
+ * 2. Target date is within contract window
+ * 3. No time conflicts with existing blocks on target day
+ *
+ * Returns { valid: true } or { valid: false, code, message }
+ */
+export function validateBacklogReEntry(
+  state: any,
+  blockId: string,
+  targetDateISO: string,
+  targetStartISO?: string,
+  targetEndISO?: string,
+): { valid: boolean; code?: string; message?: string } {
+  // Check 1: Block must be in Backlog
+  const events = state.executionEvents || [];
+  const mostRecentEvent = [...events].reverse().find((e) => e.blockId === blockId);
+
+  if (!mostRecentEvent || mostRecentEvent.kind !== 'missed') {
+    return {
+      valid: false,
+      code: 'NOT_IN_BACKLOG',
+      message: `Block ${blockId} is not in Backlog`,
+    };
+  }
+
+  // Check 2: Target date within contract window
+  const goalContract = state.goalExecutionContract || state.cyclesById?.[mostRecentEvent.cycleId]?.goalContract;
+  if (goalContract) {
+    const startDay = goalContract.startDayKey || goalContract.startDate;
+    const endDay = goalContract.endDayKey || goalContract.endDate;
+
+    if (targetDateISO < startDay || targetDateISO > endDay) {
+      return {
+        valid: false,
+        code: 'OUTSIDE_CONTRACT_WINDOW',
+        message: `Target date ${targetDateISO} is outside contract window (${startDay} to ${endDay})`,
+      };
+    }
+  }
+
+  // Check 3: No time conflicts on target day
+  if (targetStartISO && targetEndISO) {
+    const todayBlocks = state.today?.blocks || [];
+    const targetStart = new Date(targetStartISO).getTime();
+    const targetEnd = new Date(targetEndISO).getTime();
+
+    const hasConflict = todayBlocks.some((block: any) => {
+      if (block.id === blockId) return false; // Ignore self
+      if (!block.start || !block.end) return false;
+
+      const blockStart = new Date(block.start).getTime();
+      const blockEnd = new Date(block.end).getTime();
+
+      // Check for overlap
+      return !(targetEnd <= blockStart || targetStart >= blockEnd);
+    });
+
+    if (hasConflict) {
+      return {
+        valid: false,
+        code: 'TIME_CONFLICT',
+        message: `Target time slot conflicts with existing block on ${targetDateISO}`,
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Item 3: Build a Backlog re-entry execution event.
+ *
+ * Creates a 'reschedule' event with reasonCode 'BACKLOG_ACCEPT' or 'BACKLOG_RESCHEDULE'
+ * to represent a block being pulled out of Backlog.
+ */
+export function buildBacklogReEntryEvent(params: {
+  blockId: string;
+  reasonCode: 'BACKLOG_ACCEPT' | 'BACKLOG_RESCHEDULE';
+  targetDateISO: string;
+  originalStartISO?: string;
+  originalEndISO?: string;
+  newStartISO?: string;
+  newEndISO?: string;
+  cycleId?: string;
+  goalId?: string;
+  nowISO?: string;
+}): ExecutionEvent {
+  const {
+    blockId,
+    reasonCode,
+    targetDateISO,
+    originalStartISO,
+    originalEndISO,
+    newStartISO,
+    newEndISO,
+    cycleId,
+    goalId,
+    nowISO = new Date().toISOString(),
+  } = params;
+
+  // Always use the resolved new times (reducer computes them for both ACCEPT and RESCHEDULE)
+  const startISO = newStartISO;
+  const endISO = newEndISO;
+
+  const event: ExecutionEvent = {
+    id: `evt-reentry-${blockId}-${Date.now()}`,
+    blockId,
+    kind: 'backlog_accept',
+    reasonCode,
+    dateISO: targetDateISO,
+    startISO: startISO || `${targetDateISO}T09:00:00.000Z`,
+    endISO: endISO || `${targetDateISO}T10:00:00.000Z`,
+    status: 'in_progress',
+    recordedAtISO: nowISO,
+    cycleId,
+    goalId,
+    minutes: 60,
+    completed: false,
+    rawLabel: `Backlog re-entry: ${reasonCode}`,
+    domain: 'Creation',
+  };
+
+  return event;
 }

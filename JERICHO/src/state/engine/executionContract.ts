@@ -92,6 +92,11 @@ export function canEmitExecutionEvent(
     return true;
   }
 
+  if (event.kind === 'backlog_accept') {
+    if (!exists || status.deleted) return false;
+    return true;
+  }
+
   if (event.kind === 'complete') {
     if (!exists || status.deleted) return false;
     return true;

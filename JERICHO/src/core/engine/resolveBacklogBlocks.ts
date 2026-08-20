@@ -64,7 +64,25 @@ export function resolveBacklogBlocks(state: any): BacklogBlock[] {
 
   // Return blocks from today that are in Backlog
   // (Backlog membership is transient; blocks exist in today.blocks but are marked as in Backlog by event ledger)
-  const backlogBlocks = todayBlocks.filter((block: any) => backlogBlockIds.has(block.id));
+  const currentDayKey = state.appTime?.activeDayKey || state.today?.date || new Date().toISOString().split('T')[0];
+
+  const backlogBlocks = todayBlocks
+    .filter((block: any) => backlogBlockIds.has(block.id))
+    .map((block: any) => {
+      // Compute daysInBacklog from the missed event's recorded timestamp
+      const missedEvent = mostRecentEventByBlockId.get(block.id);
+      let daysInBacklog = 0;
+
+      if (missedEvent?.dateISO) {
+        // Simple day-key comparison: parse dates and compute difference
+        const missedDate = new Date(missedEvent.dateISO + 'T00:00:00Z');
+        const currentDate = new Date(currentDayKey + 'T00:00:00Z');
+        const diffMs = currentDate.getTime() - missedDate.getTime();
+        daysInBacklog = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      }
+
+      return { ...block, daysInBacklog };
+    });
 
   return backlogBlocks;
 }

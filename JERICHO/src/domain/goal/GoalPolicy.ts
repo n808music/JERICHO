@@ -732,6 +732,9 @@ function evaluateLivePosInputs(
     if (rawKind === 'skipped' || rawStatus === 'skipped') {
       return 'skipped';
     }
+    if (rawKind === 'backlog_accept') {
+      return 'backlog_accept';
+    }
     if (rawKind === 'reschedule' || rawStatus === 'rescheduled') {
       return 'reschedule';
     }
