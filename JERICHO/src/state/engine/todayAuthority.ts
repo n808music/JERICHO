@@ -675,7 +675,7 @@ export function materializeBlocksFromEvents(
     }
 
     const fallback = byId.get(event.blockId) || (canonicalBlocks ? canonicalBlocks[event.blockId] : null) || null;
-    if (!fallback && event.kind && event.kind !== 'create' && event.kind !== 'complete') {
+    if (!fallback && event.kind && event.kind !== 'create' && event.kind !== 'complete' && event.kind !== 'backlog_accept') {
       return;
     }
 
@@ -877,10 +877,9 @@ export function buildBacklogReEntryEvent(params: {
     nowISO = new Date().toISOString(),
   } = params;
 
-  // For ACCEPT, use original times; for RESCHEDULE, use new times
-  const useOriginal = reasonCode === 'BACKLOG_ACCEPT';
-  const startISO = useOriginal ? originalStartISO : newStartISO;
-  const endISO = useOriginal ? originalEndISO : newEndISO;
+  // Always use the resolved new times (reducer computes them for both ACCEPT and RESCHEDULE)
+  const startISO = newStartISO;
+  const endISO = newEndISO;
 
   const event: ExecutionEvent = {
     id: `evt-reentry-${blockId}-${Date.now()}`,

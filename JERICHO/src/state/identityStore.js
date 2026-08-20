@@ -1557,10 +1557,42 @@ function identityReducer(state, action) {
 
     // Determine the action: accept (use original time) or reschedule (use new time)
     const isReschedule = action.type === 'RESCHEDULE_BACKLOG_ITEM';
-    const targetDateISO = action.payload?.dateISO || draft.appTime?.activeDayKey || draft.today?.date;
-    const newStartISO = isReschedule ? action.payload?.startISO : mostRecentEventForBlock.startISO;
-    const newEndISO = isReschedule ? action.payload?.endISO : mostRecentEventForBlock.endISO;
+    let targetDateISO;
+    let newStartISO;
+    let newEndISO;
     const reasonCode = isReschedule ? 'BACKLOG_RESCHEDULE' : 'BACKLOG_ACCEPT';
+
+    if (isReschedule) {
+      // RESCHEDULE: use explicit payload times, derive target date from startISO
+      newStartISO = action.payload?.startISO;
+      newEndISO = action.payload?.endISO;
+      targetDateISO = action.payload?.dateISO || dayKeyFromISO(newStartISO);
+    } else {
+      // ACCEPT: move original time-of-day to today (preserve time pattern, change date)
+      const originalStart = new Date(mostRecentEventForBlock.startISO);
+      const originalEnd = new Date(mostRecentEventForBlock.endISO);
+
+      // Extract time-of-day using UTC methods
+      const utcHours = originalStart.getUTCHours();
+      const utcMinutes = originalStart.getUTCMinutes();
+      const utcSeconds = originalStart.getUTCSeconds();
+      const utcMs = originalStart.getUTCMilliseconds();
+
+      // Calculate duration
+      const durationMs = originalEnd.getTime() - originalStart.getTime();
+
+      // Create new start time with same time-of-day on today's date
+      const todayDate = draft.appTime?.activeDayKey || draft.today?.date;
+      const newStart = new Date(todayDate + 'T00:00:00.000Z');
+      newStart.setUTCHours(utcHours, utcMinutes, utcSeconds, utcMs);
+
+      // Create new end time by adding duration
+      const newEnd = new Date(newStart.getTime() + durationMs);
+
+      newStartISO = newStart.toISOString();
+      newEndISO = newEnd.toISOString();
+      targetDateISO = todayDate;
+    }
 
     // Validate constraints (contract window, capacity, conflicts)
     const validationResult = validateBacklogReEntry(draft, blockId, targetDateISO, newStartISO, newEndISO);

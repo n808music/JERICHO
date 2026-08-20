@@ -110,6 +110,7 @@ function buildBaseState(overrides: any = {}) {
     today: { date: TODAY_DAYKEY, blocks: baseBlocks, ...overrides.today },
     currentWeek: { weekStart: TODAY_DAYKEY, days: [] },
     executionEvents: [],
+    activeCycleId: CYCLE_ID,  // Required to preserve materialized blocks during derivation
     cyclesById: {
       [CYCLE_ID]: {
         id: CYCLE_ID,
@@ -329,8 +330,13 @@ describe('Item 3: Backlog Re-Entry Mechanism', () => {
       const block = createMissedBlock(blockId, YESTERDAY_DAYKEY);
       const state = {
         ...buildBaseState({
-          today: { date: TODAY_DAYKEY, blocks: [block] },
+          today: { date: TODAY_DAYKEY, blocks: [] },
         }),
+        blockStore: {
+          blocks: {
+            [blockId]: block,
+          },
+        },
         executionEvents: [
           createMissedEvent(blockId, YESTERDAY_DAYKEY),
         ],
@@ -355,8 +361,11 @@ describe('Item 3: Backlog Re-Entry Mechanism', () => {
       const block = createMissedBlock(blockId, YESTERDAY_DAYKEY);
       const state = {
         ...buildBaseState({
-          today: { date: TODAY_DAYKEY, blocks: [block] },
+          today: { date: TODAY_DAYKEY, blocks: [] },
         }),
+        blockStore: {
+          blocks: { [blockId]: block },
+        },
         executionEvents: [
           {
             ...createMissedEvent(blockId, YESTERDAY_DAYKEY),
@@ -374,9 +383,11 @@ describe('Item 3: Backlog Re-Entry Mechanism', () => {
       const acceptEvent = (after.executionEvents || []).find(
         (e: any) => e.blockId === blockId && e.reasonCode === 'BACKLOG_ACCEPT'
       );
-      // Accept should preserve the ISOs from the original block
-      expect(acceptEvent?.startISO).toBe(originalStart);
-      expect(acceptEvent?.endISO).toBe(originalEnd);
+      // Accept should move the block to today while preserving time-of-day (09:00-10:00)
+      const expectedStart = `${TODAY_DAYKEY}T09:00:00.000Z`;
+      const expectedEnd = `${TODAY_DAYKEY}T10:00:00.000Z`;
+      expect(acceptEvent?.startISO).toBe(expectedStart);
+      expect(acceptEvent?.endISO).toBe(expectedEnd);
     });
   });
 
@@ -421,8 +432,13 @@ describe('Item 3: Backlog Re-Entry Mechanism', () => {
       const block = createMissedBlock(blockId, YESTERDAY_DAYKEY);
       const state = {
         ...buildBaseState({
-          today: { date: TODAY_DAYKEY, blocks: [block] },
+          today: { date: TODAY_DAYKEY, blocks: [] },
         }),
+        blockStore: {
+          blocks: {
+            [blockId]: block,
+          },
+        },
         executionEvents: [
           createMissedEvent(blockId, YESTERDAY_DAYKEY, `${YESTERDAY_DAYKEY}T09:00:00.000Z`),
         ],
@@ -547,27 +563,25 @@ describe('Item 3: Backlog Re-Entry Mechanism', () => {
       });
       const eventCountAfterFirst = state.executionEvents?.length || 0;
 
-      // Second accept (same action)
+      // Second accept (same action) — should be rejected (block no longer in backlog)
       state = identityReducer(state, {
         type: 'ACCEPT_BACKLOG_ITEM',
         payload: { blockId },
       });
       const eventCountAfterSecond = state.executionEvents?.length || 0;
 
-      // Both events appended (no dedup)
-      expect(eventCountAfterSecond).toBe(eventCountAfterFirst + 1);
+      // Second ACCEPT is rejected: block already accepted (most recent event is BACKLOG_ACCEPT, not MISSED)
+      // So event count should NOT increase
+      expect(eventCountAfterSecond).toBe(eventCountAfterFirst);
 
-      // Both have BACKLOG_ACCEPT reasonCode
+      // Should have set lastPlanError indicating block not in backlog
+      expect(state.lastPlanError?.code).toBe('BLOCK_NOT_IN_BACKLOG');
+
+      // Only ONE accept event should exist
       const acceptEvents = (state.executionEvents || []).filter(
         e => e.blockId === blockId && e.reasonCode === 'BACKLOG_ACCEPT'
       );
-      expect(acceptEvents.length).toBe(2);
-
-      // Later event has later recordedAtISO
-      if (acceptEvents.length >= 2) {
-        const times = acceptEvents.map(e => new Date(e.recordedAtISO || '').getTime());
-        expect(times[1]).toBeGreaterThanOrEqual(times[0]);
-      }
+      expect(acceptEvents.length).toBe(1);
     });
   });
 
@@ -632,13 +646,43 @@ describe('Item 3: Backlog Re-Entry Mechanism', () => {
       const blockId = 'blk-e2e';
       const block = createMissedBlock(blockId, YESTERDAY_DAYKEY);
 
-      // Step 1: Block missed yesterday
+      // Step 1: Block scheduled for today but marked as missed (attempted yesterday, didn't complete)
       let state = {
         ...buildBaseState({
-          today: { date: TODAY_DAYKEY, blocks: [block] },
+          today: { date: TODAY_DAYKEY, blocks: [] },
         }),
         executionEvents: [
-          createMissedEvent(blockId, YESTERDAY_DAYKEY),
+          // CREATE event with TODAY times (block is in today's schedule)
+          {
+            id: `evt-create-${blockId}`,
+            blockId,
+            kind: 'create',
+            dateISO: TODAY_DAYKEY,
+            startISO: `${TODAY_DAYKEY}T09:00:00.000Z`,
+            endISO: `${TODAY_DAYKEY}T10:00:00.000Z`,
+            status: 'planned',
+            recordedAtISO: new Date().toISOString(),
+            cycleId: CYCLE_ID,
+            goalId: GOAL_ID,
+            minutes: 60,
+            rawLabel: block.title,
+            domain: 'CORE',
+            completed: false,
+          },
+          // MISSED event records that it failed to complete (attempted date separate from scheduled date)
+          {
+            id: `evt-missed-${blockId}`,
+            blockId,
+            kind: 'missed',
+            dateISO: YESTERDAY_DAYKEY,  // When it was attempted
+            startISO: `${TODAY_DAYKEY}T09:00:00.000Z`,  // But it's scheduled for today
+            endISO: `${TODAY_DAYKEY}T10:00:00.000Z`,
+            status: 'missed',
+            recordedAtISO: new Date().toISOString(),
+            cycleId: CYCLE_ID,
+            goalId: GOAL_ID,
+            minutes: 60,
+          },
         ],
       };
       state = computeDerivedState(state, { type: 'NO_OP' });
@@ -669,13 +713,43 @@ describe('Item 3: Backlog Re-Entry Mechanism', () => {
       const newEnd = `${TOMORROW_DAYKEY}T11:00:00.000Z`;
       const block = createMissedBlock(blockId, YESTERDAY_DAYKEY);
 
-      // Step 1: Block missed yesterday
+      // Step 1: Block scheduled for today but marked as missed (attempted yesterday, didn't complete)
       let state = {
         ...buildBaseState({
-          today: { date: TODAY_DAYKEY, blocks: [block] },
+          today: { date: TODAY_DAYKEY, blocks: [] },
         }),
         executionEvents: [
-          createMissedEvent(blockId, YESTERDAY_DAYKEY),
+          // CREATE event with TODAY times (block is in today's schedule)
+          {
+            id: `evt-create-${blockId}`,
+            blockId,
+            kind: 'create',
+            dateISO: TODAY_DAYKEY,
+            startISO: `${TODAY_DAYKEY}T09:00:00.000Z`,
+            endISO: `${TODAY_DAYKEY}T10:00:00.000Z`,
+            status: 'planned',
+            recordedAtISO: new Date().toISOString(),
+            cycleId: CYCLE_ID,
+            goalId: GOAL_ID,
+            minutes: 60,
+            rawLabel: block.title,
+            domain: 'CORE',
+            completed: false,
+          },
+          // MISSED event records that it failed to complete (attempted date separate from scheduled date)
+          {
+            id: `evt-missed-${blockId}`,
+            blockId,
+            kind: 'missed',
+            dateISO: YESTERDAY_DAYKEY,  // When it was attempted
+            startISO: `${TODAY_DAYKEY}T09:00:00.000Z`,  // But it's scheduled for today
+            endISO: `${TODAY_DAYKEY}T10:00:00.000Z`,
+            status: 'missed',
+            recordedAtISO: new Date().toISOString(),
+            cycleId: CYCLE_ID,
+            goalId: GOAL_ID,
+            minutes: 60,
+          },
         ],
       };
       state = computeDerivedState(state, { type: 'NO_OP' });
