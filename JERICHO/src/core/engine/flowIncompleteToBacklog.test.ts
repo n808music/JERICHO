@@ -310,4 +310,104 @@ describe('Item 2: Flow incomplete blocks to Backlog on day boundary', () => {
       expect(block3InBacklog).toBeUndefined();
     });
   });
+
+  describe('Item 2: Scope filtering for resolveBacklogBlocks (2026-08-20)', () => {
+    it('returns all backlog blocks when scope is not provided', () => {
+      const state = {
+        appTime: { nowISO: '2026-08-20T12:00:00.000Z' },
+        executionEvents: [
+          { blockId: 'block-1', kind: 'missed', dateISO: '2026-08-19' },
+          { blockId: 'block-2', kind: 'missed', dateISO: '2026-08-19' },
+        ],
+        today: {
+          blocks: [
+            { id: 'block-1', cycleId: 'cycle-1', goalId: 'goal-1' },
+            { id: 'block-2', cycleId: 'cycle-2', goalId: 'goal-2' },
+          ],
+        },
+      };
+
+      const backlog = resolveBacklogBlocks(state);
+      expect(backlog).toHaveLength(2);
+      expect(backlog.map((b: any) => b.id)).toEqual(['block-1', 'block-2']);
+    });
+
+    it('filters backlog blocks by cycleId when scope is provided', () => {
+      const state = {
+        appTime: { nowISO: '2026-08-20T12:00:00.000Z' },
+        executionEvents: [
+          { blockId: 'block-1', kind: 'missed', dateISO: '2026-08-19' },
+          { blockId: 'block-2', kind: 'missed', dateISO: '2026-08-19' },
+        ],
+        today: {
+          blocks: [
+            { id: 'block-1', cycleId: 'cycle-1', goalId: 'goal-1' },
+            { id: 'block-2', cycleId: 'cycle-2', goalId: 'goal-2' },
+          ],
+        },
+      };
+
+      const backlog = resolveBacklogBlocks(state, { cycleId: 'cycle-1' });
+      expect(backlog).toHaveLength(1);
+      expect(backlog[0]?.id).toBe('block-1');
+    });
+
+    it('filters backlog blocks by goalId when scope is provided', () => {
+      const state = {
+        appTime: { nowISO: '2026-08-20T12:00:00.000Z' },
+        executionEvents: [
+          { blockId: 'block-1', kind: 'missed', dateISO: '2026-08-19' },
+          { blockId: 'block-2', kind: 'missed', dateISO: '2026-08-19' },
+        ],
+        today: {
+          blocks: [
+            { id: 'block-1', cycleId: 'cycle-1', goalId: 'goal-1' },
+            { id: 'block-2', cycleId: 'cycle-1', goalId: 'goal-2' },
+          ],
+        },
+      };
+
+      const backlog = resolveBacklogBlocks(state, { goalId: 'goal-1' });
+      expect(backlog).toHaveLength(1);
+      expect(backlog[0]?.id).toBe('block-1');
+    });
+
+    it('applies multiple scope filters (AND logic)', () => {
+      const state = {
+        appTime: { nowISO: '2026-08-20T12:00:00.000Z' },
+        executionEvents: [
+          { blockId: 'block-1', kind: 'missed', dateISO: '2026-08-19' },
+          { blockId: 'block-2', kind: 'missed', dateISO: '2026-08-19' },
+          { blockId: 'block-3', kind: 'missed', dateISO: '2026-08-19' },
+        ],
+        today: {
+          blocks: [
+            { id: 'block-1', cycleId: 'cycle-1', goalId: 'goal-1' },
+            { id: 'block-2', cycleId: 'cycle-1', goalId: 'goal-2' },
+            { id: 'block-3', cycleId: 'cycle-2', goalId: 'goal-1' },
+          ],
+        },
+      };
+
+      const backlog = resolveBacklogBlocks(state, { cycleId: 'cycle-1', goalId: 'goal-1' });
+      expect(backlog).toHaveLength(1);
+      expect(backlog[0]?.id).toBe('block-1');
+    });
+
+    it('maintains daysInBacklog calculation when scope filtering', () => {
+      const state = {
+        appTime: { nowISO: '2026-08-21T12:00:00.000Z' },
+        executionEvents: [
+          { blockId: 'block-1', kind: 'missed', dateISO: '2026-08-19' },
+        ],
+        today: {
+          blocks: [{ id: 'block-1', cycleId: 'cycle-1', goalId: 'goal-1' }],
+        },
+      };
+
+      const backlog = resolveBacklogBlocks(state, { cycleId: 'cycle-1' });
+      expect(backlog).toHaveLength(1);
+      expect(backlog[0]?.daysInBacklog).toBe(2); // 2026-08-19 to 2026-08-21
+    });
+  });
 });

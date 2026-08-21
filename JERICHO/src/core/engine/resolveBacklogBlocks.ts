@@ -28,11 +28,16 @@ export interface BacklogBlock {
  * - No manual field writes to state (fully computed)
  * - Single source of truth: the event ledger
  * - Blocks can reschedule/complete out of Backlog via events
+ * - Scope-filtering ready: supports cycleId, goalId, entityId filters (added 2026-08-20)
  *
  * @param state Full state with executionEvents and today.blocks
- * @returns Array of blocks that are in Backlog (most recent event is 'missed')
+ * @param scope Optional filter: { cycleId?, goalId?, entityId? }. Defaults to unfiltered (all backlog blocks).
+ * @returns Array of blocks that are in Backlog (most recent event is 'missed'), filtered by scope if provided
  */
-export function resolveBacklogBlocks(state: any): BacklogBlock[] {
+export function resolveBacklogBlocks(
+  state: any,
+  scope?: { cycleId?: string; goalId?: string; entityId?: string }
+): BacklogBlock[] {
   if (!state || !state.executionEvents) {
     return [];
   }
@@ -84,7 +89,15 @@ export function resolveBacklogBlocks(state: any): BacklogBlock[] {
       return { ...block, daysInBacklog };
     });
 
-  return backlogBlocks;
+  // Apply scope filters (matching Item 4/5 pattern)
+  const scopedBlocks = backlogBlocks.filter((block: any) => {
+    if (scope?.cycleId && block.cycleId !== scope.cycleId) return false;
+    if (scope?.goalId && block.goalId !== scope.goalId) return false;
+    if (scope?.entityId && block.entityId !== scope.entityId) return false;
+    return true;
+  });
+
+  return scopedBlocks;
 }
 
 /**
