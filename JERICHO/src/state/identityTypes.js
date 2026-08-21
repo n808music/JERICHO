@@ -28,7 +28,7 @@
  */
 
 /**
- * @typedef {{ id: string; practice: PracticeName; label: string; start: string; end: string; status: 'planned' | 'in_progress' | 'completed' | 'missed' | 'expired'; linkedAimId?: string; domain?: import('./domain').Domain; deliverableId?: string | null; criterionId?: string | null; lockedUntilDayKey?: string; requiredSystemBlock?: boolean }} Block
+ * @typedef {{ id: string; practice: PracticeName; label: string; start: string; end: string; status: 'planned' | 'in_progress' | 'completed' | 'missed' | 'expired'; linkedAimId?: string; domain?: import('./domain').Domain; deliverableId?: string | null; criterionId?: string | null; lockedUntilDayKey?: string; requiredSystemBlock?: boolean; constraintTag?: 'CONSTRAINT' | 'INTENT' | 'ADVISORY' }} Block
  */
 
 /**
