@@ -8394,9 +8394,9 @@ function recoverCanonicalContractForCycle(state, cycle = null, contract = null) 
     goalId: inferredGoalId,
     goalText: contract?.goalText || goalText || null,
     goalLabel: contract?.goalLabel || goalText || null,
-    startDayKey: contract?.startDayKey || startDayKey || null,
-    endDayKey: contract?.endDayKey || endDayKey || null,
-    deadlineISO: contract?.deadlineISO || endDayKey || null,
+    // NOTE: Time-relative fields (startDayKey, endDayKey, deadlineISO) intentionally omitted.
+    // These must be derived fresh on every read, never cached/frozen into state.
+    // Ref: Item 1 Step 3 staleness fix (2026-04-06); regression E8 fixed 2026-08-20.
   };
 
   cycle.goalContract = {
@@ -8429,8 +8429,8 @@ function recoverCanonicalContractForCycle(state, cycle = null, contract = null) 
     ...(state.goalExecutionContract || {}),
     goalId: inferredGoalId,
     goalText: state?.goalExecutionContract?.goalText || goalText || null,
-    startDayKey: state?.goalExecutionContract?.startDayKey || startDayKey || null,
-    endDayKey: state?.goalExecutionContract?.endDayKey || endDayKey || null,
+    // NOTE: Time-relative fields (startDayKey, endDayKey) intentionally omitted.
+    // Must be derived fresh on every read. Ref: Item 1 Step 3, regression E8.
   };
   state.activeGoalId = state.activeGoalId || inferredGoalId;
   if (cycle?.id && state?.cyclesById?.[cycle.id]) {
