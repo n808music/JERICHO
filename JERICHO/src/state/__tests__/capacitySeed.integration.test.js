@@ -17,6 +17,7 @@ function buildState({ workWindows = null, matrix = {} } = {}) {
   const cycleId = 'cycle-1';
   return {
     appTime: { nowISO: NOW_ISO, timeZone: 'UTC', activeDayKey: '2026-01-10' },
+        timeIsPinned: true,
     activeCycleId: cycleId,
     cyclesById: {
       [cycleId]: {

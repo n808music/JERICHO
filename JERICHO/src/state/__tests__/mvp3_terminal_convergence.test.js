@@ -44,7 +44,9 @@ function buildBaseState() {
       timeZone: 'UTC',
       nowISO: `${FIXED_DAY}T12:00:00.000Z`,
       activeDayKey: FIXED_DAY,
+        timeIsPinned: true,
       isFollowingNow: true,
+        timeIsPinned: true,
     },
   };
 }

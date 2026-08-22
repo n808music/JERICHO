@@ -12,6 +12,7 @@ describe('Dependency Satisfaction Mode — End-to-End Data Path', () => {
   function buildState(matrix = {}) {
     return {
       appTime: { nowISO: NOW_ISO, timeZone: 'UTC', activeDayKey: '2026-08-07' },
+        timeIsPinned: true,
       matrix: {
         projectsById: {},
         initiativesById: {},

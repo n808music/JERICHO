@@ -14,7 +14,9 @@ describe('Midnight Rollover', () => {
           timeZone,
           nowISO,
           activeDayKey: '2026-01-13',
+        timeIsPinned: true,
           isFollowingNow: true,
+        timeIsPinned: true,
         },
         lastRolloverDayISO: '2026-01-13', // yesterday
       };
@@ -29,6 +31,7 @@ describe('Midnight Rollover', () => {
           nowISO,
           activeDayKey: '2026-01-14', // today
           isFollowingNow: true,
+        timeIsPinned: true,
         },
         lastRolloverDayISO: '2026-01-14', // already processed today
       };
@@ -42,6 +45,7 @@ describe('Midnight Rollover', () => {
       // The block from yesterday (2026-01-12) should still be in today's calendar but incomplete
       const state = {
         appTime: { timeZone, nowISO: '2026-01-14T06:00:00.000Z', activeDayKey: '2026-01-14' },
+        timeIsPinned: true,
         lastRolloverDayISO: '2026-01-13', // Yesterday already rolled over
         today: {
           date: '2026-01-13', // This is "today" before rollover (2026-01-13)
@@ -80,6 +84,7 @@ describe('Midnight Rollover', () => {
     it('should not touch DONE blocks', () => {
       const state = {
         appTime: { timeZone, nowISO, activeDayKey: '2026-01-13' },
+        timeIsPinned: true,
         today: {
           date: '2026-01-13',
           blocks: [
@@ -107,6 +112,7 @@ describe('Midnight Rollover', () => {
     it('should find committed blocks from yesterday', () => {
       const state = {
         appTime: { timeZone, nowISO, activeDayKey: '2026-01-14' },
+        timeIsPinned: true,
         today: {
           date: '2026-01-13',
           blocks: [

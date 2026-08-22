@@ -15,6 +15,7 @@ const NOW_ISO = '2026-01-10T12:00:00.000Z';
 function buildState(capacityRow) {
   return {
     appTime: { nowISO: NOW_ISO, timeZone: 'UTC', activeDayKey: '2026-01-10' },
+        timeIsPinned: true,
     activeCycleId: null,
     cyclesById: {},
     matrix: {

@@ -34,6 +34,7 @@ function buildState({ matrix = {}, causalChainSteps = undefined } = {}) {
 
   return {
     appTime: { nowISO: NOW_ISO, timeZone: 'UTC', activeDayKey: START_DAY_KEY },
+        timeIsPinned: true,
     activeCycleId: cycleId,
     cyclesById: {
       [cycleId]: {

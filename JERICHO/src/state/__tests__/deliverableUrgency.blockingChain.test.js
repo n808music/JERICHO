@@ -20,6 +20,7 @@ describe('Task 2: blocking-chain urgency ranking', () => {
       planBlocks: {},
       appTime: {
         activeDayKey: '2026-07-31',
+        timeIsPinned: true,
         nowISO: '2026-07-31T12:00:00.000Z',
       },
     };

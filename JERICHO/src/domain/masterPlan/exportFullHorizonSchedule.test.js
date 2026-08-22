@@ -105,6 +105,7 @@ describe('buildFullHorizonScheduleExport', () => {
       activeCycleId: 'cycle-1',
       appTime: {
         activeDayKey: '2026-06-07',
+        timeIsPinned: true,
         nowISO: '2026-06-07T00:15:00.000Z',
         timeZone: 'UTC',
       },

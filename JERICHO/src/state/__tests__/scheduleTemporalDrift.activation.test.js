@@ -32,8 +32,10 @@ function buildAppliedReviewState({
     appTime: {
       nowISO: `${nowDayKey}T12:00:00.000Z`,
       activeDayKey: nowDayKey,
+        timeIsPinned: true,
       timeZone: 'UTC',
       isFollowingNow: true,
+        timeIsPinned: true,
     },
     activeCycleId: cycleId,
     activeGoalId: goalId,
@@ -314,8 +316,10 @@ describe('master-plan occupied cycle start resolution', () => {
         appTime: {
           nowISO: '2026-06-08T12:00:00.000Z',
           activeDayKey: '2026-06-08',
+        timeIsPinned: true,
           timeZone: 'UTC',
           isFollowingNow: true,
+        timeIsPinned: true,
         },
         availabilityPolicy: {
           workWindows: {

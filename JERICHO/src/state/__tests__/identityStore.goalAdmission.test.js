@@ -11,6 +11,7 @@ const EXISTING_CYCLE_ID = 'cycle-1';
 function buildMinimalState() {
   return {
     appTime: { nowISO: NOW_ISO, timeZone: 'UTC', activeDayKey: '2026-01-10' },
+        timeIsPinned: true,
     activeProfileId: DEFAULT_PROFILE_ID,
     profilesById: {
       [DEFAULT_PROFILE_ID]: {

@@ -78,7 +78,9 @@ function buildBaseState() {
       timeZone: 'UTC',
       nowISO: NOW_ISO,
       activeDayKey: FIXED_DAY,
+        timeIsPinned: true,
       isFollowingNow: true,
+        timeIsPinned: true,
     },
   };
 }

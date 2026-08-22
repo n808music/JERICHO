@@ -11,7 +11,9 @@ describe('Auto-Placement Draft Schedule', () => {
         timeZone,
         nowISO,
         activeDayKey: '2026-01-13',
+        timeIsPinned: true,
         isFollowingNow: true,
+        timeIsPinned: true,
       },
       today: {
         date: '2026-01-13',
@@ -52,7 +54,9 @@ describe('Auto-Placement Draft Schedule', () => {
         timeZone,
         nowISO,
         activeDayKey: '2026-01-13',
+        timeIsPinned: true,
         isFollowingNow: true,
+        timeIsPinned: true,
       },
       today: {
         date: '2026-01-13',
@@ -95,7 +99,9 @@ describe('Auto-Placement Draft Schedule', () => {
         timeZone,
         nowISO,
         activeDayKey: '2026-01-13',
+        timeIsPinned: true,
         isFollowingNow: true,
+        timeIsPinned: true,
       },
       today: {
         date: '2026-01-13',
@@ -127,7 +133,9 @@ describe('Auto-Placement Draft Schedule', () => {
         timeZone,
         nowISO,
         activeDayKey: '2026-01-13',
+        timeIsPinned: true,
         isFollowingNow: true,
+        timeIsPinned: true,
       },
       today: {
         date: '2026-01-13',

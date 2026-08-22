@@ -15,6 +15,7 @@ import { buildMasterPlanOperationalDescriptors, resolveFirstCycleScheduleStart }
 function stateOf(today, planOverrides = {}) {
   return {
     appTime: { timeZone: 'America/Chicago', activeDayKey: today },
+        timeIsPinned: true,
     today: { date: today },
     profilesById: { 'profile-1': { id: 'profile-1', masterCalendarId: null } },
     masterCalendarsById: {},

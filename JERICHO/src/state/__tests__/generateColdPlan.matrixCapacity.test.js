@@ -18,6 +18,7 @@ function buildState({ matrix = {}, strategyConstraints = undefined } = {}) {
   const cycleId = 'cycle-1';
   return {
     appTime: { nowISO: NOW_ISO, timeZone: 'UTC', activeDayKey: START_DAY_KEY },
+        timeIsPinned: true,
     activeCycleId: cycleId,
     cyclesById: {
       [cycleId]: {

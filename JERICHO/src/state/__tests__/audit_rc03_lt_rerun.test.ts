@@ -49,7 +49,9 @@ function buildBaseState(nowDay: string = AUDIT_NOW) {
       timeZone: 'UTC',
       nowISO: `${nowDay}T12:00:00.000Z`,
       activeDayKey: nowDay,
+        timeIsPinned: true,
       isFollowingNow: true,
+        timeIsPinned: true,
     },
   };
 }

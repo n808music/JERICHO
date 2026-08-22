@@ -25,8 +25,10 @@ function buildState() {
     appTime: {
       nowISO: '2026-05-19T12:00:00.000Z',
       activeDayKey: '2026-05-19',
+        timeIsPinned: true,
       timeZone: 'UTC',
       isFollowingNow: true,
+        timeIsPinned: true,
     },
     activeCycleId: cycleId,
     activeGoalId: 'goal-1',

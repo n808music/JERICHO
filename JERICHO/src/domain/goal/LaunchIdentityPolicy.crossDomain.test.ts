@@ -289,6 +289,7 @@ describe('Launch / Identity execution graph bootstrap', () => {
     const ventureOutcome = attemptGoalAdmissionPure(
       {
         appTime: { nowISO: '2026-01-10T12:00:00.000Z', timeZone: 'UTC', activeDayKey: '2026-01-10' },
+        timeIsPinned: true,
         cyclesById: {},
         activeCycleId: null,
         cycleOrder: [],
@@ -300,6 +301,7 @@ describe('Launch / Identity execution graph bootstrap', () => {
     const brandOutcome = attemptGoalAdmissionPure(
       {
         appTime: { nowISO: '2026-01-10T12:00:00.000Z', timeZone: 'UTC', activeDayKey: '2026-01-10' },
+        timeIsPinned: true,
         cyclesById: {},
         activeCycleId: null,
         cycleOrder: [],

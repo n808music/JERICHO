@@ -14,6 +14,7 @@ import {
 } from './engine/todayAuthority.ts';
 import { appendFrictionEvent, buildFrictionEvent } from './engine/profileExecutionContainment.ts';
 import { APP_TIME_ZONE, addDays, dayKeyFromDate, dayKeyFromISO, nowDayKey } from './time/time.ts';
+import { setAppTime } from './time/setAppTime.js';
 import { assertEngineAuthority } from './invariants/engineAuthority.ts';
 import { GoalRejectionCode } from '../domain/goal/GoalRejectionCode.ts';
 import { buildAutoDeliverablesFromGoalContract } from '../domain/autoStrategy.ts';
@@ -1378,15 +1379,36 @@ function identityReducer(state, action) {
 
   if (action.type === 'TICK_NOW') {
     const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
+
+    // Outer gate: only refresh appTime if isFollowingNow is true
+    if (!draft.appTime?.isFollowingNow) {
+      return computeDerivedState(draft, { type: 'NO_OP' });
+    }
+
     const timeZone = draft.appTime?.timeZone || 'UTC';
     const nowISO = action.nowISO || new Date().toISOString();
-    const activeDayKey = draft.appTime?.isFollowingNow ? dayKeyFromISO(nowISO, timeZone) : draft.appTime?.activeDayKey;
-    draft.appTime = {
-      ...(draft.appTime || {}),
+
+    // Use setAppTime with respectPin=true to guard against fixture overwrites
+    setAppTime(draft, {
       nowISO,
-      activeDayKey: activeDayKey || draft.appTime?.activeDayKey || nowDayKey(),
-    };
-    if (draft.appTime.isFollowingNow && draft.appTime.activeDayKey) {
+      respectPin: true,
+      mode: 'refresh',
+      timeZone,
+    });
+
+    // After setAppTime, update activeDayKey based on the new nowISO
+    if (draft.appTime?.nowISO) {
+      const dayKey = dayKeyFromISO(draft.appTime.nowISO, timeZone);
+      if (dayKey) {
+        setAppTime(draft, {
+          activeDayKey: dayKey,
+          respectPin: true,
+          mode: 'refresh',
+        });
+      }
+    }
+
+    if (draft.appTime?.activeDayKey) {
       draft.viewDate = draft.appTime.activeDayKey;
     }
     return computeDerivedState(draft, { type: 'NO_OP' });
@@ -2532,10 +2554,14 @@ export function ensureTemplates(state) {
       state.appTime.timeZone = APP_TIME_ZONE;
     }
     if (!state.appTime.nowISO) {
-      state.appTime.nowISO = new Date().toISOString();
-    }
-    if (!state.appTime.activeDayKey) {
-      state.appTime.activeDayKey = dayKeyFromISO(state.appTime.nowISO, state.appTime.timeZone);
+      // Sites 1 & 2: Use setAppTime with respectPin=false for initialization
+      // (This is an init guard, never should respect the pin)
+      setAppTime(state, {
+        nowISO: new Date().toISOString(),
+        respectPin: false,
+        mode: 'init',
+        timeZone: state.appTime.timeZone,
+      });
     }
     if (typeof state.appTime.isFollowingNow !== 'boolean') {
       state.appTime.isFollowingNow = true;
@@ -3028,8 +3054,13 @@ export function attemptGoalAdmissionPure(state, admissionInput) {
   }
   draft.activeCycleId = newCycleId;
   draft.viewDate = startDayKey;
+  // Site 3: Use setAppTime with respectPin=true to allow test fixtures to lock time
   if (draft.appTime) {
-    draft.appTime.activeDayKey = startDayKey;
+    setAppTime(draft, {
+      activeDayKey: startDayKey,
+      respectPin: true,
+      mode: 'transition',
+    });
   }
   draft.goalAdmissionByGoal = draft.goalAdmissionByGoal || {};
   if (normalizedGoalContract?.goalId) {

@@ -38,7 +38,9 @@ function buildMinimalState() {
       timeZone: APP_TIME_ZONE,
       nowISO: '2026-01-10T00:00:00.000Z',
       activeDayKey: '2026-01-10',
+        timeIsPinned: true,
       isFollowingNow: true,
+        timeIsPinned: true,
     },
     suggestionHistory: {
       dayKey: '2026-01-10',

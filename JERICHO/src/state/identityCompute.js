@@ -13,6 +13,7 @@ import {
   isValidISO,
   APP_TIME_ZONE,
 } from './time/time.ts';
+import { setAppTime } from './time/setAppTime.js';
 import { buildDefaultStrategy, generateColdPlan, generateDailyProjection } from './coldPlan.ts';
 import { compileGoalEquationPlan } from './goalEquation.ts';
 import { admitGoal, isAdmitted } from './goalAdmission.ts';
@@ -11913,8 +11914,13 @@ function startNewCycle(state, payload = {}) {
   state.activeCycleId = newCycleId;
   state.activeGoalId = goalId;
   state.viewDate = startDayKey;
+  // Site 4: Use setAppTime with respectPin=true
   if (state.appTime?.isFollowingNow) {
-    state.appTime.activeDayKey = startDayKey;
+    setAppTime(state, {
+      activeDayKey: startDayKey,
+      respectPin: true,
+      mode: 'activate',
+    });
   }
   clearCycleTransientState(state);
 
@@ -12058,8 +12064,13 @@ function setActiveCycle(state, cycleId) {
     }) || cycle?.startedAtDayKey || null;
   if (visibleStartDayKey) {
     state.viewDate = visibleStartDayKey;
+    // Site 5: Use setAppTime with respectPin=true
     if (state.appTime) {
-      state.appTime.activeDayKey = visibleStartDayKey;
+      setAppTime(state, {
+        activeDayKey: visibleStartDayKey,
+        respectPin: true,
+        mode: 'recovery',
+      });
       state.appTime.isFollowingNow = false;
     }
   }
@@ -12236,8 +12247,13 @@ function startNewCycleWithDecision(state, payload = {}) {
   const activeCycle = state.activeCycleId ? state.cyclesById?.[state.activeCycleId] : null;
   const startDayKey = activeCycle?.startedAtDayKey || state.appTime?.activeDayKey || nowDayKey(state.appTime?.timeZone);
   state.viewDate = startDayKey;
+  // Site 6: Use setAppTime with respectPin=true
   if (state.appTime) {
-    state.appTime.activeDayKey = startDayKey;
+    setAppTime(state, {
+      activeDayKey: startDayKey,
+      respectPin: true,
+      mode: 'reset',
+    });
   }
   state.meta = {
     ...(state.meta || {}),

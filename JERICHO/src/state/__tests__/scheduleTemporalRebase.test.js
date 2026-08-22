@@ -36,8 +36,10 @@ function buildAppliedReviewState({
     appTime: {
       nowISO: `${nowDayKey}T12:00:00.000Z`,
       activeDayKey: nowDayKey,
+        timeIsPinned: true,
       timeZone: 'UTC',
       isFollowingNow: true,
+        timeIsPinned: true,
     },
     activeCycleId: cycleId,
     activeGoalId: goalId,

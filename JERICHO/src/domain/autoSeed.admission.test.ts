@@ -16,6 +16,7 @@ describe('Auto-seed admission flow', () => {
         timeZone: 'UTC',
         nowISO,
         activeDayKey: '2026-01-12',
+        timeIsPinned: true,
       },
       cyclesById: {},
       cycleOrder: [],

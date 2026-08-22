@@ -6,6 +6,7 @@ function buildBaseState() {
   const nowISO = '2026-01-20T08:00:00.000Z';
   return {
     appTime: { nowISO, timeZone: 'UTC', activeDayKey: '2026-01-20' },
+        timeIsPinned: true,
     today: { date: '2026-01-20', blocks: [] },
     currentWeek: { days: [] },
     cyclesById: {
