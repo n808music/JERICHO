@@ -28,6 +28,7 @@ function buildBaseState(date = '2026-01-02') {
       nowISO: `${date}T12:00:00.000Z`,
       activeDayKey: date,
       isFollowingNow: true,
+      timeIsPinned: true,
     },
   };
 }

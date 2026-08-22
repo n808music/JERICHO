@@ -67,6 +67,7 @@ function buildState() {
       nowISO: `${startDayKey}T12:00:00.000Z`,
       activeDayKey: startDayKey,
       isFollowingNow: true,
+      timeIsPinned: true,
     },
     constraints: {
       maxBlocksPerDay: 4,

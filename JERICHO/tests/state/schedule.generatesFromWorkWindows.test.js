@@ -12,7 +12,7 @@ function buildState() {
   const cycleId = 'cycle-1';
   const goalId = 'goal-1';
   return {
-    appTime: { timeZone: 'UTC', nowISO: `${dayKey}T12:00:00.000Z`, activeDayKey: dayKey, isFollowingNow: true },
+    appTime: { timeZone: 'UTC', nowISO: `${dayKey}T12:00:00.000Z`, activeDayKey: dayKey, isFollowingNow: true, timeIsPinned: true },
     today: { date: dayKey, blocks: [] },
     currentWeek: { weekStart: dayKey, days: [] },
     cycle: [],

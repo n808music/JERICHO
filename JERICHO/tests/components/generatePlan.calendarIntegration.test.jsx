@@ -52,6 +52,7 @@ function buildIntegrationState({ activeDayKey = DAY_KEY, deadlineDayKey = '2026-
       nowISO: `${activeDayKey}T12:00:00.000Z`,
       activeDayKey,
       isFollowingNow: true,
+      timeIsPinned: true,
     },
     constraints: {
       maxBlocksPerDay: 6,

@@ -76,7 +76,7 @@ function buildDraftState() {
     probabilityByGoal: {},
     feasibilityByGoal: {},
     goalWorkById: {},
-    appTime: { timeZone: 'UTC', nowISO: `${DAY_KEY}T08:00:00.000Z`, activeDayKey: DAY_KEY, isFollowingNow: true },
+    appTime: { timeZone: 'UTC', nowISO: `${DAY_KEY}T08:00:00.000Z`, activeDayKey: DAY_KEY, isFollowingNow: true, timeIsPinned: true },
     profileLearning: {},
     activeCycleId: cycleId,
     cyclesById: {

@@ -61,6 +61,7 @@ function buildHarnessState(): AnyState {
       nowISO: '2026-03-12T12:00:00.000Z',
       activeDayKey: '2026-03-12',
       isFollowingNow: true,
+      timeIsPinned: true,
     },
     constraints: {
       maxBlocksPerDay: 6,
