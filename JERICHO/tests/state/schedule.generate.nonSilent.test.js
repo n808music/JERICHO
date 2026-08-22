@@ -216,6 +216,9 @@ describe('schedule generation non-silent deterministic behavior', () => {
   });
 
   it('passes the live runtime floor to the scheduler instead of a stale persisted May 19 contract start', () => {
+    // Mock the current date to June 21 so the test assertion is not brittle to when it runs
+    vi.setSystemTime(new Date('2026-06-21T12:00:00.000Z'));
+
     compileAutoAsanaPlanMock.mockReturnValue({
       horizonBlocks: [
         buildCanonicalGeneratedBlock({
@@ -231,9 +234,10 @@ describe('schedule generation non-silent deterministic behavior', () => {
     const state = buildState();
     state.appTime = {
       timeZone: 'America/Chicago',
-      nowISO: '2026-05-19T12:00:00.000Z',
+      nowISO: '2026-05-19T12:00:00.000Z', // Stale fixture date
       activeDayKey: '2026-06-15',
       isFollowingNow: true,
+      // NO timeIsPinned — fixture is unpinned, should get fresh time
     };
     state.today = { ...state.today, date: '2026-05-19', blocks: [] };
     state.cyclesById['cycle-1'].goalContract.startDayKey = '2026-05-19';
@@ -246,9 +250,73 @@ describe('schedule generation non-silent deterministic behavior', () => {
 
     expect(compileAutoAsanaPlanMock).toHaveBeenCalledTimes(1);
     const compileInput = compileAutoAsanaPlanMock.mock.calls[0][0];
+    // After fix: scheduler should receive the mocked fresh time (2026-06-21), not stale (2026-05-19)
     expect(compileInput.nowISO).toBe('2026-06-21T12:00:00.000Z');
     expect(compileInput.constraints.cycleStartDayKey).toBe('2026-06-21');
     expect((next.proposedBlocks || []).map((block) => block?.dayKey)).toContain('2026-06-21');
     expect((next.proposedBlocks || []).some((block) => String(block?.dayKey || '').startsWith('2026-05-19'))).toBe(false);
+  });
+
+  it('E9 Site 7 — unpinned fixture gets fresh time in scheduler input', () => {
+    // Test that when timeIsPinned is NOT set, the scheduler receives fresh runtime time
+    compileAutoAsanaPlanMock.mockReturnValue({
+      horizonBlocks: [buildCanonicalGeneratedBlock({ dayKey: '2026-06-21' })],
+      conflicts: [],
+    });
+
+    const state = buildState();
+    state.appTime = {
+      timeZone: 'America/Chicago',
+      nowISO: '2026-05-19T12:00:00.000Z', // Stale fixture date
+      activeDayKey: '2026-06-15',
+      isFollowingNow: true,
+      // NO timeIsPinned: true — fixture is unpinned
+    };
+    state.today = { ...state.today, date: '2026-05-19', blocks: [] };
+    state.cyclesById['cycle-1'].goalContract.startDayKey = '2026-05-19';
+    state.goalExecutionContract.startDayKey = '2026-05-19';
+
+    const next = computeDerivedState(state, {
+      type: 'GENERATE_PLAN',
+      payload: { cycleId: 'cycle-1' },
+    });
+
+    // After fix: scheduler should receive fresh time (not stale 2026-05-19)
+    const compileInput = compileAutoAsanaPlanMock.mock.calls[0]?.[0];
+    expect(compileInput).toBeDefined();
+    expect(compileInput.nowISO).not.toBe('2026-05-19T12:00:00.000Z');
+    expect(String(compileInput.nowISO || '')).toMatch(/^202[67]-/); // Some future date
+  });
+
+  it('E9 Site 7 — pinned fixture respects timeIsPinned guard in scheduler input', () => {
+    // Test that when timeIsPinned IS set, the scheduler receives the fixture's pinned time
+    // and fresh time computation is ignored
+    compileAutoAsanaPlanMock.mockReturnValue({
+      horizonBlocks: [buildCanonicalGeneratedBlock({ dayKey: '2026-05-19' })],
+      conflicts: [],
+    });
+
+    const state = buildState();
+    state.appTime = {
+      timeZone: 'America/Chicago',
+      nowISO: '2026-05-19T12:00:00.000Z', // Fixture-pinned date
+      activeDayKey: '2026-05-19',
+      isFollowingNow: true,
+      timeIsPinned: true, // PIN SET — fixture time should be preserved
+    };
+    state.today = { ...state.today, date: '2026-05-19', blocks: [] };
+    state.cyclesById['cycle-1'].goalContract.startDayKey = '2026-05-19';
+    state.goalExecutionContract.startDayKey = '2026-05-19';
+
+    const next = computeDerivedState(state, {
+      type: 'GENERATE_PLAN',
+      payload: { cycleId: 'cycle-1' },
+    });
+
+    // Even though fresh time is available, guard prevents update
+    // Scheduler should receive the fixture-pinned time
+    const compileInput = compileAutoAsanaPlanMock.mock.calls[0]?.[0];
+    expect(compileInput).toBeDefined();
+    expect(compileInput.nowISO).toBe('2026-05-19T12:00:00.000Z');
   });
 });

@@ -12775,7 +12775,17 @@ function generatePlan(state, payload = {}) {
   const timeZone = state.appTime?.timeZone || 'UTC';
   const runtimeNowISO = new Date().toISOString();
   const runtimeNowDayKey = dayKeyFromISO(runtimeNowISO, timeZone) || null;
-  const nowISO = state.appTime?.nowISO || runtimeNowISO;
+
+  // Site 7: Scheduler input — refresh appTime with fresh runtime time, respecting timeIsPinned guard
+  // If unpinned: setAppTime updates state.appTime.nowISO to runtimeNowISO (fresh)
+  // If pinned: setAppTime returns early, leaving state.appTime.nowISO unchanged (fixture time)
+  setAppTime(state, {
+    nowISO: runtimeNowISO,
+    respectPin: true,
+    mode: 'scheduler_input',
+  });
+
+  const nowISO = state.appTime?.nowISO;
   const nowDayKeyFromClock = dayKeyFromISO(nowISO, timeZone) || null;
   const requestedAnchorDayKey = coerceDayKey(payload?.anchorDayKey, timeZone) || null;
   const activeDayKey = state.appTime?.activeDayKey || null;
