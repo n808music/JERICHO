@@ -632,6 +632,7 @@ describe('ZionDashboard apply draft schedule', () => {
       nowISO: `${liveDayKey}T12:00:00.000Z`,
       activeDayKey: liveDayKey,
       isFollowingNow: true,
+      timeIsPinned: true,
     };
     state.today = { ...state.today, date: liveDayKey, blocks: [] };
     state.currentWeek = { weekStart: liveDayKey, days: [] };
