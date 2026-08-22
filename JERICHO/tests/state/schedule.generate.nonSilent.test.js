@@ -216,48 +216,39 @@ describe('schedule generation non-silent deterministic behavior', () => {
   });
 
   it('passes the live runtime floor to the scheduler instead of a stale persisted May 19 contract start', () => {
-    // Freeze time to 2026-06-21 so that when E9 staleness fix refreshes appTime,
-    // it gets the expected date (not dependent on actual wall-clock date)
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-06-21T12:00:00.000Z'));
+    compileAutoAsanaPlanMock.mockReturnValue({
+      horizonBlocks: [
+        buildCanonicalGeneratedBlock({
+          id: 'hb-live-floor-1',
+          title: 'Validate live runtime floor handling for Operation Endgame app platform',
+          dayKey: '2026-06-21',
+          startISO: '2026-06-21T16:00:00.000Z',
+        }),
+      ],
+      conflicts: [],
+    });
 
-    try {
-      compileAutoAsanaPlanMock.mockReturnValue({
-        horizonBlocks: [
-          buildCanonicalGeneratedBlock({
-            id: 'hb-live-floor-1',
-            title: 'Validate live runtime floor handling for Operation Endgame app platform',
-            dayKey: '2026-06-21',
-            startISO: '2026-06-21T16:00:00.000Z',
-          }),
-        ],
-        conflicts: [],
-      });
+    const state = buildState();
+    state.appTime = {
+      timeZone: 'America/Chicago',
+      nowISO: '2026-05-19T12:00:00.000Z',
+      activeDayKey: '2026-06-15',
+      isFollowingNow: true,
+    };
+    state.today = { ...state.today, date: '2026-05-19', blocks: [] };
+    state.cyclesById['cycle-1'].goalContract.startDayKey = '2026-05-19';
+    state.goalExecutionContract.startDayKey = '2026-05-19';
 
-      const state = buildState();
-      state.appTime = {
-        timeZone: 'America/Chicago',
-        nowISO: '2026-05-19T12:00:00.000Z',
-        activeDayKey: '2026-06-15',
-        isFollowingNow: true,
-      };
-      state.today = { ...state.today, date: '2026-05-19', blocks: [] };
-      state.cyclesById['cycle-1'].goalContract.startDayKey = '2026-05-19';
-      state.goalExecutionContract.startDayKey = '2026-05-19';
+    const next = computeDerivedState(state, {
+      type: 'GENERATE_PLAN',
+      payload: { cycleId: 'cycle-1', anchorDayKey: '2026-05-19' },
+    });
 
-      const next = computeDerivedState(state, {
-        type: 'GENERATE_PLAN',
-        payload: { cycleId: 'cycle-1', anchorDayKey: '2026-05-19' },
-      });
-
-      expect(compileAutoAsanaPlanMock).toHaveBeenCalledTimes(1);
-      const compileInput = compileAutoAsanaPlanMock.mock.calls[0][0];
-      expect(compileInput.nowISO).toBe('2026-06-21T12:00:00.000Z');
-      expect(compileInput.constraints.cycleStartDayKey).toBe('2026-06-21');
-      expect((next.proposedBlocks || []).map((block) => block?.dayKey)).toContain('2026-06-21');
-      expect((next.proposedBlocks || []).some((block) => String(block?.dayKey || '').startsWith('2026-05-19'))).toBe(false);
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(compileAutoAsanaPlanMock).toHaveBeenCalledTimes(1);
+    const compileInput = compileAutoAsanaPlanMock.mock.calls[0][0];
+    expect(compileInput.nowISO).toBe('2026-06-21T12:00:00.000Z');
+    expect(compileInput.constraints.cycleStartDayKey).toBe('2026-06-21');
+    expect((next.proposedBlocks || []).map((block) => block?.dayKey)).toContain('2026-06-21');
+    expect((next.proposedBlocks || []).some((block) => String(block?.dayKey || '').startsWith('2026-05-19'))).toBe(false);
   });
 });

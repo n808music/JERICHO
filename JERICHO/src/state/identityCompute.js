@@ -524,14 +524,6 @@ export function normalizeConfirmationProvenance(state) {
 export function computeDerivedState(state, action) {
   /** @type {IdentityState} */
   let next = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
-
-  // E9 Fix: Refresh stale appTime when resuming from background
-  // If isFollowingNow is true, always use current time (not stale persisted value)
-  if (next.appTime && next.appTime.isFollowingNow === true) {
-    next.appTime.nowISO = new Date().toISOString();
-    next.appTime.activeDayKey = dayKeyFromISO(next.appTime.nowISO, next.appTime.timeZone || APP_TIME_ZONE);
-  }
-
   if (!next.templates) {
     next.templates = { objectives: {} };
   }
