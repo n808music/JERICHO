@@ -395,19 +395,28 @@ describe('Item 2: Flow incomplete blocks to Backlog on day boundary', () => {
     });
 
     it('maintains daysInBacklog calculation when scope filtering', () => {
-      const state = {
-        appTime: { nowISO: '2026-08-21T12:00:00.000Z' },
-        executionEvents: [
-          { blockId: 'block-1', kind: 'missed', dateISO: '2026-08-19' },
-        ],
-        today: {
-          blocks: [{ id: 'block-1', cycleId: 'cycle-1', goalId: 'goal-1' }],
-        },
-      };
+      // Freeze time to 2026-08-21 so the test doesn't depend on wall-clock date
+      // (selector falls back to new Date() if appTime.activeDayKey not provided)
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-08-21T12:00:00.000Z'));
 
-      const backlog = resolveBacklogBlocks(state, { cycleId: 'cycle-1' });
-      expect(backlog).toHaveLength(1);
-      expect(backlog[0]?.daysInBacklog).toBe(2); // 2026-08-19 to 2026-08-21
+      try {
+        const state = {
+          appTime: { nowISO: '2026-08-21T12:00:00.000Z' },
+          executionEvents: [
+            { blockId: 'block-1', kind: 'missed', dateISO: '2026-08-19' },
+          ],
+          today: {
+            blocks: [{ id: 'block-1', cycleId: 'cycle-1', goalId: 'goal-1' }],
+          },
+        };
+
+        const backlog = resolveBacklogBlocks(state, { cycleId: 'cycle-1' });
+        expect(backlog).toHaveLength(1);
+        expect(backlog[0]?.daysInBacklog).toBe(2); // 2026-08-19 to 2026-08-21
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

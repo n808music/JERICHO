@@ -2531,12 +2531,15 @@ export function ensureTemplates(state) {
     if (!state.appTime.timeZone) {
       state.appTime.timeZone = APP_TIME_ZONE;
     }
-    if (!state.appTime.nowISO) {
+    // E9 Fix: Refresh stale appTime on resume from background
+    // If isFollowingNow is true, always use current time (not stale persisted value)
+    if (state.appTime.isFollowingNow === true) {
+      state.appTime.nowISO = new Date().toISOString();
+    } else if (!state.appTime.nowISO) {
       state.appTime.nowISO = new Date().toISOString();
     }
-    if (!state.appTime.activeDayKey) {
-      state.appTime.activeDayKey = dayKeyFromISO(state.appTime.nowISO, state.appTime.timeZone);
-    }
+    // Always recompute activeDayKey to match current nowISO
+    state.appTime.activeDayKey = dayKeyFromISO(state.appTime.nowISO, state.appTime.timeZone);
     if (typeof state.appTime.isFollowingNow !== 'boolean') {
       state.appTime.isFollowingNow = true;
     }

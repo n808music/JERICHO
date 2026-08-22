@@ -76,6 +76,7 @@ import { summarizeCycle } from './cycleSummary.ts';
 import { computeProfileLearning } from './learning.ts';
 import { computeTerminalFidelityVerdict } from './convergenceTerminal.ts';
 import { rolloverAtMidnight, shouldRollover } from '../core/engine/rollover.ts';
+import { resolveBacklogBlocks } from '../core/engine/resolveBacklogBlocks.ts';
 import { buildPolicyAndQualityDiagnostics } from './draftSchedule.js';
 import { IS_PRODUCTION, isRuntimeEnvFlagEnabled } from '../utils/runtimeEnv.js';
 import {
@@ -523,6 +524,14 @@ export function normalizeConfirmationProvenance(state) {
 export function computeDerivedState(state, action) {
   /** @type {IdentityState} */
   let next = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
+
+  // E9 Fix: Refresh stale appTime when resuming from background
+  // If isFollowingNow is true, always use current time (not stale persisted value)
+  if (next.appTime && next.appTime.isFollowingNow === true) {
+    next.appTime.nowISO = new Date().toISOString();
+    next.appTime.activeDayKey = dayKeyFromISO(next.appTime.nowISO, next.appTime.timeZone || APP_TIME_ZONE);
+  }
+
   if (!next.templates) {
     next.templates = { objectives: {} };
   }
@@ -930,6 +939,17 @@ export function computeDerivedState(state, action) {
           eventsEmitted.forEach((event) => appendExecutionEvent(next, event));
         }
         next.lastRolloverDayISO = lastRolloverDayISO || dayKeyFromISO(nowISO, timezone);
+
+        // Item 2 Step 5: Wire in selector to remove incomplete blocks that flow to Backlog
+        // Blocks with most recent event = 'missed' are excluded from today.blocks
+        const backlogBlocks = resolveBacklogBlocks(next);
+        const backlogBlockIds = new Set(backlogBlocks.map((b) => b.id));
+        if (next.today?.blocks) {
+          next.today.blocks = next.today.blocks.filter((block) => !backlogBlockIds.has(block.id));
+        }
+        // Store backlog block IDs for later use in mergePriorTodayBlocks
+        // (needed because mergePriorTodayBlocks is called after filtering and can't re-derive via selector)
+        next._backlogBlockIdsFromRollover = backlogBlockIds;
       }
 
       next.appTime = {
@@ -4310,16 +4330,31 @@ function mergePriorTodayBlocks(state, previousBlocks = []) {
   if (!previousBlocks.length) {
     return;
   }
-  // Item 2 Step 6 Fix: Only exclude blocks with 'delete' events
+  // Item 2 Step 6 Fix: Only exclude blocks with 'delete' events + Backlog blocks
   // Missed blocks stay in today.blocks; Backlog membership is derived from event ledger
   const deletedIds = new Set(
     (state.executionEvents || [])
       .filter((event) => event?.kind === 'delete' && event?.blockId)
       .map((event) => event.blockId)
   );
+
+  // Also exclude blocks that are in Backlog (derived from selector or rollover storage)
+  // This prevents re-adding blocks that were intentionally filtered to Backlog
+  // Try to get cached backlog IDs from rollover first, fall back to selector
+  let backlogBlockIds = state._backlogBlockIdsFromRollover;
+  if (!backlogBlockIds) {
+    backlogBlockIds = new Set(resolveBacklogBlocks(state).map((b) => b.id));
+  }
+
   const existingIds = new Set((state.today?.blocks || []).map((block) => block?.id));
   const missing = previousBlocks
-    .filter((block) => block?.id && !existingIds.has(block.id) && !deletedIds.has(block.id))
+    .filter(
+      (block) =>
+        block?.id &&
+        !existingIds.has(block.id) &&
+        !deletedIds.has(block.id) &&
+        !backlogBlockIds.has(block.id) // Don't restore blocks that are in Backlog
+    )
     .map((block) => ({
       ...block,
       placementState: block.placementState === 'COMMITTED' ? 'in_progress' : block.placementState || 'in_progress',
