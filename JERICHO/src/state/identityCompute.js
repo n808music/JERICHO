@@ -12776,10 +12776,10 @@ function generatePlan(state, payload = {}) {
   const runtimeNowISO = new Date().toISOString();
   const runtimeNowDayKey = dayKeyFromISO(runtimeNowISO, timeZone) || null;
 
-  // Site 7: Scheduler input — respect timeIsPinned guard for this code path only
-  // If pinned: use fixture's stale time (preserve test behavior)
-  // If unpinned: use fresh runtime time (fix staleness)
-  // NOTE: Use inline guard rather than mutating state globally to avoid cascading side effects
+  // E9 Site 7: Scheduler input time guard
+  // Respects timeIsPinned: if pinned, use fixture's stale time; if unpinned, use fresh runtime time
+  // Inline implementation (not via setAppTime) to avoid global state mutations that cascade to
+  // downstream logic unrelated to the scheduler input path. This is a documented exception.
   const nowISO = state.appTime?.timeIsPinned ? state.appTime.nowISO : runtimeNowISO;
   const nowDayKeyFromClock = dayKeyFromISO(nowISO, timeZone) || null;
   const requestedAnchorDayKey = coerceDayKey(payload?.anchorDayKey, timeZone) || null;
