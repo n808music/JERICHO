@@ -12776,16 +12776,11 @@ function generatePlan(state, payload = {}) {
   const runtimeNowISO = new Date().toISOString();
   const runtimeNowDayKey = dayKeyFromISO(runtimeNowISO, timeZone) || null;
 
-  // Site 7: Scheduler input — refresh appTime with fresh runtime time, respecting timeIsPinned guard
-  // If unpinned: setAppTime updates state.appTime.nowISO to runtimeNowISO (fresh)
-  // If pinned: setAppTime returns early, leaving state.appTime.nowISO unchanged (fixture time)
-  setAppTime(state, {
-    nowISO: runtimeNowISO,
-    respectPin: true,
-    mode: 'scheduler_input',
-  });
-
-  const nowISO = state.appTime?.nowISO;
+  // Site 7: Scheduler input — respect timeIsPinned guard for this code path only
+  // If pinned: use fixture's stale time (preserve test behavior)
+  // If unpinned: use fresh runtime time (fix staleness)
+  // NOTE: Use inline guard rather than mutating state globally to avoid cascading side effects
+  const nowISO = state.appTime?.timeIsPinned ? state.appTime.nowISO : runtimeNowISO;
   const nowDayKeyFromClock = dayKeyFromISO(nowISO, timeZone) || null;
   const requestedAnchorDayKey = coerceDayKey(payload?.anchorDayKey, timeZone) || null;
   const activeDayKey = state.appTime?.activeDayKey || null;
