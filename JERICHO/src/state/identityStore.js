@@ -1366,14 +1366,20 @@ function identityReducer(state, action) {
     const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
     const timeZone = draft.appTime?.timeZone || 'UTC';
     const nowISO = new Date().toISOString();
-    const activeDayKey = dayKeyFromISO(nowISO, timeZone);
-    draft.appTime = {
-      ...(draft.appTime || {}),
+
+    // JUMP_TO_TODAY is an explicit user action (button press).
+    // It always sets fresh time, overriding timeIsPinned.
+    // respectPin: false means ignore the pin — this is deliberate.
+    setAppTime(draft, {
       nowISO,
-      activeDayKey,
-      isFollowingNow: true,
-    };
-    draft.viewDate = activeDayKey;
+      respectPin: false,
+      mode: 'user-jump',
+      timeZone,
+    });
+
+    // Set isFollowingNow after appTime is updated
+    draft.appTime.isFollowingNow = true;
+    draft.viewDate = draft.appTime.activeDayKey;
     return computeDerivedState(draft, { type: 'NO_OP' });
   }
 
