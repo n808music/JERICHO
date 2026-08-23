@@ -18,7 +18,7 @@
  */
 
 import { classifyPhase, NonCanonicalPhaseError } from './phaseClassification.js';
-import { computeSpineWindowPhase } from './computeSpineWindowPhase.js';
+import { computeSpineWindowPhase } from './computeSpineWindowPhase.ts';
 
 const ORDERING_TYPES = new Set(['hard_gate', 'directional']);
 
