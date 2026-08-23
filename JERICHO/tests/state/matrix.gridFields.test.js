@@ -13,24 +13,27 @@ function runMatrix(actions) {
 }
 
 describe('matrix grid fields', () => {
-  it('initiative declaration defaults reviewStatus=DRAFT, phase=null, roleTags=[]', () => {
+  it('initiative declaration defaults reviewStatus=DRAFT, roleTags=[], and carries no phase', () => {
     const s = runMatrix([
       { type: 'DECLARE_INITIATIVE', payload: { id: 'i1', name: 'Jericho System', purpose: 'x', classification: 'objective', doneWhen: 'y' } },
     ]);
     const rec = s.matrix.initiativesById.i1;
     expect(rec.reviewStatus).toBe('DRAFT');
-    expect(rec.phase).toBe(null);
     expect(rec.roleTags).toEqual([]);
+    // E16 (2026-08-23): an Initiative has no Phase — the field does not exist on the node.
+    expect('phase' in rec).toBe(false);
   });
 
-  it('declared values persist (reviewStatus/phase/roleTags)', () => {
+  it('declared values persist (reviewStatus/roleTags), and a phase payload key is ignored', () => {
     const s = runMatrix([
       { type: 'DECLARE_INITIATIVE', payload: { id: 'i2', name: 'F8 ENERGY GUM', purpose: 'x', classification: 'objective', doneWhen: 'y', reviewStatus: 'CONFIRMED', phase: '1', roleTags: ['income'] } },
     ]);
     const rec = s.matrix.initiativesById.i2;
     expect(rec.reviewStatus).toBe('CONFIRMED');
-    expect(rec.phase).toBe('1');
     expect(rec.roleTags).toEqual(['income']);
+    // E16: DECLARE_INITIATIVE was a second write path onto initiative.phase. It is closed —
+    // a phase key in the payload must not reach the node.
+    expect('phase' in rec).toBe(false);
   });
 
   it('artifact carries producedByEntityId resolved to a declared entity', () => {

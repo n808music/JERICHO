@@ -134,13 +134,21 @@ export function deriveProjectPhasesFromDependencies(matrix = {}) {
 
 /**
  * Merges every phase signal available for a CONFIRMED project, most-specific first
- * (2026-07-13 phasing-scalability follow-up — see setInitiativePhase/SET_INITIATIVE_PHASE):
+ * (2026-07-13 phasing-scalability follow-up).
+ *
+ * STALE as of 2026-08-23 (E16): tier 3 below is dead. `SET_INITIATIVE_PHASE`, `setInitiativePhase()`
+ * and the Initiative `phase` field are all removed — an Initiative has no Phase, by doctrine, so
+ * nothing can populate it. Tier 3 and the three Initiative-phase advisory gates further down
+ * (PHASE_DATA_CORRUPTED initiative branch, PROJECT_PHASE_CONTRADICTS_INITIATIVE,
+ * INITIATIVE_NO_PHASE_DECLARED) are itemized for deletion in
+ * docs/superpowers/plans/2026-08-23-e16-initiative-terminal-date.md §6. INITIATIVE_NO_PHASE_DECLARED
+ * is the urgent one: it instructs the operator to perform an action that no longer exists.
  *
  *   1. Dependency-derived phase (deriveProjectPhasesFromDependencies) — the project actually
  *      participates in a declared "X before Y" sequence. Most specific, wins over everything.
  *   2. The project's own hand-typed `phase` field — a fallback for a project the operator
  *      labeled directly but hasn't (yet) sequenced against anything else.
- *   3. The owning Initiative's declared phase (SET_INITIATIVE_PHASE) — the coarse default.
+ *   3. The owning Initiative's declared phase — the coarse default. DEAD as of E16; see above.
  *      Declared once per Initiative (~10 decisions across a real portfolio) instead of via
  *      pairwise Project dependencies, which don't scale once a portfolio holds many
  *      unrelated content lines (e.g. sequencing "OUR FEARLESS LEADER 3" against "I AM THE

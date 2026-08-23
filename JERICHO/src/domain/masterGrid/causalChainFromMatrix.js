@@ -29,8 +29,13 @@
  * (confirmed by the operator at ~18 CONFIRMED Projects). Effective phase per Project now
  * comes from deriveEffectiveProjectPhases (phaseFromDependencies.js), which merges, most
  * specific first: (1) dependency-derived phase, (2) the project's own hand-typed phase,
- * (3) its owning Initiative's declared phase (SET_INITIATIVE_PHASE) — the coarse default a
- * project inherits when it has no more specific signal of its own.
+ * (3) its owning Initiative's declared phase — the coarse default a project inherits when
+ * it has no more specific signal of its own.
+ *
+ * STALE as of 2026-08-23 (E16): tier (3) is dead. `SET_INITIATIVE_PHASE` and the Initiative
+ * `phase` field are removed — an Initiative has no Phase, by doctrine. Tier (3) can no longer
+ * fire and is itemized for deletion in
+ * docs/superpowers/plans/2026-08-23-e16-initiative-terminal-date.md §6.
  */
 
 import { deriveEffectiveProjectPhases } from './phaseFromDependencies.js';

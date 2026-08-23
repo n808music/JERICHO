@@ -1235,9 +1235,6 @@ export function computeDerivedState(state, action) {
     case 'DECLARE_INITIATIVE':
       declareInitiative(next, action.payload || {});
       break;
-    case 'SET_INITIATIVE_PHASE':
-      setInitiativePhase(next, action.payload || {});
-      break;
     case 'DECLARE_PRICING_STRATEGY':
       declarePricingStrategy(next, action.payload || {});
       break;
@@ -16405,7 +16402,11 @@ function declareInitiative(state, payload = {}) {
     purposeOngoing: String(payload?.purposeOngoing || '').trim() || null,
     classification,
     doneWhen,
-    phase: String(payload?.phase || '').trim() || null,
+    // No `phase` field, by doctrine (E16, 2026-08-23): an Initiative has no Phase.
+    // Not stored, not derived-and-written-back, not attestable. Deliverables/Artifacts
+    // copy their parent PROJECT's Phase; any Initiative-level Phase display is a live
+    // rollup over owned Projects, computed at read time and never persisted here.
+    // A `phase` key in the payload is deliberately ignored.
     roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
@@ -16420,38 +16421,15 @@ function declareInitiative(state, payload = {}) {
   };
 }
 
-// Initiative-level phase declaration (2026-07-13 phasing-scalability follow-up).
-// Pairwise Project-to-Project dependency declaration (SequencingPanel/DECLARE_DEPENDENCY)
-// doesn't scale once a portfolio holds many unrelated content lines (confirmed by the
-// operator: ~18 CONFIRMED Projects, largely no meaningful pairwise relationship to declare —
-// e.g. sequencing "OUR FEARLESS LEADER 3" against "I AM THE STATE" doesn't make sense).
-// Declaring phase once per Initiative (~10 decisions) is the coarse, tractable default;
-// Projects inherit it via deriveEffectiveProjectPhases unless they have their own
-// dependency-derived or hand-typed phase. This is a direct one-field set — not a graph
-// edge — deliberately as simple as CONFIRM_CAPACITY, not a form.
-function setInitiativePhase(state, payload = {}) {
-  ensureMatrixSlot(state);
-  const id = String(payload?.id || '').trim();
-  if (!id) {
-    state.lastPlanError = {
-      code: 'INITIATIVE_PHASE_INVALID',
-      reason: 'Setting an initiative phase requires an id.',
-      meta: { id },
-    };
-    return;
-  }
-  const existing = state.matrix.initiativesById?.[id];
-  if (!existing) {
-    state.lastPlanError = {
-      code: 'INITIATIVE_UNKNOWN',
-      reason: `Cannot set phase on initiative "${id}" — not in matrix.initiativesById.`,
-      meta: { id },
-    };
-    return;
-  }
-  const phase = payload?.phase === null ? null : String(payload?.phase ?? '').trim() || null;
-  state.matrix.initiativesById[id] = { ...existing, phase };
-}
+// REMOVED 2026-08-23 (E16): setInitiativePhase() / SET_INITIATIVE_PHASE.
+// The 2026-07-13 phasing-scalability follow-up declared phase once per Initiative as a
+// coarse default that Projects inherited via deriveEffectiveProjectPhases. E16 resolved
+// that an Initiative has no Phase at all — a hand-set Initiative phase is the same
+// attestation anti-pattern the Phase Assignment Rule exists to remove, one grain up the
+// tree. Phase is computed per Project from its own terminal date (computeSpineWindowPhase);
+// Deliverables/Artifacts copy their parent Project. See
+// docs/superpowers/plans/2026-08-23-e16-initiative-terminal-date.md.
+// Read paths into initiative.phase are itemized for deletion in that document, §6.
 
 // Pricing strategy declaration for an initiative.
 // Updates riskClassification, pricingStrategy, and optional pricingReasoning.
