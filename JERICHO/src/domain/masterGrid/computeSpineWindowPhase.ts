@@ -26,6 +26,18 @@ function parseISODate(dateStr: string | null | undefined): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return null;
   const date = new Date(`${normalized}T12:00:00.000Z`);
   if (isNaN(date.getTime())) return null;
+
+  // Reject silent calendar rollover (e.g. Feb 29 in a non-leap year,
+  // April 31, June 31) — never infer, per Section 3 contract.
+  const [y, m, d] = normalized.split('-').map(Number);
+  if (
+    date.getUTCFullYear() !== y ||
+    date.getUTCMonth() + 1 !== m ||
+    date.getUTCDate() !== d
+  ) {
+    return null;
+  }
+
   return date;
 }
 

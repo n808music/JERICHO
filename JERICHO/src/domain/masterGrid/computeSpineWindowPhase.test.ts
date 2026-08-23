@@ -114,15 +114,24 @@ describe('computeSpineWindowPhase', () => {
       expect(computeSpineWindowPhase('2028-02-00', null)).toBe(null);
     });
 
-    it('handles leap year correctly (2028 is a leap year)', () => {
+    it('accepts leap year correctly (2028 is a leap year)', () => {
       // 2028-02-29 is valid and is AFTER P1 boundary (2028-02-17), so P2
       expect(computeSpineWindowPhase('2028-02-29', null)).toBe('P2');
     });
 
-    it('handles date auto-correction for non-leap years gracefully', () => {
-      // 2029-02-29 auto-corrects to 2029-03-01 (JavaScript Date behavior)
-      // which falls into P2 window, not P1
-      expect(computeSpineWindowPhase('2029-02-29', null)).toBe('P2');
+    it('rejects Feb 29 in a non-leap year (2029)', () => {
+      // 2029-02-29 does not exist — parseISODate rejects it
+      expect(computeSpineWindowPhase('2029-02-29', null)).toBe(null);
+    });
+
+    it('rejects April 31 (April has only 30 days)', () => {
+      // 2028-04-31 does not exist
+      expect(computeSpineWindowPhase('2028-04-31', null)).toBe(null);
+    });
+
+    it('rejects June 31 (June has only 30 days)', () => {
+      // 2029-06-31 does not exist
+      expect(computeSpineWindowPhase('2029-06-31', null)).toBe(null);
     });
   });
 
