@@ -1,6 +1,6 @@
 # E16 — Initiative Terminal Date: Add Field vs. Derive From Projects
 
-**Status:** RESOLVED — Option (c), refined. Decision recorded 2026-08-23; write-path deletion applied same day (see §5). Read-path deletion is a defined follow-up, not yet applied (§6).
+**Status:** RESOLVED — Option (c), refined. Decision recorded 2026-08-23; write-path deletion applied same day (§5, commit `66d8c35`); read-path deletion applied immediately after (§6). One regression from `66d8c35` was found by the full-suite run, traced, and fixed — see §7, which also records the one piece of information genuinely given up.
 **Opened:** 2026-08-23
 **Resolves:** E15 Phase 2b, read-sites 2–3 — *by deletion, not migration*
 **Does not block:** E15 Phase 2b sites 1/4 (Project), which have a separate prerequisite
@@ -140,34 +140,115 @@ second write path was found during implementation:
 | `src/state/__tests__/setInitiativePhase.test.js` (6 tests) | deleted — tests a removed dispatcher |
 | `tests/state/matrix.gridFields.test.js:16-34` | assertions updated: Initiative records carry no `phase` key |
 
-## 6. Follow-up: read-path deletion (defined, not yet applied)
+## 6. Read-path deletion `[APPLIED 2026-08-23]`
 
-`initiative.phase` reads still exist and are now permanently unreachable-or-wrong.
-They are a **deletion**, and deliberately not bundled into the write-path commit —
-they change advisory output and touch five test files, so they need their own
-verified step:
+Taken as its own step immediately after §5, ahead of E15's remaining Sites 1/4 work,
+because one of these was not merely dead but *actively wrong on screen*.
 
 | Read site | Disposition |
 |---|---|
-| `phaseFromDependencies.js:173-176` — `deriveEffectiveProjectPhases()` tier 3 (initiative fallback) | delete the tier; two tiers remain (dependency-derived, then project's own) |
-| `phaseGridFromStore.js:75` — `initiatives[...]?.phase` display fallback | delete the fallback rung |
-| `phaseFromDependencies.js:245-263` — Gate 3 `PHASE_DATA_CORRUPTED` on initiative phase | delete — validates a field that cannot be set |
-| `phaseFromDependencies.js:265-277` — `PROJECT_PHASE_CONTRADICTS_INITIATIVE` | delete — there is no Initiative phase to contradict |
-| `phaseFromDependencies.js:295-313` — `INITIATIVE_NO_PHASE_DECLARED` | delete — **actively wrong now**: it instructs the operator to "Set phase to 1/2/3" on an Initiative, an action that no longer exists. This is the highest-priority item in this table. |
+| `phaseFromDependencies.js` — `deriveEffectiveProjectPhases()` tier 3 (initiative fallback) | **deleted.** Two tiers remain: dependency-derived, then the project's own phase |
+| `phaseGridFromStore.js` — `initiatives[...]?.phase` display rung | **deleted**, along with the now-unused `initiatives` local and `resolveNodePhase`'s fifth parameter |
+| `phaseFromDependencies.js` — Gate 3 `PHASE_DATA_CORRUPTED`, initiative branch | **deleted.** The Project branch is untouched and still runs |
+| `phaseFromDependencies.js` — `PROJECT_PHASE_CONTRADICTS_INITIATIVE` | **deleted** — nothing to contradict |
+| `phaseFromDependencies.js` — `INITIATIVE_NO_PHASE_DECLARED` | **deleted** — instructed the operator to "Set phase to 1/2/3" on an Initiative, an action that no longer exists |
 
-Test files affected: `phaseFromDependencies.test.js`, `disclosureStandardGates.test.js`,
-`MasterGridTab.test.jsx`, `phaseGridFromStore.test.js`, plus `causalChainFromMatrix.js`'s
-doc comment (`:32`) and `phaseFromDependencies.js`'s tier-list comment (`:135-151`),
-both of which still describe `SET_INITIATIVE_PHASE` as a live mechanism.
+### Two sites this table originally missed
 
-## 7. Exit criteria
+Both found by reading the surrounding code rather than by searching for the codes in it:
+
+1. **`NO_DECLARED_SEQUENCE` had the same defect** and was not listed here. Its message told
+   the operator to *"assign the initiative a phase (1=beginning, 2=middle, 3=end) so this
+   project inherits"* — the same impossible remedy — and its `initiativeHasDeclaredPhase`
+   guard had become permanently false, so it fired unconditionally. The guard is removed and
+   the message rewritten to name only actions that exist (declare a dependency edge, or give
+   the project a target date). This also **reverses** the 2026-07-13 ruling that a Project
+   with no pairwise dependency was no longer automatically a gap: with no Initiative phase to
+   inherit, it is a real gap again.
+2. **The doctrine change reaches the Master Grid seed.** See §9.
+
+### Test disposition
+
+Rewritten as negative guards rather than deleted, so a hand-seeded `initiative.phase` in a
+fixture or an old persisted blob cannot quietly resurrect any of these paths:
+`phaseFromDependencies.test.js` (5 rewritten, 1 added — including a Disclosure-Standard
+assertion that no surviving advisory names an initiative-phase remedy), `MasterGridTab.test.jsx`
+(1 fixture rebuilt: it had relied on shared initiative membership to keep `NO_DECLARED_SEQUENCE`
+quiet, so it now uses a real dependency edge), `masterGrid.acceptance.test.jsx` (see §9).
+`disclosureStandardGates.test.js`, `phaseGridFromStore.test.js` and `causalChainFromMatrix.test.js`
+needed no changes. Stale comments in `causalChainFromMatrix.js` and `phaseFromDependencies.js`
+now describe the removal instead of the removed mechanism.
+
+**Verification:** the full `masterGrid` surface plus `matrix.gridFields` — 217 tests — runs
+216 passed / 1 failed, the single failure being `masterGrid.acceptance` AC1, which is
+pre-existing and unrelated (a `Deliverable`/`Artifact` class-label mismatch, `Deliverable: 0,
+Artifact: 12` against an expected `Deliverable: 12`). AC1 was confirmed to fail identically
+with the Initiative `phase` field temporarily restored, so it is not attributable to E16.
+
+## 7. The v1.4 reference workbook attests Initiative phases `[CODE-VERIFIED, 2026-08-23]`
+
+The write-path commit (`66d8c35`) caused one real regression, caught by the full-suite run and
+traced by toggling the removed line back on: `masterGrid.acceptance` **AC7 — "seed fidelity:
+every reference node phase is carried verbatim into the store."** All 11 mismatches were
+Initiatives.
+
+**Cause, and why it matters more than a test fix:** the transcribed
+`Global_State_Enterprise_Reference_v1_4` fixture attests a phase on **all 11** of its
+Initiatives, and `loadReferenceMatrix.js:68` passes `phase` through the shared `common` payload
+for every node class. So the operator's own reference workbook is itself a hand-authored
+Initiative-phase source — the same anti-pattern E16 removes, arriving from a direction the
+decision did not anticipate. AC7 encoded the old doctrine as a fidelity guarantee.
+
+**Checked before narrowing the test.** Does E16's "live rollup over owned Projects" reproduce
+what the workbook attests? Computed directly from the fixture:
+
+| | count |
+|---|---|
+| Initiatives owning ≥1 Project, rollup **reproduces** the attested phase exactly | **9 of 9** |
+| Mismatches | **0** |
+| Initiatives owning no Projects — attested phase not derivable from anything | **2** |
+
+The 9 that own Projects (`The Jericho System`, `Our Fearless Leader: 7 Seals`, `Seeds of
+Destruction`, `I Am The State`, `Help Your Self Broadcast`, `F8 market entry`, `Global State
+Solutions Branding`, `First Academy Building`, `79th Street Renovation`) are reproduced exactly
+by taking the earliest phase across owned Projects. **Nothing is lost for them** — the stored
+field was redundant with a computation, which is the strongest available evidence that E16's
+clause 3 is right.
+
+The exact residue is two Initiatives that own no Projects at all: **"The Imaginary CEO"**
+(attested 1) and **"Oct 17 2026 Convergence"** (attested 1). Their attested phase has no
+derivable source and is genuinely dropped.
+
+**Resolved 2026-08-23 — this is permanent, intentional behaviour, not a data artifact to patch.**
+An Initiative with no Projects yet is not an edge case: it is the state *every* Initiative passes
+through by construction, between being declared and having its first Project declared. Dropping
+the phase there is the correct answer — an Initiative with no work under it should surface as an
+open question, never a confident P1. No code change follows from this, and the two fixture rows
+are explicitly **not** to be patched (no Projects invented for "The Imaginary CEO", no rename for
+"Oct 17 2026 Convergence").
+
+> **The reference workbook is known-stale and will be replaced, not fixed.** `reference_matrix_v1_4`
+> is a transcription of a superseded model, and intake is being rebuilt from scratch; the rebuilt
+> intake supersedes this fixture entirely. Do not treat a future AC7/AC7b pass or fail against
+> *this specific fixture* as meaningful evidence about the phase model once the intake rebuild
+> lands — at that point these tests are measuring a dead artifact. They are retained until then
+> only as a regression tripwire for the seed-load path, which is the one thing they still test
+> honestly. AC1's pre-existing `Deliverable`/`Artifact` class-label failure sits in the same
+> category and is not worth fixing against a fixture scheduled for replacement.
+
+**Test disposition:** AC7 narrowed to non-Initiative classes with the above reasoning inline,
+plus a new **AC7b** asserting the inverse — that no Initiative carries a phase *even though the
+seed attests one for all 11* — so the seed-load path stays a guarded write attempt rather than
+an unwatched one.
+
+## 8. Exit criteria
 
 - [x] Decide A, B, or C. → **(c), refined** (§4)
 - [x] ~~If B: trace the `phaseGridFromStore.js:75` fallback direction and prove no cycle.~~ Moot — B rejected on doctrine, not on the cycle question.
 - [x] Update the E15 spec to reflect the chosen path for sites 2–3. → Sites 2–3 disposition rewritten from *hard blocked* to *resolved: deletion, no migration*.
 - [x] Unblock E15 Phase 2b sites 2–3. → Unblocked as deletions (§6). Sites 1/4 remain the only migration work in Phase 2b.
 
-## 8. Provenance
+## 9. Provenance
 
 §§1–3 findings verified 2026-08-23 by Node filesystem walks reading file contents
 directly. Sandboxed `ctx_execute(language:"shell")` grep was found to return

@@ -57,23 +57,28 @@ const RELATIONAL_KINDS = new Set(['ships_with', 'soundtrack_of', 'promotes', 'fe
 // Effective phase for a grid node. Phase is DERIVED, not entered: a real intake store leaves
 // project.phase near-always-null and expresses order through dependency edges. So resolve the
 // same way the rest of masterGrid does — dependency-derived first (deriveEffectiveProjectPhases
-// already folds derived → raw → initiative for CONFIRMED projects) — then the node's own
-// canonical raw phase (covers non-CONFIRMED projects and the reference fixture), then owning
-// initiative, then a promoted deliverable inheriting its producing project's phase. No signal
-// anywhere → null → residual (a legitimate unknown, surfaced as a question).
-function resolveNodePhase(node, canonicalRaw, derivedEffective, projects, initiatives) {
+// already folds derived → raw for CONFIRMED projects) — then the node's own canonical raw phase
+// (covers non-CONFIRMED projects and the reference fixture), then a promoted deliverable
+// inheriting its producing project's phase. No signal anywhere → null → residual (a legitimate
+// unknown, surfaced as a question).
+//
+// The owning-Initiative rung was removed 2026-08-23 (E16): an Initiative has no Phase, so it can
+// never supply one to a Project. Note the direction this ran — Project fell back to Initiative —
+// which is why deriving Initiative phase FROM Projects (E16 Option B) risked a cycle. With both
+// the rung and the option gone, that risk is moot rather than merely unmeasured. Any future
+// Initiative-level Phase display must be a read-time rollup over owned Projects, computed here
+// or above, never a stored value read back out of the node.
+function resolveNodePhase(node, canonicalRaw, derivedEffective, projects) {
   // DISPLAY raw-first (2026-07-16 ruling, scope (a) display-only): the node's own hand-attested
   // phase outranks its dependency-derived phase when they disagree — the operator attests, the
   // system proposes. This override lives ONLY here; the shared deriveEffectiveProjectPhases stays
   // derived-first so causalChain scheduling still honors hard dependencies for execution order.
   if (canonicalRaw != null) return canonicalRaw;
-  // Raw absent → fall to the shared resolver (dependency-derived, else initiative). It returns a
-  // NUMBER from the dependency tier but the RAW STRING ("1") from its raw/initiative tiers —
+  // Raw absent → fall to the shared resolver (dependency-derived, else the project's own raw).
+  // It returns a NUMBER from the dependency tier but the RAW STRING ("1") from its raw tier —
   // normalize, since sortByPhase groups on numeric 1/2/3 and phases.get("1") would bucket residual.
   const derived = toCanonicalPhase(derivedEffective[node.id]);
   if (derived != null) return derived;
-  const initCanon = toCanonicalPhase(initiatives[node.owningInitiativeId]?.phase);
-  if (initCanon != null) return initCanon;
   const pid = node.producingProjectId;
   if (pid) {
     const parentDerived = toCanonicalPhase(derivedEffective[pid]);
@@ -92,11 +97,10 @@ function resolveNodePhase(node, canonicalRaw, derivedEffective, projects, initia
 export function phaseGridFromStore(matrix = {}) {
   const artifacts = matrix.artifactsById || {};
   const projects = matrix.projectsById || {};
-  const initiatives = matrix.initiativesById || {};
   const gridNodes = selectGridNodes(matrix);
   const gridIds = new Set(gridNodes.map((n) => n.id));
 
-  // Dependency-derived effective phase per CONFIRMED project (derived → raw → initiative).
+  // Dependency-derived effective phase per CONFIRMED project (derived → raw).
   const derivedEffective = deriveEffectiveProjectPhases(matrix);
 
   // any node id -> its grid-row id (itself if a grid row; else its parent project if that's a grid row)
@@ -124,7 +128,7 @@ export function phaseGridFromStore(matrix = {}) {
         }
       }
     }
-    const phase = resolveNodePhase(n, canonicalRaw, derivedEffective, projects, initiatives);
+    const phase = resolveNodePhase(n, canonicalRaw, derivedEffective, projects);
     rowById[n.id] = { title: n.name, phase, target: n.targetDate ?? 'TBD', targetNote: null, links: [] };
   }
 

@@ -37,7 +37,17 @@ describe('Master Grid acceptance', () => {
   // phase (as happened when a seed builder nulled raw phase) makes the resolver fall through to
   // inheritance and render a phase that contradicts canon. This node-by-node diff is the cheap
   // standing guard that surfaces such loss at the boundary instead of by eye on a screenshot.
-  it('AC7: seed fidelity — every reference node phase is carried verbatim into the store', () => {
+  //
+  // NARROWED 2026-08-23 (E16): Initiative is excluded, because an Initiative now has no Phase by
+  // doctrine — the v1.4 workbook's 11 attested Initiative phases are deliberately not stored.
+  // That exclusion was checked, not assumed: for the 9 of 11 Initiatives that own at least one
+  // Project, the "earliest computed sub-unit Phase" rollup over owned Projects reproduces the
+  // workbook's attested value EXACTLY (9/9, zero mismatches), so nothing is lost by dropping the
+  // stored field. The 2 that own no Projects — "The Imaginary CEO" and "Oct 17 2026 Convergence",
+  // both attested 1 — have no derivable source and become genuine residuals. That is the intended
+  // behaviour (an Initiative with no work under it should surface as an open question, not a
+  // confident P1), and it is the full extent of the information given up here.
+  it('AC7: seed fidelity — every non-Initiative reference node phase is carried verbatim', () => {
     const { matrix } = loadReferenceMatrix(fixture, { nowISO: '2026-07-08T00:00:00Z' });
     const byId = {
       ...matrix.entitiesById, ...matrix.initiativesById, ...matrix.projectsById,
@@ -45,6 +55,7 @@ describe('Master Grid acceptance', () => {
     };
     const mismatches = [];
     for (const node of fixture.nodes) {
+      if (node.class === 'Initiative') continue;
       const stored = byId[slugId(node.name)];
       const canonPhase = node.phase ?? null;
       const storedPhase = stored ? stored.phase ?? null : '(node missing)';
@@ -53,5 +64,17 @@ describe('Master Grid acceptance', () => {
       }
     }
     expect(mismatches).toEqual([]);
+  });
+
+  // The other half of the narrowed AC7: dropping Initiative phase must be enforced, not merely
+  // un-asserted. The v1.4 fixture attests a phase on all 11 Initiatives and loadReferenceMatrix
+  // still passes `phase` through its shared `common` payload, so this is a live write attempt on
+  // every seed load — exactly the path that must stay closed (E16).
+  it('AC7b: no Initiative carries a phase, even though the seed attests one for all 11', () => {
+    const { matrix } = loadReferenceMatrix(fixture, { nowISO: '2026-07-08T00:00:00Z' });
+    const seedAttested = fixture.nodes.filter((n) => n.class === 'Initiative' && n.phase != null);
+    expect(seedAttested.length).toBe(11);
+    const leaked = Object.values(matrix.initiativesById).filter((i) => 'phase' in i);
+    expect(leaked.map((i) => i.name)).toEqual([]);
   });
 });

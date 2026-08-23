@@ -136,26 +136,17 @@ export function deriveProjectPhasesFromDependencies(matrix = {}) {
  * Merges every phase signal available for a CONFIRMED project, most-specific first
  * (2026-07-13 phasing-scalability follow-up).
  *
- * STALE as of 2026-08-23 (E16): tier 3 below is dead. `SET_INITIATIVE_PHASE`, `setInitiativePhase()`
- * and the Initiative `phase` field are all removed — an Initiative has no Phase, by doctrine, so
- * nothing can populate it. Tier 3 and the three Initiative-phase advisory gates further down
- * (PHASE_DATA_CORRUPTED initiative branch, PROJECT_PHASE_CONTRADICTS_INITIATIVE,
- * INITIATIVE_NO_PHASE_DECLARED) are itemized for deletion in
- * docs/superpowers/plans/2026-08-23-e16-initiative-terminal-date.md §6. INITIATIVE_NO_PHASE_DECLARED
- * is the urgent one: it instructs the operator to perform an action that no longer exists.
- *
  *   1. Dependency-derived phase (deriveProjectPhasesFromDependencies) — the project actually
  *      participates in a declared "X before Y" sequence. Most specific, wins over everything.
  *   2. The project's own hand-typed `phase` field — a fallback for a project the operator
  *      labeled directly but hasn't (yet) sequenced against anything else.
- *   3. The owning Initiative's declared phase — the coarse default. DEAD as of E16; see above.
- *      Declared once per Initiative (~10 decisions across a real portfolio) instead of via
- *      pairwise Project dependencies, which don't scale once a portfolio holds many
- *      unrelated content lines (e.g. sequencing "OUR FEARLESS LEADER 3" against "I AM THE
- *      STATE" doesn't mean anything — they simply belong to different Initiatives, each with
- *      their own phase).
  *
- * A project with none of the three is intentionally left out of the result — see
+ * A third tier once existed: the owning Initiative's declared phase, as a coarse default a
+ * project inherited when it had no signal of its own. REMOVED 2026-08-23 (E16) — an Initiative
+ * has no Phase, by doctrine, so there is nothing to inherit. See
+ * docs/superpowers/plans/2026-08-23-e16-initiative-terminal-date.md.
+ *
+ * A project with neither signal is intentionally left out of the result — see
  * buildPhaseReorganizationRecommendations for how that gap gets surfaced instead of guessed.
  *
  * @param {object} matrix - state.matrix
@@ -163,7 +154,6 @@ export function deriveProjectPhasesFromDependencies(matrix = {}) {
  */
 export function deriveEffectiveProjectPhases(matrix = {}) {
   const projects = matrix.projectsById || {};
-  const initiatives = matrix.initiativesById || {};
   const confirmed = confirmedProjectIds(matrix);
   const derivedPhases = deriveProjectPhasesFromDependencies(matrix);
   const effective = {};
@@ -176,11 +166,6 @@ export function deriveEffectiveProjectPhases(matrix = {}) {
     const project = projects[id];
     if (project?.phase != null) {
       effective[id] = project.phase;
-      continue;
-    }
-    const initiative = initiatives[project?.owningInitiativeId];
-    if (initiative?.phase != null) {
-      effective[id] = initiative.phase;
     }
   }
 
@@ -193,7 +178,6 @@ export function deriveEffectiveProjectPhases(matrix = {}) {
  */
 export function buildPhaseReorganizationRecommendations(matrix = {}) {
   const projects = matrix.projectsById || {};
-  const initiatives = matrix.initiativesById || {};
   const { confirmed, participates } = buildProjectRequiresMap(matrix);
   const derivedPhases = deriveProjectPhasesFromDependencies(matrix);
   const recommendations = [];
@@ -201,21 +185,20 @@ export function buildPhaseReorganizationRecommendations(matrix = {}) {
   for (const id of confirmed) {
     const project = projects[id];
     const name = project?.name || id;
-    const owningInitiative = initiatives[project?.owningInitiativeId];
-    const initiativeHasDeclaredPhase = owningInitiative?.phase != null;
-
     if (!participates.has(id)) {
-      // 2026-07-13 phasing-scalability follow-up: a project with no pairwise dependency is
-      // no longer automatically a gap — it may simply inherit a phase from its owning
-      // Initiative instead (the coarse, tractable default at real portfolio size).
-      if (!initiativeHasDeclaredPhase) {
-        recommendations.push({
-          code: 'NO_DECLARED_SEQUENCE',
-          projectId: id,
-          projectName: name,
-          message: `"${name}" has no declared dependency relationship to any other CONFIRMED project, and its owning initiative has no declared phase (§5). Either: declare a dependency edge to sequence it relative to another project, or assign the initiative a phase (1=beginning, 2=middle, 3=end) so this project inherits. Deferred: dedicated sequencing UI is not yet available; use dependency declaration modal.`,
-        });
-      }
+      // 2026-08-23 (E16): the "or inherit from the owning Initiative" escape is gone — an
+      // Initiative has no Phase, so a project with no dependency edge and no phase of its own
+      // is a real gap again. The guard that suppressed this gate read initiative.phase and is
+      // therefore removed here.
+      // KNOWN-WRONG COPY, fixed in the immediately following commit: this message still names
+      // "assign the initiative a phase" as a remedy, which no longer exists. Split out so the
+      // read-path deletion and the Disclosure-Standard copy fix stay independently verifiable.
+      recommendations.push({
+        code: 'NO_DECLARED_SEQUENCE',
+        projectId: id,
+        projectName: name,
+        message: `"${name}" has no declared dependency relationship to any other CONFIRMED project, and its owning initiative has no declared phase (§5). Either: declare a dependency edge to sequence it relative to another project, or assign the initiative a phase (1=beginning, 2=middle, 3=end) so this project inherits. Deferred: dedicated sequencing UI is not yet available; use dependency declaration modal.`,
+      });
       continue;
     }
 
@@ -250,39 +233,10 @@ export function buildPhaseReorganizationRecommendations(matrix = {}) {
       });
     }
 
-    // Gate 3: validate initiative phase via classifyPhase.
-    let initiativePhase = null;
-    if (initiativeHasDeclaredPhase) {
-      try {
-        initiativePhase = classifyPhase(owningInitiative.phase, owningInitiative.name || project.owningInitiativeId);
-      } catch (err) {
-        if (err instanceof NonCanonicalPhaseError) {
-          recommendations.push({
-            code: 'PHASE_DATA_CORRUPTED',
-            projectId: project.owningInitiativeId,
-            projectName: owningInitiative.name || project.owningInitiativeId,
-            message: `Initiative "${owningInitiative.name || project.owningInitiativeId}" has invalid phase data: "${owningInitiative.phase}" (violates §5 canonical rule). Phase must be exactly 1 (beginning), 2 (middle), or 3 (end). Correct to one of these values before scheduling. Example: set phase to 1 for an early-timeline initiative.`,
-          });
-          initiativePhase = null; // treat as unattested, continue checking
-        } else {
-          throw err;
-        }
-      }
-    }
-
-    if (
-      initiativePhase != null &&
-      Number.isFinite(initiativePhase) &&
-      derivedPhase != null &&
-      initiativePhase !== derivedPhase
-    ) {
-      recommendations.push({
-        code: 'PROJECT_PHASE_CONTRADICTS_INITIATIVE',
-        projectId: id,
-        projectName: name,
-        message: `"${name}" is ordered to phase ${derivedPhase} by its dependencies, but owning initiative "${owningInitiative.name || project.owningInitiativeId}" is attested phase ${initiativePhase} (Gate 1 §5). Initiative phase must encompass all its projects. Correct the initiative to phase ${derivedPhase}, or re-order "${name}"'s dependencies.`,
-      });
-    }
+    // REMOVED 2026-08-23 (E16): the Initiative-phase branch of Gate 3 (PHASE_DATA_CORRUPTED on
+    // owningInitiative.phase) and PROJECT_PHASE_CONTRADICTS_INITIATIVE. Both validated or
+    // reported on a field that no longer exists and can no longer be set, so neither condition
+    // can arise. The Project branch of Gate 3 above is unaffected and still runs.
   }
 
   // Requires-cycle detection is a capture-time guard (declareDependency), but if the graph
@@ -300,25 +254,12 @@ export function buildPhaseReorganizationRecommendations(matrix = {}) {
     }
   }
 
-  // Initiative-level gap: an Initiative that owns at least one CONFIRMED project but has
-  // never had its phase declared at all — the new "recommend reorganization" surface, moved
-  // to the more natural altitude (10 Initiatives, not 18+ Projects or ~153 pairwise edges).
-  const initiativeHasConfirmedProject = new Set();
-  for (const id of confirmed) {
-    const owningInitiativeId = projects[id]?.owningInitiativeId;
-    if (owningInitiativeId) initiativeHasConfirmedProject.add(owningInitiativeId);
-  }
-  for (const initiativeId of initiativeHasConfirmedProject) {
-    const initiative = initiatives[initiativeId];
-    if (initiative && initiative.phase == null) {
-      recommendations.push({
-        code: 'INITIATIVE_NO_PHASE_DECLARED',
-        projectId: initiativeId,
-        projectName: initiative.name || initiativeId,
-        message: `Initiative "${initiative.name || initiativeId}" has ${[...confirmed].filter(id => projects[id]?.owningInitiativeId === initiativeId).length} CONFIRMED projects but no declared phase (§5). Set phase to 1 (beginning), 2 (middle), or 3 (end) so all projects under it inherit a consistent phase and schedule together.`,
-      });
-    }
-  }
+  // REMOVED 2026-08-23 (E16): INITIATIVE_NO_PHASE_DECLARED. It fired for every Initiative owning
+  // a CONFIRMED project and told the operator to "Set phase to 1 (beginning), 2 (middle), or 3
+  // (end)" — an action that no longer exists at the Initiative grain. A gate naming an impossible
+  // remedy is a Disclosure Standard violation, which is why this was deleted ahead of the
+  // remaining Phase 2b migration work rather than after it. An Initiative is phase-less by
+  // doctrine; there is no gap here to report.
 
   return recommendations;
 }

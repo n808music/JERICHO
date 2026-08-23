@@ -6,7 +6,7 @@
 > never independently checked against the repo; **[STALE — CORRECTED]** means an earlier version of this section was wrong and is fixed here, with the error stated rather than silently dropped.
 > Do not treat any **[CONVERSATIONAL-DECISION]** section as having been verified against the codebase merely because it now lives in a file.
 
-**Status:** OPEN (Phase 1 of 5: RESOLVED-VERIFIED, no open gaps; Phase 2a: RESOLVED-VERIFIED; Phase 2b: Sites 2–3 RESOLVED by deletion — E16 closed 2026-08-23; Sites 1/4 remain, unblocked in principle, `deadlineKey()` normalization required; Phases 3–5: not started)
+**Status:** OPEN (Phase 1 of 5: RESOLVED-VERIFIED, no open gaps; Phase 2a: RESOLVED-VERIFIED **— annotated OVERSTATED, see Section 8**: it left 10 tests asserting the intake capture it removed, still red; Phase 2b: Sites 2–3 RESOLVED by deletion — E16 closed 2026-08-23; Sites 1/4 remain, unblocked in principle, `deadlineKey()` normalization required; Phases 3–5: not started)
 **Supersedes:** E14 (folds in — E14's finding is the root cause this item fixes; E14 does not close independently)
 **Blocks:** Item 6 (Matrix v2 recursive nesting)
 **Spawned:** E16 (Initiative terminal date — `docs/superpowers/plans/2026-08-23-e16-initiative-terminal-date.md`). **CLOSED 2026-08-23: Option (c), refined — an Initiative has no Phase, permanently.** Sites 2–3 therefore become a deletion, not a migration. See Section 4.
@@ -107,8 +107,10 @@ Consequences for this section:
 
 - **`initiative.phase` and every read path into it are being removed, not migrated.** The previously-drafted transformations stay un-applied — permanently, not pending.
 - Phase 2b closes at **two** migration sites (1 and 4, Project), not four.
-- Write-path deletion is applied (see the Write site subsection below).
-- Read-path deletion is a defined follow-up, itemized in E16 §6, deliberately not bundled with the write-path commit: it changes advisory output and touches five test files. Highest-priority item there is `INITIATIVE_NO_PHASE_DECLARED` (`phaseFromDependencies.js:295-313`), which is now *actively wrong* — it instructs the operator to set a phase on an Initiative via an action that no longer exists.
+- Write-path deletion is applied (see the Write site subsection below), commit `66d8c35`.
+- Read-path deletion is **also applied** (E16 §6), as its own step taken immediately after — ahead of Sites 1/4, because `INITIATIVE_NO_PHASE_DECLARED` was not merely dead but actively instructing the operator to perform an action that no longer exists.
+- Two sites the original itemization missed, both found by reading surrounding code rather than searching for the gate codes: **`NO_DECLARED_SEQUENCE`** carried the same impossible remedy ("assign the initiative a phase … so this project inherits") behind a guard that had become permanently false — rewritten, and its 2026-07-13 "no dependency is no longer automatically a gap" ruling thereby **reversed**; and the **v1.4 reference workbook attests a phase on all 11 of its Initiatives**, which regressed `masterGrid.acceptance` AC7 (E16 §7).
+- The rollup check that AC7 forced is the strongest evidence for this decision on record: for the 9 Initiatives that own Projects, "earliest computed sub-unit Phase" over owned Projects reproduces the workbook's attested value **exactly, 9/9, zero mismatches**. The stored field was redundant with a computation. Only 2 Initiatives — those owning no Projects — lose information, and they become residuals by design.
 
 ### Sites 1 & 4 (Project) — `[CODE-VERIFIED — unblocked in principle, spec change required]`
 
@@ -156,7 +158,9 @@ const computedPhase = computeSpineWindowPhase(normalized, null, false);
 
 `phaseFromDependencies.js:196, 216-225, 248-255, 304-309` — originally scoped as message-text-only updates referencing the spine-window rule, no logic change.
 
-**Revised 2026-08-23 (E16):** the Initiative-facing subset of these is no longer a message rewrite — it is a **deletion**, because the conditions those messages describe can no longer occur. `PHASE_DATA_CORRUPTED` (initiative branch), `PROJECT_PHASE_CONTRADICTS_INITIATIVE`, and `INITIATIVE_NO_PHASE_DECLARED` all validate or report on a field that cannot be set. Itemized in E16 §6. The Project-facing messages remain message-only rewrites and stay blocked behind Sites 1/4, so the wording describes the final mechanism rather than an interim one.
+**Revised and APPLIED 2026-08-23 (E16):** the Initiative-facing subset of these was not a message rewrite — it was a **deletion**, because the conditions those messages describe can no longer occur. `PHASE_DATA_CORRUPTED` (initiative branch), `PROJECT_PHASE_CONTRADICTS_INITIATIVE`, and `INITIATIVE_NO_PHASE_DECLARED` all validated or reported on a field that cannot be set — all three are gone. `NO_DECLARED_SEQUENCE` was not in the original itemization but carried the same defect and was rewritten. See E16 §6.
+
+The Project-facing messages remain message-only rewrites and stay blocked behind Sites 1/4, so the wording describes the final mechanism rather than an interim one.
 
 ### Write site — `[CODE-VERIFIED, committed]`
 
@@ -209,7 +213,36 @@ Until all four are pasted, status stays OPEN. No partial-fix framing.
 
 ---
 
-## 8. Open Backlog Items Surfaced During This Work (not blocking, logged per Structure vs. Paint protocol)
+## 8. Backlog: Phase 2a orphaned tests — status annotation `[CODE-VERIFIED, 2026-08-23]`
+
+**Phase 2a's `RESOLVED-VERIFIED` status is overstated.** `96a3bf2` removed intake's phase capture
+(`projectSlot.js:64, 74, 116`) but did not update the tests asserting that capture. Ten tests
+still assert it and are red:
+
+| File | Failing | Representative assertion |
+|---|---|---|
+| `tests/domain/elicitation/elicitationEngine.projectPhase.test.js` | 6 | `expected [ 'name', 'owningEntityId', …(3) ] to include 'phase'` |
+| `tests/domain/elicitation/elicitationEngine.projectPhaseFlow.test.js` | 3 | `expected 'null' to be '2'` (attested phase read back from the store) |
+| `tests/domain/elicitation/elicitationEngine.acceptance.test.js` | 1 | §9 worked trace dispatching `DECLARE_PROJECT` |
+
+These are the same class of debt E16 cleared for `SET_INITIATIVE_PHASE`: tests of deliberately
+removed behaviour. **Fix shape:** rewrite as negative guards (intake must NOT capture phase; a
+`phase` key must NOT reach the `DECLARE_PROJECT` payload) rather than deleting them, so the
+removal stays enforced. **Deliberately not fixed in the E16 commits** — different item, different
+verification.
+
+**Why this matters beyond tidiness:** it is what makes the failure count legible. Full suite after
+E16 = **46**. Subtract these 10 and the remainder is **36**, which matches the standing baseline.
+Without this item recorded, those 10 read as unexplained drift and every future count is
+ambiguous. *(Caveat: this reconciliation was inferred from failure names and assertion text, not
+from a baseline run at `785df54`, which requires git.)*
+
+Phase 2a may return to an unqualified `RESOLVED-VERIFIED` once these 10 are rewritten and the
+suite is re-counted.
+
+---
+
+## 9. Open Backlog Items Surfaced During This Work (not blocking, logged per Structure vs. Paint protocol)
 
 - Whether `P1`/`P2`/`P3` language in 18 files outside `masterGrid`, and `deriveMasterPlanPhaseModel()` (`masterPlanPhaseModel.js:442`), represent the same phase concept as the spine windows or a second, independent phase authority. Flagged as a question, not a finding — untraced.
 - Sandboxed shell `grep` in this repo has produced false-negative results for strings confirmed present via direct file reads. Any prior finding in this project that relied on shell grep alone (rather than a file read) should be treated as provisionally unverified until cross-checked. This is a tooling caveat, not a repo fact — worth keeping in cross-session memory rather than only in this doc.

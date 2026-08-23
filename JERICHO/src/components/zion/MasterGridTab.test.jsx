@@ -175,18 +175,25 @@ describe('MasterGridTab (phase-grouped, D1/D2)', () => {
   });
 
   it('Gate 3: does not render recommendations panel when matrix has no phase disagreements', () => {
-    // A matrix with projects that all belong to an initiative (so NO_DECLARED_SEQUENCE won't fire)
+    // E16 (2026-08-23): this fixture used to rely on shared initiative membership to keep
+    // NO_DECLARED_SEQUENCE quiet. That escape is gone — an Initiative has no Phase, so belonging
+    // to one no longer sequences anything. The projects must now carry a real dependency edge,
+    // and no declared phase to contradict it, for the matrix to be genuinely quiet.
     const matrix = {
       ...emptyMatrix(),
-      initiativesById: { i1: { id: 'i1', name: 'Initiative 1', phase: '1', reviewStatus: 'CONFIRMED' } },
+      initiativesById: { i1: { id: 'i1', name: 'Initiative 1', reviewStatus: 'CONFIRMED' } },
       projectsById: {
-        p1: { id: 'p1', name: 'Project 1', phase: '1', owningInitiativeId: 'i1', reviewStatus: 'CONFIRMED' },
-        p2: { id: 'p2', name: 'Project 2', phase: '1', owningInitiativeId: 'i1', reviewStatus: 'CONFIRMED' },
+        p1: { id: 'p1', name: 'Project 1', owningInitiativeId: 'i1', reviewStatus: 'CONFIRMED' },
+        p2: { id: 'p2', name: 'Project 2', owningInitiativeId: 'i1', reviewStatus: 'CONFIRMED' },
+      },
+      dependenciesById: {
+        d1: { id: 'd1', upstreamId: 'p1', downstreamId: 'p2', type: 'hard_gate' },
       },
     };
     setStore(matrix);
     render(<MasterGridTab onOpenNode={() => {}} />);
-    // No recommendations: both projects belong to the initiative, no dependencies, no corruption
+    // No recommendations: both projects participate in a declared sequence, none declares a
+    // contradicting phase, nothing is corrupted.
     expect(screen.queryByTestId('mastergrid-phase-recommendations')).toBeNull();
   });
 

@@ -109,12 +109,15 @@ describe('deriveEffectiveProjectPhases', () => {
     expect(deriveEffectiveProjectPhases(matrix)).toEqual({ p1: '2' });
   });
 
-  it('falls back to the owning initiative declared phase when the project has neither dependency signal nor its own phase', () => {
+  // E16 (2026-08-23): the initiative-inheritance tier is gone. Kept as a negative guard rather
+  // than deleted — a stray initiative.phase must NOT resurrect the fallback if one is ever
+  // hand-seeded into a fixture or an old persisted blob.
+  it('does NOT fall back to an owning initiative phase — Initiatives have no Phase (E16)', () => {
     const matrix = {
       projectsById: { p1: project('p1', { owningInitiativeId: 'i1', phase: null }) },
       initiativesById: { i1: initiative('i1', { phase: '2' }) },
     };
-    expect(deriveEffectiveProjectPhases(matrix)).toEqual({ p1: '2' });
+    expect(deriveEffectiveProjectPhases(matrix)).toEqual({});
   });
 
   it('leaves a project with no signal at all out of the result (no guessing)', () => {
@@ -132,7 +135,12 @@ describe('deriveEffectiveProjectPhases', () => {
     expect(deriveEffectiveProjectPhases(matrix)).toEqual({});
   });
 
-  it('groups sibling projects under the same phase-declared initiative together, even with no pairwise dependencies', () => {
+  // E16 (2026-08-23): was "groups sibling projects under the same phase-declared initiative
+  // together, even with no pairwise dependencies". Initiative phase no longer exists, so sibling
+  // grouping via the initiative is gone — each project must carry its own signal (a dependency
+  // edge, its own phase, or, once Sites 1/4 land, its own target date). Projects with none are
+  // left out rather than guessed, and surface via NO_DECLARED_SEQUENCE.
+  it('does NOT group sibling projects via a shared initiative phase (E16)', () => {
     const matrix = {
       projectsById: {
         p1: project('p1', { owningInitiativeId: 'i1', phase: null, name: 'OUR FEARLESS LEADER 3' }),
@@ -145,7 +153,7 @@ describe('deriveEffectiveProjectPhases', () => {
       },
     };
     const result = deriveEffectiveProjectPhases(matrix);
-    expect(result).toEqual({ p1: '1', p2: '1', p3: '2' });
+    expect(result).toEqual({});
   });
 
   it('only considers CONFIRMED projects', () => {
@@ -221,16 +229,16 @@ describe('buildPhaseReorganizationRecommendations', () => {
     expect(recs.filter((r) => r.code === 'UNRESOLVABLE_SEQUENCE')).toHaveLength(2);
   });
 
-  // 2026-07-13 phasing-scalability follow-up: Initiative-level phase declaration means a
-  // Project with zero pairwise dependencies is no longer automatically a gap — it may
-  // simply inherit a phase from its owning Initiative instead.
-  it('does not flag NO_DECLARED_SEQUENCE for a project whose owning initiative already has a declared phase', () => {
+  // E16 (2026-08-23) reverses the 2026-07-13 follow-up: an Initiative phase can no longer excuse
+  // a Project from having a sequencing signal, because there is no Initiative phase. A Project
+  // with zero pairwise dependencies is a real gap again.
+  it('flags NO_DECLARED_SEQUENCE even when the owning initiative carries a stray phase (E16)', () => {
     const matrix = {
       projectsById: { p1: project('p1', { owningInitiativeId: 'i1', name: 'OUR FEARLESS LEADER 3' }) },
       initiativesById: { i1: initiative('i1', { phase: '1', name: 'OFL Franchise' }) },
     };
     const recs = buildPhaseReorganizationRecommendations(matrix);
-    expect(recs.filter((r) => r.code === 'NO_DECLARED_SEQUENCE')).toHaveLength(0);
+    expect(recs.filter((r) => r.code === 'NO_DECLARED_SEQUENCE')).toHaveLength(1);
   });
 
   it('still flags NO_DECLARED_SEQUENCE for a project with no dependencies AND no initiative phase (nor initiative at all)', () => {
@@ -241,20 +249,20 @@ describe('buildPhaseReorganizationRecommendations', () => {
     expect(recs.filter((r) => r.code === 'NO_DECLARED_SEQUENCE')).toHaveLength(1);
   });
 
-  it('flags PROJECT_PHASE_CONTRADICTS_INITIATIVE when a project\'s dependency-derived phase disagrees with its initiative\'s declared phase', () => {
+  // E16 (2026-08-23): PROJECT_PHASE_CONTRADICTS_INITIATIVE is deleted — there is no Initiative
+  // phase for a Project to contradict. Kept as a negative guard against the exact matrix shape
+  // that used to emit it, so a hand-seeded initiative.phase can't bring the gate back.
+  it('never emits PROJECT_PHASE_CONTRADICTS_INITIATIVE, even for a contradicting matrix (E16)', () => {
     const matrix = {
       projectsById: {
         p1: project('p1', { owningInitiativeId: 'i1' }),
         p2: project('p2', { owningInitiativeId: 'i1', name: 'Contradicted' }),
       },
       initiativesById: { i1: initiative('i1', { phase: '1' }) },
-      dependenciesById: { d1: edge('d1', 'p1', 'p2') }, // p2 requires p1 -> derived phase 3, but initiative says 1
+      dependenciesById: { d1: edge('d1', 'p1', 'p2') }, // p2 requires p1 -> derived phase 3, initiative says 1
     };
     const recs = buildPhaseReorganizationRecommendations(matrix);
-    const contradiction = recs.find((r) => r.code === 'PROJECT_PHASE_CONTRADICTS_INITIATIVE');
-    expect(contradiction).toBeDefined();
-    expect(contradiction.projectId).toBe('p2');
-    expect(contradiction.message).toContain('Contradicted');
+    expect(recs.filter((r) => r.code === 'PROJECT_PHASE_CONTRADICTS_INITIATIVE')).toHaveLength(0);
   });
 
   it('does not flag PROJECT_PHASE_CONTRADICTS_INITIATIVE when the dependency-derived phase agrees with the initiative phase', () => {
@@ -270,15 +278,16 @@ describe('buildPhaseReorganizationRecommendations', () => {
     expect(recs.filter((r) => r.code === 'PROJECT_PHASE_CONTRADICTS_INITIATIVE')).toHaveLength(0);
   });
 
-  it('flags INITIATIVE_NO_PHASE_DECLARED for an initiative that owns CONFIRMED projects but has no phase set', () => {
+  // E16 (2026-08-23): INITIATIVE_NO_PHASE_DECLARED is deleted. It fired for every Initiative
+  // owning a CONFIRMED project and instructed the operator to set a phase on it — an action that
+  // no longer exists. This is the negative guard for the exact matrix that used to trigger it.
+  it('never emits INITIATIVE_NO_PHASE_DECLARED — an Initiative has no Phase to declare (E16)', () => {
     const matrix = {
       projectsById: { p1: project('p1', { owningInitiativeId: 'i1', name: 'Orphaned Under Initiative' }) },
       initiativesById: { i1: initiative('i1', { phase: null, name: 'Undeclared Initiative' }) },
     };
     const recs = buildPhaseReorganizationRecommendations(matrix);
-    const rec = recs.find((r) => r.code === 'INITIATIVE_NO_PHASE_DECLARED');
-    expect(rec).toBeDefined();
-    expect(rec.message).toContain('Undeclared Initiative');
+    expect(recs.filter((r) => r.code === 'INITIATIVE_NO_PHASE_DECLARED')).toHaveLength(0);
   });
 
   it('does not flag INITIATIVE_NO_PHASE_DECLARED once the initiative has a phase set', () => {
