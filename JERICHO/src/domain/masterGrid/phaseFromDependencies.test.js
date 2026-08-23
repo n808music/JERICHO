@@ -288,6 +288,27 @@ describe('buildPhaseReorganizationRecommendations', () => {
     };
     const recs = buildPhaseReorganizationRecommendations(matrix);
     expect(recs.filter((r) => r.code === 'INITIATIVE_NO_PHASE_DECLARED')).toHaveLength(0);
+    // and no surviving advisory may instruct an initiative-phase action. Match the remedy
+    // phrasings specifically — a bare /initiative/ test false-positives on node names.
+    for (const rec of recs) {
+      expect(rec.message).not.toMatch(/set phase to/i);
+      expect(rec.message).not.toMatch(/assign the initiative/i);
+      expect(rec.message).not.toMatch(/correct the initiative/i);
+    }
+  });
+
+  // Disclosure Standard: every remedy a gate names must be an action the operator can perform
+  // today. "Assign the initiative a phase" no longer exists; "give it a target date" does not
+  // order anything until E15 Sites 1/4 wire target-date-derived Phase. Neither may be offered
+  // as though it works — the second is stated as Deferred instead.
+  it('NO_DECLARED_SEQUENCE offers only remedies that currently work (E16, Disclosure Standard)', () => {
+    const matrix = { projectsById: { p1: project('p1', { name: 'Solo Project' }) } };
+    const [rec] = buildPhaseReorganizationRecommendations(matrix);
+    expect(rec.code).toBe('NO_DECLARED_SEQUENCE');
+    expect(rec.message).toMatch(/dependency edge/i);
+    expect(rec.message).not.toMatch(/assign the initiative/i);
+    // the target-date path may only appear as explicitly deferred, never as an available remedy
+    expect(rec.message).toMatch(/Deferred:[\s\S]*target date/i);
   });
 
   it('does not flag INITIATIVE_NO_PHASE_DECLARED once the initiative has a phase set', () => {

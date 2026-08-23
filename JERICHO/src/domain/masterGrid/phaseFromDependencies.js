@@ -188,16 +188,21 @@ export function buildPhaseReorganizationRecommendations(matrix = {}) {
     if (!participates.has(id)) {
       // 2026-08-23 (E16): the "or inherit from the owning Initiative" escape is gone — an
       // Initiative has no Phase, so a project with no dependency edge and no phase of its own
-      // is a real gap again. The guard that suppressed this gate read initiative.phase and is
-      // therefore removed here.
-      // KNOWN-WRONG COPY, fixed in the immediately following commit: this message still names
-      // "assign the initiative a phase" as a remedy, which no longer exists. Split out so the
-      // read-path deletion and the Disclosure-Standard copy fix stay independently verifiable.
+      // is a real gap again. The guard that suppressed this gate read initiative.phase and was
+      // removed in the preceding commit.
+      //
+      // Disclosure Standard: a gate must state the rule, name the violation, and offer a remedy
+      // the operator can ACTUALLY perform today. Two remedies were dropped from this copy for
+      // failing that last test — "assign the initiative a phase", which no longer exists at all,
+      // and "give it a target date", which does not yet order anything because target-date-derived
+      // Phase is unwired until E15 Sites 1/4. Declaring a dependency edge is the only remedy that
+      // currently works, so it is the only one stated as available; the other is marked Deferred
+      // rather than omitted, so the operator knows it is coming and does not retry it blindly.
       recommendations.push({
         code: 'NO_DECLARED_SEQUENCE',
         projectId: id,
         projectName: name,
-        message: `"${name}" has no declared dependency relationship to any other CONFIRMED project, and its owning initiative has no declared phase (§5). Either: declare a dependency edge to sequence it relative to another project, or assign the initiative a phase (1=beginning, 2=middle, 3=end) so this project inherits. Deferred: dedicated sequencing UI is not yet available; use dependency declaration modal.`,
+        message: `"${name}" has no declared dependency relationship to any other CONFIRMED project, so nothing orders it in the spine (§5). Declare a dependency edge to sequence it relative to another project — e.g. "${name} requires <other project>". Deferred: dedicated sequencing UI is not yet available, so use the dependency declaration modal; and deriving Phase from a project's own target date is not yet wired (E15 Sites 1/4), so setting a target date alone will not order it today.`,
       });
       continue;
     }

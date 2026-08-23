@@ -46,6 +46,7 @@ export function selectGridNodes(matrix = {}) {
 }
 
 import { deriveEffectiveProjectPhases } from './phaseFromDependencies.js';
+import { computeProjectSpinePhase } from './projectSpinePhase.js';
 import { classifyPhase, NonCanonicalPhaseError, toCanonicalPhase } from './phaseClassification.js';
 // Re-exported for backward compatibility — the phase validators now live in phaseClassification.js,
 // the single source of truth shared with the elicitation §5 phase gate (no second validator).
@@ -69,18 +70,31 @@ const RELATIONAL_KINDS = new Set(['ships_with', 'soundtrack_of', 'promotes', 'fe
 // Initiative-level Phase display must be a read-time rollup over owned Projects, computed here
 // or above, never a stored value read back out of the node.
 function resolveNodePhase(node, canonicalRaw, derivedEffective, projects) {
-  // DISPLAY raw-first (2026-07-16 ruling, scope (a) display-only): the node's own hand-attested
-  // phase outranks its dependency-derived phase when they disagree — the operator attests, the
-  // system proposes. This override lives ONLY here; the shared deriveEffectiveProjectPhases stays
-  // derived-first so causalChain scheduling still honors hard dependencies for execution order.
+  // SITE 4 (E15 Phase 2b, 2026-08-23): computed-first. Phase(Project) is the spine window
+  // containing the node's own terminal date — computed independently per node, which the locked
+  // doctrine states outranks every other signal.
+  const computed = computeProjectSpinePhase(node);
+  if (computed != null) return computed;
+  // The 2026-07-16 raw-first DISPLAY ruling is DEMOTED to here, below computed. That ruling let a
+  // real operator attestation outrank system derivation — but Phase 2a removed the only path that
+  // produced one (intake no longer asks), and the declare payload key that could still carry one
+  // was removed with Sites 1/4. Any `phase` still sitting on a node is legacy or fixture data, not
+  // attestation, so nothing legitimate is being outranked. Kept, not deleted, so old persisted
+  // blobs still render something rather than dropping to residual.
   if (canonicalRaw != null) return canonicalRaw;
   // Raw absent → fall to the shared resolver (dependency-derived, else the project's own raw).
   // It returns a NUMBER from the dependency tier but the RAW STRING ("1") from its raw tier —
   // normalize, since sortByPhase groups on numeric 1/2/3 and phases.get("1") would bucket residual.
   const derived = toCanonicalPhase(derivedEffective[node.id]);
   if (derived != null) return derived;
+  // Deliverable/Artifact: pure-copy the parent PROJECT's Phase (E16-amended doctrine, 2026-08-23 —
+  // was "parent Initiative's Phase" before Initiative became phase-less). Copy the parent's
+  // COMPUTED phase first, for the same reason the node's own computed value leads above: the
+  // parent's stored phase is legacy data, its computed one is the live answer.
   const pid = node.producingProjectId;
   if (pid) {
+    const parentComputed = computeProjectSpinePhase(projects[pid]);
+    if (parentComputed != null) return parentComputed;
     const parentDerived = toCanonicalPhase(derivedEffective[pid]);
     if (parentDerived != null) return parentDerived;
     const parentCanon = toCanonicalPhase(projects[pid]?.phase);

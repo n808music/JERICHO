@@ -16575,7 +16575,10 @@ function declareProject(state, payload = {}) {
     verificationSourceId,
     evidenceProduced: String(payload?.evidenceProduced || '').trim() || null,
     notes: String(payload?.notes || '').trim() || null,
-    phase: String(payload?.phase || '').trim() || null,
+    // No stored `phase` (E15 Sites 1/4, 2026-08-23): Phase(Project) is computed from targetDate
+    // by computeProjectSpinePhase(), never stored or hand-fed. Phase 2a removed intake's phase
+    // QUESTION but left this payload key accepting one — a write path with no legitimate producer,
+    // the same phantom shape E16 closed on Initiative. A `phase` key in the payload is ignored.
     requiresLegalFormation,
     roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
@@ -16746,7 +16749,8 @@ function declareMatrixDeliverable(state, payload = {}) {
     name,
     owningProjectId,
     owningInitiativeId,
-    phase: String(payload?.phase || '').trim() || null,
+    // No stored `phase` (E16 amended doctrine, 2026-08-23): Deliverables pure-copy their parent
+    // PROJECT's computed Phase at read time. A stored value here has no legitimate producer.
     successCriteria: String(payload?.successCriteria || '').trim() || null,
     targetDate: String(payload?.targetDate || '').trim() || null,
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
@@ -16848,7 +16852,8 @@ function declareArtifact(state, payload = {}) {
     verificationSourceId,
     operatorAttestationMethod,
     notes: String(payload?.notes || '').trim() || null,
-    phase: String(payload?.phase || '').trim() || null,
+    // No stored `phase` (E16 amended doctrine, 2026-08-23): Artifacts pure-copy their parent
+    // PROJECT's computed Phase at read time. A stored value here has no legitimate producer.
     targetDate: String(payload?.targetDate || '').trim() || null,
     roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
