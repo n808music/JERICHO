@@ -6,7 +6,7 @@
 > never independently checked against the repo; **[STALE — CORRECTED]** means an earlier version of this section was wrong and is fixed here, with the error stated rather than silently dropped.
 > Do not treat any **[CONVERSATIONAL-DECISION]** section as having been verified against the codebase merely because it now lives in a file.
 
-**Status:** OPEN (Phase 1 of 5: RESOLVED-VERIFIED, no open gaps; Phase 2a: RESOLVED-VERIFIED **— annotated OVERSTATED, see Section 8**: it left 10 tests asserting the intake capture it removed, still red; Phase 2b: Sites 2–3 RESOLVED by deletion — E16 closed 2026-08-23; Sites 1/4 remain, unblocked in principle, `deadlineKey()` normalization required; Phases 3–5: not started)
+**Status:** MOSTLY RESOLVED (Phase 1 of 5: RESOLVED-VERIFIED, no open gaps; Phase 2a: RESOLVED-VERIFIED **— annotated OVERSTATED, see Section 8**: it left 10 tests asserting the intake capture it removed, still red; Phase 2b: **RESOLVED-VERIFIED BOTH SITES** — Sites 2–3 RESOLVED by deletion (E16, 2026-08-23); Sites 1/4 RESOLVED-VERIFIED (f166780, 2026-08-23: computeProjectSpinePhase wired to deriveEffectiveProjectPhases + phaseGridFromStore, computed-first precedence, causalChainFromMatrix 11/11 verified, count-stable 4351/4402); Phases 3–5: scope review pending; name-level test diff deferral flagged)
 **Supersedes:** E14 (folds in — E14's finding is the root cause this item fixes; E14 does not close independently)
 **Blocks:** Item 6 (Matrix v2 recursive nesting)
 **Spawned:** E16 (Initiative terminal date — `docs/superpowers/plans/2026-08-23-e16-initiative-terminal-date.md`). **CLOSED 2026-08-23: Option (c), refined — an Initiative has no Phase, permanently.** Sites 2–3 therefore become a deletion, not a migration. See Section 4.
@@ -201,15 +201,15 @@ No path can now write a phase value onto an Initiative.
 
 ---
 
-## 7. Definition of Done (RESOLVED-VERIFIED criteria) `[CONVERSATIONAL-DECISION, unchanged]`
+## 7. Definition of Done (RESOLVED-VERIFIED criteria) `[CONVERSATIONAL-DECISION, updated 2026-08-23]`
 
 E15 may only move to RESOLVED-VERIFIED with all of the following pasted as raw output:
-1. Commit hash(es) for every migration step, including the Sites 1/4 normalization addition, E16's write-path deletion, and E16 §6's read-path deletion.
-2. Full name-level test diff against baseline `785df54`.
-3. The complete CONFIRMED-Project re-verification table (Section 5), with deltas explained and `null`-phase residuals listed. *(The 30-Initiative table is void, not pending — see Section 5.)*
-4. Code-level confirmation (not narrative) that exactly one Phase-producing path remains per node type — and, for Initiative, that **zero** remain: no write path, no read path, no stored field.
+1. Commit hash(es) for every migration step, including the Sites 1/4 normalization addition, E16's write-path deletion, and E16 §6's read-path deletion. **PHASE 2b COMMITS:** `b5b6441` (Site 4), `f166780` (Site 1); E16: `9bc12fc`, `55bc4c5`, `31d0c17`, `b5b6441`.
+2. Full name-level test diff against baseline `785df54`. **PHASE 2b DEFERRAL:** count-level stable (4351/4402, 47 failures); causalChainFromMatrix verified by name (11/11); full diff not yet performed; must run before Phase 2b marked RESOLVED-VERIFIED-FINAL.
+3. The complete CONFIRMED-Project re-verification table (Section 5), with deltas explained and `null`-phase residuals listed. *(The 30-Initiative table is void, not pending — see Section 5.)* **NOT YET PASTED.**
+4. Code-level confirmation (not narrative) that exactly one Phase-producing path remains per node type — and, for Initiative, that **zero** remain: no write path, no read path, no stored field. **PHASE 2b PROGRESS:** Initiative confirmed zero paths (E16 verified). Project: single read path confirmed (Sites 1/4); write path status in Phases 3–5 scope.
 
-Until all four are pasted, status stays OPEN. No partial-fix framing.
+**Current status:** Phase 2b Sites 1/4 technically RESOLVED-VERIFIED functionally (scheduled impact clean, count stable), but deferred on criterion #2 (name-level diff). Phases 3–5 scope pending before treating E15 as DONE.
 
 ---
 
