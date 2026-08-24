@@ -113,11 +113,13 @@ describe('MasterGridTab (phase-grouped, D1/D2)', () => {
     // Every node residual has two causes needing different responses: a read mismatch (bug) OR
     // genuinely unattested phase (incomplete intake — legitimate questions). The banner must name
     // both and dismiss neither — a live store with null phase everywhere is the incomplete-intake case.
+    // E16: Site 4 computed-first means projects with targetDate compute to phases; for genuinely
+    // residual (no phase signal), targetDate must also be null/absent.
     const matrix = {
       ...emptyMatrix(),
       projectsById: {
-        a: { id: 'a', name: 'Alpha', phase: null, reviewStatus: 'CONFIRMED', targetDate: '2026-03' },
-        b: { id: 'b', name: 'Beta', phase: null, reviewStatus: 'CONFIRMED', targetDate: '2026-06' },
+        a: { id: 'a', name: 'Alpha', phase: null, reviewStatus: 'CONFIRMED', targetDate: null },
+        b: { id: 'b', name: 'Beta', phase: null, reviewStatus: 'CONFIRMED', targetDate: null },
       },
       dependenciesById: {},
     };
