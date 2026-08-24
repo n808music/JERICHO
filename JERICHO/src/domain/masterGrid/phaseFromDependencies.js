@@ -19,6 +19,7 @@
 
 import { classifyPhase, NonCanonicalPhaseError } from './phaseClassification.js';
 import { computeSpineWindowPhase } from './computeSpineWindowPhase.ts';
+import { computeProjectSpinePhase } from './projectSpinePhase.js';
 
 const ORDERING_TYPES = new Set(['hard_gate', 'directional']);
 
@@ -159,11 +160,25 @@ export function deriveEffectiveProjectPhases(matrix = {}) {
   const effective = {};
 
   for (const id of confirmed) {
+    const project = projects[id];
+
+    // SITE 1 (E15 Phase 2b, 2026-08-23): computed-first. Phase(Project) is the spine window
+    // containing the node's own terminal date — computed independently per node, which the locked
+    // doctrine states outranks every other signal (same as Site 4 / phaseGridFromStore).
+    const computed = computeProjectSpinePhase(project);
+    if (computed != null) {
+      effective[id] = computed;
+      continue;
+    }
+
+    // Dependency-derived phase (for CONFIRMED projects that participate in at least one
+    // ordering edge). Second tier: "which other projects must happen first".
     if (derivedPhases[id] != null) {
       effective[id] = derivedPhases[id];
       continue;
     }
-    const project = projects[id];
+
+    // Raw hand-typed phase (legacy, fallback).
     if (project?.phase != null) {
       effective[id] = project.phase;
     }
