@@ -178,6 +178,37 @@ describe('aggregatePhaseRollup', () => {
     expect(typeof result.leafRefs.P1[0]).toBe('string');
     expect(matrix.projectsById[result.leafRefs.P1[0]]).toBeTruthy(); // Can look up the source
   });
+
+  it('handles Initiative with zero Projects/Deliverables/Artifacts (E16 case)', () => {
+    const matrix = makeMatrix({
+      initiativesById: {
+        'init-1': { id: 'init-1', name: 'Empty Initiative', owningEntityId: 'ent-1' },
+      },
+      projectsById: {},
+      deliverablesById: {},
+      artifactsById: {},
+    });
+
+    const result = aggregatePhaseRollup(matrix.initiativesById['init-1'], matrix);
+
+    // All phase counts should be zero
+    expect(result.leafCounts.P1).toBe(0);
+    expect(result.leafCounts.P2).toBe(0);
+    expect(result.leafCounts.P3).toBe(0);
+    expect(result.leafCounts.null).toBe(0);
+
+    // All leaf refs should be empty
+    expect(result.leafRefs.P1).toEqual([]);
+    expect(result.leafRefs.P2).toEqual([]);
+    expect(result.leafRefs.P3).toEqual([]);
+    expect(result.leafRefs.null).toEqual([]);
+
+    // Display should show "No items"
+    expect(result.displaySummary).toBe('No items');
+
+    // No orphaned projects in scope
+    expect(result.orphanedProjects).toEqual([]);
+  });
 });
 
 describe('aggregateUrgencyRollup', () => {
