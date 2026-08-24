@@ -71,20 +71,27 @@ describe('MatrixIntake copy — one ask per probe (Defect C)', () => {
     expect(screen.queryByRole('button', { name: /yes, include this/i })).not.toBeInTheDocument();
   });
 
-  it('"Skip" on a scope gate advances past the section without entering it', async () => {
+  it('Sequencing Strategy is mandatory (cannot be skipped) and requires answers before advancing', async () => {
     const user = userEvent.setup();
     render(<IdentityProvider initialState={admittedGoalState()}><MatrixIntake /></IdentityProvider>);
     await screen.findByTestId('roster-input');
     await user.click(screen.getByRole('button', { name: /skip this section/i }));
-    await screen.findByRole('button', { name: /not for this goal — skip/i });
 
-    // First optional section shown is Initiative.
+    // First optional section is Initiative — can be skipped.
     expect(screen.getByText('Initiative')).toBeInTheDocument();
-    // Skip it — flow advances to the next section (Project roster, per the
-    // 2026-07-10 workbook order: Projects/Deliverables before Systems),
-    // not into Initiative.
     await user.click(screen.getByRole('button', { name: /not for this goal — skip/i }));
-    await waitFor(() => expect(screen.getByText('Project')).toBeInTheDocument());
-    expect(screen.queryByText('Initiative')).not.toBeInTheDocument();
+
+    // After skipping Initiative, Sequencing Strategy appears.
+    // Unlike Initiative (optional with scope gate/skip button), Sequencing Strategy
+    // is mandatory and enters without a scope gate.
+    await waitFor(() => expect(screen.getByText('Sequencing Strategy')).toBeInTheDocument());
+
+    // Core assertion: Sequencing Strategy has NO "Skip" button because it's mandatory.
+    // The intake flow requires answers to the three probes before advancing.
+    expect(screen.queryByRole('button', { name: /not for this goal — skip/i })).not.toBeInTheDocument();
+
+    // Verify a textarea is shown for answering the first probe (category precedent).
+    const textarea = screen.getByPlaceholderText(/type your answer/i);
+    expect(textarea).toBeInTheDocument();
   });
 });
