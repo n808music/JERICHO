@@ -209,6 +209,52 @@ describe('aggregatePhaseRollup', () => {
     // No orphaned projects in scope
     expect(result.orphanedProjects).toEqual([]);
   });
+
+  it('Entity with mixed children: some Initiatives with Projects, one empty, one orphaned Project', () => {
+    // Real-world scenario: Entity has diverse child state
+    const matrix = makeMatrix({
+      entitiesById: {
+        'ent-1': { id: 'ent-1', name: 'Mixed Entity', purpose: 'Testing' },
+      },
+      initiativesById: {
+        'init-1': { id: 'init-1', name: 'Active Initiative', owningEntityId: 'ent-1' },
+        'init-2': { id: 'init-2', name: 'Empty Initiative', owningEntityId: 'ent-1' },
+      },
+      projectsById: {
+        // Projects under init-1
+        'proj-1': { id: 'proj-1', name: 'P1 Project', owningInitiativeId: 'init-1', targetDate: '2028-02-01' },
+        'proj-2': { id: 'proj-2', name: 'P2 Project', owningInitiativeId: 'init-1', targetDate: '2029-06-15' },
+        // Orphaned Project (points to non-existent initiative)
+        'proj-3': { id: 'proj-3', name: 'Orphaned Project', owningInitiativeId: 'init-999', targetDate: '2028-09-01' },
+      },
+      deliverablesById: {
+        // Deliverable under proj-1
+        'deliv-1': { id: 'deliv-1', name: 'Deliverable under P1', owningProjectId: 'proj-1', successCriteria: 'Done' },
+      },
+    });
+
+    const result = aggregatePhaseRollup(matrix.entitiesById['ent-1'], matrix);
+
+    // Should count proj-1 (P1) + deliv-1 + proj-2 (P2)
+    // init-2 has zero projects
+    // proj-3 is orphaned and flagged separately
+    expect(result.leafCounts.P1).toBe(2); // proj-1 + deliv-1
+    expect(result.leafCounts.P2).toBe(1); // proj-2
+    expect(result.leafCounts.P3).toBe(0);
+    expect(result.leafCounts.null).toBe(0);
+
+    // Leaf refs should track source projects
+    expect(result.leafRefs.P1).toContain('proj-1');
+    expect(result.leafRefs.P1.some(ref => ref.includes('deliv-1'))).toBe(true);
+    expect(result.leafRefs.P2).toContain('proj-2');
+
+    // Orphaned project should surface as residual
+    expect(result.orphanedProjects).toContain('proj-3');
+
+    // Display summary should reflect the mix
+    expect(result.displaySummary).toContain('2 P1');
+    expect(result.displaySummary).toContain('1 P2');
+  });
 });
 
 describe('aggregateUrgencyRollup', () => {
