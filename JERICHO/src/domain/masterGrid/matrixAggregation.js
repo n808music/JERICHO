@@ -27,7 +27,12 @@ import { toCanonicalPhase } from './phaseClassification.js';
  *
  * @param {Object} node — Entity or Initiative node
  * @param {Object} matrix — state.matrix (entitiesById, initiativesById, projectsById, deliverablesById, artifactsById)
- * @returns {Object} PhaseRollup { ownNode, leafCounts, leafRefs, displaySummary, orphanedProjects }
+ * @returns {Object} PhaseRollup { ownNode, leafCounts, leafRefs, leafRefSources, displaySummary, orphanedProjects }
+ *
+ * leafRefs contains plain node IDs (no formatting). leafRefSources maps each ID to its parent Project:
+ *   { projectId: null, deliverableId: projectId, artifactId: projectId }
+ * This separation ensures leafRefs is structurally clean (compatible with lookups) while preserving
+ * full traceability per Section 2.1's "never terminal, always traceable" requirement.
  */
 export function aggregatePhaseRollup(node, matrix = {}) {
   if (!node || !matrix) {
@@ -48,6 +53,7 @@ export function aggregatePhaseRollup(node, matrix = {}) {
 
   const leafCounts = { P1: 0, P2: 0, P3: 0, null: 0 };
   const leafRefs = { P1: [], P2: [], P3: [], null: [] };
+  const leafRefSources = {}; // Maps leafRef ID → parent Project ID (or null for Projects themselves)
   const orphanedProjects = [];
 
   // Determine scope based on node type
@@ -91,6 +97,7 @@ export function aggregatePhaseRollup(node, matrix = {}) {
     leafCounts[phaseKey] = (leafCounts[phaseKey] || 0) + 1;
     leafRefs[phaseKey] = leafRefs[phaseKey] || [];
     leafRefs[phaseKey].push(proj.id);
+    leafRefSources[proj.id] = null; // Project is a top-level leaf (no parent Project)
 
     // Also count Deliverables under this Project (they roll up via parent Project's Phase)
     const projDeliverables = Object.values(deliverables).filter(
@@ -101,7 +108,8 @@ export function aggregatePhaseRollup(node, matrix = {}) {
       // Deliverable inherits parent Project's Phase (Section 2 locked doctrine)
       leafCounts[phaseKey] = (leafCounts[phaseKey] || 0) + 1;
       if (!leafRefs[phaseKey]) leafRefs[phaseKey] = [];
-      leafRefs[phaseKey].push(`${deliv.id} (via ${proj.id})`);
+      leafRefs[phaseKey].push(deliv.id); // Plain ID, no formatting
+      leafRefSources[deliv.id] = proj.id; // Traceability: deliverable came through this project
     }
 
     // Also count Artifacts under this Project (same inheritance)
@@ -112,7 +120,8 @@ export function aggregatePhaseRollup(node, matrix = {}) {
       if (!art) continue;
       leafCounts[phaseKey] = (leafCounts[phaseKey] || 0) + 1;
       if (!leafRefs[phaseKey]) leafRefs[phaseKey] = [];
-      leafRefs[phaseKey].push(`${art.id} (via ${proj.id})`);
+      leafRefs[phaseKey].push(art.id); // Plain ID, no formatting
+      leafRefSources[art.id] = proj.id; // Traceability: artifact came through this project
     }
   }
 
@@ -154,6 +163,7 @@ export function aggregatePhaseRollup(node, matrix = {}) {
     ownNode,
     leafCounts,
     leafRefs,
+    leafRefSources,
     displaySummary,
     orphanedProjects,
   };

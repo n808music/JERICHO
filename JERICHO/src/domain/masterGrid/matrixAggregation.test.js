@@ -84,6 +84,14 @@ describe('aggregatePhaseRollup', () => {
     // Project + 2 Deliverables = 3 items in same Phase
     expect(result.leafCounts.P1).toBe(3); // proj-1 + deliv-1 + deliv-2
     expect(result.displaySummary).toContain('3');
+    // leafRefs should contain plain IDs (no formatting)
+    expect(result.leafRefs.P1).toContain('proj-1');
+    expect(result.leafRefs.P1).toContain('deliv-1');
+    expect(result.leafRefs.P1).toContain('deliv-2');
+    // leafRefSources maps each ID to its parent Project
+    expect(result.leafRefSources['proj-1']).toBe(null); // top-level leaf
+    expect(result.leafRefSources['deliv-1']).toBe('proj-1'); // came through proj-1
+    expect(result.leafRefSources['deliv-2']).toBe('proj-1');
   });
 
   it('includes Artifacts in Phase count (inherit parent Project Phase)', () => {
@@ -103,6 +111,11 @@ describe('aggregatePhaseRollup', () => {
 
     // Project + 1 Artifact = 2 items in same Phase
     expect(result.leafCounts.P1).toBe(2); // proj-1 + art-1
+    // leafRefs should contain plain IDs
+    expect(result.leafRefs.P1).toContain('proj-1');
+    expect(result.leafRefs.P1).toContain('art-1');
+    // leafRefSources maps artifact to its parent project
+    expect(result.leafRefSources['art-1']).toBe('proj-1');
   });
 
   it('handles Entity-scope rollup (Initiatives → Projects)', () => {
@@ -243,10 +256,14 @@ describe('aggregatePhaseRollup', () => {
     expect(result.leafCounts.P3).toBe(0);
     expect(result.leafCounts.null).toBe(0);
 
-    // Leaf refs should track source projects
+    // Leaf refs should contain plain IDs (no formatting)
     expect(result.leafRefs.P1).toContain('proj-1');
-    expect(result.leafRefs.P1.some(ref => ref.includes('deliv-1'))).toBe(true);
+    expect(result.leafRefs.P1).toContain('deliv-1');
     expect(result.leafRefs.P2).toContain('proj-2');
+
+    // leafRefSources maps children to parent projects
+    expect(result.leafRefSources['deliv-1']).toBe('proj-1');
+    expect(result.leafRefSources['proj-1']).toBe(null); // top-level leaf
 
     // Orphaned project should surface as residual
     expect(result.orphanedProjects).toContain('proj-3');
