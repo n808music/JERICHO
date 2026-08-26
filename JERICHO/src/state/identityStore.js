@@ -375,6 +375,22 @@ export const PRE_SEED_LOCAL_SNAPSHOT = {
   hasProfile: Boolean(loadPersisted()),
 };
 
+// Build marker. Printed once per module load so the console can confirm WHICH
+// bundle is live before anyone runs a recovery command. Three separate attempts
+// on 2026-08-26 ran stale code after a browser hard-refresh, and each was only
+// discovered after the server row had already been overwritten. Suppressed under
+// jsdom so it does not spam the test suite.
+if (
+  typeof window !== 'undefined' &&
+  !String(globalThis?.navigator?.userAgent || '').includes('jsdom')
+) {
+  // eslint-disable-next-line no-console
+  console.log(
+    '[jericho] identityStore: push-gate build — PRE_SEED snapshot',
+    JSON.stringify(PRE_SEED_LOCAL_SNAPSHOT)
+  );
+}
+
 // Test seam. The snapshot is captured once per MODULE LOAD, which is correct in
 // the browser (one import per page load, before seedState) but means a test
 // process — which imports the module once and reuses it — captures it before any
