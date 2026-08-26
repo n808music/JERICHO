@@ -719,6 +719,9 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   // dispatch so both updates batch together). Debug-bridge admission never calls it,
   // so external admission correctly falls through to MODULE 2.
   const [intakeSessionActive, setIntakeSessionActive] = useState(false);
+  // Set ONLY by the "Resume unfinished survey" affordance — the operator's
+  // explicit choice to re-enter an orphaned session. Never set automatically.
+  const [resumingOrphanedIntake, setResumingOrphanedIntake] = useState(false);
   // Refresh-mid-intake (2026-07-10 defect): intakeSessionActive is component
   // state and dies with the page, but the resumable session lives in the store
   // (persisted on every step + pushed by Save Progress). If one exists for the
@@ -733,6 +736,17 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   const hasResumableIntake = Boolean(
     persistedIntakeSession?.engineSnapshot && persistedIntakeSession?.currentSlotId
   );
+  // Cycle-INDEPENDENT scan. `hasResumableIntake` above can only ever be true
+  // while a cycle is active, so an unfinished survey became invisible the moment
+  // activeCycleId went null — stored, valid, and unreachable. This finds it
+  // regardless. DISPLAY ONLY: it gates a visible affordance, never an auto-mount,
+  // so nobody is yanked back into a survey they deliberately left.
+  const orphanedIntakeCycleId =
+    Object.entries(store?.intakeSessionByCycleId || {}).find(
+      ([cycleId, session]) =>
+        cycleId !== activeCycleId && session?.engineSnapshot && session?.currentSlotId
+    )?.[0] || null;
+  const hasOrphanedIntake = Boolean(orphanedIntakeCycleId);
   const hasGoalDraftRecovery =
     String(planRecovery?.required || '')
       .trim()
@@ -1129,6 +1143,62 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
     setSelectedInitiativeForPricing(null);
   };
 
+  // ── Orphaned-intake resume ────────────────────────────────────────────────
+  // An unfinished survey whose cycle is no longer active is invisible to the
+  // automatic gate below (hasResumableIntake needs activeCycleId), so it was
+  // preserved but unreachable. This must sit ABOVE the MODULE 1/2 split: with no
+  // active cycle, hasAdmittedGoal is false and MODULE 1 claims the render, so an
+  // affordance placed in MODULE 2 alone would never appear.
+  if (resumingOrphanedIntake && orphanedIntakeCycleId) {
+    // Reached ONLY by pressing the affordance — never an auto-redirect.
+    return (
+      <div className="space-y-6">
+        <div className="border-b border-line/40 pb-4 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-jericho-text mb-2">Structure</h1>
+            <p className="text-sm text-muted">Contract Admission</p>
+          </div>
+          <SaveProgressButton />
+        </div>
+        <MatrixIntake
+          resumeCycleId={orphanedIntakeCycleId}
+          onSurveyStarted={() => setIntakeSessionActive(true)}
+          onComplete={() => {
+            setIntakeSessionActive(false);
+            setResumingOrphanedIntake(false);
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Rendered in BOTH modules — the operator can land in either depending on
+  // whether a cycle is active, and the survey must be reachable from both.
+  const orphanedIntakeNotice = hasOrphanedIntake ? (
+    <div
+      className="rounded-xl border p-4 flex items-start justify-between gap-4"
+      style={{ borderColor: '#4f46e5', background: 'rgba(79,70,229,0.06)' }}
+      data-testid="orphaned-intake-notice"
+    >
+      <div>
+        <div className="text-sm font-semibold text-jericho-text">Unfinished survey</div>
+        <p className="text-xs text-muted mt-1">
+          You have Contract Admission answers saved from an earlier session. They were kept —
+          resume to finish where you left off.
+        </p>
+      </div>
+      <button
+        type="button"
+        data-testid="resume-unfinished-intake"
+        onClick={() => setResumingOrphanedIntake(true)}
+        className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold"
+        style={{ background: '#4f46e5', color: '#ffffff' }}
+      >
+        Resume unfinished survey
+      </button>
+    </div>
+  ) : null;
+
   // ============================================================================
   // MODULE 1: Intake flow — no admitted goal, OR admitted in this session but
   // survey not yet finished. intakeSessionActive is false by default; MatrixIntake
@@ -1157,6 +1227,8 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
           <SaveProgressButton />
         </div>
 
+        {orphanedIntakeNotice}
+
         {hasPersistenceRecovery ? <PersistenceRecoveryNotice planRecovery={planRecovery} /> : null}
 
         {startDayMessage ? (
@@ -1182,8 +1254,17 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
           </div>
         ) : null}
 
-        {hasActiveMasterPlan ? (
-          // Master plan exists but no active cycle — control mode (no intake form)
+        {hasResumableIntake ? (
+          // An unfinished intake session OUTRANKS control mode. Previously
+          // hasActiveMasterPlan won this branch, so a user with a master plan and
+          // a half-finished survey was handed the control view and had no way
+          // back to their answers — preserved but unreachable.
+          <MatrixIntake
+            onSurveyStarted={() => setIntakeSessionActive(true)}
+            onComplete={() => setIntakeSessionActive(false)}
+          />
+        ) : hasActiveMasterPlan ? (
+          // Master plan exists, no unfinished intake — control mode (no intake form)
           <MasterPlanStructureSection
             hasActiveMasterPlan={hasActiveMasterPlan}
             masterPlanIntakeStatus="idle"
@@ -1227,6 +1308,8 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   // ============================================================================
   return (
     <div className="space-y-4">
+      {orphanedIntakeNotice}
+
       {/* Goal Banner (Canonical, Read-Only) */}
       {activeCycle && (
         <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4">

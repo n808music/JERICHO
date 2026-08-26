@@ -753,9 +753,14 @@ function DoneScreen({ onAddMore }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
+export default function MatrixIntake({ onSurveyStarted, onComplete, resumeCycleId = null } = {}) {
   const store = useIdentityStore();
-  const activeCycleId = store.activeCycleId;
+  // The cycle this intake session belongs to. Normally the active cycle; when
+  // the caller is resuming an ORPHANED session (one whose cycle is no longer
+  // active) it passes that cycleId explicitly. Everything downstream — session
+  // read, session write, session clear — keys off this, so a resumed orphan
+  // reads and writes its own row rather than silently starting fresh.
+  const activeCycleId = resumeCycleId || store.activeCycleId;
   const activeCycle = activeCycleId ? store.cyclesById?.[activeCycleId] : null;
   const hasAdmittedGoal = Boolean(activeCycle?.goalContract);
 
