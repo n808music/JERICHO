@@ -2131,36 +2131,125 @@ export function IdentityProvider({ children, initialState }) {
   // Explicit, user-triggered durable save to the backend. Returns the push result
   // ({ ok, status? } / { ok:false, error }) so the UI can show a visible status.
   const saveProgress = useCallback(
-    () => syncPush(buildPersistableIdentityState(stateRef.current)),
+    () =>
+      syncPush(buildPersistableIdentityState(stateRef.current), {
+        clientUpdatedAt: readLocalUpdatedAt() || new Date().toISOString(),
+      }),
     []
   );
+
+  // Sampled during RENDER, before any effect runs — persistState (below) would
+  // otherwise overwrite both of these before the mount-time pull can read them.
+  const mountLocalSnapshotRef = React.useRef(null);
+  if (mountLocalSnapshotRef.current === null) {
+    mountLocalSnapshotRef.current = {
+      updatedAt: readLocalUpdatedAt(),
+      hasProfile: Boolean(loadPersisted()),
+    };
+  }
 
   React.useEffect(() => {
     persistState(state);
   }, [state]);
 
-  // Pull from server on mount — restores state across browser resets and port changes
+  // Pull from server on mount — restores state across browser resets and port
+  // changes. LAST-WRITE-WINS, not server-always-wins: applying the server copy
+  // unconditionally silently regressed any client whose final debounced push
+  // never landed (sign-out inside the 1500ms window). Server state is applied
+  // ONLY when it is strictly newer than the local write stamp.
   React.useEffect(() => {
-    syncPull().then((serverState) => {
-      if (!serverState) {
+    syncPull().then((pulled) => {
+      if (!pulled?.state) {
         return;
       }
-      const hydrated = rehydratePersistedState(serverState);
-      if (hydrated) {
-        dispatch({ type: 'APPLY_NEXT_STATE', nextState: hydrated });
+      // Read the MOUNT-TIME snapshot, not live storage. The persistState effect
+      // is declared above this one, so by the time this async pull resolves it
+      // has already re-stamped the local write time to `now` — making local
+      // unconditionally newer and starving the server branch that restores a
+      // fresh browser. Both facts must be sampled before any effect runs.
+      const localUpdatedAt = mountLocalSnapshotRef.current.updatedAt;
+      const localHasProfile = mountLocalSnapshotRef.current.hasProfile;
+      const serverAt = Date.parse(pulled.clientUpdatedAt || '');
+      const localAt = Date.parse(localUpdatedAt || '');
+
+      // No local profile at all (fresh browser / cleared storage) — the server
+      // copy is the only copy. This is the case the pull exists to serve.
+      if (!localHasProfile) {
+        const hydrated = rehydratePersistedState(pulled.state);
+        if (hydrated) dispatch({ type: 'APPLY_NEXT_STATE', nextState: hydrated });
+        return;
       }
+
+      // Local exists but either side is unstamped/unparseable — refuse to
+      // clobber. Overwriting is the destructive direction, so ambiguity keeps
+      // local and heals the server instead.
+      const comparable = Number.isFinite(serverAt) && Number.isFinite(localAt);
+      if (comparable && serverAt > localAt) {
+        const hydrated = rehydratePersistedState(pulled.state);
+        if (hydrated) dispatch({ type: 'APPLY_NEXT_STATE', nextState: hydrated });
+        return;
+      }
+
+      // Local is newer or equal (or unknown): keep it and push it up, which
+      // self-heals the stale-server case that caused the data loss.
+      syncPush(buildPersistableIdentityState(stateRef.current), {
+        clientUpdatedAt: localUpdatedAt || new Date().toISOString(),
+      });
     });
   }, []);
 
-  // Debounced push to server on every state change
+  // Debounced push to server on every state change.
+  //
+  // The cleanup below CANNOT flush: it runs on every state change (that is what
+  // makes this a debounce), so flushing there would push on every keystroke —
+  // the full-horizon recompute cost this debounce exists to avoid. The flush
+  // lives in the unmount-only effect that follows.
   const syncPushTimerRef = React.useRef(null);
+  const pendingPushRef = React.useRef(false);
   React.useEffect(() => {
     clearTimeout(syncPushTimerRef.current);
+    pendingPushRef.current = true;
     syncPushTimerRef.current = setTimeout(() => {
-      syncPush(buildPersistableIdentityState(state));
+      pendingPushRef.current = false;
+      syncPush(buildPersistableIdentityState(state), {
+        clientUpdatedAt: readLocalUpdatedAt() || new Date().toISOString(),
+      });
     }, 1500);
     return () => clearTimeout(syncPushTimerRef.current);
   }, [state]);
+
+  // Flush a pending push that the debounce has not yet fired. Without this, a
+  // sign-out or tab close inside the 1500ms window cancelled the save outright
+  // — the answers reached localStorage but never the server, and the next
+  // sign-in pulled the older server copy over them.
+  const flushPendingSync = useCallback((options = {}) => {
+    if (!pendingPushRef.current) {
+      return null;
+    }
+    clearTimeout(syncPushTimerRef.current);
+    pendingPushRef.current = false;
+    return syncPush(buildPersistableIdentityState(stateRef.current), {
+      clientUpdatedAt: readLocalUpdatedAt() || new Date().toISOString(),
+      keepalive: Boolean(options.keepalive),
+    });
+  }, []);
+  const flushPendingSyncRef = React.useRef(flushPendingSync);
+  flushPendingSyncRef.current = flushPendingSync;
+
+  React.useEffect(() => {
+    // pagehide covers tab close / navigation away, where a normal fetch would be
+    // cancelled — hence keepalive. Unmount covers sign-out tearing the provider down.
+    const onPageHide = () => flushPendingSyncRef.current({ keepalive: true });
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pagehide', onPageHide);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('pagehide', onPageHide);
+      }
+      flushPendingSyncRef.current({ keepalive: true });
+    };
+  }, []);
 
   const store = {
     ...state,
@@ -2251,6 +2340,7 @@ export function IdentityProvider({ children, initialState }) {
     matrixDispatch,
     respondConvergenceDetectionQuestion,
     saveProgress,
+    flushPendingSync,
     archiveAndCloneCycle,
     ...coreMissionContractActions,
   };
@@ -2331,6 +2421,25 @@ function loadPersisted() {
   }
 }
 
+// Sibling key to `jericho-identity`: when that blob was last written locally.
+// The mount-time server pull compares this against the server's
+// `client_updated_at` so a stale server copy can never overwrite newer local
+// work. Kept as a sibling key rather than a field inside the blob so
+// buildPersistableIdentityState()'s shape (asserted by tests, and pushed to the
+// backend verbatim) is unchanged.
+const IDENTITY_UPDATED_AT_KEY = 'jericho-identity-updated-at';
+
+export function readLocalUpdatedAt() {
+  if (typeof localStorage === 'undefined') {
+    return null;
+  }
+  try {
+    return localStorage.getItem(IDENTITY_UPDATED_AT_KEY);
+  } catch {
+    return null;
+  }
+}
+
 function persistState(state) {
   if (typeof localStorage === 'undefined') {
     return;
@@ -2338,6 +2447,7 @@ function persistState(state) {
   try {
     const persistableState = buildPersistableIdentityState(state);
     localStorage.setItem('jericho-identity', JSON.stringify(persistableState));
+    localStorage.setItem(IDENTITY_UPDATED_AT_KEY, new Date().toISOString());
   } catch {
     // ignore
   }
