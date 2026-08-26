@@ -17,6 +17,7 @@ import {
   buildBlankIdentityState,
   buildPersistableIdentityState,
   useIdentityStore,
+  __recapturePreSeedSnapshotForTests,
 } from '../../src/state/identityStore.js';
 
 const IDENTITY_KEY = 'jericho-identity';
@@ -45,6 +46,9 @@ function seedLocal(marker, updatedAtISO) {
   const blob = makeBlob(marker);
   localStorage.setItem(IDENTITY_KEY, JSON.stringify(blob));
   if (updatedAtISO) localStorage.setItem(UPDATED_AT_KEY, updatedAtISO);
+  // The pre-seed snapshot is captured at module load; re-capture so this test
+  // models a fresh page load that starts with the storage just written above.
+  __recapturePreSeedSnapshotForTests();
   return blob;
 }
 
@@ -70,6 +74,7 @@ function installMemoryStorage() {
 
 beforeEach(() => {
   installMemoryStorage();
+  __recapturePreSeedSnapshotForTests();
   pushState.mockClear();
   pullState.mockClear();
   store = null;
@@ -185,5 +190,74 @@ describe('identityStore pending push — flushed on unmount, not cancelled', () 
     expect(pushState).toHaveBeenCalled();
     const [, options] = pushState.mock.calls[pushState.mock.calls.length - 1];
     expect(options?.keepalive).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE 2026-08-26 DATA-DESTRUCTION REGRESSION.
+//
+// Recovery cleared localStorage, then buildInitialIdentityState() (module scope)
+// immediately rewrote a BLANK state and stamped it `now`. The mount pull judged
+// that blank state newer than the populated server row and the self-heal push
+// overwrote 200KB of real work with an empty state.
+//
+// Two independent guards must hold, either of which alone prevents the loss:
+//   1. content floor — empty local never overwrites populated server
+//   2. push floor    — a self-heal push never fires when the server is richer
+// ─────────────────────────────────────────────────────────────────────────────
+describe('identityStore mount sync — a blank local state can never wipe a populated server', () => {
+  function populatedBlob(marker) {
+    const s = buildBlankIdentityState({});
+    s.meta = { ...(s.meta || {}), scenarioLabel: marker };
+    s.cyclesById = { 'cycle-real': { id: 'cycle-real', status: 'Active' } };
+    s.intakeSessionByCycleId = {
+      'cycle-real': { currentSlotId: 'slot:project', engineSnapshot: { slotId: 'slot:project' } },
+    };
+    s.matrix = {
+      ...(s.matrix || {}),
+      entitiesById: { e1: { id: 'e1' }, e2: { id: 'e2' } },
+      initiativesById: { i1: { id: 'i1' }, i2: { id: 'i2' }, i3: { id: 'i3' } },
+    };
+    return buildPersistableIdentityState(s);
+  }
+
+  it('adopts the populated server copy even when the blank local state is stamped NEWER', async () => {
+    // Local: blank, stamped NOW (what the seed does right after a storage clear).
+    const blankLocal = makeBlob('blank-seeded-local');
+    localStorage.setItem(IDENTITY_KEY, JSON.stringify(blankLocal));
+    localStorage.setItem(UPDATED_AT_KEY, new Date().toISOString());
+    __recapturePreSeedSnapshotForTests();
+    // Server: real work, stamped HOURS EARLIER.
+    pullState.mockResolvedValue({ state: populatedBlob('real-server-work'), clientUpdatedAt: OLDER });
+
+    render(
+      <IdentityProvider initialState={blankLocal}>
+        <StoreProbe />
+      </IdentityProvider>
+    );
+
+    // The server copy must win on CONTENT, despite losing on timestamp.
+    await waitFor(() => expect(markerOf(store)).toBe('real-server-work'));
+  });
+
+  it('never pushes a blank local state over a richer server copy', async () => {
+    const blankLocal = makeBlob('blank-seeded-local');
+    localStorage.setItem(IDENTITY_KEY, JSON.stringify(blankLocal));
+    localStorage.setItem(UPDATED_AT_KEY, new Date().toISOString());
+    __recapturePreSeedSnapshotForTests();
+    pullState.mockResolvedValue({ state: populatedBlob('real-server-work'), clientUpdatedAt: OLDER });
+
+    render(
+      <IdentityProvider initialState={blankLocal}>
+        <StoreProbe />
+      </IdentityProvider>
+    );
+    await waitFor(() => expect(pullState).toHaveBeenCalled());
+
+    // The destructive push is what actually destroyed the row. It must not fire.
+    const pushedBlanks = pushState.mock.calls.filter(
+      ([blob]) => (Object.keys(blob?.matrix?.entitiesById || {}).length === 0)
+    );
+    expect(pushedBlanks).toHaveLength(0);
   });
 });

@@ -25,6 +25,11 @@ function buildApiUrl(path) {
 const DEVICE_ID_KEY = 'jericho-device-id';
 const AUTH_TOKEN_KEY = 'jericho-auth-token';
 
+// Browsers cap the combined body of all in-flight keepalive requests at 64KB and
+// reject anything over it. Headroom is left for headers and any concurrent
+// keepalive request.
+const KEEPALIVE_MAX_BYTES = 56 * 1024;
+
 function getOrCreateDeviceId() {
   let id = localStorage.getItem(DEVICE_ID_KEY);
   if (!id) {
@@ -72,8 +77,16 @@ export async function pushState(stateBlob, options = {}) {
       client_updated_at: options.clientUpdatedAt || new Date().toISOString(),
     });
     // keepalive lets a flush survive page teardown (pagehide/unload), where a
-    // normal fetch is cancelled by the browser.
-    const keepalive = Boolean(options.keepalive);
+    // normal fetch is cancelled by the browser. BUT browsers cap the total
+    // keepalive body at 64KB and REJECT anything larger — a real Jericho state
+    // blob is 200KB+, so an unconditional keepalive made every flush fail
+    // ("Reached maximum amount of queued data of 64Kb", surfaced by Safari as
+    // "cannot load ... due to access control checks"). Only opt in when the body
+    // actually fits; otherwise send a normal fetch, which at least succeeds
+    // whenever the page is not being torn down.
+    const bodyBytes =
+      typeof TextEncoder !== 'undefined' ? new TextEncoder().encode(body).length : body.length;
+    const keepalive = Boolean(options.keepalive) && bodyBytes <= KEEPALIVE_MAX_BYTES;
     let resp = await fetch(pushUrl, {
       method: 'POST',
       headers: {

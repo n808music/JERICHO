@@ -358,6 +358,54 @@ function buildRecoveredGoalArtifacts({ goalId, startDayKey, endDayKey, goalText,
   };
 }
 
+// Sampled at MODULE LOAD, before seedState runs.
+//
+// buildInitialIdentityState() calls persistState(), which rewrites
+// `jericho-identity` AND re-stamps `jericho-identity-updated-at` to now. That
+// happens at IMPORT time — earlier than any render or effect — so a snapshot
+// taken later always sees a freshly stamped local blob and concludes local is
+// newer than the server.
+//
+// On 2026-08-26 that destroyed real data: local storage was cleared for a
+// recovery, the seed immediately wrote a blank stamped state, the mount pull
+// judged that blank state "newer" than the populated server row, and the
+// self-heal push overwrote 200KB of real work with an empty state.
+export const PRE_SEED_LOCAL_SNAPSHOT = {
+  updatedAt: readLocalUpdatedAt(),
+  hasProfile: Boolean(loadPersisted()),
+};
+
+// Test seam. The snapshot is captured once per MODULE LOAD, which is correct in
+// the browser (one import per page load, before seedState) but means a test
+// process — which imports the module once and reuses it — captures it before any
+// test can install storage. Tests call this after seeding localStorage to model
+// a fresh page load. Never call it from application code: re-capturing after the
+// seed has run reintroduces the exact bug this snapshot exists to prevent.
+export function __recapturePreSeedSnapshotForTests() {
+  PRE_SEED_LOCAL_SNAPSHOT.updatedAt = readLocalUpdatedAt();
+  PRE_SEED_LOCAL_SNAPSHOT.hasProfile = Boolean(loadPersisted());
+}
+
+// Coarse "how much real content does this state carry" measure. Used as a
+// SAFETY FLOOR on the sync merge: timestamps alone are too fragile to gate a
+// destructive overwrite, because any bug that re-stamps local (see above) makes
+// local look authoritative. Content cannot be faked by a clock.
+export function stateContentWeight(s) {
+  if (!s || typeof s !== 'object') return 0;
+  const m = s.matrix || {};
+  const count = (o) => Object.keys(o || {}).length;
+  return (
+    count(m.entitiesById) +
+    count(m.initiativesById) +
+    count(m.projectsById) +
+    count(m.artifactsById) +
+    count(m.systemsById) +
+    count(s.intakeSessionByCycleId) +
+    count(s.cyclesById) +
+    count(s.goalsById)
+  );
+}
+
 const seedState = buildInitialIdentityState();
 
 export function buildBlankIdentityState(options = {}) {
@@ -2138,16 +2186,6 @@ export function IdentityProvider({ children, initialState }) {
     []
   );
 
-  // Sampled during RENDER, before any effect runs — persistState (below) would
-  // otherwise overwrite both of these before the mount-time pull can read them.
-  const mountLocalSnapshotRef = React.useRef(null);
-  if (mountLocalSnapshotRef.current === null) {
-    mountLocalSnapshotRef.current = {
-      updatedAt: readLocalUpdatedAt(),
-      hasProfile: Boolean(loadPersisted()),
-    };
-  }
-
   React.useEffect(() => {
     persistState(state);
   }, [state]);
@@ -2162,19 +2200,32 @@ export function IdentityProvider({ children, initialState }) {
       if (!pulled?.state) {
         return;
       }
-      // Read the MOUNT-TIME snapshot, not live storage. The persistState effect
-      // is declared above this one, so by the time this async pull resolves it
-      // has already re-stamped the local write time to `now` — making local
-      // unconditionally newer and starving the server branch that restores a
-      // fresh browser. Both facts must be sampled before any effect runs.
-      const localUpdatedAt = mountLocalSnapshotRef.current.updatedAt;
-      const localHasProfile = mountLocalSnapshotRef.current.hasProfile;
+      // PRE-SEED snapshot, not live storage and not a render-time sample:
+      // persistState runs at module load inside buildInitialIdentityState(),
+      // which is earlier than both.
+      const localUpdatedAt = PRE_SEED_LOCAL_SNAPSHOT.updatedAt;
+      const localHasProfile = PRE_SEED_LOCAL_SNAPSHOT.hasProfile;
       const serverAt = Date.parse(pulled.clientUpdatedAt || '');
       const localAt = Date.parse(localUpdatedAt || '');
 
       // No local profile at all (fresh browser / cleared storage) — the server
       // copy is the only copy. This is the case the pull exists to serve.
       if (!localHasProfile) {
+        const hydrated = rehydratePersistedState(pulled.state);
+        if (hydrated) dispatch({ type: 'APPLY_NEXT_STATE', nextState: hydrated });
+        return;
+      }
+
+      // CONTENT SAFETY FLOOR, checked before any timestamp comparison.
+      //
+      // A clock can be wrong; content cannot. If local carries nothing and the
+      // server carries something, the server wins no matter what the stamps say.
+      // This is the guard that would have prevented the 2026-08-26 loss: the
+      // seeded blank state was stamped `now` and looked authoritative, but its
+      // content weight was 0 against a server weight of 38.
+      const localWeight = stateContentWeight(stateRef.current);
+      const serverWeight = stateContentWeight(pulled.state);
+      if (localWeight === 0 && serverWeight > 0) {
         const hydrated = rehydratePersistedState(pulled.state);
         if (hydrated) dispatch({ type: 'APPLY_NEXT_STATE', nextState: hydrated });
         return;
@@ -2190,11 +2241,14 @@ export function IdentityProvider({ children, initialState }) {
         return;
       }
 
-      // Local is newer or equal (or unknown): keep it and push it up, which
-      // self-heals the stale-server case that caused the data loss.
-      syncPush(buildPersistableIdentityState(stateRef.current), {
-        clientUpdatedAt: localUpdatedAt || new Date().toISOString(),
-      });
+      // Local is newer or equal (or unknown): keep it. Push it up ONLY when doing
+      // so cannot destroy a richer server copy — a self-heal must never be able
+      // to act as a wipe.
+      if (localWeight >= serverWeight) {
+        syncPush(buildPersistableIdentityState(stateRef.current), {
+          clientUpdatedAt: localUpdatedAt || new Date().toISOString(),
+        });
+      }
     });
   }, []);
 
