@@ -71,7 +71,6 @@ const PROBE_OVERRIDES = {
   needStatement:           'What does this person or role need to do their work? Be specific.',
   gapStatement:            'What\'s currently missing for this role? If nothing, say "none" or "not started".',
   activationState:         'Is this system currently live, actively being built, or just planned?',
-  classification:          'What type of initiative is this — building something, launching a campaign, operations, or something else?',
 };
 
 // Optional sections require a scoping question before entering (Rule 5)

@@ -88,7 +88,6 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             ...common,
             owningEntityId: resolveEntity(n.owner),
             purpose: n.objective || 'reference',
-            classification: 'objective',
             doneWhen: n.deadline || n.objective || 'reference',
             roleTags: Array.isArray(n.role_tags) ? n.role_tags.filter(Boolean) : [],
           },

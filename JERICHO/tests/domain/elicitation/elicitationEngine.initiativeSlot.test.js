@@ -80,11 +80,10 @@ const OFL_SCRIPT = (owningEntityId) => [
   { purpose: 'Consolidate the catalog into one release arc' },
   { purposeFor: 'Grow the audience from loyal listeners to industry credibility' },
   { purposeCompletion: '7 tapes released with 100k+ streams per episode' },
-  { classification: 'objective' },
   { doneWhen: 'All 7 tapes live on Spotify for Artists' },
 ];
 
-// Real Operation Endgame initiative: business funding (entity-less, constraint, project-type)
+// Real Operation Endgame initiative: business funding (entity-less, project-type)
 const FUNDING_SCRIPT = [
   { name: 'business funding' },
   { owningEntityId: INITIATIVE_OWNER_ENTITY_LESS },
@@ -92,7 +91,6 @@ const FUNDING_SCRIPT = [
   { purpose: 'Secure the capital needed for the enterprise' },
   { purposeFor: 'Activate the capital-heavy lanes of the plan' },
   { purposeCompletion: '$500k in the bank' },
-  { classification: 'constraint' },
   { doneWhen: 'Funding closed with $500k in the bank account' },
 ];
 
@@ -112,7 +110,7 @@ describe('Elicitation Engine — Initiative slot: gate ladder', () => {
     expect(first.probe.code).toBe('INITIATIVE_NAME_MISSING');
   });
 
-  it('drives the full gate sequence for project-type: name→owner→roleTags→purpose→purposeFor→purposeCompletion→classification→doneWhen', () => {
+  it('drives the full gate sequence for project-type: name→owner→roleTags→purpose→purposeFor→purposeCompletion→doneWhen', () => {
     const state = buildMixedEntityState();
     const { probes } = runInitiativeScript(
       OFL_SCRIPT('ent-gs-corp'),
@@ -125,7 +123,6 @@ describe('Elicitation Engine — Initiative slot: gate ladder', () => {
       'purpose',
       'purposeFor',
       'purposeCompletion',
-      'classification',
       'doneWhen',
     ]);
   });
@@ -193,7 +190,6 @@ describe('Elicitation Engine — Initiative slot: owner options (unfiltered, 202
         owningEntityId: 'ent-f8-system',
         owningEntityIds: ['ent-f8-system'],
         purpose: 'Prove ownership implies capability',
-        classification: 'objective',
         doneWhen: 'Initiative published on the public roadmap',
       },
     });
@@ -215,10 +211,15 @@ describe('Elicitation Engine — Initiative slot: owner options (unfiltered, 202
   });
 });
 
-// ── 3. classificationOptions pickSet ─────────────────────────────────────────
+// ── 3. classification removed (Item 6 Phase 4) ───────────────────────────────
+//
+// An Initiative carries no objective|constraint field. The gate, the
+// `classificationOptions` pickSet, and both reprobe codes were removed. What
+// used to be the classification ask is now nothing — purposeCompletion hands
+// straight to doneWhen.
 
-describe('Elicitation Engine — Initiative slot: classificationOptions pickSet', () => {
-  it('classificationOptions returns objective and constraint with human-readable labels', () => {
+describe('Elicitation Engine — Initiative slot: classification is removed', () => {
+  it('purposeCompletion hands straight to doneWhen — no classification ask', () => {
     let state = buildBlankIdentityState({});
     let engine = createElicitationEngine({
       goalType: 'founder',
@@ -238,12 +239,9 @@ describe('Elicitation Engine — Initiative slot: classificationOptions pickSet'
       engine = r.engine.refreshMatrix(state.matrix);
     }
     const step = engine.nextStep();
-    expect(step.probe.fieldName).toBe('classification');
-    expect(step.probe.pickSet?.kind).toBe('classificationOptions');
-    const items = step.probe.pickSet.items;
-    expect(items.map((i) => i.id)).toEqual(['objective', 'constraint']);
-    expect(items.find((i) => i.id === 'objective')?.label).toMatch(/toward/i);
-    expect(items.find((i) => i.id === 'constraint')?.label).toMatch(/around/i);
+    expect(step.probe.fieldName).toBe('doneWhen');
+    expect(step.probe.fieldName).not.toBe('classification');
+    expect(step.probe.pickSet?.kind).not.toBe('classificationOptions');
   });
 });
 
@@ -293,7 +291,6 @@ describe('Elicitation Engine — Initiative slot: mandatory doneWhen', () => {
       { purpose: 'Close seed funding' },
       { purposeFor: 'Fund product development' },
       { purposeCompletion: '100 paying users before runway ends' },
-      { classification: 'objective' },
       { doneWhen: 'Marked complete by the team' },
     ];
     for (const answer of answers) {
@@ -315,7 +312,7 @@ describe('Elicitation Engine — Initiative slot: DECLARE_INITIATIVE dispatch', 
     expect(decl).toBeTruthy();
     // Sentinel must normalize to null — not the sentinel string
     expect(decl.payload.owningEntityId).toBeNull();
-    expect(decl.payload.classification).toBe('constraint');
+    expect(decl.payload.classification).toBeUndefined();
   });
 
   it('dispatches DECLARE_INITIATIVE with real owner id for owned initiative', () => {
@@ -327,7 +324,7 @@ describe('Elicitation Engine — Initiative slot: DECLARE_INITIATIVE dispatch', 
     const decl = dispatchedActions.find((a) => a.type === 'DECLARE_INITIATIVE');
     expect(decl).toBeTruthy();
     expect(decl.payload.owningEntityId).toBe('ent-gs-corp');
-    expect(decl.payload.classification).toBe('objective');
+    expect(decl.payload.classification).toBeUndefined();
   });
 
   it('initiative lands in matrix.initiativesById with all required fields', () => {
@@ -342,16 +339,17 @@ describe('Elicitation Engine — Initiative slot: DECLARE_INITIATIVE dispatch', 
         purpose: 'Secure the capital needed for the enterprise',
         purposeFor: 'Activate the capital-heavy lanes of the plan',
         purposeCompletion: '$500k in the bank',
-        classification: 'constraint',
         doneWhen: 'Funding closed with $500k in the bank account',
         source: 'operator_declared',
       })
     );
+    // Item 6 Phase 4: no classification field survives on the stored node.
+    expect(initiatives[0].classification).toBeUndefined();
   });
 
-  it('populated initiativesById from entity-less (constraint) and owned (objective) coexist', () => {
+  it('populated initiativesById from entity-less and owned initiatives coexist', () => {
     const state = buildMixedEntityState();
-    // Run funding (entity-less, constraint) then OFL (owned, objective) in sequence
+    // Run funding (entity-less) then OFL (owned) in sequence
     let matState = state;
     for (const script of [FUNDING_SCRIPT, OFL_SCRIPT('ent-gs-corp')]) {
       let engine = createElicitationEngine({
@@ -373,9 +371,10 @@ describe('Elicitation Engine — Initiative slot: DECLARE_INITIATIVE dispatch', 
     }
     const all = Object.values(matState.matrix.initiativesById);
     expect(all.length).toBe(2);
-    const constraint = all.find((i) => i.classification === 'constraint');
-    const objective = all.find((i) => i.classification === 'objective');
-    expect(constraint?.owningEntityId).toBeNull();
-    expect(objective?.owningEntityId).toBe('ent-gs-corp');
+    // Discriminated by ownership, not classification — classification is gone.
+    const entityLess = all.find((i) => i.name === 'business funding');
+    const owned = all.find((i) => i.name !== 'business funding');
+    expect(entityLess?.owningEntityId).toBeNull();
+    expect(owned?.owningEntityId).toBe('ent-gs-corp');
   });
 });

@@ -32,8 +32,15 @@ describe('reprobe spines — subject-binding contract for owner/parent picks', (
     expect(text).toContain(token);
   });
 
-  it('first-ask spines with a dangling subject carry their token (classification, cycle)', () => {
-    expect(INITIATIVE_REPROBES.INITIATIVE_CLASSIFICATION_MISSING.spine).toContain('this undertaking');
+  // INITIATIVE_CLASSIFICATION_MISSING was removed with initiative classification
+  // (Item 6 Phase 4) — an Initiative carries no objective|constraint field. The
+  // dangling-subject contract still applies to the remaining first-ask spines.
+  it('first-ask spines with a dangling subject carry their token (cycle)', () => {
     expect(SYSTEM_REPROBES.SYSTEM_CYCLE_MISSING.spine).toContain('this system');
+  });
+
+  it('no initiative-classification reprobe survives the Phase 4 removal', () => {
+    expect(INITIATIVE_REPROBES.INITIATIVE_CLASSIFICATION_MISSING).toBeUndefined();
+    expect(INITIATIVE_REPROBES.INITIATIVE_CLASSIFICATION_INVALID).toBeUndefined();
   });
 });
