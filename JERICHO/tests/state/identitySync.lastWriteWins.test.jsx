@@ -261,3 +261,70 @@ describe('identityStore mount sync — a blank local state can never wipe a popu
     expect(pushedBlanks).toHaveLength(0);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE SECOND DESTRUCTION (2026-08-26, after the first fix).
+//
+// The content floor guarded only the self-heal push INSIDE the pull handler.
+// The debounced push had no guard at all, so a blank seeded state was pushed
+// over a populated server row whenever the pull had not yet resolved — or had
+// failed. Byte evidence: the restored 200,254-byte row came back as 334,257
+// bytes, the size of local, proving the server copy was never adopted.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('identityStore push gate — nothing is written before reconciliation', () => {
+  function populated(marker) {
+    const s = buildBlankIdentityState({});
+    s.meta = { ...(s.meta || {}), scenarioLabel: marker };
+    s.cyclesById = { 'c-real': { id: 'c-real', status: 'Active' } };
+    s.intakeSessionByCycleId = { 'c-real': { currentSlotId: 'slot:project', engineSnapshot: {} } };
+    s.matrix = { ...(s.matrix || {}), entitiesById: { e1: {}, e2: {} }, initiativesById: { i1: {}, i2: {} } };
+    return buildPersistableIdentityState(s);
+  }
+
+  it('does not push while the pull is still in flight (the debounce must not win the race)', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolvePull;
+      pullState.mockReturnValue(new Promise((r) => { resolvePull = r; }));
+      const blankLocal = makeBlob('blank-local');
+      localStorage.setItem(IDENTITY_KEY, JSON.stringify(blankLocal));
+      localStorage.setItem(UPDATED_AT_KEY, new Date().toISOString());
+      __recapturePreSeedSnapshotForTests();
+
+      render(
+        <IdentityProvider initialState={blankLocal}>
+          <StoreProbe />
+        </IdentityProvider>
+      );
+
+      // Advance well past the 1500ms debounce WITHOUT resolving the pull.
+      await vi.advanceTimersByTimeAsync(5000);
+
+      // Pre-fix this fired and overwrote the server. It must not.
+      expect(pushState).not.toHaveBeenCalled();
+      resolvePull(null);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not push a blank state when the pull returned a populated server copy', async () => {
+    const blankLocal = makeBlob('blank-local');
+    localStorage.setItem(IDENTITY_KEY, JSON.stringify(blankLocal));
+    localStorage.setItem(UPDATED_AT_KEY, new Date().toISOString());
+    __recapturePreSeedSnapshotForTests();
+    pullState.mockResolvedValue({ state: populated('server-real'), clientUpdatedAt: OLDER });
+
+    render(
+      <IdentityProvider initialState={blankLocal}>
+        <StoreProbe />
+      </IdentityProvider>
+    );
+    await waitFor(() => expect(pullState).toHaveBeenCalled());
+
+    const blankPushes = pushState.mock.calls.filter(
+      ([b]) => Object.keys(b?.matrix?.entitiesById || {}).length === 0
+    );
+    expect(blankPushes).toHaveLength(0);
+  });
+});

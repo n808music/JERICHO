@@ -2195,11 +2195,35 @@ export function IdentityProvider({ children, initialState }) {
   // unconditionally silently regressed any client whose final debounced push
   // never landed (sign-out inside the 1500ms window). Server state is applied
   // ONLY when it is strictly newer than the local write stamp.
+  // Reconciliation state. `syncReconciledRef` gates EVERY push: nothing may be
+  // sent to the server until we know what the server already holds.
+  // `lastServerWeightRef` remembers how much content the server had, so a later
+  // push cannot silently shrink it.
+  const syncReconciledRef = React.useRef(false);
+  const lastServerWeightRef = React.useRef(0);
+  const canPushWithoutDataLoss = React.useCallback((candidate) => {
+    if (!syncReconciledRef.current) return false;
+    const w = stateContentWeight(candidate);
+    if (w === 0 && lastServerWeightRef.current > 0) return false;
+    return w >= lastServerWeightRef.current || lastServerWeightRef.current === 0;
+  }, []);
+
   React.useEffect(() => {
     syncPull().then((pulled) => {
       if (!pulled?.state) {
+        // Nothing on the server (or the pull failed and returned null). Either
+        // way there is no richer copy to protect, so pushing is now safe.
+        syncReconciledRef.current = true;
+        lastServerWeightRef.current = 0;
         return;
       }
+      // We now KNOW what the server holds — that is what reconciliation means,
+      // regardless of which side wins below. Set before the early returns, or
+      // adopting the server copy would leave pushes gated off forever and the
+      // app would silently stop saving.
+      lastServerWeightRef.current = stateContentWeight(pulled.state);
+      syncReconciledRef.current = true;
+
       // PRE-SEED snapshot, not live storage and not a render-time sample:
       // persistState runs at module load inside buildInitialIdentityState(),
       // which is earlier than both.
@@ -2264,6 +2288,18 @@ export function IdentityProvider({ children, initialState }) {
     clearTimeout(syncPushTimerRef.current);
     pendingPushRef.current = true;
     syncPushTimerRef.current = setTimeout(() => {
+      // RECONCILIATION GATE. Until the mount pull has resolved we do not know
+      // what the server holds, so pushing is a blind overwrite. This debounced
+      // push previously had NO guard at all: if the pull was slow, failed, or
+      // returned after 1500ms, the freshly seeded blank state was pushed over a
+      // populated server row. The content floor in the pull handler could not
+      // help — it guards a different push path.
+      if (!syncReconciledRef.current) {
+        return; // stay pending; the next state change reschedules
+      }
+      if (!canPushWithoutDataLoss(state)) {
+        return;
+      }
       pendingPushRef.current = false;
       syncPush(buildPersistableIdentityState(state), {
         clientUpdatedAt: readLocalUpdatedAt() || new Date().toISOString(),
@@ -2278,6 +2314,11 @@ export function IdentityProvider({ children, initialState }) {
   // sign-in pulled the older server copy over them.
   const flushPendingSync = useCallback((options = {}) => {
     if (!pendingPushRef.current) {
+      return null;
+    }
+    // Same gate as the debounced push: a flush is still a write, and writing
+    // before reconciliation is a blind overwrite.
+    if (!canPushWithoutDataLoss(stateRef.current)) {
       return null;
     }
     clearTimeout(syncPushTimerRef.current);
