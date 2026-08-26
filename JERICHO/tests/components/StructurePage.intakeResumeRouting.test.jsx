@@ -110,9 +110,41 @@ describe('MODE A — an orphaned session (no active cycle) is reachable by expli
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId('orphaned-intake-notice')).toBeInTheDocument();
+      expect(screen.getByTestId('resume-unfinished-intake')).toBeInTheDocument();
     });
-    expect(screen.getByTestId('resume-unfinished-intake')).toBeInTheDocument();
+    expect(screen.getByTestId('resumable-survey-hint')).toBeInTheDocument();
+  });
+
+  // The previous attempt rendered a notice in the correct render path but not
+  // where the operator looks. Pin BOTH facts: it is inside the Operating Cycle
+  // module, and it is the FIRST button — ahead of "Start Operating Cycle".
+  it('renders the button inside the Operating Cycle module, as the first button', async () => {
+    renderPage(
+      stateWith({
+        cycleId: 'cycle-orphan',
+        activeCycleId: null,
+        hasMasterPlan: true,
+        session: resumableSession(),
+      })
+    );
+
+    const resume = await screen.findByTestId('resume-unfinished-intake');
+
+    // Inside the Operating Cycle <details> block.
+    const moduleRoot = resume.closest('details');
+    expect(moduleRoot).toBeTruthy();
+    expect(moduleRoot.textContent).toMatch(/Operating Cycle/i);
+
+    // First in the button cluster, before Start Operating Cycle.
+    const buttons = Array.from(moduleRoot.querySelectorAll('button'));
+    expect(buttons[0]).toBe(resume);
+    const startIdx = buttons.findIndex((b) => /Start Operating Cycle/i.test(b.textContent || ''));
+    expect(startIdx).toBeGreaterThan(0);
+    expect(buttons.indexOf(resume)).toBeLessThan(startIdx);
+
+    // The module is expanded, so the button is not hidden inside a collapsed
+    // <details> — a button nobody can see is the bug being fixed.
+    expect(moduleRoot).toHaveAttribute('open');
   });
 
   it('does NOT auto-redirect — the survey appears only after the operator clicks resume', async () => {
@@ -130,15 +162,14 @@ describe('MODE A — an orphaned session (no active cycle) is reachable by expli
     // The routing transition itself is the observable: the offer is on screen
     // beforehand, and is replaced by the resumed survey only after the click.
     const button = await screen.findByTestId('resume-unfinished-intake');
-    expect(screen.getByTestId('orphaned-intake-notice')).toBeInTheDocument();
 
     await user.click(button);
 
     // The resume view took over — the offer is no longer being made.
     await waitFor(() => {
-      expect(screen.queryByTestId('orphaned-intake-notice')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('resume-unfinished-intake')).not.toBeInTheDocument();
     });
-    expect(screen.queryByTestId('resume-unfinished-intake')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('resumable-survey-hint')).not.toBeInTheDocument();
   });
 
   it('shows no affordance when there is no unfinished session', async () => {
@@ -152,7 +183,7 @@ describe('MODE A — an orphaned session (no active cycle) is reachable by expli
     );
 
     await waitFor(() => {
-      expect(screen.queryByTestId('orphaned-intake-notice')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('resume-unfinished-intake')).not.toBeInTheDocument();
     });
   });
 });

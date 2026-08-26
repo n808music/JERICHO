@@ -337,15 +337,30 @@ function CycleManagementSection({
   onArchiveCycle = null,
   onResetCycle = null,
   onDeleteCycle = null,
+  // An unfinished Contract Admission survey exists. Surfaced HERE, as the first
+  // option, because this is the module the operator actually lands on when no
+  // cycle is active — a notice rendered further up the page was not where they
+  // were looking.
+  hasResumableSurvey = false,
+  onResumeSurvey = null,
 }) {
   const hasActiveCycle = Boolean(activeCycleId && activeCycle);
   const reassessmentStatus = String(activeCycle?.reassessmentStatus || '').trim().toLowerCase();
   return (
-    <details className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4" open={hasActiveMasterPlan && !hasActiveCycle}>
+    <details
+      className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4"
+      open={(hasActiveMasterPlan && !hasActiveCycle) || hasResumableSurvey}
+    >
       <summary className="cursor-pointer flex items-center gap-2">
         <p className="text-xs uppercase tracking-[0.14em] text-muted">Operating Cycle</p>
       </summary>
       <div className="mt-3 space-y-3">
+        {hasResumableSurvey ? (
+          <p className="text-xs" style={{ color: '#4f46e5' }} data-testid="resumable-survey-hint">
+            You have an unfinished Contract Admission survey. Your answers were kept — resume to
+            finish where you left off.
+          </p>
+        ) : null}
         {!hasActiveCycle ? (
           <p className="text-xs text-muted">
             No active Operating Cycle yet. Start one here, then generate the first Sprint from Today.
@@ -366,6 +381,17 @@ function CycleManagementSection({
           </div>
         )}
         <div className="flex flex-wrap gap-2">
+          {hasResumableSurvey ? (
+            <button
+              type="button"
+              data-testid="resume-unfinished-intake"
+              onClick={onResumeSurvey}
+              className="rounded-full px-3 py-1 text-xs font-semibold"
+              style={{ background: '#4f46e5', color: '#ffffff' }}
+            >
+              Resume unfinished survey
+            </button>
+          ) : null}
           <button
             onClick={onStartNewCycleRequest}
             className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent"
@@ -1172,32 +1198,11 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
     );
   }
 
-  // Rendered in BOTH modules — the operator can land in either depending on
-  // whether a cycle is active, and the survey must be reachable from both.
-  const orphanedIntakeNotice = hasOrphanedIntake ? (
-    <div
-      className="rounded-xl border p-4 flex items-start justify-between gap-4"
-      style={{ borderColor: '#4f46e5', background: 'rgba(79,70,229,0.06)' }}
-      data-testid="orphaned-intake-notice"
-    >
-      <div>
-        <div className="text-sm font-semibold text-jericho-text">Unfinished survey</div>
-        <p className="text-xs text-muted mt-1">
-          You have Contract Admission answers saved from an earlier session. They were kept —
-          resume to finish where you left off.
-        </p>
-      </div>
-      <button
-        type="button"
-        data-testid="resume-unfinished-intake"
-        onClick={() => setResumingOrphanedIntake(true)}
-        className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold"
-        style={{ background: '#4f46e5', color: '#ffffff' }}
-      >
-        Resume unfinished survey
-      </button>
-    </div>
-  ) : null;
+  // NOTE: the resume affordance lives in CycleManagementSection (the "Operating
+  // Cycle" module), as its first button. An earlier attempt put a standalone
+  // notice at the top of each module; it was in the correct render path but not
+  // where the operator actually looks when no cycle is active. Keeping a single
+  // home avoids two controls with the same purpose.
 
   // ============================================================================
   // MODULE 1: Intake flow — no admitted goal, OR admitted in this session but
@@ -1227,7 +1232,6 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
           <SaveProgressButton />
         </div>
 
-        {orphanedIntakeNotice}
 
         {hasPersistenceRecovery ? <PersistenceRecoveryNotice planRecovery={planRecovery} /> : null}
 
@@ -1283,6 +1287,8 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
 
         {hasActiveMasterPlan ? (
           <CycleManagementSection
+            hasResumableSurvey={hasOrphanedIntake}
+            onResumeSurvey={() => setResumingOrphanedIntake(true)}
             activeCycleId={hasValidActiveExecutionCycle ? activeCycleId : null}
             hasActiveMasterPlan={hasActiveMasterPlan}
             activeCycle={hasValidActiveExecutionCycle ? activeCycle : null}
@@ -1308,7 +1314,6 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   // ============================================================================
   return (
     <div className="space-y-4">
-      {orphanedIntakeNotice}
 
       {/* Goal Banner (Canonical, Read-Only) */}
       {activeCycle && (
@@ -1977,6 +1982,8 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
       </div>
 
       <CycleManagementSection
+        hasResumableSurvey={hasOrphanedIntake}
+        onResumeSurvey={() => setResumingOrphanedIntake(true)}
         activeCycleId={hasValidActiveExecutionCycle ? activeCycleId : null}
         hasActiveMasterPlan={hasActiveMasterPlan}
         activeCycle={hasValidActiveExecutionCycle ? activeCycle : null}
