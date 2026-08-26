@@ -58,7 +58,7 @@ describe('Convergence Step 3: Comprehensive Multi-Part Test', () => {
         id: 'proj-album',
         name: 'Album Project',
         owningEntityId: 'entity-producer',
-        successMetric: 'Album released and verified',
+        description: 'Album released and verified',
         verificationSourceId: 'vs-album',
       },
     });

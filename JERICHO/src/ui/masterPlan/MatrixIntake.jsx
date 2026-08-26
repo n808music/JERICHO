@@ -415,7 +415,7 @@ function ReadbackScreen({
               <span style={{ fontWeight: 700 }}>
                 {queuedCount} {rosterLabel || 'item'}{queuedCount > 1 ? 's' : ''} queued below.
               </span>{' '}
-              Now trim THIS record to its first deliverable: tap the successMetric and
+              Now trim THIS record to its first deliverable: tap the description and
               verificationSource chips underneath to re-enter each one, then confirm.
               Confirm is never blocked — it declares this record exactly as read back.
             </span>
@@ -1109,7 +1109,7 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
         // transiently, but the restored engine's internal state doesn't carry
         // it — confirm/reopen would throw 'no readback pending' and every
         // button on the readback dies silently (2026-07-10: unresponsive
-        // successMetric chips after reload). finalizePending() returns the
+        // description chips after reload). finalizePending() returns the
         // engine WITH the readback registered; no dispatches fire because the
         // readback is precisely what gates them.
         let resumedEngine = eng;

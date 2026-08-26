@@ -88,7 +88,7 @@ function declarePrereqChain(state, suffix) {
       id: `proj-${suffix}`,
       name: `Project ${suffix}`,
       owningEntityId: `entity-${suffix}`,
-      successMetric: 'Deliverables verified complete',
+      description: 'Deliverables verified complete',
       verificationSourceId: `vs-${suffix}`,
       owningInitiativeId: `init-${suffix}`,
     },

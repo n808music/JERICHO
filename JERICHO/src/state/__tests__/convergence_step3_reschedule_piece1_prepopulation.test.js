@@ -59,7 +59,7 @@ describe('Step 3 Reschedule Piece 1: Pre-Population of Sources', () => {
         id: 'proj-prepop',
         name: 'Pre-Population Project',
         owningEntityId: 'entity-prepop',
-        successMetric: 'Complete',
+        description: 'Complete',
         verificationSourceId: 'vs-prepop',
       },
     });
@@ -276,7 +276,7 @@ describe('Step 3 Reschedule Piece 1: Pre-Population of Sources', () => {
         id: 'proj-distinguish',
         name: 'Project',
         owningEntityId: 'entity-distinguish',
-        successMetric: 'Complete',
+        description: 'Complete',
         verificationSourceId: 'vs-distinguish',
       },
     });

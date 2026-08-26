@@ -25,15 +25,11 @@ import { isExternallyVerifiable } from '../planQuality/isExternallyVerifiable';
 //      option). The filter lives in pickSet resolution, not a detect — the user
 //      structurally cannot pick a non-[initiative] entity. First consumption of
 //      the role-tags captured by the entity slot.
-//   3. Goal-relative classification — objective | constraint. Stored as a field;
-//      POPULATED by the goal-relative ask (ask-don't-infer). Required-present.
 
 export const INITIATIVE_SLOT_ID = 'slot:initiative';
 
 // Sentinel chosen from the owner pickSet to declare an initiative entity-less.
 export const INITIATIVE_OWNER_ENTITY_LESS = '__entity_less__';
-
-export const INITIATIVE_CLASSIFICATIONS = ['objective', 'constraint'] as const;
 
 // Initiative role-tags: system (ongoing) or project (bounded). Multi-select;
 // initiatives can be both (e.g., Jericho ships as a product AND becomes an
@@ -53,7 +49,6 @@ export const INITIATIVE_SLOT = {
       'purposeFor',
       'purposeCompletion',
       'purposeOngoing',
-      'classification',
       'doneWhen',
     ],
   },
@@ -199,23 +194,6 @@ export const INITIATIVE_SLOT = {
         );
       },
     },
-    // ── classification: objective | constraint (goal-relative ask) ──────
-    {
-      code: 'INITIATIVE_CLASSIFICATION_MISSING',
-      fieldName: 'classification',
-      detect: (captured) => !captured?.classification,
-      pickSet: 'classificationOptions',
-    },
-    {
-      code: 'INITIATIVE_CLASSIFICATION_INVALID',
-      fieldName: 'classification',
-      detect: (captured) =>
-        Boolean(captured?.classification) &&
-        !(INITIATIVE_CLASSIFICATIONS as readonly string[]).includes(
-          String(captured.classification).trim().toLowerCase(),
-        ),
-      pickSet: 'classificationOptions',
-    },
     // ── doneWhen: MANDATORY at this tier (presence + validity) ──────────
     {
       code: 'INITIATIVE_DONEWHEN_MISSING',
@@ -274,7 +252,6 @@ export function buildInitiativeDeclarePayload(captured) {
     purposeFor: captured.purposeFor || null,
     purposeCompletion: captured.purposeCompletion || null,
     purposeOngoing: captured.purposeOngoing || null,
-    classification: String(captured.classification).trim().toLowerCase(),
     doneWhen: captured.doneWhen,
   };
 }

@@ -1,11 +1,12 @@
 import { REPROBES } from '../reprobes.js';
 import { isHoldableNoun } from '../../planQuality/isHoldableNoun';
-import { isQuantifiableMetric } from '../../planQuality/isQuantifiableMetric';
 
 // Section 5 (Projects) slot contract.
-// Required declaration fields: id, name, owningEntityId, successMetric, verificationSourceId, requiresLegalFormation.
+// Required declaration fields: id, name, owningEntityId, description, verificationSourceId, requiresLegalFormation.
 // Phase is now computed from terminal deadline (E15) — not captured at intake.
 // Field order matches gate order — first failure wins gives a natural probe sequence.
+// NOTE: description maps to the Projects Tab Schema's "Description" column (what's produced/shipped).
+// verificationSourceId (from Attestation Contract) tracks where the deliverable will be verifiable.
 
 export const PROJECT_SLOT_ID = 'slot:project';
 
@@ -14,7 +15,7 @@ export const PROJECT_SLOT = {
   section: 5,
   matrixBinding: {
     action: 'DECLARE_PROJECT',
-    fields: ['name', 'owningEntityId', 'successMetric', 'verificationSourceId', 'requiresLegalFormation'],
+    fields: ['name', 'owningEntityId', 'description', 'verificationSourceId', 'requiresLegalFormation'],
   },
   dependsOn: [],
   // Field-by-field gate ladder. Each entry is a pure detector over the
@@ -38,18 +39,12 @@ export const PROJECT_SLOT = {
       pickSet: 'declaredEntities',
     },
     {
-      code: 'PROJECT_METRIC_MISSING',
-      fieldName: 'successMetric',
-      detect: (captured) => !captured?.successMetric,
+      code: 'PROJECT_DESCRIPTION_MISSING',
+      fieldName: 'description',
+      detect: (captured) => !captured?.description,
     },
     {
-      code: 'PROJECT_METRIC_UNQUANTIFIED',
-      fieldName: 'successMetric',
-      detect: (captured) =>
-        Boolean(captured?.successMetric) && !isQuantifiableMetric(String(captured.successMetric)),
-    },
-    {
-      code: 'PROJECT_SOURCE_MISSING',
+      code: 'PROJECT_VERIFICATION_LOCATION_MISSING',
       fieldName: 'verificationSource',
       // Detect via the resolved verificationSourceId — set after spawn.
       detect: (captured) => !captured?.verificationSourceId,
@@ -82,7 +77,7 @@ export function buildProjectDeclarePayload(captured) {
     id: `project-${idSlug}`,
     name: captured.name,
     owningEntityId: captured.owningEntityId,
-    successMetric: captured.successMetric,
+    description: captured.description,
     verificationSourceId: captured.verificationSourceId,
     // Phase is now computed from targetDate via computeSpineWindowPhase() (E15);
     // no longer hand-typed at intake.

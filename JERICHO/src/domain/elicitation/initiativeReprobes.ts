@@ -1,12 +1,7 @@
 // Initiative slot reprobes. Merge into REPROBES alongside entity/project/VS.
 //
-// Two pickSet-bearing gates keep example rows empty (the operator picks):
+// One pickSet-bearing gate keeps its example row empty (the operator picks):
 //   - INITIATIVE_OWNER_UNRESOLVED  → 'initiativeOwnerOptions'
-//   - INITIATIVE_CLASSIFICATION_*  → 'classificationOptions'
-//
-// The classification probe IS the goal-relative ask-don't-infer question — it
-// asks whether this undertaking is something the plan works TOWARD or works
-// AROUND, relative to the declared goal.
 
 export const INITIATIVE_REPROBES = {
   INITIATIVE_NAME_MISSING: {
@@ -134,17 +129,6 @@ export const INITIATIVE_REPROBES = {
       writer: "e.g. 'a finished manuscript out to 20 agents', not 'advance my career'",
       generic: "e.g. 'funding secured to open the first site', not 'enable growth'",
     },
-  },
-  INITIATIVE_CLASSIFICATION_MISSING: {
-    spine:
-      'Is this undertaking something the plan should work TOWARD, or a reality it should work AROUND? Pick one — it sets how the plan treats this.',
-    pickSet: 'classificationOptions',
-    examples: { musician: '', founder: '', writer: '', generic: '' },
-  },
-  INITIATIVE_CLASSIFICATION_INVALID: {
-    spine: 'Pick either objective (the plan works toward it) or constraint (the plan works around it).',
-    pickSet: 'classificationOptions',
-    examples: { musician: '', founder: '', writer: '', generic: '' },
   },
   INITIATIVE_DONEWHEN_MISSING: {
     spine:

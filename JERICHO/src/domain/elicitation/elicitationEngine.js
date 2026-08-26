@@ -37,7 +37,6 @@ import {
   INITIATIVE_SLOT_ID,
   buildInitiativeDeclarePayload,
   INITIATIVE_OWNER_ENTITY_LESS,
-  INITIATIVE_CLASSIFICATIONS,
   INITIATIVE_ROLE_TAGS,
 } from './initiativeSlot';
 import {
@@ -84,8 +83,8 @@ import { probeFor } from './reprobes.js';
 // Byte-identical for identical inputs — no interpolation, no randomness.
 function buildReadbackSentence(captured) {
   const source = String(captured.verificationSource || '').trim();
-  const metric = String(captured.successMetric || '').trim();
-  return `Your done-when will read: 'Open ${source} and confirm ${metric}.' Is that the check you'll perform?`;
+  const deliverable = String(captured.description || '').trim();
+  return `When this is done, you'll open ${source} and verify that ${deliverable} exists. Is that the verification you'll perform?`;
 }
 
 // Formal signature of a compound record (2026-07-10 operator report: an app
@@ -197,16 +196,6 @@ function buildPickSet(kind, matrixSnapshot) {
     // owners — it can be picked alongside entities. Alone it means entity-less.
     items.push({ id: INITIATIVE_OWNER_ENTITY_LESS, label: 'cross-cutting / whole operation' });
     return { kind, items };
-  }
-  if (kind === 'classificationOptions') {
-    const LABELS = {
-      objective: 'the plan works toward it',
-      constraint: 'the plan works around it',
-    };
-    return {
-      kind,
-      items: [...INITIATIVE_CLASSIFICATIONS].map((v) => ({ id: v, label: LABELS[v] })),
-    };
   }
   if (kind === 'initiativeRoleTagOptions') {
     const LABELS = {

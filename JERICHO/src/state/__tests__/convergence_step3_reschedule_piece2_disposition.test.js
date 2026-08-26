@@ -50,7 +50,7 @@ describe('Step 3 Reschedule Piece 2: Three-Way Disposition', () => {
         id: 'proj-disp',
         name: 'Project',
         owningEntityId: 'entity-disp-src',
-        successMetric: 'Complete',
+        description: 'Complete',
         verificationSourceId: 'vs-disp',
       },
     });
