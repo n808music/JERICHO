@@ -100,7 +100,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             ...common,
             owningEntityId: resolveEntity(n.owner),
             owningInitiativeId: resolve(n.parent_initiative),
-            successMetric: n.deliverable_summary || 'reference',
+            description: n.deliverable_summary || 'reference',
             verificationSourceId: VERIFICATION_SOURCE_ID,
             targetDate: n.target_date || null,
           },

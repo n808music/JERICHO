@@ -39,7 +39,7 @@ function seededState() {
       id: 'project-romance-riot',
       name: 'Romance Riot',
       owningEntityId: 'node-gs-corp',
-      successMetric: '≥10,000 first-week streams',
+      description: '≥10,000 first-week streams',
       verificationSourceId: 'src-archive',
     },
   });

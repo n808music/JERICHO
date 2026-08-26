@@ -34,7 +34,7 @@ describe('Barrier message format — PROOF', () => {
         id: 'test-project-1',
         name: 'Banking Integration',
         owningEntityId: 'test-entity-1',
-        successMetric: 'API live',
+        description: 'API live',
         verificationSourceId: 'test-source-1',
         phase: '1',
         requiresLegalFormation: true,

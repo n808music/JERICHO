@@ -128,7 +128,7 @@ describe('Elicitation Engine — Project slot (§9 worked trace, Law 2 proving g
       [
         { name: 'Romance Riot' },
         { owningEntityId: 'node-gs-corp' },
-        { successMetric: '10,000 first-week streams' },
+        { description: '10,000 first-week streams' },
         { verificationSource: 'Spotify for Artists', domain: 'Music streams' },
         // §5 phase attestation (Wave 2 Gate 1) — required project gate, asked after the source.
         { phase: '2' },
@@ -141,7 +141,7 @@ describe('Elicitation Engine — Project slot (§9 worked trace, Law 2 proving g
     expect(probes.map((p) => p.fieldName)).toEqual([
       'name',
       'owningEntityId',
-      'successMetric',
+      'description',
       'verificationSource',
       'phase',
       'requiresLegalFormation',
@@ -155,7 +155,7 @@ describe('Elicitation Engine — Project slot (§9 worked trace, Law 2 proving g
       expect.objectContaining({
         name: 'Romance Riot',
         owningEntityId: 'node-gs-corp',
-        successMetric: '10,000 first-week streams',
+        description: '10,000 first-week streams',
       })
     );
     // Final matrix state holds the project with all required fields
@@ -165,7 +165,7 @@ describe('Elicitation Engine — Project slot (§9 worked trace, Law 2 proving g
       expect.objectContaining({
         name: 'Romance Riot',
         owningEntityId: 'node-gs-corp',
-        successMetric: '10,000 first-week streams',
+        description: '10,000 first-week streams',
       })
     );
     expect(projects[0].verificationSourceId).toBeTruthy();
@@ -177,7 +177,7 @@ describe('Elicitation Engine — acceptance criterion #1: deterministic replay',
     const script = [
       { name: 'Romance Riot' },
       { owningEntityId: 'node-gs-corp' },
-      { successMetric: '10,000 first-week streams' },
+      { description: '10,000 first-week streams' },
       { verificationSource: 'Spotify for Artists', domain: 'Music streams' },
       { phase: '2' }, // §5 phase attestation (Wave 2 Gate 1) — required project gate.
       { requiresLegalFormation: false }, // Legal formation gate
@@ -238,7 +238,7 @@ describe('Elicitation Engine — acceptance criterion #4: extract-not-recall', (
       [
         { name: 'Romance Riot' },
         { owningEntityId: 'node-gs-corp' },
-        { successMetric: '10,000 first-week streams' },
+        { description: '10,000 first-week streams' },
         { verificationSource: 'Spotify for Artists', domain: 'Music streams' },
         { phase: '2' }, // §5 phase attestation (Wave 2 Gate 1) — required project gate.
         { requiresLegalFormation: false }, // Legal formation gate
@@ -249,7 +249,7 @@ describe('Elicitation Engine — acceptance criterion #4: extract-not-recall', (
     // Every field in the dispatch comes from the script — there is no field
     // the engine could have filled from ENTERPRISE_IDENTITY_MAP or any seed.
     expect(projDecl.payload.name).toBe('Romance Riot');
-    expect(projDecl.payload.successMetric).toBe('10,000 first-week streams');
+    expect(projDecl.payload.description).toBe('10,000 first-week streams');
     expect(projDecl.payload.owningEntityId).toBe('node-gs-corp');
     // The verificationSourceId resolves to the source the engine SPAWNED,
     // which itself was declared in this session — not pulled from a constant.

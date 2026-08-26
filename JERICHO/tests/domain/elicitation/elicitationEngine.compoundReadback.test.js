@@ -37,7 +37,7 @@ function driveToReadback({ metric, source }) {
   const script = {
     name: 'JERICHO 1.0',
     owningEntityId: 'ent-gs-systems',
-    successMetric: metric,
+    description: metric,
     verificationSource: source,
     // VS spawn sub-slot fields:
     source,
@@ -86,7 +86,7 @@ describe('project readback — reopening verificationSource re-asks it', () => {
     const script = {
       name: 'JERICHO 1.0',
       owningEntityId: 'ent-gs-systems',
-      successMetric: '1.0 App live in the App Store',
+      description: '1.0 App live in the App Store',
       verificationSource: 'USPTO and application store',
       source: 'USPTO and application store',
       domain: 'filings',

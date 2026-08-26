@@ -42,7 +42,7 @@ describe('matrix grid fields', () => {
       { type: 'DECLARE_ENTITY', payload: { id: 'e2', name: 'Global State Productions', roleTags: ['corp'], purpose: 'p', formationState: 'formed', statusEvidence: 'ev' } },
       { type: 'DECLARE_INITIATIVE', payload: { id: 'i3', name: 'Romance Riot', purpose: 'x', classification: 'objective', doneWhen: 'y' } },
       { type: 'DECLARE_VERIFICATION_SOURCE', payload: { id: 'v1', domain: 'src', source: 'm' } },
-      { type: 'DECLARE_PROJECT', payload: { id: 'p1', name: 'OUR FEARLESS LEADER 3', owningEntityId: 'e1', owningInitiativeId: 'i3', successMetric: 'sm', verificationSourceId: 'v1' } },
+      { type: 'DECLARE_PROJECT', payload: { id: 'p1', name: 'OUR FEARLESS LEADER 3', owningEntityId: 'e1', owningInitiativeId: 'i3', description: 'sm', verificationSourceId: 'v1' } },
       { type: 'DECLARE_ARTIFACT', payload: { id: 'a1', name: 'OFL 3: Romance Riot — tape/album', producingProjectId: 'p1', producedByEntityId: 'e2', completionEvidence: 'ce', verificationSourceId: 'v1', operatorAttestationMethod: 'am' } },
     ]);
     expect(s.matrix.artifactsById.a1.producedByEntityId).toBe('e2');

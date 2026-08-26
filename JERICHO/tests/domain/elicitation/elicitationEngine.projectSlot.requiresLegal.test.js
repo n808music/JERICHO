@@ -64,7 +64,7 @@ describe('Project slot — requiresLegalFormation field capture', () => {
     const script = [
       { name: 'Lease Signing' },
       { owningEntityId: 'entity-test' },
-      { successMetric: 'Lease is signed' },
+      { description: 'Lease is signed' },
       { verificationSourceId: 'vs-test' },
       { phase: '1' },
       { requiresLegalFormation: true },
@@ -129,7 +129,7 @@ describe('Project slot — requiresLegalFormation field capture', () => {
     const script = [
       { name: 'Marketing Campaign' },
       { owningEntityId: 'entity-marketing' },
-      { successMetric: '1000 signups' },
+      { description: '1000 signups' },
       { verificationSourceId: 'vs-marketing' },
       { phase: '1' },
       { requiresLegalFormation: false },

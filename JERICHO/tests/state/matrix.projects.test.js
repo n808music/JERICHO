@@ -17,7 +17,7 @@ import { resolveBlockPlainLanguage } from '../../src/domain/product/resolveBlock
  *     - id
  *     - name
  *     - owningEntityId        (cross-section integrity: must be in entitiesById)
- *     - successMetric         (Law 2 — the target the operator can verify)
+ *     - description         (Law 2 — the target the operator can verify)
  *     - verificationSourceId  (cross-section integrity: must be in
  *                              verificationSourcesById)
  *
@@ -55,7 +55,7 @@ const PROJECT_RR = {
   status: 'active',
   desiredOutcome: '10,000 first-week streams of Romance Riot',
   targetDate: '2026-10-17',
-  successMetric: '≥10,000 streams during first week post-release',
+  description: '≥10,000 streams during first week post-release',
   verificationSourceId: 'src-spotify',
   evidenceProduced: 'Spotify for Artists weekly streams export with date filter',
 };
@@ -69,18 +69,18 @@ describe('MATRIX SECTION 5 — DECLARE / UPDATE / REMOVE PROJECT', () => {
         id: PROJECT_RR.id,
         name: PROJECT_RR.name,
         owningEntityId: PROJECT_RR.owningEntityId,
-        successMetric: PROJECT_RR.successMetric,
+        description: PROJECT_RR.description,
         verificationSourceId: PROJECT_RR.verificationSourceId,
       })
     );
     expect(typeof next.matrix.projectsById[PROJECT_RR.id]?.declaredAtISO).toBe('string');
   });
 
-  it('DECLARE_PROJECT rejects payload missing successMetric (Law 2 enforced at matrix level)', () => {
+  it('DECLARE_PROJECT rejects payload missing description (Law 2 enforced at matrix level)', () => {
     const initial = seededState();
     const broken = computeDerivedState(initial, {
       type: 'DECLARE_PROJECT',
-      payload: { ...PROJECT_RR, successMetric: '' },
+      payload: { ...PROJECT_RR, description: '' },
     });
     expect(broken.matrix.projectsById[PROJECT_RR.id]).toBeUndefined();
     expect(broken.lastPlanError?.code).toBe('PROJECT_INVALID');

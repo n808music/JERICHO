@@ -65,7 +65,7 @@ function savedAtReadbackState() {
               captured: {
                 name: 'JERICHO 1.0',
                 owningEntityId: 'ent-gs-systems',
-                successMetric: '1.0 App and Behavioral Execution Engine non-provisional patent',
+                description: '1.0 App and Behavioral Execution Engine non-provisional patent',
                 verificationSource: 'USPTO and application store',
                 verificationSourceId: 'vs-registry',
                 // §5 phase attestation (Wave 2 Gate 1) — captured so the resumed engine lands on
@@ -95,7 +95,7 @@ function StoreProbe() { store = useIdentityStore(); return null; }
 afterEach(() => { cleanup(); store = null; });
 
 describe('MatrixIntake — resume into a readback keeps its buttons alive', () => {
-  it('reopen chip responds: clicking successMetric re-asks the metric question', async () => {
+  it('reopen chip responds: clicking description re-asks the deliverable question', async () => {
     const user = userEvent.setup();
     render(
       <IdentityProvider initialState={savedAtReadbackState()}>
@@ -105,12 +105,12 @@ describe('MatrixIntake — resume into a readback keeps its buttons alive', () =
     );
 
     // Resumed straight into the readback.
-    await waitFor(() => expect(screen.getByText(/is that the check you'?ll perform/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/is that the verification you'?ll perform/i)).toBeInTheDocument());
 
-    // Chip click must RESPOND: the metric question replaces the readback.
-    await user.click(screen.getByRole('button', { name: /successMetric/i }));
+    // Chip click must RESPOND: the deliverable question replaces the readback.
+    await user.click(screen.getByRole('button', { name: /description/i }));
     await waitFor(() => {
-      expect(screen.queryByText(/is that the check you'?ll perform/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/is that the verification you'?ll perform/i)).not.toBeInTheDocument();
       expect(document.querySelector('textarea')).toBeTruthy();
     });
   }, 30000);
@@ -123,7 +123,7 @@ describe('MatrixIntake — resume into a readback keeps its buttons alive', () =
         <MatrixIntake />
       </IdentityProvider>
     );
-    await waitFor(() => expect(screen.getByText(/is that the check you'?ll perform/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/is that the verification you'?ll perform/i)).toBeInTheDocument());
 
     await user.click(screen.getByRole('button', { name: /looks right — confirm/i }));
     await waitFor(() => {

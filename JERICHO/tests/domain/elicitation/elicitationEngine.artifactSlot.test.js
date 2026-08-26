@@ -65,7 +65,7 @@ function buildSeededState() {
       id: 'proj-ofl-3',
       name: 'Romance Riot',
       owningEntityId: 'ent-ofl',
-      successMetric: '10,000 streams in the first 30 days',
+      description: '10,000 streams in the first 30 days',
       verificationSourceId: 'vs-distrokid',
     },
   });
