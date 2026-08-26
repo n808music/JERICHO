@@ -358,6 +358,24 @@ function buildRecoveredGoalArtifacts({ goalId, startDayKey, endDayKey, goalText,
   };
 }
 
+// Sibling key to `jericho-identity`: when that blob was last written locally.
+// The mount-time server pull compares this against the server's
+// `client_updated_at` so a stale server copy can never overwrite newer local
+// work. Kept as a sibling key rather than a field inside the blob so
+// buildPersistableIdentityState()'s shape (asserted by tests, and pushed to the
+// backend verbatim) is unchanged.
+//
+// MUST be declared ABOVE PRE_SEED_LOCAL_SNAPSHOT. That snapshot calls
+// readLocalUpdatedAt() during module evaluation; a `const` declared further down
+// the file is still in its temporal dead zone at that point, so the read throws
+// ReferenceError, readLocalUpdatedAt()'s own `catch` swallows it, and updatedAt
+// is unconditionally null in the browser. That silently disables the "server is
+// newer" branch of the mount pull (Date.parse(null) is NaN, so the comparison is
+// never `comparable`), leaving local-always-wins as the only reachable outcome.
+// Tests did not catch it: __recapturePreSeedSnapshotForTests() re-reads after
+// module evaluation has finished, which is past the dead zone.
+const IDENTITY_UPDATED_AT_KEY = 'jericho-identity-updated-at';
+
 // Sampled at MODULE LOAD, before seedState runs.
 //
 // buildInitialIdentityState() calls persistState(), which rewrites
@@ -2531,14 +2549,6 @@ function loadPersisted() {
     return null;
   }
 }
-
-// Sibling key to `jericho-identity`: when that blob was last written locally.
-// The mount-time server pull compares this against the server's
-// `client_updated_at` so a stale server copy can never overwrite newer local
-// work. Kept as a sibling key rather than a field inside the blob so
-// buildPersistableIdentityState()'s shape (asserted by tests, and pushed to the
-// backend verbatim) is unchanged.
-const IDENTITY_UPDATED_AT_KEY = 'jericho-identity-updated-at';
 
 export function readLocalUpdatedAt() {
   if (typeof localStorage === 'undefined') {
