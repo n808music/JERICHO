@@ -74,8 +74,9 @@ function buildDefaultSeedGoalArtifacts(todayDate) {
     deadlineISO: contractDeadline,
     success: [
       {
-        metricType: 'binary',
-        targetValue: true,
+        metricType: 'threshold',
+        metricName: 'revenue',
+        targetValue: 10000,
         validationMethod: 'user_attest',
       },
     ],
