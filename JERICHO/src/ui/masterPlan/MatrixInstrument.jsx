@@ -228,16 +228,6 @@ function EntitySpineSection({ matrix }) {
                   {ownedInitiatives.map(ini => (
                     <div key={ini.id} className="flex items-start gap-2 flex-wrap">
                       <span className="text-[11px]" style={{ color: '#d4d4d8' }}>{ini.name}</span>
-                      <span
-                        className="text-[9px] uppercase tracking-wider rounded px-1 py-0.5"
-                        style={{
-                          color: ini.classification === 'constraint' ? '#f59e0b' : '#60a5fa',
-                          border: `1px solid ${ini.classification === 'constraint' ? '#78350f' : '#1e3a5f'}`,
-                          background: ini.classification === 'constraint' ? '#1c1007' : '#0c1a2e',
-                        }}
-                      >
-                        {ini.classification}
-                      </span>
                       {ini.doneWhen && (
                         <span className="text-[10px] italic truncate max-w-xs" style={{ color: '#52525b' }}>
                           done when: {ini.doneWhen}
@@ -277,9 +267,9 @@ function EntitySpineSection({ matrix }) {
                       <div key={proj.id} className="space-y-0.5">
                         <div className="flex items-start gap-2 flex-wrap">
                           <span className="text-[11px]" style={{ color: '#d4d4d8' }}>{proj.name}</span>
-                          {proj.successMetric && (
+                          {proj.description && (
                             <span className="text-[10px] italic truncate max-w-xs" style={{ color: '#4ade80', opacity: 0.6 }}>
-                              → {proj.successMetric}
+                              → {proj.description}
                             </span>
                           )}
                         </div>
@@ -382,12 +372,6 @@ function ResourceGapGrid({ matrix }) {
                 <tr key={ini.id}>
                   <td className="py-1 pr-4 whitespace-nowrap">
                     <span style={{ color: '#d4d4d8' }}>{ini.name}</span>
-                    <span
-                      className="ml-1.5 text-[9px]"
-                      style={{ color: ini.classification === 'constraint' ? '#f59e0b' : '#60a5fa' }}
-                    >
-                      {ini.classification}
-                    </span>
                   </td>
                   {!profile ? (
                     <td colSpan={DIMENSIONS.length} className="py-1 px-2">

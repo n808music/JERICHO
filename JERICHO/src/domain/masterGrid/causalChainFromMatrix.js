@@ -15,7 +15,7 @@
  *
  * Node choice: Project rows are used as steps. Per jericho_matrix_schema_v1.4,
  * Projects are the only node class carrying a concrete, verifiable unit of work
- * (successMetric, verificationSourceId, targetDate) parented under an Initiative —
+ * (description, verificationSourceId, targetDate) parented under an Initiative —
  * Entities/Initiatives are org/objective nodes, Systems are infrastructure, and
  * Deliverables are outputs of a Project, not schedulable steps themselves.
  *

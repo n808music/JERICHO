@@ -61,7 +61,7 @@ describe('Convergence Step 4: Status Computation', () => {
           id: 'proj-conv',
           name: 'Convergence Project',
           owningEntityId: 'entity-src-conv',
-          successMetric: 'Deliverables complete',
+          description: 'Deliverables complete',
           verificationSourceId: 'vs-converged',
         },
       });
@@ -205,7 +205,7 @@ describe('Convergence Step 4: Status Computation', () => {
           id: 'proj-partial',
           name: 'Partial Project',
           owningEntityId: 'entity-src-partial',
-          successMetric: 'Some deliverables complete',
+          description: 'Some deliverables complete',
           verificationSourceId: 'vs-partial',
         },
       });
@@ -419,7 +419,7 @@ describe('Convergence Step 4: Status Computation', () => {
           id: 'proj-multi-1',
           name: 'Project 1',
           owningEntityId: 'entity-multi-src',
-          successMetric: 'Complete',
+          description: 'Complete',
           verificationSourceId: 'vs-multi',
         },
       });
@@ -430,7 +430,7 @@ describe('Convergence Step 4: Status Computation', () => {
           id: 'proj-multi-2',
           name: 'Project 2',
           owningEntityId: 'entity-multi-src',
-          successMetric: 'Complete',
+          description: 'Complete',
           verificationSourceId: 'vs-multi',
         },
       });

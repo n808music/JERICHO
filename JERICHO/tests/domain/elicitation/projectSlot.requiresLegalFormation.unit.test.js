@@ -42,7 +42,7 @@ describe('Project slot — requiresLegalFormation foundation', () => {
       const payload = buildProjectDeclarePayload({
         name: 'Test Project',
         owningEntityId: 'entity-1',
-        successMetric: 'Test metric',
+        description: 'Test metric',
         verificationSourceId: 'vs-1',
         phase: '1',
         requiresLegalFormation: true,
@@ -54,7 +54,7 @@ describe('Project slot — requiresLegalFormation foundation', () => {
       const payload = buildProjectDeclarePayload({
         name: 'Test Project',
         owningEntityId: 'entity-1',
-        successMetric: 'Test metric',
+        description: 'Test metric',
         verificationSourceId: 'vs-1',
         phase: '1',
         requiresLegalFormation: false,
@@ -66,7 +66,7 @@ describe('Project slot — requiresLegalFormation foundation', () => {
       const payload = buildProjectDeclarePayload({
         name: 'Test Project',
         owningEntityId: 'entity-1',
-        successMetric: 'Test metric',
+        description: 'Test metric',
         verificationSourceId: 'vs-1',
         phase: '1',
         // requiresLegalFormation not provided
@@ -78,7 +78,7 @@ describe('Project slot — requiresLegalFormation foundation', () => {
       const payload = buildProjectDeclarePayload({
         name: 'Test Project',
         owningEntityId: 'entity-1',
-        successMetric: 'Test metric',
+        description: 'Test metric',
         verificationSourceId: 'vs-1',
         phase: '1',
         requiresLegalFormation: null,
@@ -90,7 +90,7 @@ describe('Project slot — requiresLegalFormation foundation', () => {
       const payload = buildProjectDeclarePayload({
         name: 'Test',
         owningEntityId: 'e1',
-        successMetric: 'metric',
+        description: 'metric',
         verificationSourceId: 'vs1',
         phase: '1',
         requiresLegalFormation: true,
@@ -106,7 +106,7 @@ describe('Project slot — requiresLegalFormation foundation', () => {
         id: 'project-test',
         name: 'Test Project',
         owningEntityId: 'entity-1',
-        successMetric: 'metric',
+        description: 'metric',
         verificationSourceId: 'vs-1',
         phase: '1',
         requiresLegalFormation: true,
@@ -121,7 +121,7 @@ describe('Project slot — requiresLegalFormation foundation', () => {
         id: 'project-test',
         name: 'Test Project',
         owningEntityId: 'entity-1',
-        successMetric: 'metric',
+        description: 'metric',
         verificationSourceId: 'vs-1',
         phase: '1',
         requiresLegalFormation: false,

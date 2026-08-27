@@ -37,7 +37,6 @@ import {
   INITIATIVE_SLOT_ID,
   buildInitiativeDeclarePayload,
   INITIATIVE_OWNER_ENTITY_LESS,
-  INITIATIVE_CLASSIFICATIONS,
   INITIATIVE_ROLE_TAGS,
 } from './initiativeSlot';
 import {
@@ -84,8 +83,8 @@ import { probeFor } from './reprobes.js';
 // Byte-identical for identical inputs — no interpolation, no randomness.
 function buildReadbackSentence(captured) {
   const source = String(captured.verificationSource || '').trim();
-  const metric = String(captured.successMetric || '').trim();
-  return `Your done-when will read: 'Open ${source} and confirm ${metric}.' Is that the check you'll perform?`;
+  const deliverable = String(captured.description || '').trim();
+  return `When this is done, you'll open ${source} and verify that ${deliverable} exists. Is that the verification you'll perform?`;
 }
 
 // Formal signature of a compound record (2026-07-10 operator report: an app
@@ -93,13 +92,13 @@ function buildReadbackSentence(captured) {
 // actually perform). The engine cannot comprehend meaning — but it CAN notice
 // this shape: BOTH the target and the source joining two things with a
 // coordinator. Requiring the pattern on both sides keeps false positives low
-// ("mix and master" in a metric alone does not trigger). Advisory only —
+// ("mix and master" in a deliverable alone does not trigger). Advisory only —
 // the operator's judgment stays authoritative at the readback.
 const COMPOUND_JOIN_RE = /\s(?:and|&|\+)\s/i;
 function detectCompoundAttestation(captured) {
   const source = String(captured.verificationSource || '').trim();
-  const metric = String(captured.successMetric || '').trim();
-  return COMPOUND_JOIN_RE.test(source) && COMPOUND_JOIN_RE.test(metric);
+  const deliverable = String(captured.description || '').trim();
+  return COMPOUND_JOIN_RE.test(source) && COMPOUND_JOIN_RE.test(deliverable);
 }
 
 export { PROJECT_SLOT_ID } from './slots/projectSlot.js';
@@ -197,16 +196,6 @@ function buildPickSet(kind, matrixSnapshot) {
     // owners — it can be picked alongside entities. Alone it means entity-less.
     items.push({ id: INITIATIVE_OWNER_ENTITY_LESS, label: 'cross-cutting / whole operation' });
     return { kind, items };
-  }
-  if (kind === 'classificationOptions') {
-    const LABELS = {
-      objective: 'the plan works toward it',
-      constraint: 'the plan works around it',
-    };
-    return {
-      kind,
-      items: [...INITIATIVE_CLASSIFICATIONS].map((v) => ({ id: v, label: LABELS[v] })),
-    };
   }
   if (kind === 'initiativeRoleTagOptions') {
     const LABELS = {
@@ -503,7 +492,7 @@ function applyAnswerToCurrentSlot(state, answer) {
   const nextSlotState = { ...topSlotState, captured: merged };
   let nextStack = [...state.slotStack.slice(0, -1), nextSlotState];
 
-  // Special case: Project's PROJECT_SOURCE_MISSING gate.
+  // Special case: Project's PROJECT_VERIFICATION_LOCATION_MISSING gate.
   // If the answer carries `verificationSource` (the source label) and that
   // label is not yet declared in matrixSnapshot, we SPAWN the Section 1A
   // slot. The spawn captures `source` from this answer and asks for the
@@ -563,7 +552,7 @@ function finalizeCompletedSlots(state) {
             compoundSuspected: detectCompoundAttestation(topSlotState.captured),
             fields: {
               name: topSlotState.captured.name,
-              successMetric: topSlotState.captured.successMetric,
+              description: topSlotState.captured.description,
               verificationSource: topSlotState.captured.verificationSource,
             },
           },

@@ -18,7 +18,7 @@ describe('project slot — phase attestation (the gap, before the fix)', () => {
   it('has a phase-unattested gate that fires when phase is absent', () => {
     const g = PROJECT_SLOT.gate.find((x) => x.fieldName === 'phase' && /UNATTESTED|MISSING/.test(x.code));
     expect(g).toBeTruthy();
-    expect(g.detect({ name: 'Romance Riot', owningEntityId: 'e1', successMetric: '10k', verificationSourceId: 'v1' })).toBe(true);
+    expect(g.detect({ name: 'Romance Riot', owningEntityId: 'e1', description: '10k', verificationSourceId: 'v1' })).toBe(true);
     expect(g.detect({ name: 'Romance Riot', phase: '2' })).toBe(false);
   });
 
@@ -32,7 +32,7 @@ describe('project slot — phase attestation (the gap, before the fix)', () => {
 
   it('carries phase through to the DECLARE_PROJECT payload (canonical number)', () => {
     const payload = buildProjectDeclarePayload({
-      name: 'Romance Riot', owningEntityId: 'e1', successMetric: '10k streams', verificationSourceId: 'v1', phase: '2',
+      name: 'Romance Riot', owningEntityId: 'e1', description: '10k streams', verificationSourceId: 'v1', phase: '2',
     });
     expect(payload.phase).toBe(2);
   });
@@ -68,7 +68,7 @@ describe('project slot — phase lands on the node end-to-end (real declare path
     let state = seedContext();
     // The exact payload the slot builds from a captured phase answer, through the real reducer.
     const payload = buildProjectDeclarePayload({
-      name: 'Romance Riot', owningEntityId: 'ent-gs-corp', successMetric: '10,000 streams',
+      name: 'Romance Riot', owningEntityId: 'ent-gs-corp', description: '10,000 streams',
       verificationSourceId: 'vs-1', phase: '2',
     });
     state = computeDerivedState(state, { type: 'DECLARE_PROJECT', payload });
@@ -80,7 +80,7 @@ describe('project slot — phase lands on the node end-to-end (real declare path
   it('an absent phase still stores null (residual bucket) — not fabricated', () => {
     let state = seedContext();
     const payload = buildProjectDeclarePayload({
-      name: 'Unphased', owningEntityId: 'ent-gs-corp', successMetric: '1 launch', verificationSourceId: 'vs-1',
+      name: 'Unphased', owningEntityId: 'ent-gs-corp', description: '1 launch', verificationSourceId: 'vs-1',
     });
     state = computeDerivedState(state, { type: 'DECLARE_PROJECT', payload });
     const project = Object.values(state.matrix.projectsById || {}).find((p) => p.name === 'Unphased');

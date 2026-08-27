@@ -47,33 +47,23 @@ export const REPROBES = {
     pickSet: 'declaredEntities',
     examples: { musician: '', founder: '', writer: '', generic: '' },
   },
-  PROJECT_METRIC_MISSING: {
-    spine: 'How will you know this project succeeded? Name the measurable outcome.',
+  PROJECT_DESCRIPTION_MISSING: {
+    spine: 'What does this project produce or ship? Name the concrete deliverable.',
     examples: {
-      musician: 'e.g. 10,000 streams, 500 tickets sold',
-      founder: 'e.g. 100 paying users, $5k MRR',
-      writer: 'e.g. 3 full-manuscript requests',
-      generic: 'e.g. 50 signups, 4 reviews completed',
+      musician: 'e.g. the album "Romance Riot", the music video, the live performance',
+      founder: 'e.g. the beta launch, the pricing page, the landing site',
+      writer: 'e.g. the manuscript, the query letter, the published book',
+      generic: 'e.g. the report, the redesign, the campaign, the proposal',
     },
   },
-  PROJECT_METRIC_UNQUANTIFIED: {
+  PROJECT_VERIFICATION_LOCATION_MISSING: {
     spine:
-      'That needs a number or a clear finish line — give me the count, amount, or the event that declares it done.',
+      'Where will this deliverable live or be verifiable — the place you and others will go to see it when it exists?',
     examples: {
-      musician: "e.g. '10,000 streams' or 'signed by a label'",
-      founder: "e.g. '100 paying users' or 'launched in the App Store'",
-      writer: "e.g. '3 full-manuscript requests' or 'accepted by an agent'",
-      generic: "e.g. '50 signups' or 'approved by the client'",
-    },
-  },
-  PROJECT_SOURCE_MISSING: {
-    spine:
-      "Name the place you'll read that number from — the tool, app, or screen you'll open to check it.",
-    examples: {
-      musician: 'e.g. Spotify for Artists, DistroKid',
-      founder: 'e.g. Stripe, your bank dashboard',
-      writer: 'e.g. QueryTracker, KDP reports',
-      generic: 'e.g. Google Analytics, your CRM, your bank account',
+      musician: 'e.g. Spotify, Bandcamp, YouTube, a concert venue, your website',
+      founder: 'e.g. your domain, the App Store, ProductHunt, Stripe, your office',
+      writer: 'e.g. Amazon KDP, a publishing house, your agent portal, your website',
+      generic: 'e.g. your website, Google Drive, a client server, the project folder, a GitHub repo',
     },
   },
   // §5 phase attestation (Wave 2, Gate 1). Disclosure Standard: rule cited (residual-bucket

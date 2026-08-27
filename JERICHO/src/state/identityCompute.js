@@ -16359,16 +16359,14 @@ function declareInitiative(state, payload = {}) {
   const id = String(payload?.id || '').trim();
   const name = String(payload?.name || '').trim();
   const purpose = String(payload?.purpose || '').trim();
-  const classification = String(payload?.classification || '').trim().toLowerCase();
   const doneWhen = String(payload?.doneWhen || '').trim();
   // owningEntityId is explicitly nullable — null means entity-less, not missing.
   const owningEntityId = payload?.owningEntityId === null ? null : String(payload?.owningEntityId || '').trim() || null;
-  const VALID_CLASSIFICATIONS = ['objective', 'constraint'];
-  if (!id || !name || !purpose || !VALID_CLASSIFICATIONS.includes(classification) || !doneWhen) {
+  if (!id || !name || !purpose || !doneWhen) {
     state.lastPlanError = {
       code: 'INITIATIVE_INVALID',
-      reason: 'Initiative requires id, name, purpose, classification (objective|constraint), and doneWhen.',
-      meta: { id, name, purpose, classification, doneWhen },
+      reason: 'Initiative requires id, name, purpose, and doneWhen.',
+      meta: { id, name, purpose, doneWhen },
     };
     return;
   }
@@ -16400,7 +16398,6 @@ function declareInitiative(state, payload = {}) {
     purposeFor: String(payload?.purposeFor || '').trim() || null,
     purposeCompletion: String(payload?.purposeCompletion || '').trim() || null,
     purposeOngoing: String(payload?.purposeOngoing || '').trim() || null,
-    classification,
     doneWhen,
     // No `phase` field, by doctrine (E16, 2026-08-23): an Initiative has no Phase.
     // Not stored, not derived-and-written-back, not attestable. Deliverables/Artifacts
@@ -16522,7 +16519,7 @@ function declareSystem(state, payload = {}) {
 //    Law 1 — produces-nouns
 //    Law 2 — attestation pair {target, source}
 //  DECLARE_PROJECT therefore enforces both at the matrix level: every
-//  project must declare a successMetric (Law 2 target) AND a
+//  project must declare a description (what's produced/shipped - Law 2 target) AND a
 //  verificationSourceId pointing into Section 1A's registry. The owning
 //  entity must also exist in Section 2's registry. There is no synthesis
 //  path that fills these in later — every project ships its attestation
@@ -16534,14 +16531,14 @@ function declareProject(state, payload = {}) {
   const id = String(payload?.id || '').trim();
   const name = String(payload?.name || '').trim();
   const owningEntityId = String(payload?.owningEntityId || '').trim();
-  const successMetric = String(payload?.successMetric || '').trim();
+  const description = String(payload?.description || '').trim();
   const verificationSourceId = String(payload?.verificationSourceId || '').trim();
-  if (!id || !name || !owningEntityId || !successMetric || !verificationSourceId) {
+  if (!id || !name || !owningEntityId || !description || !verificationSourceId) {
     state.lastPlanError = {
       code: 'PROJECT_INVALID',
       reason:
-        'Project requires id, name, owningEntityId, successMetric (Law 2 target), and verificationSourceId (Law 2 source).',
-      meta: { id, hasName: Boolean(name), hasOwner: Boolean(owningEntityId), hasMetric: Boolean(successMetric), hasSource: Boolean(verificationSourceId) },
+        'Project requires id, name, owningEntityId, description (what will be produced/shipped), and verificationSourceId (where it will be verifiable).',
+      meta: { id, hasName: Boolean(name), hasOwner: Boolean(owningEntityId), hasDescription: Boolean(description), hasSource: Boolean(verificationSourceId) },
     };
     return;
   }
@@ -16571,7 +16568,7 @@ function declareProject(state, payload = {}) {
     status: String(payload?.status || '').trim() || null,
     desiredOutcome: String(payload?.desiredOutcome || '').trim() || null,
     targetDate: String(payload?.targetDate || '').trim() || null,
-    successMetric,
+    description,
     verificationSourceId,
     evidenceProduced: String(payload?.evidenceProduced || '').trim() || null,
     notes: String(payload?.notes || '').trim() || null,
@@ -16627,7 +16624,7 @@ function updateProject(state, payload = {}) {
   if (payload.desiredOutcome !== undefined)
     patch.desiredOutcome = String(payload.desiredOutcome || '').trim() || null;
   if (payload.targetDate !== undefined) patch.targetDate = String(payload.targetDate || '').trim() || null;
-  if (payload.successMetric !== undefined) patch.successMetric = String(payload.successMetric || '').trim();
+  if (payload.description !== undefined) patch.description = String(payload.description || '').trim();
   if (payload.verificationSourceId !== undefined)
     patch.verificationSourceId = String(payload.verificationSourceId).trim();
   if (payload.evidenceProduced !== undefined)

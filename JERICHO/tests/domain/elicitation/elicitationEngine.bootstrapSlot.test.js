@@ -86,7 +86,7 @@ function buildBaseState() {
       id: 'proj-1',
       name: 'Test Project',
       owningEntityId: 'ent-1',
-      successMetric: '100 confirmed users in TestSource',
+      description: '100 confirmed users in TestSource',
       verificationSourceId: 'vs-1',
     },
   });
