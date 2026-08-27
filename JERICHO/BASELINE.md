@@ -6,17 +6,24 @@
 
 ## Baseline Specification
 
-- **Reference Run:** Run 2 (identical to Run 3)
-- **Failure Count:** 49 failures, 4396 passed, 7 skipped out of 4450 total
-- **Stability Evidence:** Runs 2-3 produced identical failure sets (confirmation of replication)
+- **Reference Run:** Run 2 (2026-08-27 10:51 CDT, post-quarantine)
+- **Canonical Failure Count:** 50 failing tests, 4396 passing, 7 skipped out of 4453 total
+- **Stability Evidence:** Runs 2-3 produced identical failure sets (50 tests, same names, verified with symmetric diff)
 
 ## Why Run 2 Was Chosen
 
 Run 2 is the authoritative baseline because:
-- **Runs 2 and 3 replicated identically** — same 49 failures, same test names, no variance
-- This is the clearest evidence of stability found across 4 runs
-- Run 1 differed by 2 tests; Run 4 had 48 failures and differed from all others
-- Identical replication is stronger evidence than any single run, even if another had fewer failures
+- **Runs 2 and 3 replicated identically** — both produced exactly 50 failing tests with identical names
+- Symmetric diff verification: `comm -23 run2-list.txt run3-list.txt` returned 0 differences
+- This is the clearest evidence of stability found across the 4-run validation
+- Run 1 differed by 2 test names; Run 4 had 48 failures and differed from all others
+- Identical replication is stronger evidence than any single run's count, even if another had fewer failures
+
+## Post-Merge State
+
+- **Post-merge test run:** 48 failures (2 fewer than baseline)
+- **Named diff vs baseline:** 0 new failures, 2 tests removed (both from known scattered-flake set)
+- **Status:** Clean. The 2 removed tests are `generatePlan.calendarIntegration` tests, already documented as baseline noise (not regression-preventative)
 
 ## Known Issues (Quarantined)
 
