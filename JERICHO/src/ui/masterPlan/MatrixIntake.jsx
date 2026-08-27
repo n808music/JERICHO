@@ -162,7 +162,10 @@ function seedNodeEngine(matrix, slotId, name) {
 function SectionPill({ slotId }) {
   const meta = SLOT_META[slotId] || { label: slotId, section: '', color: '#71717a' };
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    // Rendered by every intake branch (probe, roster, loop-check, include-check),
+    // so it is the one marker that means "MatrixIntake is mounted" regardless of
+    // which screen a restored session lands on.
+    <div data-testid="intake-section-pill" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <span style={{
         fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
         color: meta.color, background: `${meta.color}18`, border: `1px solid ${meta.color}40`,
