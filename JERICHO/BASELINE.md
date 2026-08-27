@@ -58,6 +58,48 @@ Run 2 is the authoritative baseline because:
 
 **Status:** Not investigated individually (Handoff 2 scope exclusion). Documented as known limitation.
 
+## Session & Status Discipline Finding: RESOLVED-VERIFIED Reliability
+
+**Critical Doctrine Lesson — earned from this session's branch audit:**
+
+The "RESOLVED-VERIFIED" status label, as applied in this repo's history, has a documented track record of **incompleteness and false negatives**:
+
+### Evidence:
+
+**Defect 1: e6a7137 ("Fix cross-session progress loss")**
+- Status at the time: RESOLVED-VERIFIED
+- Reality at merge: Shipped with TWO data-destroying defects
+- Impact: One defect actually destroyed real user data (200KB server row with 7 entities, 30 initiatives overwritten with blank state)
+- Discovery: Found during recovery attempt; only caught because customer backup existed
+- Fix: Commits b7f13a9 + 6242830 added content-weight floor + reconciliation gate with regression tests
+
+**Defect 2: 0ea145b ("Fix intake resume-routing")**
+- Status at the time: RESOLVED-VERIFIED
+- Reality at merge: Shipped with fix invisible in the UI (test passed, feature unreachable)
+- Impact: User-facing feature that was "fixed" had no button to access it
+- Discovery: Surfaced by commit 9819605's message ("reported RESOLVED-VERIFIED but produced no visible button in the running app")
+- Fix: Commit 9819605 moved the affordance into the Operating Cycle module
+
+### Doctrine Update:
+
+**"RESOLVED-VERIFIED" at commit/merge time is provisional, not final.** The label indicates:
+- The fix has passed its own test suite
+- The committed tests fail against pre-fix code
+- The fix has no regression against the baseline
+
+It does **NOT** indicate:
+- The feature is visible/accessible in the running app
+- The fix is free of side-effect defects
+- The fix won't break under subsequent changes
+
+**Reliability standard:** Treat RESOLVED-VERIFIED status as provisional until the feature has been exercised in the running app (manual QA, integration test, or real-world usage), not just passed its own test suite. Two documented instances (e6a7137, 0ea145b) broke this assumption.
+
+### Application to This Merge:
+
+This branch contains fixes for both defects (b7f13a9, 6242830, 9819605) with regression tests. The fixes themselves are solid. But the finding persists: status labels alone are not sufficient verification.
+
+---
+
 ## For metricType Retry
 
 When retrying metricType changes:
@@ -74,6 +116,7 @@ When retrying metricType changes:
 - **Quarantine investigation log:** 2026-08-27 09:52–15:29 CDT
 - **4-run stability sample:** `/tmp/baseline-quarantine-run-*.log`
 - **ZionDashboard timeout isolation test:** Confirmed test #3 passes 3/3 in isolation despite failing in full suite
+- **RESOLVED-VERIFIED reliability:** Commits e6a7137 (data loss), b7f13a9 (first fix), 6242830 (second fix), 0ea145b (UI bug), 9819605 (UI fix)
 
 ---
 
