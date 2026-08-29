@@ -143,7 +143,20 @@ export function phaseGridFromStore(matrix = {}) {
       }
     }
     const phase = resolveNodePhase(n, canonicalRaw, derivedEffective, projects);
-    rowById[n.id] = { title: n.name, phase, target: n.targetDate ?? 'TBD', targetNote: null, links: [] };
+    // Date column is grain-aware, mirroring resolveNodePhase's Project/Deliverable split.
+    //
+    // PROJECT: phaseAnchor ONLY, never targetDate. phaseAnchor already IS the single
+    // authoritative date (Terminal Date if Terminating, nearest Milestone if Ongoing) per the
+    // Boundary Type / Phase Anchor doctrine, and it is the same field the phase probe reads.
+    // Falling back to targetDate here would reinstate a second competing "due date" beside
+    // phaseAnchor — precisely what that doctrine exists to prevent. A Project with no
+    // phaseAnchor is a genuine missing input and must surface as TBD, not borrow a value.
+    //
+    // DELIVERABLE: targetDate, because phaseAnchor is Project-grain and promoted lane
+    // deliverables (selectGridNodes, above) never carry one. Reading phaseAnchor for them
+    // would blank every promoted row to TBD the moment artifactsById is populated.
+    const rowTarget = n.primaryClass === 'Project' ? n.phaseAnchor : n.targetDate;
+    rowById[n.id] = { title: n.name, phase, target: rowTarget ?? 'TBD', targetNote: null, links: [] };
   }
 
   for (const l of Object.values(matrix.matrixLinksById || {})) {

@@ -53,7 +53,7 @@ export function normalizeTargetDateForPhase(rawTargetDate) {
 /**
  * Phase for a Project-grain node, computed from its own terminal date.
  *
- * @param {{targetDate?: string|null}|null|undefined} node
+ * @param {{phaseAnchor?: string|null}|null|undefined} node
  * @returns {1|2|3|null} canonical phase, or null when no usable terminal date exists
  */
 export function computeProjectSpinePhase(node) {

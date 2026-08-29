@@ -1900,7 +1900,7 @@
     {
       "name": "GSS – One-Page Business Plan",
       "class": "Deliverable",
-      "parent_project": "Global State Solutions – Business Plan",
+      "parent_project": "Global State Solutions — Business Plan",
       "produced_by": null,
       "what_ships": "One-Page Business Plan complete",
       "target_date": "2026-08-31",
@@ -1912,7 +1912,7 @@
     {
       "name": "GS Corp. – One-Page Business Plan",
       "class": "Deliverable",
-      "parent_project": "Global State Corp. – Business Plan",
+      "parent_project": "Global State Corp. — Business Plan",
       "produced_by": null,
       "what_ships": "One-Page Business Plan complete",
       "target_date": "2026-09-02",
@@ -1924,7 +1924,7 @@
     {
       "name": "HYS Broadcast – One-Page Business Plan",
       "class": "Deliverable",
-      "parent_project": "HYS Broadcast – Business Plan",
+      "parent_project": "HYS Broadcast — Business Plan",
       "produced_by": null,
       "what_ships": "One-Page Business Plan complete; show format locked same day",
       "target_date": "2026-08-24",
@@ -1948,7 +1948,7 @@
     {
       "name": "GS Productions – One-Page Business Plan",
       "class": "Deliverable",
-      "parent_project": "Global State Productions – Business Plan",
+      "parent_project": "Global State Productions — Business Plan",
       "produced_by": null,
       "what_ships": "One-Page Business Plan complete",
       "target_date": "2026-09-11",
@@ -1960,7 +1960,7 @@
     {
       "name": "GS Systems – One-Page Business Plan",
       "class": "Deliverable",
-      "parent_project": "Global State Systems – Business Plan",
+      "parent_project": "Global State Systems — Business Plan",
       "produced_by": null,
       "what_ships": "One-Page Business Plan complete",
       "target_date": "2026-09-14",
@@ -1972,7 +1972,7 @@
     {
       "name": "GS Holdings – One-Page Business Plan",
       "class": "Deliverable",
-      "parent_project": "Global State Holdings – Business Plan",
+      "parent_project": "Global State Holdings — Business Plan",
       "produced_by": null,
       "what_ships": "One-Page Business Plan complete",
       "target_date": "2026-09-17",
@@ -1984,7 +1984,7 @@
     {
       "name": "GS Academy – One-Page Business Plan",
       "class": "Deliverable",
-      "parent_project": "Global State Academy – Business Plan",
+      "parent_project": "Global State Academy — Business Plan",
       "produced_by": null,
       "what_ships": "One-Page Business Plan complete",
       "target_date": "2026-09-20",
@@ -1996,7 +1996,7 @@
     {
       "name": "F8 Energy – One-Page Business Plan",
       "class": "Deliverable",
-      "parent_project": "F8 Energy – Business Plan",
+      "parent_project": "F8 Energy — Business Plan",
       "produced_by": null,
       "what_ships": "One-Page Business Plan complete",
       "target_date": "2026-09-23",
@@ -2008,7 +2008,7 @@
     {
       "name": "79th St Renovation – One-Page Business Plan",
       "class": "Deliverable",
-      "parent_project": "79th Street Renovation – Business Plan",
+      "parent_project": "79th Street Renovation — Business Plan",
       "produced_by": null,
       "what_ships": "One-Page Business Plan complete",
       "target_date": "2026-10-01",
@@ -2020,7 +2020,7 @@
     {
       "name": "First Academy Building – One-Page Business Plan",
       "class": "Deliverable",
-      "parent_project": "First Academy Building – Business Plan",
+      "parent_project": "First Academy Building — Business Plan",
       "produced_by": null,
       "what_ships": "One-Page Business Plan complete",
       "target_date": "2026-10-05",
@@ -2032,7 +2032,7 @@
     {
       "name": "7 Seals – One-Page Business Plan",
       "class": "Deliverable",
-      "parent_project": "OFL 7 Seals – Business Plan",
+      "parent_project": "OFL 7 Seals — Business Plan",
       "produced_by": null,
       "what_ships": "One-Page Business Plan complete",
       "target_date": "2026-10-09",
@@ -2044,7 +2044,7 @@
     {
       "name": "Imaginary CEO – One-Page Business Plan",
       "class": "Deliverable",
-      "parent_project": "Imaginary CEO – Business Plan",
+      "parent_project": "Imaginary CEO — Business Plan",
       "produced_by": null,
       "what_ships": "One-Page Business Plan complete",
       "target_date": "2026-10-13",
@@ -2056,7 +2056,7 @@
     {
       "name": "Seeds of Destruction – One-Page Business Plan",
       "class": "Deliverable",
-      "parent_project": "Seeds of Destruction – Business Plan",
+      "parent_project": "Seeds of Destruction — Business Plan",
       "produced_by": null,
       "what_ships": "One-Page Business Plan complete",
       "target_date": "2026-10-20",
@@ -2068,7 +2068,7 @@
     {
       "name": "I Am The State – One-Page Business Plan",
       "class": "Deliverable",
-      "parent_project": "I Am The State – Business Plan",
+      "parent_project": "I Am The State — Business Plan",
       "produced_by": null,
       "what_ships": "One-Page Business Plan complete",
       "target_date": "2026-10-27",
@@ -2236,7 +2236,7 @@
     {
       "name": "Marketing Flywheel – One-Page Business Plan",
       "class": "Deliverable",
-      "parent_project": "Marketing Flywheel – Business Plan",
+      "parent_project": "Marketing Flywheel — Business Plan",
       "produced_by": null,
       "what_ships": "One-Page Business Plan complete",
       "target_date": "2026-09-18",
@@ -2248,7 +2248,7 @@
     {
       "name": "Marketing Flywheel – Capture Layer Live",
       "class": "Deliverable",
-      "parent_project": "Marketing Flywheel – Capture Layer Build",
+      "parent_project": "Marketing Flywheel — Capture Layer Build",
       "produced_by": null,
       "what_ships": "Capture layer built and live across pre-save, platform-follow, and app-signup channels",
       "target_date": "2026-09-30",

@@ -203,12 +203,12 @@ describe('phaseGridFromStore — delegates to derived phase for real (raw-null) 
   // (1) computed (targetDate spine window), (2) raw phase (legacy fallback, no longer primary),
   // (3) derived (dependency graph). The 2026-07-16 "raw-first" ruling was explicitly demoted below computed.
   // Test both: (a) computed present overrides raw, and (b) computed absent allows raw as fallback.
-  it('computed-first: targetDate spine window overrides raw phase when they disagree', () => {
+  it('computed-first: phaseAnchor spine window overrides raw phase when they disagree', () => {
     const m = {
       entitiesById: {}, initiativesById: {}, systemsById: {}, artifactsById: {}, milestonesById: {}, matrixLinksById: {},
       projectsById: {
-        p1: { id: 'p1', name: 'ComputedWins', phase: '1', reviewStatus: 'CONFIRMED', targetDate: '2030' }, // raw says 1, computed says 3
-        p2: { id: 'p2', name: 'Dependent', phase: null, reviewStatus: 'CONFIRMED', targetDate: '2031' },
+        p1: { id: 'p1', name: 'ComputedWins', phase: '1', reviewStatus: 'CONFIRMED', phaseAnchor: '2030' }, // raw says 1, computed says 3
+        p2: { id: 'p2', name: 'Dependent', phase: null, reviewStatus: 'CONFIRMED', phaseAnchor: '2031' },
       },
       dependenciesById: { d1: { id: 'd1', type: 'hard_gate', upstreamId: 'p1', downstreamId: 'p2' } },
     };
@@ -219,12 +219,12 @@ describe('phaseGridFromStore — delegates to derived phase for real (raw-null) 
     expect(r.phases.get(1).some((row) => /ComputedWins/.test(row.fixtureTitle))).toBe(false);
   });
 
-  it('raw as fallback: when computed is absent (no targetDate), raw phase is used', () => {
+  it('raw as fallback: when computed is absent (no phaseAnchor), raw phase is used', () => {
     const m = {
       entitiesById: {}, initiativesById: {}, systemsById: {}, artifactsById: {}, milestonesById: {}, matrixLinksById: {},
       projectsById: {
-        p1: { id: 'p1', name: 'RawFallback', phase: '2', reviewStatus: 'CONFIRMED', targetDate: null }, // no computed, raw says 2
-        p2: { id: 'p2', name: 'Dependent', phase: null, reviewStatus: 'CONFIRMED', targetDate: '2027' },
+        p1: { id: 'p1', name: 'RawFallback', phase: '2', reviewStatus: 'CONFIRMED', phaseAnchor: null }, // no computed, raw says 2
+        p2: { id: 'p2', name: 'Dependent', phase: null, reviewStatus: 'CONFIRMED', phaseAnchor: '2027' },
       },
       dependenciesById: { d1: { id: 'd1', type: 'hard_gate', upstreamId: 'p1', downstreamId: 'p2' } },
     };
@@ -232,5 +232,13 @@ describe('phaseGridFromStore — delegates to derived phase for real (raw-null) 
     const r = sortByPhase(gridTitles, mtx);
     // Raw phase (2) is used as fallback when computed is null
     expect(r.phases.get(2).some((row) => /RawFallback/.test(row.fixtureTitle))).toBe(true);
+    // ANTI-VACUITY GUARD. Without this, the assertion above passes for the wrong reason the
+    // moment computeProjectSpinePhase() reads a field no fixture here sets — which is exactly
+    // what happened when the probe moved targetDate -> phaseAnchor (2026-08-29): computed went
+    // universally null, the test stayed green, and it had stopped testing its own branch.
+    // p2 carries a phaseAnchor and must therefore be COMPUTED (2027 -> deadlineKey 2027-12-31
+    // -> P1), proving computation is live in this fixture. So p1 falling back to raw is caused
+    // specifically by p1 lacking an anchor, not by computation being broken everywhere.
+    expect(r.phases.get(1).some((row) => /Dependent/.test(row.fixtureTitle))).toBe(true);
   });
 });
