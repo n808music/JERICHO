@@ -1,13 +1,15 @@
 {
   "enterprise": "GLOBAL STATE — OPERATION ENDGAME",
-  "reference_version": "v2.0 — 2026-08-28 (Corrected Matrix w/ Foundation lanes)",
+  "reference_version": "v2.0 — 2026-08-28 (Complete Matrix w/ ALL 7 CSVs)",
   "counts": {
     "Entity": 7,
     "Initiative": 41,
     "Project": 60,
     "Deliverable": 64,
+    "Artifact": 122,
+    "Convergence": 1,
     "System": 10,
-    "total": 182
+    "total": 304
   },
   "nodes": [
     {
@@ -86,7 +88,7 @@
       "notes": ""
     },
     {
-      "name": "Help Yourself Broadcast Foundation",
+      "name": "Help Your Self Broadcast Foundation (NEW)",
       "class": "Initiative",
       "owner": null,
       "parent_initiative": null,
@@ -98,10 +100,10 @@
       "notes": ""
     },
     {
-      "name": "Help Yourself Broadcast",
+      "name": "Help Your Self Broadcast",
       "class": "Initiative",
       "owner": null,
-      "parent_initiative": "Help Yourself Broadcast",
+      "parent_initiative": null,
       "objective": "reference",
       "deadline": null,
       "phase": null,
@@ -389,7 +391,7 @@
       "name": "F8 Energy GUM production",
       "class": "Initiative",
       "owner": null,
-      "parent_initiative": "F8 Energy GUM production",
+      "parent_initiative": null,
       "objective": "reference",
       "deadline": null,
       "phase": null,
@@ -598,7 +600,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-08-31"
     },
     {
       "name": "Global State Corp. – Business Plan",
@@ -611,7 +615,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-09-02"
     },
     {
       "name": "HYS Broadcast – Business Plan",
@@ -624,7 +630,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-09-02"
     },
     {
       "name": "Global State Productions – Business Plan",
@@ -637,7 +645,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-09-11"
     },
     {
       "name": "Global State Systems – Business Plan",
@@ -650,20 +660,24 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-09-14"
     },
     {
       "name": "OFL 7 Seals – Business Plan",
       "class": "Project",
       "owner": "Global State Corporation",
-      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
+      "parent_initiative": "7 seals foundation",
       "deliverable_summary": "Establishes Our Fearless Leader: 7 Seals' own business plan as a first-of-its-kind venture, distinct from Global State Corp.'s general identity.",
       "target_date": "2026-10-09",
       "terminal_date": "2026-10-09",
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-10-09"
     },
     {
       "name": "Imaginary CEO – Business Plan",
@@ -676,7 +690,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-10-13"
     },
     {
       "name": "Global State Holdings – Business Plan",
@@ -689,7 +705,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-09-17"
     },
     {
       "name": "Global State Academy – Business Plan",
@@ -702,20 +720,24 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-09-20"
     },
     {
       "name": "F8 Energy – Business Plan",
       "class": "Project",
       "owner": "F8 ENERGY Company",
-      "parent_initiative": "F8 Energy Company Foundation",
+      "parent_initiative": null,
       "deliverable_summary": "Establishes F8 Energy's business plan and brand identity as the enterprise's consumer-products arm.",
       "target_date": "2026-09-23",
       "terminal_date": "2026-09-23",
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-09-23"
     },
     {
       "name": "F8 Energy Gum business plan",
@@ -728,7 +750,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-11-06"
     },
     {
       "name": "Seeds of Destruction – Business Plan",
@@ -741,7 +765,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-10-20"
     },
     {
       "name": "79th Street Renovation – Business Plan",
@@ -754,7 +780,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-10-01"
     },
     {
       "name": "First Academy Building – Business Plan",
@@ -767,7 +795,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-10-05"
     },
     {
       "name": "I Am The State – Business Plan",
@@ -780,7 +810,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-10-27"
     },
     {
       "name": "State of Control Business plan",
@@ -793,137 +825,159 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-09-05"
     },
     {
       "name": "ofl 3 Romance Riot",
       "class": "Project",
       "owner": "Global State Corporation",
-      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
+      "parent_initiative": null,
       "deliverable_summary": "Ships the third OFL tape (12 songs) plus its promo visuals (D8 N8, Blackman) and Deluxe Edition; the launch convergence anchor for the whole rollout.",
       "target_date": "2026-12-17",
       "terminal_date": "2026-12-17",
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: spotify,apple music, youtube channel."
+      "notes": "Source of truth: spotify,apple music, youtube channel.",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-12-17"
     },
     {
       "name": "ofl 4 painkillers",
       "class": "Project",
       "owner": "Global State Corporation",
-      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
+      "parent_initiative": null,
       "deliverable_summary": "Ships the fourth OFL tape (10 songs), continuing the 7 Seals rollout at the established 3.5-month cadence.",
       "target_date": "2027-04-01",
       "terminal_date": "2027-04-01",
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: spotify,apple music, youtube channel."
+      "notes": "Source of truth: spotify,apple music, youtube channel.",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2027-04-01"
     },
     {
       "name": "ofl 5 coronation",
       "class": "Project",
       "owner": "Global State Corporation",
-      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
+      "parent_initiative": null,
       "deliverable_summary": "Ships the fifth OFL tape (10 songs).",
       "target_date": "2027-07-16",
       "terminal_date": "2027-07-16",
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: spotify,apple music, youtube channel."
+      "notes": "Source of truth: spotify,apple music, youtube channel.",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2027-07-16"
     },
     {
       "name": "ofl 6 savior",
       "class": "Project",
       "owner": "Global State Corporation",
-      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
+      "parent_initiative": null,
       "deliverable_summary": "Ships the sixth OFL tape (10 songs).",
       "target_date": "2027-10-31",
       "terminal_date": "2027-10-31",
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: spotify,apple music, youtube channel."
+      "notes": "Source of truth: spotify,apple music, youtube channel.",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2027-10-31"
     },
     {
       "name": "ofl 7 sacrifice",
       "class": "Project",
       "owner": "Global State Corporation",
-      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
+      "parent_initiative": null,
       "deliverable_summary": "Ships the seventh and final OFL tape (10 songs), closing the 7 Seals series.",
       "target_date": "2028-02-17",
       "terminal_date": "2028-02-17",
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: spotify,apple music, youtube channel."
+      "notes": "Source of truth: spotify,apple music, youtube channel.",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2028-02-17"
     },
     {
       "name": "ofl 3 album rollout and assets",
       "class": "Project",
       "owner": "Global State Corporation",
-      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
+      "parent_initiative": null,
       "deliverable_summary": "Produces Romance Riot's album artwork and packaging, delivered ahead of release.",
       "target_date": "2026-12-17",
       "terminal_date": "2026-12-17",
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-12-17"
     },
     {
       "name": "ofl 4 album roll out and assets",
       "class": "Project",
       "owner": "Global State Corporation",
-      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
+      "parent_initiative": null,
       "deliverable_summary": "Produces Painkillers' album artwork and packaging.",
       "target_date": "2027-01-25",
       "terminal_date": "2027-01-25",
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2027-01-25"
     },
     {
       "name": "ofl 5 album roll out and assets",
       "class": "Project",
       "owner": "Global State Corporation",
-      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
+      "parent_initiative": null,
       "deliverable_summary": "Produces Coronation's album artwork and packaging.",
       "target_date": "2027-05-09",
       "terminal_date": "2027-05-09",
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2027-05-09"
     },
     {
       "name": "ofl 6 album roll out and assets",
       "class": "Project",
       "owner": "Global State Corporation",
-      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
+      "parent_initiative": null,
       "deliverable_summary": "Produces Savior's album artwork and packaging.",
       "target_date": "2027-08-24",
       "terminal_date": "2027-08-24",
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2027-08-24"
     },
     {
       "name": "ofl 7 album roll out and assets",
       "class": "Project",
       "owner": "Global State Corporation",
-      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
+      "parent_initiative": null,
       "deliverable_summary": "Produces Sacrifice's album artwork and packaging.",
       "target_date": "2027-12-10",
       "terminal_date": "2027-12-10",
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2027-12-10"
     },
     {
       "name": "state of control ofl3",
@@ -936,7 +990,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: youtube channel"
+      "notes": "Source of truth: youtube channel",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-12-17"
     },
     {
       "name": "state of control ofl4",
@@ -949,7 +1005,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: youtube channel"
+      "notes": "Source of truth: youtube channel",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2027-04-01"
     },
     {
       "name": "state of control ofl5",
@@ -962,7 +1020,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: youtube channel"
+      "notes": "Source of truth: youtube channel",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2027-07-16"
     },
     {
       "name": "state of control ofl 6",
@@ -975,7 +1035,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: youtube channel"
+      "notes": "Source of truth: youtube channel",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2027-10-31"
     },
     {
       "name": "state of control ofl 7",
@@ -988,7 +1050,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: youtube channel"
+      "notes": "Source of truth: youtube channel",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2028-02-17"
     },
     {
       "name": "the imaginary ceo season 1",
@@ -1001,7 +1065,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: youtube channel"
+      "notes": "Source of truth: youtube channel",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2027-06-16"
     },
     {
       "name": "the imaginary ceo season 2",
@@ -1014,7 +1080,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: youtube channel"
+      "notes": "Source of truth: youtube channel",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2027-09-30"
     },
     {
       "name": "the imaginary ceo season 3",
@@ -1027,7 +1095,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: youtube channel"
+      "notes": "Source of truth: youtube channel",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2028-01-14"
     },
     {
       "name": "the imaginary ceo season 4",
@@ -1040,7 +1110,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: youtube channel"
+      "notes": "Source of truth: youtube channel",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2028-05-02"
     },
     {
       "name": "the jericho system",
@@ -1053,7 +1125,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: vs code, application store, website, google play app store"
+      "notes": "Source of truth: vs code, application store, website, google play app store",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-12-17"
     },
     {
       "name": "Help Yourself Broadcast",
@@ -1066,7 +1140,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: youtube channel"
+      "notes": "Source of truth: youtube channel",
+      "boundaryType": "Ongoing",
+      "phaseAnchor": null
     },
     {
       "name": "Desiree Business Plan",
@@ -1079,7 +1155,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-11-06"
     },
     {
       "name": "F8 Energy GUM production",
@@ -1092,7 +1170,9 @@
       "phase": "2",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: company bank account"
+      "notes": "Source of truth: company bank account",
+      "boundaryType": "Ongoing",
+      "phaseAnchor": null
     },
     {
       "name": "f8 energy operations",
@@ -1105,7 +1185,9 @@
       "phase": "2",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: company bank account"
+      "notes": "Source of truth: company bank account",
+      "boundaryType": "Ongoing",
+      "phaseAnchor": null
     },
     {
       "name": "the imaginary ceo season 5",
@@ -1118,7 +1200,9 @@
       "phase": "2",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: youtube channel"
+      "notes": "Source of truth: youtube channel",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2028-11-01"
     },
     {
       "name": "the imaginary ceo season 6",
@@ -1131,7 +1215,9 @@
       "phase": "2",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: youtube channel"
+      "notes": "Source of truth: youtube channel",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2029-05-02"
     },
     {
       "name": "the imaginary ceo season 7",
@@ -1144,7 +1230,9 @@
       "phase": "2",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: youtube channel"
+      "notes": "Source of truth: youtube channel",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2029-11-01"
     },
     {
       "name": "Max Clout 1",
@@ -1157,7 +1245,9 @@
       "phase": "2",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: youtube channel"
+      "notes": "Source of truth: youtube channel",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2028-08-31"
     },
     {
       "name": "Max clout 2",
@@ -1170,7 +1260,9 @@
       "phase": "2",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: youtube channel"
+      "notes": "Source of truth: youtube channel",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2029-03-03"
     },
     {
       "name": "Max Clout 3",
@@ -1183,7 +1275,9 @@
       "phase": "2",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: youtube channel"
+      "notes": "Source of truth: youtube channel",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2029-08-31"
     },
     {
       "name": "Seeds of destruction 1",
@@ -1196,7 +1290,9 @@
       "phase": "2",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: spotify,apple music, youtube channel."
+      "notes": "Source of truth: spotify,apple music, youtube channel.",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2028-08-17"
     },
     {
       "name": "Seeds of Destruction 2",
@@ -1209,7 +1305,9 @@
       "phase": "2",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: spotify,apple music, youtube channel."
+      "notes": "Source of truth: spotify,apple music, youtube channel.",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2029-02-17"
     },
     {
       "name": "Seeds of destruction 3",
@@ -1222,7 +1320,9 @@
       "phase": "2",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: spotify,apple music, youtube channel."
+      "notes": "Source of truth: spotify,apple music, youtube channel.",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2029-08-17"
     },
     {
       "name": "seeds of destruction 1 album rollout and assets",
@@ -1235,7 +1335,9 @@
       "phase": "2",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2028-08-10"
     },
     {
       "name": "seeds of destruction 2 album rollout and assets",
@@ -1248,7 +1350,9 @@
       "phase": "2",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2029-02-10"
     },
     {
       "name": "seeds of destruction 3 album rollout and assets",
@@ -1261,7 +1365,9 @@
       "phase": "2",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2029-08-10"
     },
     {
       "name": "the imaginary ceo season 8",
@@ -1274,7 +1380,9 @@
       "phase": "3",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: youtube channel"
+      "notes": "Source of truth: youtube channel",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2032-03-15"
     },
     {
       "name": "I AM THE STATE",
@@ -1287,7 +1395,9 @@
       "phase": "3",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: spotify,apple music, youtube channel."
+      "notes": "Source of truth: spotify,apple music, youtube channel.",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2031-12-31"
     },
     {
       "name": "I AM THE STATE album rollout and assets",
@@ -1300,7 +1410,9 @@
       "phase": "3",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2031-12-24"
     },
     {
       "name": "Desiree",
@@ -1313,20 +1425,24 @@
       "phase": "3",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: youtube channel"
+      "notes": "Source of truth: youtube channel",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2031-12-31"
     },
     {
       "name": "79th Street Renovation Production",
       "class": "Project",
       "owner": "Global State Holdings",
-      "parent_initiative": "79th Street Renovation",
+      "parent_initiative": null,
       "deliverable_summary": "Acquires, restores, and sustains 79th Street as an urban redevelopment initiative – institutional infrastructure supporting HQ and Academy operations indefinitely, not a single building acquisition with an end point. Launch milestone: 2028-06-30.",
       "target_date": "on going",
       "terminal_date": "on going",
       "phase": "3",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: company bank account"
+      "notes": "Source of truth: company bank account",
+      "boundaryType": "Ongoing",
+      "phaseAnchor": "2028-06-30"
     },
     {
       "name": "First Academy Building Production",
@@ -1339,7 +1455,9 @@
       "phase": "3",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: company bank account"
+      "notes": "Source of truth: company bank account",
+      "boundaryType": "Ongoing",
+      "phaseAnchor": "2028-09-01"
     },
     {
       "name": "Marketing Flywheel – Business Plan",
@@ -1352,7 +1470,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: Global State Solutions drive"
+      "notes": "Source of truth: Global State Solutions drive",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-09-18"
     },
     {
       "name": "Marketing Flywheel – Capture Layer Build",
@@ -1365,7 +1485,9 @@
       "phase": "1",
       "status": "CONFIRMED",
       "work_state": null,
-      "notes": "Source of truth: spotify,apple music, youtube channel, and social media platforms"
+      "notes": "Source of truth: spotify,apple music, youtube channel, and social media platforms",
+      "boundaryType": "Terminating",
+      "phaseAnchor": "2026-09-30"
     },
     {
       "name": "Romance Riot – tape/album",
@@ -1910,7 +2032,7 @@
     {
       "name": "7 Seals – One-Page Business Plan",
       "class": "Deliverable",
-      "parent_project": "7 Seals – Business Plan",
+      "parent_project": "OFL 7 Seals – Business Plan",
       "produced_by": null,
       "what_ships": "One-Page Business Plan complete",
       "target_date": "2026-10-09",
@@ -2133,6 +2255,1348 @@
       "terminal_date": "2026-09-30",
       "phase": "1",
       "status": "CONFIRMED",
+      "notes": ""
+    },
+    {
+      "name": "Intake",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-08-29",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Plan Quality",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-08-31",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Feasibility",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-01",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Course Correction",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-03",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Live P.O.S.",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-04",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Jericho – End-to-End Integration Verified",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-05",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "HYS Broadcast – One-Page Plan Document",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-08-24",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "State of Control – One-Page Plan Document",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-08-25",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "GSS – One-Page Plan Document",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-08-31",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "GS Corp. – One-Page Plan Document",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-02",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Patent – Attorney Review Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-04",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "HYS Batch 1 – Scripts Complete (5 episodes)",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-09",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "GS Productions – One-Page Plan Document",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-11",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Patent – Filed/Submitted",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-11",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "GS Systems – One-Page Plan Document",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-14",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "HYS Batch 1 – Recording Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-16",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "GS Holdings – One-Page Plan Document",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-17",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "D8 N8 – Script",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-19",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "GS Academy – One-Page Plan Document",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-20",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "F8 Energy – One-Page Plan Document",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-23",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "HYS Batch 1 – Edit Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-23",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "D8 N8 – Set Secured",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-26",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "HYS Batch 1 – Published (5 episodes live)",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-30",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "79th St Renovation – One-Page Plan Document",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-10-01",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "First Academy Building – One-Page Plan Document",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-10-05",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "7 Seals – One-Page Plan Document",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-10-09",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Album Cover Art",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-10-10",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "D8 N8 (Short Film)",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-10-10",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Release Packaging",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-10-10",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Imaginary CEO – One-Page Plan Document",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-10-13",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "12 Songs",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-10-17",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Blackman – Script",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-10-17",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Seeds of Destruction – One-Page Plan Document",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-10-20",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Blackman – Set Secured",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-10-24",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "I Am The State – One-Page Plan Document",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-10-27",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "F8 Energy GUM – One-Page Plan Document",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-11-06",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Desiree – One-Page Plan Document",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-11-06",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Blackman (Short Film)",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-11-07",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "SOC pt. 1 – Script",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-11-26",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "SOC pt. 1 – Set Secured",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-12-03",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "SOC pt. 1 (Chapter)",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-12-17",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Deluxe Bonus Tracks",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-12-17",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Public App Release Live",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-12-17",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Launch Announcement Live",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-12-17",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Painkillers Cover Art",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-01-25",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Release Packaging",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-01-25",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "10 Songs (Painkillers)",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-03-11",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "SOC pt. 2 – Script",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-03-11",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "SOC pt. 2 – Set Secured",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-03-18",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "SOC pt. 2 (Chapter)",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-04-01",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S1 – Pre-Production Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-04-21",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Coronation Cover Art",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-05-09",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Release Packaging",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-05-09",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S1 – Shoot Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-05-12",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S1 – Edit/Post Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-06-09",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "10 Songs (Coronation)",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-06-25",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "SOC pt. 3 – Script",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-06-25",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "SOC pt. 3 – Set Secured",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-07-02",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "SOC pt. 3 (Chapter)",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-07-16",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S2 – Pre-Production Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-08-05",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Savior Cover Art",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-08-24",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Release Packaging",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-08-24",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S2 – Shoot Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-08-26",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S2 – Edit/Post Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-09-23",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "10 Songs (Savior)",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-10-10",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "SOC pt. 4 – Script",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-10-10",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "SOC pt. 4 – Set Secured",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-10-17",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "SOC pt. 4 (Chapter)",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-10-31",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S3 – Pre-Production Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-11-19",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Sacrifice Cover Art",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-12-10",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Release Packaging",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-12-10",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S3 – Shoot Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2027-12-10",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S3 – Edit/Post Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2028-01-07",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "10 Songs (Sacrifice)",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2028-01-27",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "SOC pt. 5 – Script",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2028-01-27",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "SOC pt. 5 – Set Secured",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2028-02-03",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "SOC pt. 5 (Chapter/Finale)",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2028-02-17",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S4 – Pre-Production Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2028-03-07",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S4 – Shoot Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2028-03-28",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S4 – Edit/Post Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2028-04-25",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "16 Songs (SoD Entry 1)",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2028-07-27",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "SoD Entry 1 Cover Art",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2028-08-10",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Release Packaging",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2028-08-10",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Max Clout 1 – Script",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2028-08-10",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Max Clout 1 – Set Secured",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2028-08-17",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Max Clout 1 (Short Film)",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2028-08-31",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S5 – Pre-Production Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2028-09-06",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S5 – Shoot Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2028-09-27",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S5 – Edit/Post Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2028-10-25",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "16 Songs (SoD Entry 2)",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2029-01-27",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "SoD Entry 2 Cover Art",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2029-02-10",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Release Packaging",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2029-02-10",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Max Clout 2 – Script",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2029-02-10",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Max Clout 2 – Set Secured",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2029-02-17",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Max Clout 2 (Short Film)",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2029-03-03",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S6 – Pre-Production Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2029-03-07",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S6 – Shoot Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2029-03-28",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S6 – Edit/Post Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2029-04-25",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "16 Songs (SoD Entry 3)",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2029-07-27",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "SoD Entry 3 Cover Art",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2029-08-10",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Release Packaging",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2029-08-10",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Max Clout 3 – Script",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2029-08-10",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Max Clout 3 – Set Secured",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2029-08-17",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Max Clout 3 (Short Film)",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2029-08-31",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "GUM – Product Available for Purchase",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2029-08-31",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "GUM – Launch Marketing Push",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2029-08-31",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S7 – Pre-Production Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2029-09-06",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S7 – Shoot Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2029-09-27",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S7 – Edit/Post Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2029-10-25",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Desiree – Script",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2031-11-05",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Desiree – Set Secured",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2031-12-03",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Terminal Album Songs",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2031-12-10",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "I Am The State Cover Art",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2031-12-24",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Release Packaging",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2031-12-24",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Desiree full length film",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2031-12-31",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S8 – Pre-Production Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2032-01-19",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S8 – Shoot Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2032-02-09",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "IC S8 – Edit/Post Complete",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2032-03-08",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Marketing Flywheel – One-Page Plan Document",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-18",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Pre-Save Capture Live",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-23",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "Platform-Follow Capture Live",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-26",
+      "phase": null,
+      "status": "DRAFT",
+      "notes": ""
+    },
+    {
+      "name": "App-Signup Capture Live",
+      "class": "Artifact",
+      "parent_deliverable": null,
+      "produced_by": null,
+      "what_ships": "",
+      "target_date": "2026-09-30",
+      "phase": null,
+      "status": "DRAFT",
       "notes": ""
     },
     {
