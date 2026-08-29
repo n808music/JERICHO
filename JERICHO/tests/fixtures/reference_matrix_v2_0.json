@@ -88,7 +88,7 @@
       "notes": ""
     },
     {
-      "name": "Help Your Self Broadcast Foundation (NEW)",
+      "name": "Help Yourself Broadcast Foundation",
       "class": "Initiative",
       "owner": null,
       "parent_initiative": null,
@@ -100,7 +100,7 @@
       "notes": ""
     },
     {
-      "name": "Help Your Self Broadcast",
+      "name": "Help Yourself Broadcast",
       "class": "Initiative",
       "owner": null,
       "parent_initiative": null,
@@ -328,7 +328,7 @@
       "notes": ""
     },
     {
-      "name": "F8 Energy GUM Foundation (NEW)",
+      "name": "F8 Energy GUM Foundation",
       "class": "Initiative",
       "owner": null,
       "parent_initiative": null,
@@ -436,7 +436,7 @@
       "notes": ""
     },
     {
-      "name": "7 seals foundation",
+      "name": "ofl 7 seals foundation",
       "class": "Initiative",
       "owner": null,
       "parent_initiative": null,
@@ -450,7 +450,7 @@
       "notes": "Foundation lane created during fixture normalization (2026-08-28)"
     },
     {
-      "name": "79th street foundation",
+      "name": "79th Street Renovation Foundation",
       "class": "Initiative",
       "owner": null,
       "parent_initiative": null,
@@ -668,7 +668,7 @@
       "name": "OFL 7 Seals – Business Plan",
       "class": "Project",
       "owner": "Global State Corporation",
-      "parent_initiative": "7 seals foundation",
+      "parent_initiative": "ofl 7 seals foundation",
       "deliverable_summary": "Establishes Our Fearless Leader: 7 Seals' own business plan as a first-of-its-kind venture, distinct from Global State Corp.'s general identity.",
       "target_date": "2026-10-09",
       "terminal_date": "2026-10-09",
@@ -773,7 +773,7 @@
       "name": "79th Street Renovation – Business Plan",
       "class": "Project",
       "owner": "Global State Holdings",
-      "parent_initiative": "79th street foundation",
+      "parent_initiative": "79th Street Renovation Foundation",
       "deliverable_summary": "Establishes 79th Street Renovation's business plan as the venture acquiring and restoring the building housing GSS HQ and Academy #1.",
       "target_date": "2026-10-01",
       "terminal_date": "2026-10-01",
