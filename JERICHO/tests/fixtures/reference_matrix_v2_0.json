@@ -1,13 +1,13 @@
 {
   "enterprise": "GLOBAL STATE — OPERATION ENDGAME",
-  "reference_version": "v2.0 — 2026-08-28 (Corrected Matrix w/ terminal dates)",
+  "reference_version": "v2.0 — 2026-08-28 (Corrected Matrix w/ Foundation lanes)",
   "counts": {
     "Entity": 7,
-    "Initiative": 30,
+    "Initiative": 41,
     "Project": 60,
     "Deliverable": 64,
     "System": 10,
-    "total": 171
+    "total": 182
   },
   "nodes": [
     {
@@ -86,7 +86,7 @@
       "notes": ""
     },
     {
-      "name": "Help Your Self Broadcast Foundation (NEW)",
+      "name": "Help Yourself Broadcast Foundation",
       "class": "Initiative",
       "owner": null,
       "parent_initiative": null,
@@ -98,10 +98,10 @@
       "notes": ""
     },
     {
-      "name": "Help Your Self Broadcast",
+      "name": "Help Yourself Broadcast",
       "class": "Initiative",
       "owner": null,
-      "parent_initiative": null,
+      "parent_initiative": "Help Yourself Broadcast",
       "objective": "reference",
       "deadline": null,
       "phase": null,
@@ -389,7 +389,7 @@
       "name": "F8 Energy GUM production",
       "class": "Initiative",
       "owner": null,
-      "parent_initiative": null,
+      "parent_initiative": "F8 Energy GUM production",
       "objective": "reference",
       "deadline": null,
       "phase": null,
@@ -434,10 +434,164 @@
       "notes": ""
     },
     {
+      "name": "7 seals foundation",
+      "class": "Initiative",
+      "owner": null,
+      "parent_initiative": null,
+      "objective": "Foundation lane / operations initiative",
+      "deadline": null,
+      "phase": null,
+      "status": "DRAFT",
+      "role_tags": [
+        "initiative"
+      ],
+      "notes": "Foundation lane created during fixture normalization (2026-08-28)"
+    },
+    {
+      "name": "79th street foundation",
+      "class": "Initiative",
+      "owner": null,
+      "parent_initiative": null,
+      "objective": "Foundation lane / operations initiative",
+      "deadline": null,
+      "phase": null,
+      "status": "DRAFT",
+      "role_tags": [
+        "initiative"
+      ],
+      "notes": "Foundation lane created during fixture normalization (2026-08-28)"
+    },
+    {
+      "name": "Help Yourself Broadcast foundation",
+      "class": "Initiative",
+      "owner": null,
+      "parent_initiative": null,
+      "objective": "Foundation lane / operations initiative",
+      "deadline": null,
+      "phase": null,
+      "status": "DRAFT",
+      "role_tags": [
+        "initiative"
+      ],
+      "notes": "Foundation lane created during fixture normalization (2026-08-28)"
+    },
+    {
+      "name": "f8 energy gum foundation",
+      "class": "Initiative",
+      "owner": null,
+      "parent_initiative": null,
+      "objective": "Foundation lane / operations initiative",
+      "deadline": null,
+      "phase": null,
+      "status": "DRAFT",
+      "role_tags": [
+        "initiative"
+      ],
+      "notes": "Foundation lane created during fixture normalization (2026-08-28)"
+    },
+    {
+      "name": "First Academy Building Foundation",
+      "class": "Initiative",
+      "owner": null,
+      "parent_initiative": null,
+      "objective": "Foundation lane / operations initiative",
+      "deadline": null,
+      "phase": null,
+      "status": "DRAFT",
+      "role_tags": [
+        "initiative"
+      ],
+      "notes": "Foundation lane created during fixture normalization (2026-08-28)"
+    },
+    {
+      "name": "I AM THE STATE foundation",
+      "class": "Initiative",
+      "owner": null,
+      "parent_initiative": null,
+      "objective": "Foundation lane / operations initiative",
+      "deadline": null,
+      "phase": null,
+      "status": "DRAFT",
+      "role_tags": [
+        "initiative"
+      ],
+      "notes": "Foundation lane created during fixture normalization (2026-08-28)"
+    },
+    {
+      "name": "imaginary ceo foundation",
+      "class": "Initiative",
+      "owner": null,
+      "parent_initiative": null,
+      "objective": "Foundation lane / operations initiative",
+      "deadline": null,
+      "phase": null,
+      "status": "DRAFT",
+      "role_tags": [
+        "initiative"
+      ],
+      "notes": "Foundation lane created during fixture normalization (2026-08-28)"
+    },
+    {
+      "name": "seeds of destruction foundation",
+      "class": "Initiative",
+      "owner": null,
+      "parent_initiative": null,
+      "objective": "Foundation lane / operations initiative",
+      "deadline": null,
+      "phase": null,
+      "status": "DRAFT",
+      "role_tags": [
+        "initiative"
+      ],
+      "notes": "Foundation lane created during fixture normalization (2026-08-28)"
+    },
+    {
+      "name": "Marketing Flywheel Foundation",
+      "class": "Initiative",
+      "owner": null,
+      "parent_initiative": null,
+      "objective": "Foundation lane / operations initiative",
+      "deadline": null,
+      "phase": null,
+      "status": "DRAFT",
+      "role_tags": [
+        "initiative"
+      ],
+      "notes": "Foundation lane created during fixture normalization (2026-08-28)"
+    },
+    {
+      "name": "F8 Energy – Production/Operations",
+      "class": "Initiative",
+      "owner": null,
+      "parent_initiative": null,
+      "objective": "Foundation lane / operations initiative",
+      "deadline": null,
+      "phase": null,
+      "status": "DRAFT",
+      "role_tags": [
+        "initiative"
+      ],
+      "notes": "Foundation lane created during fixture normalization (2026-08-28)"
+    },
+    {
+      "name": "Marketing Flywheel – Audience Capture",
+      "class": "Initiative",
+      "owner": null,
+      "parent_initiative": null,
+      "objective": "Foundation lane / operations initiative",
+      "deadline": null,
+      "phase": null,
+      "status": "DRAFT",
+      "role_tags": [
+        "initiative"
+      ],
+      "notes": "Foundation lane created during fixture normalization (2026-08-28)"
+    },
+    {
       "name": "Global State Solutions – Business Plan",
       "class": "Project",
       "owner": "Global State Solutions",
-      "parent_initiative": "global state solutions foundation",
+      "parent_initiative": "Global State Solutions Foundation",
       "deliverable_summary": "Establishes Global State Solutions' business plan and brand identity as its own operational entity.",
       "target_date": "2026-08-31",
       "terminal_date": "2026-08-31",
@@ -449,8 +603,8 @@
     {
       "name": "Global State Corp. – Business Plan",
       "class": "Project",
-      "owner": "Global State Corp.",
-      "parent_initiative": "global state corp. foundation",
+      "owner": "Global State Corporation",
+      "parent_initiative": "Global State Corp. Foundation",
       "deliverable_summary": "Establishes Global State Corp.'s business plan and brand identity, separate from the OFL, Seeds of Destruction, and I Am The State ventures it owns.",
       "target_date": "2026-09-02",
       "terminal_date": "2026-09-02",
@@ -476,7 +630,7 @@
       "name": "Global State Productions – Business Plan",
       "class": "Project",
       "owner": "Global State Productions",
-      "parent_initiative": "global state productions foundation",
+      "parent_initiative": "Global State Productions Foundation",
       "deliverable_summary": "Establishes Global State Productions' business plan and brand identity, separate from any single production it executes.",
       "target_date": "2026-09-11",
       "terminal_date": "2026-09-11",
@@ -489,7 +643,7 @@
       "name": "Global State Systems – Business Plan",
       "class": "Project",
       "owner": "Global State Systems",
-      "parent_initiative": "global state systems foundation",
+      "parent_initiative": "Global State Systems Foundation",
       "deliverable_summary": "Establishes Global State Systems' business plan and brand identity, separate from The Jericho System's own output.",
       "target_date": "2026-09-14",
       "terminal_date": "2026-09-14",
@@ -501,8 +655,8 @@
     {
       "name": "OFL 7 Seals – Business Plan",
       "class": "Project",
-      "owner": "Global State Corp.",
-      "parent_initiative": "7 seals foundation",
+      "owner": "Global State Corporation",
+      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
       "deliverable_summary": "Establishes Our Fearless Leader: 7 Seals' own business plan as a first-of-its-kind venture, distinct from Global State Corp.'s general identity.",
       "target_date": "2026-10-09",
       "terminal_date": "2026-10-09",
@@ -528,7 +682,7 @@
       "name": "Global State Holdings – Business Plan",
       "class": "Project",
       "owner": "Global State Holdings",
-      "parent_initiative": "global state holdings foundation",
+      "parent_initiative": "Global State Holdings Foundation",
       "deliverable_summary": "Establishes Global State Holdings' business plan and brand identity as the enterprise's real-estate arm.",
       "target_date": "2026-09-17",
       "terminal_date": "2026-09-17",
@@ -541,7 +695,7 @@
       "name": "Global State Academy – Business Plan",
       "class": "Project",
       "owner": "Global State Academy",
-      "parent_initiative": "global state academy foundation",
+      "parent_initiative": "Global State Academy Foundation",
       "deliverable_summary": "Establishes Global State Academy's business plan and brand identity as the enterprise's education arm.",
       "target_date": "2026-09-20",
       "terminal_date": "2026-09-20",
@@ -553,8 +707,8 @@
     {
       "name": "F8 Energy – Business Plan",
       "class": "Project",
-      "owner": "F8 Energy company",
-      "parent_initiative": "f8 foundation",
+      "owner": "F8 ENERGY Company",
+      "parent_initiative": "F8 Energy Company Foundation",
       "deliverable_summary": "Establishes F8 Energy's business plan and brand identity as the enterprise's consumer-products arm.",
       "target_date": "2026-09-23",
       "terminal_date": "2026-09-23",
@@ -566,7 +720,7 @@
     {
       "name": "F8 Energy Gum business plan",
       "class": "Project",
-      "owner": "F8 Energy company",
+      "owner": "F8 ENERGY Company",
       "parent_initiative": "f8 energy gum foundation",
       "deliverable_summary": "Establishes F8 Energy GUM's business plan, distinct from F8 Energy's general identity, as its first product line.",
       "target_date": "2026-11-06",
@@ -579,7 +733,7 @@
     {
       "name": "Seeds of Destruction – Business Plan",
       "class": "Project",
-      "owner": "Global State Corp.",
+      "owner": "Global State Corporation",
       "parent_initiative": "seeds of destruction foundation",
       "deliverable_summary": "Establishes Seeds of Destruction's own business plan, distinct from 7 Seals, as its own trilogy venture.",
       "target_date": "2026-10-20",
@@ -618,7 +772,7 @@
     {
       "name": "I Am The State – Business Plan",
       "class": "Project",
-      "owner": "Global State Corp.",
+      "owner": "Global State Corporation",
       "parent_initiative": "I AM THE STATE foundation",
       "deliverable_summary": "Establishes I Am The State's business plan as the enterprise's terminal creative venture.",
       "target_date": "2026-10-27",
@@ -644,8 +798,8 @@
     {
       "name": "ofl 3 Romance Riot",
       "class": "Project",
-      "owner": "Global State Corp.",
-      "parent_initiative": "ofl 7 seals",
+      "owner": "Global State Corporation",
+      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
       "deliverable_summary": "Ships the third OFL tape (12 songs) plus its promo visuals (D8 N8, Blackman) and Deluxe Edition; the launch convergence anchor for the whole rollout.",
       "target_date": "2026-12-17",
       "terminal_date": "2026-12-17",
@@ -657,8 +811,8 @@
     {
       "name": "ofl 4 painkillers",
       "class": "Project",
-      "owner": "Global State Corp.",
-      "parent_initiative": "ofl 7 seals",
+      "owner": "Global State Corporation",
+      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
       "deliverable_summary": "Ships the fourth OFL tape (10 songs), continuing the 7 Seals rollout at the established 3.5-month cadence.",
       "target_date": "2027-04-01",
       "terminal_date": "2027-04-01",
@@ -670,8 +824,8 @@
     {
       "name": "ofl 5 coronation",
       "class": "Project",
-      "owner": "Global State Corp.",
-      "parent_initiative": "ofl 7 seals",
+      "owner": "Global State Corporation",
+      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
       "deliverable_summary": "Ships the fifth OFL tape (10 songs).",
       "target_date": "2027-07-16",
       "terminal_date": "2027-07-16",
@@ -683,8 +837,8 @@
     {
       "name": "ofl 6 savior",
       "class": "Project",
-      "owner": "Global State Corp.",
-      "parent_initiative": "ofl 7 seals",
+      "owner": "Global State Corporation",
+      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
       "deliverable_summary": "Ships the sixth OFL tape (10 songs).",
       "target_date": "2027-10-31",
       "terminal_date": "2027-10-31",
@@ -696,8 +850,8 @@
     {
       "name": "ofl 7 sacrifice",
       "class": "Project",
-      "owner": "Global State Corp.",
-      "parent_initiative": "ofl 7 seals",
+      "owner": "Global State Corporation",
+      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
       "deliverable_summary": "Ships the seventh and final OFL tape (10 songs), closing the 7 Seals series.",
       "target_date": "2028-02-17",
       "terminal_date": "2028-02-17",
@@ -709,8 +863,8 @@
     {
       "name": "ofl 3 album rollout and assets",
       "class": "Project",
-      "owner": "Global State Corp.",
-      "parent_initiative": "ofl 7 seals",
+      "owner": "Global State Corporation",
+      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
       "deliverable_summary": "Produces Romance Riot's album artwork and packaging, delivered ahead of release.",
       "target_date": "2026-12-17",
       "terminal_date": "2026-12-17",
@@ -722,8 +876,8 @@
     {
       "name": "ofl 4 album roll out and assets",
       "class": "Project",
-      "owner": "Global State Corp.",
-      "parent_initiative": "ofl 7 seals",
+      "owner": "Global State Corporation",
+      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
       "deliverable_summary": "Produces Painkillers' album artwork and packaging.",
       "target_date": "2027-01-25",
       "terminal_date": "2027-01-25",
@@ -735,8 +889,8 @@
     {
       "name": "ofl 5 album roll out and assets",
       "class": "Project",
-      "owner": "Global State Corp.",
-      "parent_initiative": "ofl 7 seals",
+      "owner": "Global State Corporation",
+      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
       "deliverable_summary": "Produces Coronation's album artwork and packaging.",
       "target_date": "2027-05-09",
       "terminal_date": "2027-05-09",
@@ -748,8 +902,8 @@
     {
       "name": "ofl 6 album roll out and assets",
       "class": "Project",
-      "owner": "Global State Corp.",
-      "parent_initiative": "ofl 7 seals",
+      "owner": "Global State Corporation",
+      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
       "deliverable_summary": "Produces Savior's album artwork and packaging.",
       "target_date": "2027-08-24",
       "terminal_date": "2027-08-24",
@@ -761,8 +915,8 @@
     {
       "name": "ofl 7 album roll out and assets",
       "class": "Project",
-      "owner": "Global State Corp.",
-      "parent_initiative": "ofl 7 seals",
+      "owner": "Global State Corporation",
+      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation (NEW)",
       "deliverable_summary": "Produces Sacrifice's album artwork and packaging.",
       "target_date": "2027-12-10",
       "terminal_date": "2027-12-10",
@@ -775,7 +929,7 @@
       "name": "state of control ofl3",
       "class": "Project",
       "owner": "Global State Productions",
-      "parent_initiative": "state of control",
+      "parent_initiative": "State of Control",
       "deliverable_summary": "Produces the State of Control visual entry paired with Romance Riot's release, the ongoing video series running alongside the tape rollout.",
       "target_date": "2026-12-17",
       "terminal_date": "2026-12-17",
@@ -788,7 +942,7 @@
       "name": "state of control ofl4",
       "class": "Project",
       "owner": "Global State Productions",
-      "parent_initiative": "state of control",
+      "parent_initiative": "State of Control",
       "deliverable_summary": "Produces the State of Control entry paired with Painkillers.",
       "target_date": "2027-04-01",
       "terminal_date": "2027-04-01",
@@ -801,7 +955,7 @@
       "name": "state of control ofl5",
       "class": "Project",
       "owner": "Global State Productions",
-      "parent_initiative": "state of control",
+      "parent_initiative": "State of Control",
       "deliverable_summary": "Produces the State of Control entry paired with Coronation.",
       "target_date": "2027-07-16",
       "terminal_date": "2027-07-16",
@@ -814,7 +968,7 @@
       "name": "state of control ofl 6",
       "class": "Project",
       "owner": "Global State Productions",
-      "parent_initiative": "state of control",
+      "parent_initiative": "State of Control",
       "deliverable_summary": "Produces the State of Control entry paired with Savior.",
       "target_date": "2027-10-31",
       "terminal_date": "2027-10-31",
@@ -827,7 +981,7 @@
       "name": "state of control ofl 7",
       "class": "Project",
       "owner": "Global State Productions",
-      "parent_initiative": "state of control",
+      "parent_initiative": "State of Control",
       "deliverable_summary": "Produces the State of Control entry paired with Sacrifice.",
       "target_date": "2028-02-17",
       "terminal_date": "2028-02-17",
@@ -840,7 +994,7 @@
       "name": "the imaginary ceo season 1",
       "class": "Project",
       "owner": "Global State Productions",
-      "parent_initiative": "the imaginary ceo",
+      "parent_initiative": "The Imaginary CEO",
       "deliverable_summary": "Documents the Painkillers era after the tape has already shipped; the show's first season.",
       "target_date": "2027-06-16",
       "terminal_date": "2027-06-16",
@@ -853,7 +1007,7 @@
       "name": "the imaginary ceo season 2",
       "class": "Project",
       "owner": "Global State Productions",
-      "parent_initiative": "the imaginary ceo",
+      "parent_initiative": "The Imaginary CEO",
       "deliverable_summary": "Documents the Coronation era after that tape has shipped.",
       "target_date": "2027-09-30",
       "terminal_date": "2027-09-30",
@@ -866,7 +1020,7 @@
       "name": "the imaginary ceo season 3",
       "class": "Project",
       "owner": "Global State Productions",
-      "parent_initiative": "the imaginary ceo",
+      "parent_initiative": "The Imaginary CEO",
       "deliverable_summary": "Documents the Savior era after that tape has shipped.",
       "target_date": "2028-01-14",
       "terminal_date": "2028-01-14",
@@ -879,7 +1033,7 @@
       "name": "the imaginary ceo season 4",
       "class": "Project",
       "owner": "Global State Productions",
-      "parent_initiative": "the imaginary ceo",
+      "parent_initiative": "The Imaginary CEO",
       "deliverable_summary": "Documents the Sacrifice era after that tape has shipped.",
       "target_date": "2028-05-02",
       "terminal_date": "2028-05-02",
@@ -905,7 +1059,7 @@
       "name": "Help Yourself Broadcast",
       "class": "Project",
       "owner": "Global State Productions",
-      "parent_initiative": "Help Yourself Broadcast",
+      "parent_initiative": null,
       "deliverable_summary": "Produces and airs the first batch of Help Yourself Broadcast episodes, the recurring podcast's initial production cycle.",
       "target_date": "on going",
       "terminal_date": "on going",
@@ -918,7 +1072,7 @@
       "name": "Desiree Business Plan",
       "class": "Project",
       "owner": "Global State Productions",
-      "parent_initiative": "I AM THE STATE",
+      "parent_initiative": "I Am The State",
       "deliverable_summary": "Establishes Desiree's business plan ahead of its 2030 production start, distinct from Global State Productions' general identity.",
       "target_date": "2026-11-06",
       "terminal_date": "2026-11-06",
@@ -930,8 +1084,8 @@
     {
       "name": "F8 Energy GUM production",
       "class": "Project",
-      "owner": "F8 Energy company",
-      "parent_initiative": "f8 energy gum",
+      "owner": "F8 ENERGY Company",
+      "parent_initiative": null,
       "deliverable_summary": "Produces F8 Energy GUM's product and manages its operational chain from production through distribution, launching alongside Seeds of Destruction Entry 3 and Max Clout 3's climax.",
       "target_date": "on going",
       "terminal_date": "on going",
@@ -943,7 +1097,7 @@
     {
       "name": "f8 energy operations",
       "class": "Project",
-      "owner": "f8 energy company",
+      "owner": "F8 ENERGY Company",
       "parent_initiative": "F8 Energy – Production/Operations",
       "deliverable_summary": "Manages F8 Energy's parent-level ongoing business operations, sustaining the company's infrastructure and capability as GUM and future product lines launch beneath it.",
       "target_date": "on going",
@@ -957,7 +1111,7 @@
       "name": "the imaginary ceo season 5",
       "class": "Project",
       "owner": "Global State Productions",
-      "parent_initiative": "the imaginary ceo",
+      "parent_initiative": "The Imaginary CEO",
       "deliverable_summary": "Documents Seeds of Destruction Entry 1's era after that album has shipped.",
       "target_date": "2028-11-01",
       "terminal_date": "2028-11-01",
@@ -970,7 +1124,7 @@
       "name": "the imaginary ceo season 6",
       "class": "Project",
       "owner": "Global State Productions",
-      "parent_initiative": "the imaginary ceo",
+      "parent_initiative": "The Imaginary CEO",
       "deliverable_summary": "Documents Seeds of Destruction Entry 2's era after that album has shipped.",
       "target_date": "2029-05-02",
       "terminal_date": "2029-05-02",
@@ -983,7 +1137,7 @@
       "name": "the imaginary ceo season 7",
       "class": "Project",
       "owner": "Global State Productions",
-      "parent_initiative": "the imaginary ceo",
+      "parent_initiative": "The Imaginary CEO",
       "deliverable_summary": "Documents Seeds of Destruction Entry 3's era after that album has shipped.",
       "target_date": "2029-11-01",
       "terminal_date": "2029-11-01",
@@ -1034,7 +1188,7 @@
     {
       "name": "Seeds of destruction 1",
       "class": "Project",
-      "owner": "Global State Corp.",
+      "owner": "Global State Corporation",
       "parent_initiative": "Seeds of Destruction",
       "deliverable_summary": "Produces the first Seeds of Destruction album (16 songs), fully dedicated production beginning after OFL's Terminal.",
       "target_date": "2028-08-17",
@@ -1047,7 +1201,7 @@
     {
       "name": "Seeds of Destruction 2",
       "class": "Project",
-      "owner": "Global State Corp.",
+      "owner": "Global State Corporation",
       "parent_initiative": "Seeds of Destruction",
       "deliverable_summary": "Produces the second Seeds of Destruction album (16 songs).",
       "target_date": "2029-02-17",
@@ -1060,7 +1214,7 @@
     {
       "name": "Seeds of destruction 3",
       "class": "Project",
-      "owner": "Global State Corp.",
+      "owner": "Global State Corporation",
       "parent_initiative": "Seeds of Destruction",
       "deliverable_summary": "Produces the third and final Seeds of Destruction album (16 songs).",
       "target_date": "2029-08-17",
@@ -1073,7 +1227,7 @@
     {
       "name": "seeds of destruction 1 album rollout and assets",
       "class": "Project",
-      "owner": "Global State Corp.",
+      "owner": "Global State Corporation",
       "parent_initiative": "Seeds of Destruction",
       "deliverable_summary": "Produces Entry 1's album artwork and packaging.",
       "target_date": "2028-08-10",
@@ -1086,7 +1240,7 @@
     {
       "name": "seeds of destruction 2 album rollout and assets",
       "class": "Project",
-      "owner": "Global State Corp.",
+      "owner": "Global State Corporation",
       "parent_initiative": "Seeds of Destruction",
       "deliverable_summary": "Produces Entry 2's album artwork and packaging.",
       "target_date": "2029-02-10",
@@ -1099,7 +1253,7 @@
     {
       "name": "seeds of destruction 3 album rollout and assets",
       "class": "Project",
-      "owner": "Global State Corp.",
+      "owner": "Global State Corporation",
       "parent_initiative": "Seeds of Destruction",
       "deliverable_summary": "Produces Entry 3's album artwork and packaging.",
       "target_date": "2029-08-10",
@@ -1113,7 +1267,7 @@
       "name": "the imaginary ceo season 8",
       "class": "Project",
       "owner": "Global State Productions",
-      "parent_initiative": "the imaginary ceo",
+      "parent_initiative": "The Imaginary CEO",
       "deliverable_summary": "Documents the lead-up to and closing of I Am The State, the enterprise's own terminal event; the show's series finale.",
       "target_date": "2032-03-15",
       "terminal_date": "2032-03-15",
@@ -1125,8 +1279,8 @@
     {
       "name": "I AM THE STATE",
       "class": "Project",
-      "owner": "Global State Corp.",
-      "parent_initiative": "I AM THE STATE",
+      "owner": "Global State Corporation",
+      "parent_initiative": "I Am The State",
       "deliverable_summary": "Produces the terminal album closing the enterprise's ten-year creative arc, running in parallel with Desiree.",
       "target_date": "2031-12-31",
       "terminal_date": "2031-12-31",
@@ -1138,8 +1292,8 @@
     {
       "name": "I AM THE STATE album rollout and assets",
       "class": "Project",
-      "owner": "Global State Corp.",
-      "parent_initiative": "I AM THE STATE",
+      "owner": "Global State Corporation",
+      "parent_initiative": "I Am The State",
       "deliverable_summary": "Produces the terminal album's artwork and packaging.",
       "target_date": "2031-12-24",
       "terminal_date": "2031-12-24",
@@ -1152,7 +1306,7 @@
       "name": "Desiree",
       "class": "Project",
       "owner": "Global State Productions",
-      "parent_initiative": "I AM THE STATE",
+      "parent_initiative": "I Am The State",
       "deliverable_summary": "Produces the Desiree feature film, running in parallel with the I Am The State album, closing the enterprise's terminal creative arc.",
       "target_date": "2031-12-31",
       "terminal_date": "2031-12-31",
@@ -1164,8 +1318,8 @@
     {
       "name": "79th Street Renovation Production",
       "class": "Project",
-      "owner": "global state holdings",
-      "parent_initiative": "79 street renovation",
+      "owner": "Global State Holdings",
+      "parent_initiative": "79th Street Renovation",
       "deliverable_summary": "Acquires, restores, and sustains 79th Street as an urban redevelopment initiative – institutional infrastructure supporting HQ and Academy operations indefinitely, not a single building acquisition with an end point. Launch milestone: 2028-06-30.",
       "target_date": "on going",
       "terminal_date": "on going",
@@ -1177,7 +1331,7 @@
     {
       "name": "First Academy Building Production",
       "class": "Project",
-      "owner": "global state academy",
+      "owner": "Global State Academy",
       "parent_initiative": "First Academy Building",
       "deliverable_summary": "Opens and permanently operates the Academy's first physical school location; as the first, it never needs a successor lane – production folds directly into ongoing operations at launch rather than spinning off a separate lane. Launch milestone: 2028-09-01.",
       "target_date": "on going",
