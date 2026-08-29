@@ -590,7 +590,7 @@
       "notes": "Foundation lane created during fixture normalization (2026-08-28)"
     },
     {
-      "name": "Global State Solutions – Business Plan",
+      "name": "Global State Solutions — Business Plan",
       "class": "Project",
       "owner": "Global State Solutions",
       "parent_initiative": "Global State Solutions Foundation",
@@ -605,7 +605,7 @@
       "phaseAnchor": "2026-08-31"
     },
     {
-      "name": "Global State Corp. – Business Plan",
+      "name": "Global State Corp. — Business Plan",
       "class": "Project",
       "owner": "Global State Corporation",
       "parent_initiative": "Global State Corp. Foundation",
@@ -620,7 +620,7 @@
       "phaseAnchor": "2026-09-02"
     },
     {
-      "name": "HYS Broadcast – Business Plan",
+      "name": "HYS Broadcast — Business Plan",
       "class": "Project",
       "owner": "Global State Productions",
       "parent_initiative": "Help Yourself Broadcast foundation",
@@ -635,7 +635,7 @@
       "phaseAnchor": "2026-09-02"
     },
     {
-      "name": "Global State Productions – Business Plan",
+      "name": "Global State Productions — Business Plan",
       "class": "Project",
       "owner": "Global State Productions",
       "parent_initiative": "Global State Productions Foundation",
@@ -650,7 +650,7 @@
       "phaseAnchor": "2026-09-11"
     },
     {
-      "name": "Global State Systems – Business Plan",
+      "name": "Global State Systems — Business Plan",
       "class": "Project",
       "owner": "Global State Systems",
       "parent_initiative": "Global State Systems Foundation",
@@ -665,7 +665,7 @@
       "phaseAnchor": "2026-09-14"
     },
     {
-      "name": "OFL 7 Seals – Business Plan",
+      "name": "OFL 7 Seals — Business Plan",
       "class": "Project",
       "owner": "Global State Corporation",
       "parent_initiative": "ofl 7 seals foundation",
@@ -680,7 +680,7 @@
       "phaseAnchor": "2026-10-09"
     },
     {
-      "name": "Imaginary CEO – Business Plan",
+      "name": "Imaginary CEO — Business Plan",
       "class": "Project",
       "owner": "Global State Productions",
       "parent_initiative": "imaginary ceo foundation",
@@ -695,7 +695,7 @@
       "phaseAnchor": "2026-10-13"
     },
     {
-      "name": "Global State Holdings – Business Plan",
+      "name": "Global State Holdings — Business Plan",
       "class": "Project",
       "owner": "Global State Holdings",
       "parent_initiative": "Global State Holdings Foundation",
@@ -710,7 +710,7 @@
       "phaseAnchor": "2026-09-17"
     },
     {
-      "name": "Global State Academy – Business Plan",
+      "name": "Global State Academy — Business Plan",
       "class": "Project",
       "owner": "Global State Academy",
       "parent_initiative": "Global State Academy Foundation",
@@ -725,7 +725,7 @@
       "phaseAnchor": "2026-09-20"
     },
     {
-      "name": "F8 Energy – Business Plan",
+      "name": "F8 Energy — Business Plan",
       "class": "Project",
       "owner": "F8 ENERGY Company",
       "parent_initiative": null,
@@ -755,7 +755,7 @@
       "phaseAnchor": "2026-11-06"
     },
     {
-      "name": "Seeds of Destruction – Business Plan",
+      "name": "Seeds of Destruction — Business Plan",
       "class": "Project",
       "owner": "Global State Corporation",
       "parent_initiative": "seeds of destruction foundation",
@@ -770,7 +770,7 @@
       "phaseAnchor": "2026-10-20"
     },
     {
-      "name": "79th Street Renovation – Business Plan",
+      "name": "79th Street Renovation — Business Plan",
       "class": "Project",
       "owner": "Global State Holdings",
       "parent_initiative": "79th Street Renovation Foundation",
@@ -785,7 +785,7 @@
       "phaseAnchor": "2026-10-01"
     },
     {
-      "name": "First Academy Building – Business Plan",
+      "name": "First Academy Building — Business Plan",
       "class": "Project",
       "owner": "Global State Academy",
       "parent_initiative": "First Academy Building Foundation",
@@ -800,7 +800,7 @@
       "phaseAnchor": "2026-10-05"
     },
     {
-      "name": "I Am The State – Business Plan",
+      "name": "I Am The State — Business Plan",
       "class": "Project",
       "owner": "Global State Corporation",
       "parent_initiative": "I AM THE STATE foundation",
@@ -1460,7 +1460,7 @@
       "phaseAnchor": "2028-09-01"
     },
     {
-      "name": "Marketing Flywheel – Business Plan",
+      "name": "Marketing Flywheel — Business Plan",
       "class": "Project",
       "owner": "Global State Solutions",
       "parent_initiative": "Marketing Flywheel Foundation",
@@ -1475,7 +1475,7 @@
       "phaseAnchor": "2026-09-18"
     },
     {
-      "name": "Marketing Flywheel – Capture Layer Build",
+      "name": "Marketing Flywheel — Capture Layer Build",
       "class": "Project",
       "owner": "Global State Solutions",
       "parent_initiative": "Marketing Flywheel – Audience Capture",
