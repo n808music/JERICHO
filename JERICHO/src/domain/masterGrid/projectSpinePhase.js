@@ -57,13 +57,11 @@ export function normalizeTargetDateForPhase(rawTargetDate) {
  * @returns {1|2|3|null} canonical phase, or null when no usable terminal date exists
  */
 export function computeProjectSpinePhase(node) {
-  const normalized = normalizeTargetDateForPhase(node?.targetDate);
+  // E15 Sites 1/4 (2026-08-23) + E16 phaseAnchor (2026-08-28): Read from phaseAnchor,
+  // which encodes Terminating (= terminalDate) vs Ongoing (= nearest Deliverable date).
+  // This replaces the prior unimplementable clause about nextMilestone/isOngoing (line 62-66 history).
+  const normalized = normalizeTargetDateForPhase(node?.phaseAnchor);
   if (normalized == null) return null;
-  // nextMilestone/isOngoing are passed as (null, false) deliberately: NEITHER FIELD EXISTS on any
-  // node in identityCompute.js (verified 2026-08-23, zero occurrences). The doctrine's "or Next
-  // Milestone if genuinely ongoing" clause has no source field at this grain and is therefore
-  // unimplementable today — recorded rather than faked. If those fields are ever added, this is
-  // the single place that needs to start reading them.
   const window = computeSpineWindowPhase(normalized, null, false);
   return window == null ? null : (SPINE_TO_CANONICAL[window] ?? null);
 }
