@@ -183,6 +183,15 @@ function buildPickSet(kind, matrixSnapshot) {
       ],
     };
   }
+  if (kind === 'legalFormationPrerequisiteOptions') {
+    return {
+      kind,
+      items: [
+        { id: true, label: 'Yes — required before work starts' },
+        { id: false, label: 'No — work can proceed regardless of formation status' },
+      ],
+    };
+  }
   if (kind === 'initiativeOwnerOptions') {
     // ALL declared entities are offered (2026-07-10). The old [initiative]
     // role-tag filter turned a §2 under-tag into a structural trap: the

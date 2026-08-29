@@ -102,6 +102,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             description: n.deliverable_summary || 'reference',
             verificationSourceId: VERIFICATION_SOURCE_ID,
             targetDate: n.target_date || null,
+            terminalDate: n.terminal_date || n.target_date || null,
           },
         });
       } else if (cls === 'Deliverable') {

@@ -54,7 +54,7 @@ export const PROJECT_SLOT = {
       code: 'PROJECT_LEGAL_FORMATION_MISSING',
       fieldName: 'requiresLegalFormation',
       detect: (captured) => captured?.requiresLegalFormation === undefined || captured?.requiresLegalFormation === null,
-      pickSet: 'yesNoOptions',
+      pickSet: 'legalFormationPrerequisiteOptions',
     },
   ],
 };

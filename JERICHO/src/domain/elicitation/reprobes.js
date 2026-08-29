@@ -88,7 +88,7 @@ export const REPROBES = {
   PROJECT_LEGAL_FORMATION_MISSING: {
     spine:
       'Does this project require the owning entity to be legally formed (LLC, corporation, etc.) before work can proceed?',
-    pickSet: 'yesNoOptions',
+    pickSet: 'legalFormationPrerequisiteOptions',
     examples: { musician: '', founder: '', writer: '', generic: '' },
   },
   VERIFICATION_SOURCE_SOURCE_MISSING: {

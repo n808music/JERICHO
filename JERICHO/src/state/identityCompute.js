@@ -16560,6 +16560,14 @@ function declareProject(state, payload = {}) {
   }
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
   const requiresLegalFormation = payload?.requiresLegalFormation !== undefined ? Boolean(payload.requiresLegalFormation) : false;
+
+  // Task 1: Compute boundaryType and phaseAnchor from terminalDate
+  const terminalDate = String(payload?.terminalDate || '').trim() || null;
+  const isOngoing = terminalDate && terminalDate.toLowerCase().includes('on going');
+  const boundaryType = isOngoing ? 'ongoing' : (terminalDate ? 'terminating' : null);
+  // phaseAnchor: if terminating, use terminalDate; if ongoing, use nearest milestone (deferred for now)
+  const phaseAnchor = boundaryType === 'terminating' ? terminalDate : null;
+
   state.matrix.projectsById[id] = {
     id,
     name,
@@ -16568,12 +16576,15 @@ function declareProject(state, payload = {}) {
     status: String(payload?.status || '').trim() || null,
     desiredOutcome: String(payload?.desiredOutcome || '').trim() || null,
     targetDate: String(payload?.targetDate || '').trim() || null,
+    terminalDate: terminalDate,
+    boundaryType: boundaryType,
+    phaseAnchor: phaseAnchor,
     description,
     verificationSourceId,
     evidenceProduced: String(payload?.evidenceProduced || '').trim() || null,
     notes: String(payload?.notes || '').trim() || null,
-    // No stored `phase` (E15 Sites 1/4, 2026-08-23): Phase(Project) is computed from targetDate
-    // by computeProjectSpinePhase(), never stored or hand-fed. Phase 2a removed intake's phase
+    // No stored `phase` (E15 Sites 1/4, 2026-08-23): Phase(Project) is computed from phaseAnchor
+    // by computeSpineWindowPhase(), never stored or hand-fed. Phase 2a removed intake's phase
     // QUESTION but left this payload key accepting one — a write path with no legitimate producer,
     // the same phantom shape E16 closed on Initiative. A `phase` key in the payload is ignored.
     requiresLegalFormation,
