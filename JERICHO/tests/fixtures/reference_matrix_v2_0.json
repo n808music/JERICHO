@@ -1142,7 +1142,7 @@
       "work_state": null,
       "notes": "Source of truth: youtube channel",
       "boundaryType": "Ongoing",
-      "phaseAnchor": null
+      "phaseAnchor": "2026-09-30"
     },
     {
       "name": "Desiree Business Plan",
@@ -1172,7 +1172,7 @@
       "work_state": null,
       "notes": "Source of truth: company bank account",
       "boundaryType": "Ongoing",
-      "phaseAnchor": null
+      "phaseAnchor": "2029-08-31"
     },
     {
       "name": "f8 energy operations",
