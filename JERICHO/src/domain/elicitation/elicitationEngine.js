@@ -272,6 +272,7 @@ function buildPickSet(kind, matrixSnapshot) {
       ['initiativesById', 'initiative'],
       ['systemsById', 'system'],
       ['projectsById', 'project'],
+      ['deliverablesById', 'deliverable'],
       ['artifactsById', 'artifact'],
     ];
     for (const [reg, nodeType] of registries) {
@@ -347,7 +348,7 @@ function subjectNameFor(slotId, captured, matrixSnapshot) {
     const to = String(captured?.toNodeId || '').trim();
     if (!to) return '';
     const snap = matrixSnapshot || {};
-    for (const reg of ['entitiesById', 'initiativesById', 'systemsById', 'projectsById', 'artifactsById']) {
+    for (const reg of ['entitiesById', 'initiativesById', 'systemsById', 'projectsById', 'deliverablesById', 'artifactsById']) {
       const node = snap[reg]?.[to];
       if (node) return String(node.name || to);
     }

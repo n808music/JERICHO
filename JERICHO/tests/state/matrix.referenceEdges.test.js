@@ -22,7 +22,7 @@ describe('loadReferenceMatrix edges + milestone (Gate 5 data layer)', () => {
     expect(kinds.has('ships_with')).toBe(true);
     expect(kinds.has('soundtrack_of')).toBe(true);
     const nodeIds = new Set([
-      ...Object.keys(m.projectsById), ...Object.keys(m.artifactsById),
+      ...Object.keys(m.projectsById), ...Object.keys(m.deliverablesById), ...Object.keys(m.artifactsById),
       ...Object.keys(m.initiativesById), ...Object.keys(m.entitiesById), ...Object.keys(m.systemsById),
     ]);
     for (const l of links) {

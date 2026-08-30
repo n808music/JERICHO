@@ -12,7 +12,10 @@ describe('Master Grid acceptance', () => {
   it('AC1: seed renders exactly 53 rows with 7/11/17/12/6', () => {
     const matrix = loadReferenceMatrix(fixture, { nowISO: '2026-07-08T00:00:00Z' }).matrix;
     const counts = countByClass(selectMasterGridRows(matrix));
-    expect(counts).toEqual({ total: 53, Entity: 7, Initiative: 11, Project: 17, Deliverable: 12, System: 6 });
+    // Artifact: 0 — v1.4 carries no Artifact-class node. The key is present because
+    // countByClass enumerates all six classes; before the 2026-08-29 loader fix these
+    // 12 Deliverables were miscounted as Artifacts.
+    expect(counts).toEqual({ total: 53, Entity: 7, Initiative: 11, Project: 17, Deliverable: 12, Artifact: 0, System: 6 });
   });
 
   it('AC2: names byte-identical to the seed file', () => {
@@ -51,7 +54,7 @@ describe('Master Grid acceptance', () => {
     const { matrix } = loadReferenceMatrix(fixture, { nowISO: '2026-07-08T00:00:00Z' });
     const byId = {
       ...matrix.entitiesById, ...matrix.initiativesById, ...matrix.projectsById,
-      ...matrix.artifactsById, ...matrix.systemsById,
+      ...matrix.deliverablesById, ...matrix.artifactsById, ...matrix.systemsById,
     };
     const mismatches = [];
     for (const node of fixture.nodes) {

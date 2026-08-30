@@ -9,7 +9,7 @@ function setStore(matrix) {
 }
 
 const emptyMatrix = () => ({
-  projectsById: {}, artifactsById: {}, initiativesById: {}, entitiesById: {}, systemsById: {},
+  projectsById: {}, deliverablesById: {}, artifactsById: {}, initiativesById: {}, entitiesById: {}, systemsById: {},
   matrixLinksById: {}, milestonesById: {},
 });
 const withProjects = () => ({
@@ -143,9 +143,12 @@ describe('MasterGridTab (phase-grouped, D1/D2)', () => {
     const matrix = {
       ...emptyMatrix(),
       projectsById: { pj: { id: 'pj', name: 'Jericho', phase: '1', targetDate: '2026-10-17', reviewStatus: 'CONFIRMED' } },
-      artifactsById: {
-        app: { id: 'app', name: 'Jericho APP', phase: '1', targetDate: '2026-10-17', producingProjectId: 'pj', reviewStatus: 'CONFIRMED' },
-        pat: { id: 'pat', name: 'Patent', phase: '1', targetDate: '2026-09-11', producingProjectId: 'pj', reviewStatus: 'CONFIRMED' },
+      // Lanes are Deliverables, and a Deliverable reaches its parent by owningProjectId.
+      // This fixture seeded them into artifactsById with producingProjectId until 2026-08-29,
+      // mirroring the loader's inverted dispatch; phaseGridFromStore reads deliverablesById.
+      deliverablesById: {
+        app: { id: 'app', name: 'Jericho APP', phase: '1', targetDate: '2026-10-17', owningProjectId: 'pj', reviewStatus: 'CONFIRMED' },
+        pat: { id: 'pat', name: 'Patent', phase: '1', targetDate: '2026-09-11', owningProjectId: 'pj', reviewStatus: 'CONFIRMED' },
       },
       milestonesById: { ms1: { id: 'ms1', name: 'Oct 17', date: '2026-10-17', laneIds: ['app', 'pat'] } },
     };

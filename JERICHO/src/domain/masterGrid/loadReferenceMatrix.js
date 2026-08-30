@@ -5,7 +5,11 @@ export function slugId(name) {
   return String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
-const CLASS_SEQUENCE = ['Entity', 'Initiative', 'Project', 'Deliverable', 'System'];
+// Declaration order. Artifact follows Deliverable because an Artifact's
+// producingProjectId is resolved through its parent Deliverable, which must
+// already be declared. Artifact was absent here until 2026-08-29, which silently
+// skipped every Artifact-class node in the fixture (122 of 304 in v2.0).
+const CLASS_SEQUENCE = ['Entity', 'Initiative', 'Project', 'Deliverable', 'Artifact', 'System'];
 const VERIFICATION_SOURCE_ID = 'vs-reference';
 
 // Some reference-matrix rows carry an abbreviated owner/produced_by string
@@ -106,11 +110,47 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
           },
         });
       } else if (cls === 'Deliverable') {
+        // Was DECLARE_ARTIFACT until 2026-08-29: fixture Deliverables were filed
+        // into artifactsById, leaving deliverablesById empty. masterGridSelectors
+        // has always mapped the two slices to two distinct classes, so the loader
+        // was the single point of divergence.
+        //
+        // owningInitiativeId is required by declareMatrixDeliverable and has no
+        // fixture field of its own — a Deliverable inherits it from the Project
+        // that owns it, which is already declared (Project precedes Deliverable in
+        // CLASS_SEQUENCE). A Project with no resolved initiative yields null here,
+        // and the reducer rejects that Deliverable rather than inventing a parent.
+        const owningProjectId = resolve(n.parent_project);
+        const owningInitiativeId = owningProjectId
+          ? state.matrix?.projectsById?.[owningProjectId]?.owningInitiativeId || null
+          : null;
+        dispatch({
+          type: 'DECLARE_DELIVERABLE',
+          payload: {
+            ...common,
+            owningProjectId,
+            owningInitiativeId,
+            successCriteria: n.what_ships || null,
+            targetDate: n.target_date || null,
+          },
+        });
+      } else if (cls === 'Artifact') {
+        // declareArtifact binds an Artifact to a PROJECT (producingProjectId), while
+        // the fixture models Artifact -> Deliverable (parent_deliverable). The Project
+        // is therefore reached through the parent Deliverable declared on the previous
+        // pass. In v2.0 every Artifact has parent_deliverable: null, so this resolves
+        // to null and the reducer rejects all 122 — the correct, visible outcome for
+        // absent linkage. See docs/superpowers/specs/2026-08-29-bug-a-live-migration-spec.md
+        // (preconditions P4 and P7) for the fixture-authoring work that closes this.
+        const parentDeliverableId = resolve(n.parent_deliverable);
+        const producingProjectId = parentDeliverableId
+          ? state.matrix?.deliverablesById?.[parentDeliverableId]?.owningProjectId || null
+          : null;
         dispatch({
           type: 'DECLARE_ARTIFACT',
           payload: {
             ...common,
-            producingProjectId: resolve(n.parent_project),
+            producingProjectId,
             producedByEntityId: resolveEntity(n.produced_by),
             completionEvidence: n.what_ships || 'reference',
             verificationSourceId: VERIFICATION_SOURCE_ID,

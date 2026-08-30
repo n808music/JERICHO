@@ -6,7 +6,7 @@ export const CONVERGENCE_SLOT_ID = 'slot:convergence';
 function declaredAllNodeIds(matrixSnapshot: unknown): Set<string> {
   const snap = matrixSnapshot as Record<string, unknown> | undefined;
   const ids = new Set<string>();
-  for (const reg of ['entitiesById', 'initiativesById', 'systemsById', 'projectsById', 'artifactsById']) {
+  for (const reg of ['entitiesById', 'initiativesById', 'systemsById', 'projectsById', 'deliverablesById', 'artifactsById']) {
     for (const id of Object.keys((snap?.[reg] as Record<string, unknown>) || {})) {
       ids.add(id);
     }
