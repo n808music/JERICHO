@@ -1,0 +1,20 @@
+---
+name: project_matrix_intake_defects
+description: "Live-run intake defects A/B/C fixed 2026-07-05 — dark-theme-tokens-on-white-shell ghosting, resume architecture, one-ask copy"
+metadata: 
+  node_type: memory
+  type: project
+  originSessionId: 8164b06a-b4f7-4b17-82ee-8adc5e932509
+---
+
+Three live-run goal-entry defects in `src/ui/masterPlan/MatrixIntake.jsx` fixed 2026-07-05 (commits 837efc6, 7709f79, 371b579 on execution-readiness-wip; baseline 27+1 held throughout).
+
+**Defect A — ghosting root-cause class (watch for recurrence):** the intake card is authored in DARK-theme color tokens (question text `#f4f4f5` near-white, greys `#71717a`) but renders on the app's `bg-white` shell (StructurePageConsolidated, no dark wrapper). Near-white text vanished on white while muted greys stayed readable — the hierarchy inverted. This is why "6 tests passed" yet it looked broken: the tests asserted the isFirstField/eyebrow mechanism, never the render-context contrast. Fixed by recoloring card text near-black (question `#18181b` 18px/700). NOTE: the first A commit missed the Scope/Loop/Done screens (same `#f4f4f5` ghosting) — completed in 371b579. If touching any intake screen, verify text color against the LIGHT background, not dark. Acceptance test asserts computed luminance/size/weight of the rendered question node (tests/components/MatrixIntake.questionContrast.test.jsx).
+
+**Defect B — resume architecture (new capability):** intake session now persists per cycle in `state.intakeSessionByCycleId` (SET_INTAKE_SESSION / CLEAR_INTAKE_SESSION in identityCompute switch). The engine gained an additive Wave-1 restore path: `createElicitationEngine({ restoreState })` rebuilds the slot stack (with per-slot captured answers) from a prior `snapshotState()`. MatrixIntake rehydrates on mount, persists on step transitions + unmount (NOT per keystroke — inputValue via ref, excluded from persist-effect deps), and shows a "Resumed intake" banner. Session is retired on completion AND on goal clear (RESET_IDENTITY rebuilds blank + buildPersistableIdentityState prunes dropped-cycle sessions) — a resumable session for a dead goal is the [[project_outcome_validity_package]] Gap-4 class.
+
+**Defect C — one ask per probe:** SECTION_FRAMING + SCOPE_QUESTIONS compound asks rewritten to single concept. Scope-question branch polarity lives in the buttons (onYes→enter, onSkip→advance), not the wording — so copy changes are behavior-safe; the test asserts that behavior, not strings.
+
+**Defect E — list-capture slots capture lists (Gap 2's REAL resolution; commit f485dfe, 2026-07-06).** Live screenshot proved the earlier fan-out iterated a length-1 list: the free-text `name` field stored a whole pasted multi-entity paragraph as ONE entity, and `applyReferentBinding` interpolated it verbatim wrapped in literal `**` markers (the UI renders the spine as plain text — no markdown parser — so the `**` showed). The nine referent-binding tests passed because in the old system EVERYTHING was single-entity. Fix (deterministic doctrine — change the input, don't parse it): the five node slots (Entity/Initiative/System/Project/Artifact) now use a `RosterScreen` chip entry (name → removable chip → array by construction), then fan out one detail pass per name by seeding a single-slot engine via the Defect-B `restoreState` path (`seedNodeEngine`); N chips → N keyed `DECLARE_X`. This REPLACED the old per-item "add another?" LoopCheckScreen loop for node slots. Binding is now plain text (no `**`). Session persists rosterNames/rosterIndex/rosterSlotId for resume. Relational slots (dependency/convergence/resource) and singletons (binding/bootstrap) were NOT rostered — they pick from declared nodes or capture one. LESSON reinforced: acceptance-property tests must be walked LIVE — the whole-system single-entity assumption was invisible to every unit test until the live run.
+
+Next live target (per user): 3 entity names → 3 chips → each described by name, plain text → 3 keyed. Then push through all ten sections — the predicted next seam is matrix → schedule generation.
