@@ -3,30 +3,21 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { loadReferenceMatrix, slugId } from '../../src/domain/masterGrid/loadReferenceMatrix.js';
 
-const fixture = JSON.parse(fs.readFileSync(path.resolve('tests/fixtures/reference_matrix_v2_0.json'), 'utf8'));
+const fixture = JSON.parse(fs.readFileSync(path.resolve('tests/fixtures/reference_matrix_v3_0.json'), 'utf8'));
 
 describe('loadReferenceMatrix', () => {
-  it('declares all nodes from the corrected matrix v2.0 with proper breakdown', () => {
+  it('declares all nodes from the corrected matrix v3.0 with proper breakdown', () => {
     const m = loadReferenceMatrix(fixture, { nowISO: '2026-08-28T00:00:00Z' }).matrix;
-    // v2.0 fixture: 7 Entity / 41 Initiative / 60 Project / 64 Deliverable / 122 Artifact / 10 System.
+    // v3.0 fixture: 7 Entity / 29 Initiative / 59 Project / 63 Deliverable / 175 Artifact / 10 System.
     expect(Object.keys(m.entitiesById)).toHaveLength(7);
-    expect(Object.keys(m.initiativesById).length).toBeGreaterThanOrEqual(30); // At least 30 from CSV
-    expect(Object.keys(m.projectsById)).toHaveLength(60);
+    expect(Object.keys(m.initiativesById)).toHaveLength(29);
+    expect(Object.keys(m.projectsById)).toHaveLength(59);
     expect(Object.keys(m.systemsById)).toHaveLength(10);
 
-    // Deliverables: 47 of 64. The 17 shortfall is a FIXTURE gap, not a loader defect —
-    // declareMatrixDeliverable requires owningInitiativeId, which a Deliverable inherits
-    // from its parent Project, and exactly 14 Projects carry parent_initiative: null.
-    // Zero references are unresolvable; nothing is misresolving.
-    expect(Object.keys(m.deliverablesById)).toHaveLength(47);
-
-    // Artifacts: 0 of 122. declareArtifact requires producingProjectId, reached through
-    // parent_deliverable — null on all 122 in v2.0. The Artifact branch exists and is
-    // correct; the linkage data does not yet. Asserted at 0 so the gap stays visible
-    // rather than silently skipped, as it was before the 2026-08-29 CLASS_SEQUENCE fix.
-    // Closing this is preconditions P4/P7 of
-    // docs/superpowers/specs/2026-08-29-bug-a-live-migration-spec.md.
-    expect(Object.keys(m.artifactsById)).toHaveLength(0);
+    // v3.0 includes full Deliverable and Artifact migration: all 63 Deliverables
+    // and all 175 Artifacts are valid and loaded with proper parent linkages.
+    expect(Object.keys(m.deliverablesById)).toHaveLength(63);
+    expect(Object.keys(m.artifactsById)).toHaveLength(175);
   });
 
   // The invariant under test is that loadReferenceMatrix NEVER rewrites a node's name —
