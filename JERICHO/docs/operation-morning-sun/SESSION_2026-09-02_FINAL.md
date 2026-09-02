@@ -43,7 +43,7 @@ All memory files moved from private store to `docs/`. MEMORY.md now indexes sess
 | 3 | ✓ Ready | milestone-stored-date-fix.md |
 | 4 | ⚠️ Blocked | boundarytype-regression-finding.md |
 
-**Baseline**: 48 failures (clean commit, no boundaryType edits)
+**Baseline**: 47 failures, 4399 passing (clean commit 9d29da5, no boundaryType edits)
 **Known-bad state**: Reverted boundaryType commit (v3.0 Ongoing projects have string "Ongoing" as phaseAnchor)
 
 ## Next Session
