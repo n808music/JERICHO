@@ -110,28 +110,26 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
           },
         });
       } else if (cls === 'Deliverable') {
-        // Was DECLARE_ARTIFACT until 2026-08-29: fixture Deliverables were filed
-        // into artifactsById, leaving deliverablesById empty. masterGridSelectors
-        // has always mapped the two slices to two distinct classes, so the loader
-        // was the single point of divergence.
+        // Deliverable intake design (2026-09-02): locked definition with six fixture properties.
+        // Clause 1: shippable unit within exactly one Project.
+        // Clause 2: executed by exactly one Entity, may differ from Project owner.
+        // Clause 3: carries own target_date; Phase derives from parent Project's terminal date.
+        // Clause 6: scheduling grain — buffers and dependencies attach here.
         //
-        // owningInitiativeId is required by declareMatrixDeliverable and has no
-        // fixture field of its own — a Deliverable inherits it from the Project
-        // that owns it, which is already declared (Project precedes Deliverable in
-        // CLASS_SEQUENCE). A Project with no resolved initiative yields null here,
-        // and the reducer rejects that Deliverable rather than inventing a parent.
-        const owningProjectId = resolve(n.parent_project);
-        const owningInitiativeId = owningProjectId
-          ? state.matrix?.projectsById?.[owningProjectId]?.owningInitiativeId || null
-          : null;
+        // Fixture provides: parent_project, executing_entity, target_date, what_ships (44% fill,
+        // relabeled to description), buffer_anchor (32%), buffer_binding (32%, paired with anchor).
+        const parent_project = resolve(n.parent_project);
+        const executing_entity = resolve(n.executing_entity);
         dispatch({
           type: 'DECLARE_DELIVERABLE',
           payload: {
             ...common,
-            owningProjectId,
-            owningInitiativeId,
-            successCriteria: n.what_ships || null,
-            targetDate: n.target_date || null,
+            parent_project,
+            executing_entity,
+            target_date: n.target_date || null,
+            description: n.what_ships || null,
+            buffer_anchor: n.buffer_anchor || null,
+            buffer_binding: n.buffer_binding || null,
           },
         });
       } else if (cls === 'Artifact') {
@@ -144,7 +142,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
         // (preconditions P4 and P7) for the fixture-authoring work that closes this.
         const parentDeliverableId = resolve(n.parent_deliverable);
         const producingProjectId = parentDeliverableId
-          ? state.matrix?.deliverablesById?.[parentDeliverableId]?.owningProjectId || null
+          ? state.matrix?.deliverablesById?.[parentDeliverableId]?.parent_project || null
           : null;
         dispatch({
           type: 'DECLARE_ARTIFACT',

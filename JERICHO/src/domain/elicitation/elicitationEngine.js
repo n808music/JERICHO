@@ -47,6 +47,10 @@ import {
   SYSTEM_ACTIVATION_STATES,
 } from './systemSlot';
 import {
+  DELIVERABLE_SLOT,
+  buildDeliverableDeclarePayload,
+} from './slots/deliverableSlot';
+import {
   ARTIFACT_SLOT,
   ARTIFACT_SLOT_ID,
   buildArtifactDeclarePayload,
