@@ -48,22 +48,27 @@ describe('loadReferenceMatrix', () => {
   it('resolves entity owners correctly to declared entities', () => {
     const m = loadReferenceMatrix(fixture, { nowISO: '2026-08-28T00:00:00Z' }).matrix;
 
-    // Pick a known entity and verify projects that own under it resolve correctly
-    const gsId = slugId('Global State Solutions');
-    expect(m.entitiesById[gsId]).toBeTruthy();
-    expect(m.entitiesById[gsId].name).toBe('Global State Solutions');
+    // Pick a known entity and verify projects that own under it resolve correctly.
+    // IDs now use type-prefix scheme: entity-${slug}, project-${slug}, etc.
+    const gsSlug = slugId('Global State Solutions');
+    const gsEntityId = `entity-${gsSlug}`;
+
+    // Verify the entity exists with the prefixed ID
+    expect(m.entitiesById[gsEntityId]).toBeTruthy();
+    expect(m.entitiesById[gsEntityId].name).toBe('Global State Solutions');
 
     // Find projects owned by this entity
     const ownedProjects = fixture.nodes.filter(
       (n) => n.class === 'Project' && n.owner === 'Global State Solutions'
     );
 
-    // Verify they all resolve correctly
+    // Verify they all resolve correctly with their prefixed parent entity ID
     if (ownedProjects.length > 0) {
       for (const p of ownedProjects) {
-        const stored = m.projectsById[slugId(p.name)];
+        const projectId = `project-${slugId(p.name)}`;
+        const stored = m.projectsById[projectId];
         expect(stored).toBeTruthy();
-        expect(stored.owningEntityId).toBe(gsId);
+        expect(stored.owningEntityId).toBe(gsEntityId);
       }
     }
   });
@@ -76,11 +81,13 @@ describe('loadReferenceMatrix', () => {
       (n) => (n.class === 'Initiative' || n.class === 'System') && !n.owner
     );
 
-    // Verify they resolve with null owningEntityId
+    // Verify they resolve with null owningEntityId.
+    // IDs now use type-prefix scheme: initiative-${slug}, system-${slug}.
     if (nullOwners.length > 0) {
       for (const n of nullOwners) {
         const bucket = n.class === 'Initiative' ? m.initiativesById : m.systemsById;
-        const stored = bucket[slugId(n.name)];
+        const prefix = n.class === 'Initiative' ? 'initiative-' : 'system-';
+        const stored = bucket[`${prefix}${slugId(n.name)}`];
         if (stored) {
           expect(stored.owningEntityId).toBe(null);
         }

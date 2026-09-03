@@ -59,7 +59,16 @@ describe('Master Grid acceptance', () => {
     const mismatches = [];
     for (const node of fixture.nodes) {
       if (node.class === 'Initiative') continue;
-      const stored = byId[slugId(node.name)];
+      // IDs now use type-prefix scheme per class (entity-${slug}, project-${slug}, etc.)
+      const prefix = {
+        'Entity': 'entity-',
+        'Initiative': 'initiative-',
+        'Project': 'project-',
+        'Deliverable': 'deliverable-',
+        'System': 'system-',
+        'Artifact': '', // Artifact uses bare slug
+      }[node.class] || '';
+      const stored = byId[`${prefix}${slugId(node.name)}`];
       const canonPhase = node.phase ?? null;
       const storedPhase = stored ? stored.phase ?? null : '(node missing)';
       if (String(storedPhase) !== String(canonPhase)) {

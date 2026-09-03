@@ -39,6 +39,50 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
   for (const n of nodes) idByName.set(n.name, slugId(n.name));
   const resolve = (nm) => (nm && idByName.has(nm) ? idByName.get(nm) : null);
 
+  // Apply class-specific prefix to node ids (aligns with builder schemes).
+  // Builder schemes: entity-${slug}, initiative-${slug}, project-${slug}, deliverable-${slug},
+  // system-${slug}; artifact uses bare slug (matches loader).
+  const getNodeIdForClass = (slug, nodeClass) => {
+    switch (nodeClass) {
+      case 'Entity': return `entity-${slug}`;
+      case 'Initiative': return `initiative-${slug}`;
+      case 'Project': return `project-${slug}`;
+      case 'Deliverable': return `deliverable-${slug}`;
+      case 'System': return `system-${slug}`;
+      case 'Artifact': return slug; // Artifact builder uses bare slug
+      default: return slug;
+    }
+  };
+
+  // Class-specific resolvers for parent references (knows the class from the context).
+  // These avoid collision issues because the reference field name implies the class.
+  const resolveInitiative = (nm) => {
+    const baseId = resolve(nm);
+    return baseId ? getNodeIdForClass(baseId, 'Initiative') : null;
+  };
+  const resolveProject = (nm) => {
+    const baseId = resolve(nm);
+    return baseId ? getNodeIdForClass(baseId, 'Project') : null;
+  };
+  const resolveDeliverable = (nm) => {
+    const baseId = resolve(nm);
+    return baseId ? getNodeIdForClass(baseId, 'Deliverable') : null;
+  };
+  const resolveSystem = (nm) => {
+    const baseId = resolve(nm);
+    return baseId ? getNodeIdForClass(baseId, 'System') : null;
+  };
+
+  // For edges/milestones where the class is unknown, look up the node to determine class.
+  // Cache the results to avoid repeated searches.
+  const nodesByName = new Map(nodes.map((n) => [n.name, n]));
+  const resolveGeneric = (nm) => {
+    const node = nodesByName.get(nm);
+    if (!node) return null;
+    const baseId = resolve(nm);
+    return baseId ? getNodeIdForClass(baseId, node.class) : null;
+  };
+
   let state = buildBlankIdentityState({ nowISO });
   state.appTime = { ...(state.appTime || {}), nowISO };
   const dispatch = (action) => {
@@ -50,11 +94,14 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
   // that is not an alias and not a declared entity (e.g. "Cross-cutting")
   // resolves to null. Entities are declared before any referencing class, so
   // state.matrix.entitiesById is populated by the time this runs for owners.
+  // Entity IDs use type-prefix scheme (entity-${slug}) to align with builder.
   const resolveEntity = (nm) => {
     if (!nm) return null;
     const canonical = ENTITY_ALIASES[nm] || nm;
-    const id = idByName.get(canonical);
-    return id && state.matrix?.entitiesById?.[id] ? id : null;
+    const baseId = idByName.get(canonical);
+    if (!baseId) return null;
+    const entityId = `entity-${baseId}`;
+    return state.matrix?.entitiesById?.[entityId] ? entityId : null;
   };
 
   // Single shared verification source so Project/Deliverable required refs resolve.
@@ -65,7 +112,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
 
   for (const cls of CLASS_SEQUENCE) {
     for (const n of nodes.filter((x) => x.class === cls)) {
-      const id = idByName.get(n.name);
+      const id = getNodeIdForClass(slugId(n.name), n.class);
       const common = {
         id,
         name: n.name,
@@ -102,7 +149,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
           payload: {
             ...common,
             owningEntityId: resolveEntity(n.owner),
-            owningInitiativeId: resolve(n.parent_initiative),
+            owningInitiativeId: resolveInitiative(n.parent_initiative),
             description: n.deliverable_summary || 'reference',
             verificationSourceId: VERIFICATION_SOURCE_ID,
             targetDate: n.target_date || null,
@@ -120,7 +167,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
         // that owns it, which is already declared (Project precedes Deliverable in
         // CLASS_SEQUENCE). A Project with no resolved initiative yields null here,
         // and the reducer rejects that Deliverable rather than inventing a parent.
-        const owningProjectId = resolve(n.parent_project);
+        const owningProjectId = resolveProject(n.parent_project);
         const owningInitiativeId = owningProjectId
           ? state.matrix?.projectsById?.[owningProjectId]?.owningInitiativeId || null
           : null;
@@ -142,7 +189,8 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
         // to null and the reducer rejects all 122 — the correct, visible outcome for
         // absent linkage. See docs/superpowers/specs/2026-08-29-bug-a-live-migration-spec.md
         // (preconditions P4 and P7) for the fixture-authoring work that closes this.
-        const parentDeliverableId = resolve(n.parent_deliverable);
+        // Deliverables use type-prefix scheme (deliverable-${slug}) to align with builder.
+        const parentDeliverableId = resolveDeliverable(n.parent_deliverable);
         const producingProjectId = parentDeliverableId
           ? state.matrix?.deliverablesById?.[parentDeliverableId]?.owningProjectId || null
           : null;
@@ -185,7 +233,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
     if (e.type === 'converges') {
       // "from" is the milestone name; "to" is a semicolon list of lane node names.
       const laneNames = String(to || '').split(';').map((s) => s.trim()).filter(Boolean);
-      const laneIds = laneNames.map(resolve).filter(Boolean);
+      const laneIds = laneNames.map(resolveGeneric).filter(Boolean);
       // Derive the milestone date from the latest lane target_date (the anchor).
       const laneDates = laneNames
         .map((nm) => (nodes.find((n) => n.name === nm) || {}).target_date)
@@ -196,8 +244,8 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
         dispatch({ type: 'DECLARE_MILESTONE', payload: { id: `ms-${++msSeq}`, name: String(from || '').trim(), date, laneIds } });
       }
     } else {
-      const fromId = resolve(from);
-      const toId = resolve(to);
+      const fromId = resolveGeneric(from);
+      const toId = resolveGeneric(to);
       if (fromId && toId) {
         dispatch({ type: 'DECLARE_MATRIX_LINK', payload: { id: `link-${++linkSeq}`, kind: e.type, fromId, toId } });
       }
