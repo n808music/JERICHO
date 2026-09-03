@@ -24,8 +24,6 @@ Doctrine (locked, Phase Assignment Rule) — **as amended by E16, 2026-08-23:**
 >
 > Deliverables/Artifacts pure-copy parent **Project's** Phase. *(Was: "parent Initiative's Phase" — re-pointed by E16, since a phase-less Initiative has no value to copy. Project is now the only real per-node computed Phase below Initiative.)*
 >
-> **⚠️ [KNOWN WRONG — HELD FOR AMENDMENT]** The Artifacts half of the above statement is incorrect. Artifacts copy from parent **Deliverable**, not Project. Correct form: "Deliverables pure-copy their parent Project's Phase. Artifacts pure-copy their parent Deliverable's Phase." This amendment is blocked pending `parentDeliverableIds` field addition; see active decision record for full context and consequences (copy-of-copy chain, direct Project read prohibition).
->
 > Cross-Phase displays earliest computed sub-unit Phase. *(Unchanged in wording. At the Initiative grain this is a **live rollup over owned Projects, computed at read time** — never persisted as `initiative.phase`, never attestable.)*
 
 > **Provenance of this doctrine block `[CONVERSATIONAL-DECISION → committed here 2026-08-23]`:** only the first line ("Phase(Initiative) = spine-window…") previously existed in this repo, in this file. The "pure-copy" and "Cross-Phase" lines were maintained **in conversation only** — a whole-tree walk (1456 files) on 2026-08-23 found zero occurrences of `pure-copy`, `Cross-Phase`, or `earliest computed` anywhere in the repo. They are transcribed here for the first time, already carrying E16's amendment. Per this document's own provenance rule: do not treat them as having been verified against the codebase merely because they now live in a file — no code has yet been checked for compliance with either line.

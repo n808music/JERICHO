@@ -16719,96 +16719,48 @@ function declareMatrixDeliverable(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
   const name = String(payload?.name || '').trim();
-  const parent_project = String(payload?.parent_project || '').trim();
-  const executing_entity = String(payload?.executing_entity || '').trim();
-  const target_date = String(payload?.target_date || '').trim();
-
-  // Locked definition requires: name, parent_project, executing_entity, target_date.
-  if (!id || !name || !parent_project || !executing_entity || !target_date) {
+  const owningProjectId = String(payload?.owningProjectId || '').trim();
+  const owningInitiativeId = String(payload?.owningInitiativeId || '').trim();
+  if (!id || !name || !owningProjectId || !owningInitiativeId) {
     state.lastPlanError = {
       code: 'DELIVERABLE_INVALID',
       reason:
-        'Deliverable requires id, name, parent_project, executing_entity, and target_date.',
+        'Deliverable requires id, name, owningProjectId, and owningInitiativeId.',
       meta: {
         id,
         hasName: Boolean(name),
-        hasProject: Boolean(parent_project),
-        hasEntity: Boolean(executing_entity),
-        hasDate: Boolean(target_date),
+        hasProject: Boolean(owningProjectId),
+        hasInitiative: Boolean(owningInitiativeId),
       },
     };
     return;
   }
-
-  // Validate parent Project exists.
-  if (!state.matrix.projectsById[parent_project]) {
+  if (!state.matrix.projectsById[owningProjectId]) {
     state.lastPlanError = {
-      code: 'DELIVERABLE_PROJECT_UNKNOWN',
-      reason: `Deliverable parent_project "${parent_project}" is not declared in matrix.projectsById.`,
-      meta: { id, parent_project },
+      code: 'DELIVERABLE_OWNING_PROJECT_UNKNOWN',
+      reason: `Deliverable owningProjectId "${owningProjectId}" is not declared in matrix.projectsById. Declare the project first.`,
+      meta: { id, owningProjectId },
     };
     return;
   }
-
-  // Validate executing Entity exists.
-  if (!state.matrix.entitiesById[executing_entity]) {
+  if (!state.matrix.initiativesById[owningInitiativeId]) {
     state.lastPlanError = {
-      code: 'DELIVERABLE_ENTITY_UNKNOWN',
-      reason: `Deliverable executing_entity "${executing_entity}" is not declared in matrix.entitiesById.`,
-      meta: { id, executing_entity },
+      code: 'DELIVERABLE_OWNING_INITIATIVE_UNKNOWN',
+      reason: `Deliverable owningInitiativeId "${owningInitiativeId}" is not declared in matrix.initiativesById. Declare the initiative first.`,
+      meta: { id, owningInitiativeId },
     };
     return;
   }
-
-  // Validate target_date is a valid calendar date.
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(target_date)) {
-    state.lastPlanError = {
-      code: 'DELIVERABLE_DATE_INVALID',
-      reason: `Deliverable target_date "${target_date}" is not a valid ISO date (YYYY-MM-DD).`,
-      meta: { id, target_date },
-    };
-    return;
-  }
-  const [y, m, day] = target_date.split('-').map(Number);
-  const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  if (m === 2 && ((y % 4 === 0 && y % 100 !== 0) || y % 400 === 0)) {
-    daysInMonth[1] = 29; // leap year
-  }
-  if (day < 1 || day > daysInMonth[m - 1] || m < 1 || m > 12) {
-    state.lastPlanError = {
-      code: 'DELIVERABLE_DATE_INVALID',
-      reason: `Deliverable target_date "${target_date}" is a calendar-impossible date.`,
-      meta: { id, target_date },
-    };
-    return;
-  }
-
-  // Validate buffer pair constraint: both or neither.
-  const buffer_anchor = String(payload?.buffer_anchor || '').trim() || null;
-  const buffer_binding = payload?.buffer_binding || null;
-  const hasAnchor = Boolean(buffer_anchor);
-  const hasBinding = Boolean(buffer_binding);
-  if ((hasAnchor && !hasBinding) || (!hasAnchor && hasBinding)) {
-    state.lastPlanError = {
-      code: 'DELIVERABLE_BUFFER_PAIR_CONSTRAINT',
-      reason: 'Deliverable buffer_anchor and buffer_binding must both be present or both be absent.',
-      meta: { id, hasAnchor, hasBinding },
-    };
-    return;
-  }
-
-  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  const nowISO = new Date().toISOString();
   state.matrix.deliverablesById[id] = {
     id,
     name,
-    parent_project,
-    executing_entity,
-    target_date,
-    description: String(payload?.description || '').trim() || null,
-    buffer_anchor,
-    buffer_binding,
-    // No stored `phase` (Clause 3, E16 amended doctrine): Deliverables pure-copy their parent
-    // PROJECT's computed Phase at read time. Phase derives from parent Project's terminal_date.
+    owningProjectId,
+    owningInitiativeId,
+    // No stored `phase` (E16 amended doctrine, 2026-08-23): Deliverables pure-copy their parent
+    // PROJECT's computed Phase at read time. A stored value here has no legitimate producer.
+    successCriteria: String(payload?.successCriteria || '').trim() || null,
+    targetDate: String(payload?.targetDate || '').trim() || null,
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
     confirmedAt: payload?.confirmedAt || null,
