@@ -36,8 +36,19 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
   // Full name -> id map (all classes) for parent_initiative / parent_project
   // references, which appear in the fixture with exact names.
   const idByName = new Map();
-  for (const n of nodes) idByName.set(n.name, slugId(n.name));
+  const nodeClassByName = new Map();
+  for (const n of nodes) {
+    idByName.set(n.name, slugId(n.name));
+    nodeClassByName.set(n.name, n.class);
+  }
   const resolve = (nm) => (nm && idByName.has(nm) ? idByName.get(nm) : null);
+  // Resolve node names to IDs with appropriate prefixes (Deliverables use deliverable-${slug})
+  const getNodeId = (nm) => {
+    if (!nm || !idByName.has(nm)) return null;
+    const baseId = idByName.get(nm);
+    const nodeClass = nodeClassByName.get(nm);
+    return nodeClass === 'Deliverable' ? `deliverable-${baseId}` : baseId;
+  };
 
   let state = buildBlankIdentityState({ nowISO });
   state.appTime = { ...(state.appTime || {}), nowISO };
@@ -66,8 +77,10 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
   for (const cls of CLASS_SEQUENCE) {
     for (const n of nodes.filter((x) => x.class === cls)) {
       const id = idByName.get(n.name);
+      // Deliverables use the type-prefix scheme to align with intake builder (deliverable-${slug})
+      const prefixedId = cls === 'Deliverable' ? `deliverable-${id}` : id;
       const common = {
-        id,
+        id: prefixedId,
         name: n.name,
         phase: n.phase ?? null,
         reviewStatus: n.status || 'DRAFT',
@@ -143,8 +156,10 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
         // absent linkage. See docs/superpowers/specs/2026-08-29-bug-a-live-migration-spec.md
         // (preconditions P4 and P7) for the fixture-authoring work that closes this.
         const parentDeliverableId = resolve(n.parent_deliverable);
-        const producingProjectId = parentDeliverableId
-          ? state.matrix?.deliverablesById?.[parentDeliverableId]?.owningProjectId || null
+        // Deliverables use the type-prefix scheme (deliverable-${slug})
+        const prefixedDeliverableId = parentDeliverableId ? `deliverable-${parentDeliverableId}` : null;
+        const producingProjectId = prefixedDeliverableId
+          ? state.matrix?.deliverablesById?.[prefixedDeliverableId]?.owningProjectId || null
           : null;
         dispatch({
           type: 'DECLARE_ARTIFACT',
@@ -185,7 +200,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
     if (e.type === 'converges') {
       // "from" is the milestone name; "to" is a semicolon list of lane node names.
       const laneNames = String(to || '').split(';').map((s) => s.trim()).filter(Boolean);
-      const laneIds = laneNames.map(resolve).filter(Boolean);
+      const laneIds = laneNames.map(getNodeId).filter(Boolean);
       // Derive the milestone date from the latest lane target_date (the anchor).
       const laneDates = laneNames
         .map((nm) => (nodes.find((n) => n.name === nm) || {}).target_date)
@@ -196,8 +211,8 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
         dispatch({ type: 'DECLARE_MILESTONE', payload: { id: `ms-${++msSeq}`, name: String(from || '').trim(), date, laneIds } });
       }
     } else {
-      const fromId = resolve(from);
-      const toId = resolve(to);
+      const fromId = getNodeId(from);
+      const toId = getNodeId(to);
       if (fromId && toId) {
         dispatch({ type: 'DECLARE_MATRIX_LINK', payload: { id: `link-${++linkSeq}`, kind: e.type, fromId, toId } });
       }
