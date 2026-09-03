@@ -1253,9 +1253,18 @@ export function computeDerivedState(state, action) {
     case 'REMOVE_PROJECT':
       removeProject(next, action.payload || {});
       break;
-    case 'DECLARE_DELIVERABLE':
-      declareMatrixDeliverable(next, action.payload || {});
+    case 'DECLARE_DELIVERABLE': {
+      // Dispatch to new intake path (parent_project + executing_entity) or legacy path (owningProjectId + owningInitiativeId)
+      const payload = action.payload || {};
+      if (payload.parent_project !== undefined || payload.executing_entity !== undefined) {
+        // New intake path (locked design v3, 2026-09-02)
+        declareDeliverable(next, payload);
+      } else {
+        // Legacy path (backward compatibility)
+        declareMatrixDeliverable(next, payload);
+      }
       break;
+    }
     case 'REMOVE_DELIVERABLE':
       removeMatrixDeliverable(next, action.payload || {});
       break;
@@ -16774,6 +16783,106 @@ function removeMatrixDeliverable(state, payload = {}) {
   const id = String(payload?.id || '').trim();
   if (!id) return;
   delete state.matrix.deliverablesById[id];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  MATRIX v3 — Deliverable Intake (Section 6, Intake Path)
+//  Deliverables are work items that decompose into Artifacts (Section 7).
+//  Intake fields: name, parent_project, executing_entity, target_date,
+//  description (optional), buffer_anchor (optional), buffer_binding (optional).
+//  Phase is never elicited — computed at read time from parent Project's date.
+//  Dependencies are edge-structured (handled via edge builder, not intake fields).
+// ─────────────────────────────────────────────────────────────────────────
+
+function declareDeliverable(state, payload = {}) {
+  ensureMatrixSlot(state);
+  const id = String(payload?.id || '').trim();
+  const name = String(payload?.name || '').trim();
+  const parent_project = String(payload?.parent_project || '').trim();
+  const executing_entity = String(payload?.executing_entity || '').trim();
+  const target_date = String(payload?.target_date || '').trim();
+
+  // Validate required fields
+  if (!id || !name || !parent_project || !executing_entity || !target_date) {
+    state.lastPlanError = {
+      code: 'DELIVERABLE_INVALID',
+      reason:
+        'Deliverable requires id, name, parent_project, executing_entity, and target_date.',
+      meta: {
+        id,
+        hasName: Boolean(name),
+        hasParentProject: Boolean(parent_project),
+        hasExecutingEntity: Boolean(executing_entity),
+        hasTargetDate: Boolean(target_date),
+      },
+    };
+    return;
+  }
+
+  // Cross-section validation: parent_project must exist
+  if (!state.matrix.projectsById[parent_project]) {
+    state.lastPlanError = {
+      code: 'DELIVERABLE_PARENT_PROJECT_UNKNOWN',
+      reason: `Deliverable parent_project "${parent_project}" is not declared in matrix.projectsById. Declare the project first.`,
+      meta: { id, parent_project },
+    };
+    return;
+  }
+
+  // Cross-section validation: executing_entity must exist
+  if (!state.matrix.entitiesById[executing_entity]) {
+    state.lastPlanError = {
+      code: 'DELIVERABLE_EXECUTING_ENTITY_UNKNOWN',
+      reason: `Deliverable executing_entity "${executing_entity}" is not declared in matrix.entitiesById. Declare the entity first.`,
+      meta: { id, executing_entity },
+    };
+    return;
+  }
+
+  // Validate target_date is a valid ISO date
+  const dateObj = new Date(target_date);
+  if (isNaN(dateObj.getTime())) {
+    state.lastPlanError = {
+      code: 'DELIVERABLE_TARGET_DATE_INVALID',
+      reason: `Deliverable target_date "${target_date}" is not a valid ISO date (YYYY-MM-DD).`,
+      meta: { id, target_date },
+    };
+    return;
+  }
+
+  // Validate buffer pair constraint: both or neither
+  const hasBufferAnchor = Boolean(payload?.buffer_anchor);
+  const hasBufferBinding = Boolean(payload?.buffer_binding);
+  if (hasBufferAnchor !== hasBufferBinding) {
+    state.lastPlanError = {
+      code: 'DELIVERABLE_BUFFER_PAIR_INCOMPLETE',
+      reason:
+        'Deliverable buffer_anchor and buffer_binding must both be present or both absent. They form an atomic pair.',
+      meta: { id, hasBufferAnchor, hasBufferBinding },
+    };
+    return;
+  }
+
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+
+  // Create the Deliverable node with all intake fields
+  state.matrix.deliverablesById[id] = {
+    id,
+    name,
+    parent_project,
+    executing_entity,
+    target_date,
+    description: payload?.description ?? null,
+    buffer_anchor: payload?.buffer_anchor ?? null,
+    buffer_binding: payload?.buffer_binding ?? null,
+    // Phase: never stored (E15 doctrine, 2026-08-23). Computed at read time from parent Project.
+    // depends_on: never intake fields (edge-structured, handled via edge builder).
+    reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
+    declaredAtISO: nowISO,
+    confirmedAt: payload?.confirmedAt || null,
+    confirmedBy: String(payload?.confirmedBy || '').trim() || null,
+    confirmationSource: String(payload?.confirmationSource || '').trim() || null,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
