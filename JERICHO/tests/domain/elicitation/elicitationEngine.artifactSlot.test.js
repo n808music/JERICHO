@@ -88,8 +88,8 @@ const HAPPY_PATH_SCRIPT = [
 // ── 1. Structural ─────────────────────────────────────────────────────────────
 
 describe('Elicitation Engine — Artifact slot: structural', () => {
-  it('gate ladder has exactly 8 gates', () => {
-    expect(ARTIFACT_SLOT.gate).toHaveLength(8);
+  it('gate ladder has exactly 9 gates', () => {
+    expect(ARTIFACT_SLOT.gate).toHaveLength(9);
   });
 
   it('no gate has fieldName doneWhen or activationState', () => {
@@ -101,6 +101,7 @@ describe('Elicitation Engine — Artifact slot: structural', () => {
   it('gate fieldNames follow reducer-derived order', () => {
     const fieldNames = ARTIFACT_SLOT.gate.map((g) => g.fieldName);
     expect(fieldNames).toEqual([
+      'name',
       'name',
       'name',
       'producingProjectId',
