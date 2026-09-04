@@ -72,7 +72,7 @@ describe('Master Grid acceptance', () => {
       const canonPhase = node.phase ?? null;
       const storedPhase = stored ? stored.phase ?? null : '(node missing)';
       if (String(storedPhase) !== String(canonPhase)) {
-        mismatches.push(`${node.name}: canon=${JSON.stringify(canonPhase)} stored=${JSON.stringify(storedPhase)}`);
+        mismatches.push(`${node.name} (${node.class}): canon=${JSON.stringify(canonPhase)} stored=${JSON.stringify(storedPhase)}`);
       }
     }
     expect(mismatches).toEqual([]);
