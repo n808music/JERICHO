@@ -96,10 +96,14 @@ function resolveNodePhase(node, canonicalRaw, derivedEffective, projects) {
   // was "parent Initiative's Phase" before Initiative became phase-less). Copy the parent's
   // COMPUTED phase first, for the same reason the node's own computed value leads above: the
   // parent's stored phase is legacy data, its computed one is the live answer.
-  // Both grains reach their parent Project by a different field — a Deliverable via
-  // owningProjectId, an Artifact via producingProjectId (see matrixAggregation.js:14).
-  // Reading only one silently drops the other to residual.
-  const pid = node.owningProjectId || node.producingProjectId;
+  // E15 amendment: Artifacts now derive the parent project through parentDeliverableIds[0] (Step 1 node-shape)
+  // instead of direct producingProjectId. Deliverables use owningProjectId (unchanged).
+  let pid = node.owningProjectId;  // Deliverable: use owningProjectId directly
+  if (!pid && node.parentDeliverableIds?.[0]) {
+    // Artifact: resolve parent project through parent deliverable
+    const parentDelivId = node.parentDeliverableIds[0];
+    pid = deliverables[parentDelivId]?.owningProjectId || null;
+  }
   if (pid) {
     const parentComputed = computeProjectSpinePhase(projects[pid]);
     if (parentComputed != null) return parentComputed;
