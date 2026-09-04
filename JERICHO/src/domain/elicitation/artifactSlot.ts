@@ -20,6 +20,19 @@ export const ARTIFACT_SLOT = {
         Boolean(captured?.name) && !isHoldableNoun(String(captured.name)),
     },
     {
+      code: 'ARTIFACT_SLUG_EMPTY',
+      fieldName: 'name',
+      detect: (captured: Record<string, unknown>) => {
+        const name = String(captured?.name || '').trim();
+        const slug = name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .slice(0, 64);
+        return slug === '';
+      },
+    },
+    {
       code: 'ARTIFACT_PRODUCING_PROJECT_UNRESOLVED',
       fieldName: 'producingProjectId',
       pickSet: 'producingProjectOptions',
@@ -60,12 +73,11 @@ export const ARTIFACT_SLOT = {
 
 export function buildArtifactDeclarePayload(captured: Record<string, unknown>) {
   const name = String(captured?.name || '').trim();
-  const id =
-    name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 64) || `artifact-${Date.now()}`;
+  const id = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
   const consumingProjectIds = Array.isArray(captured?.consumingProjectIds)
     ? (captured.consumingProjectIds as unknown[])
         .map((cid) => String(cid || '').trim())

@@ -1,6 +1,6 @@
 # Constraint 1 Implementation Summary (2026-09-03)
 
-**Status:** ✅ COMPLETE — All six classes now mint type-prefixed IDs in the loader to align with builder schemes.
+**Status:** ✅ COMPLETE — Five classes now mint type-prefixed IDs in the loader; Artifact uses bare slugs (both align with builder schemes).
 
 ## What Was Done
 
@@ -16,9 +16,10 @@
 
 ### 3. Full-Scope Implementation
 **File:** `src/domain/masterGrid/loadReferenceMatrix.js`
+- Created centralized `nodeId(nodeClass, name)` helper (commit 72b62fa) to consolidate prefix logic in one place
 - Added class-specific resolver functions (resolveInitiative, resolveProject, resolveDeliverable, resolveSystem, resolveGeneric)
 - Implemented collision-safe resolution via `nodesByName` cache to handle name collisions
-- Applied class-specific prefixes at dispatch time based on node's own class, not name-based lookup
+- Applied class-specific prefixes at dispatch time using `nodeId()` helper based on node's own class, not name-based lookup
 - Updated parent references (parent_initiative, parent_project, parent_deliverable) to use appropriate resolvers
 - Updated edge/milestone endpoint resolution to use generic resolver with class lookup
 
@@ -58,8 +59,8 @@
 
 ## Success Criteria Met
 
-✅ All six classes now use type-prefix ID scheme (Constraint 1 locked design)  
-✅ Fixture loader (`loadReferenceMatrix.js`) mints prefixed IDs for 5 classes + bare slug for Artifact  
+✅ Five classes now use type-prefix ID scheme (Entity, Initiative, Project, Deliverable, System); Artifact uses bare slugs (Constraint 1 locked design)  
+✅ Fixture loader (`loadReferenceMatrix.js`) mints prefixed IDs via centralized `nodeId()` helper for 5 classes + bare slug for Artifact  
 ✅ Name-to-ID resolution handles collisions safely via class-based lookup  
 ✅ Test assertions updated and moving appropriately (2 of 3 modified files passing)  
 ✅ Baseline test count and failure names established (46 failures, fully enumerated)  
