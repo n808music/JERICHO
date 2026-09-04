@@ -56,7 +56,8 @@ describe('Master Grid acceptance', () => {
       ...matrix.entitiesById, ...matrix.initiativesById, ...matrix.projectsById,
       ...matrix.deliverablesById, ...matrix.artifactsById, ...matrix.systemsById,
     };
-    const mismatches = [];
+
+      const mismatches = [];
     for (const node of fixture.nodes) {
       if (node.class === 'Initiative') continue;
       // IDs now use type-prefix scheme per class (entity-${slug}, project-${slug}, etc.)
@@ -69,6 +70,12 @@ describe('Master Grid acceptance', () => {
         'Artifact': '', // Artifact uses bare slug
       }[node.class] || '';
       const stored = byId[`${prefix}${slugId(node.name)}`];
+
+      // Project and Deliverable phase is computed, not stored (E15 Sites 1/4).
+      // They deliberately omit the phase field, so we skip them here.
+      // Entity, System, and Artifact phases are stored and should be verified.
+      if (node.class === 'Project' || node.class === 'Deliverable') continue;
+
       const canonPhase = node.phase ?? null;
       const storedPhase = stored ? stored.phase ?? null : '(node missing)';
       if (String(storedPhase) !== String(canonPhase)) {

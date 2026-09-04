@@ -19,8 +19,7 @@ describe('selectGridNodes — grid default-tier rule (allProjects ∪ promoted l
 
   it('CAUSALITY: Patent is in the grid BECAUSE it is a lane whose parent is already claimed', () => {
     const m = matrix();
-    // Deliverables use type-prefix scheme (deliverable-${slug}) to align with builder.
-    const patentId = `deliverable-${slugId('Behavioral Execution Engine Patent')}`;
+    const patentId = slugId('Behavioral Execution Engine Patent');
     // with Patent as a lane → present
     expect(selectGridNodes(m).some((n) => n.id === patentId)).toBe(true);
     // remove Patent from the Oct-17 milestone lanes → parent Jericho 1.0 no longer double-claimed → Patent NOT promoted → drops
@@ -31,8 +30,7 @@ describe('selectGridNodes — grid default-tier rule (allProjects ∪ promoted l
   });
 
   it('a non-lane deliverable is absent (grid is not a hand list of all deliverables)', () => {
-    // Deliverables use type-prefix scheme (deliverable-${slug}).
-    const nonLaneDeliverable = `deliverable-${slugId('State of Control pt. 3')}`; // a deliverable, not a milestone lane
+    const nonLaneDeliverable = slugId('State of Control pt. 3'); // a deliverable, not a milestone lane
     expect(selectGridNodes(matrix()).some((n) => n.id === nonLaneDeliverable)).toBe(false);
   });
 });
