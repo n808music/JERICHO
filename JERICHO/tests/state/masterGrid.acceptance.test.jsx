@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadReferenceMatrix, slugId } from '../../src/domain/masterGrid/loadReferenceMatrix.js';
+import { loadReferenceMatrix, slugId, nodeId } from '../../src/domain/masterGrid/loadReferenceMatrix.js';
 import { selectMasterGridRows, countByClass } from '../../src/domain/masterGrid/masterGridSelectors.js';
 import { buildPersistableIdentityState, rehydratePersistedState } from '../../src/state/identityStore.js';
 
@@ -61,15 +61,8 @@ describe('Master Grid acceptance', () => {
     for (const node of fixture.nodes) {
       if (node.class === 'Initiative') continue;
       // IDs now use type-prefix scheme per class (entity-${slug}, project-${slug}, etc.)
-      const prefix = {
-        'Entity': 'entity-',
-        'Initiative': 'initiative-',
-        'Project': 'project-',
-        'Deliverable': 'deliverable-',
-        'System': 'system-',
-        'Artifact': '', // Artifact uses bare slug
-      }[node.class] || '';
-      const stored = byId[`${prefix}${slugId(node.name)}`];
+      const nodeIdValue = nodeId(node.class, node.name);
+      const stored = byId[nodeIdValue];
 
       // Project and Deliverable phase is computed, not stored (E15 Sites 1/4).
       // They deliberately omit the phase field, so we skip them here.

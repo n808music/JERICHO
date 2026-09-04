@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadReferenceMatrix, slugId } from '../../src/domain/masterGrid/loadReferenceMatrix.js';
+import { loadReferenceMatrix, slugId, nodeId } from '../../src/domain/masterGrid/loadReferenceMatrix.js';
 
 const fixture = JSON.parse(fs.readFileSync(path.resolve('tests/fixtures/reference_matrix_v3_0.json'), 'utf8'));
 
@@ -50,8 +50,7 @@ describe('loadReferenceMatrix', () => {
 
     // Pick a known entity and verify projects that own under it resolve correctly.
     // IDs now use type-prefix scheme: entity-${slug}, project-${slug}, etc.
-    const gsSlug = slugId('Global State Solutions');
-    const gsEntityId = `entity-${gsSlug}`;
+    const gsEntityId = nodeId('Entity', 'Global State Solutions');
 
     // Verify the entity exists with the prefixed ID
     expect(m.entitiesById[gsEntityId]).toBeTruthy();
@@ -65,7 +64,7 @@ describe('loadReferenceMatrix', () => {
     // Verify they all resolve correctly with their prefixed parent entity ID
     if (ownedProjects.length > 0) {
       for (const p of ownedProjects) {
-        const projectId = `project-${slugId(p.name)}`;
+        const projectId = nodeId('Project', p.name);
         const stored = m.projectsById[projectId];
         expect(stored).toBeTruthy();
         expect(stored.owningEntityId).toBe(gsEntityId);
@@ -86,8 +85,8 @@ describe('loadReferenceMatrix', () => {
     if (nullOwners.length > 0) {
       for (const n of nullOwners) {
         const bucket = n.class === 'Initiative' ? m.initiativesById : m.systemsById;
-        const prefix = n.class === 'Initiative' ? 'initiative-' : 'system-';
-        const stored = bucket[`${prefix}${slugId(n.name)}`];
+        const nodeIdValue = nodeId(n.class, n.name);
+        const stored = bucket[nodeIdValue];
         if (stored) {
           expect(stored.owningEntityId).toBe(null);
         }

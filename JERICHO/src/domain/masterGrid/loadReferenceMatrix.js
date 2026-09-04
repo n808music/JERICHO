@@ -5,6 +5,25 @@ export function slugId(name) {
   return String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
+/**
+ * Construct a node ID with class-specific prefix.
+ * @param {string} nodeClass - one of 'Entity', 'Initiative', 'Project', 'Deliverable', 'Artifact', 'System'
+ * @param {string} name - human-readable node name
+ * @returns {string} prefixed ID (e.g. 'deliverable-my-node' for Deliverable)
+ */
+export function nodeId(nodeClass, name) {
+  const slug = slugId(name);
+  switch (nodeClass) {
+    case 'Entity': return `entity-${slug}`;
+    case 'Initiative': return `initiative-${slug}`;
+    case 'Project': return `project-${slug}`;
+    case 'Deliverable': return `deliverable-${slug}`;
+    case 'System': return `system-${slug}`;
+    case 'Artifact': return slug; // Artifact uses bare slug
+    default: return slug;
+  }
+}
+
 // Declaration order. Artifact follows Deliverable because an Artifact's
 // producingProjectId is resolved through its parent Deliverable, which must
 // already be declared. Artifact was absent here until 2026-08-29, which silently
