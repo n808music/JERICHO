@@ -87,6 +87,9 @@ export function buildArtifactDeclarePayload(captured: Record<string, unknown>) {
     id,
     name,
     producingProjectId: String(captured?.producingProjectId || '').trim(),
+    parentDeliverableIds: Array.isArray(captured?.parentDeliverableIds)
+      ? (captured.parentDeliverableIds as unknown[]).map((id) => String(id || '').trim()).filter(Boolean)
+      : [],
     consumingProjectIds,
     completionEvidence: String(captured?.completionEvidence || '').trim(),
     verificationSourceId: String(captured?.verificationSourceId || '').trim(),

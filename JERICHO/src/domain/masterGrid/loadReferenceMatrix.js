@@ -201,23 +201,19 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
           },
         });
       } else if (cls === 'Artifact') {
-        // declareArtifact binds an Artifact to a PROJECT (producingProjectId), while
-        // the fixture models Artifact -> Deliverable (parent_deliverable). The Project
-        // is therefore reached through the parent Deliverable declared on the previous
-        // pass. In v2.0 every Artifact has parent_deliverable: null, so this resolves
-        // to null and the reducer rejects all 122 — the correct, visible outcome for
-        // absent linkage. See docs/superpowers/specs/2026-08-29-bug-a-live-migration-spec.md
+        // Step 1 (node-shape): Artifact now stores parentDeliverableIds (array) instead of
+        // producingProjectId (scalar). The fixture models Artifact -> Deliverable
+        // (parent_deliverable). E15 amendment will derive the producing project and phase
+        // from the parent Deliverable. In v2.0 every Artifact has parent_deliverable: null,
+        // so this resolves to an empty array and the reducer rejects all 122 — the correct,
+        // visible outcome for absent linkage. See docs/superpowers/specs/2026-08-29-bug-a-live-migration-spec.md
         // (preconditions P4 and P7) for the fixture-authoring work that closes this.
-        // Deliverables use type-prefix scheme (deliverable-${slug}) to align with builder.
         const parentDeliverableId = resolveDeliverable(n.parent_deliverable);
-        const producingProjectId = parentDeliverableId
-          ? state.matrix?.deliverablesById?.[parentDeliverableId]?.owningProjectId || null
-          : null;
         dispatch({
           type: 'DECLARE_ARTIFACT',
           payload: {
             ...common,
-            producingProjectId,
+            parentDeliverableIds: parentDeliverableId ? [parentDeliverableId] : [],
             producedByEntityId: resolveEntity(n.produced_by),
             completionEvidence: n.what_ships || 'reference',
             verificationSourceId: VERIFICATION_SOURCE_ID,

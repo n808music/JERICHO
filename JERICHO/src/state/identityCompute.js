@@ -16898,21 +16898,31 @@ function declareArtifact(state, payload = {}) {
   const id = String(payload?.id || '').trim();
   const name = String(payload?.name || '').trim();
   const producingProjectId = String(payload?.producingProjectId || '').trim();
+  const parentDeliverableIds = Array.isArray(payload?.parentDeliverableIds)
+    ? payload.parentDeliverableIds.map((id) => String(id || '').trim()).filter(Boolean)
+    : [];
   const producedByEntityId = payload?.producedByEntityId === null
     ? null
     : String(payload?.producedByEntityId || '').trim() || null;
   const completionEvidence = String(payload?.completionEvidence || '').trim();
   const verificationSourceId = String(payload?.verificationSourceId || '').trim();
   const operatorAttestationMethod = String(payload?.operatorAttestationMethod || '').trim();
-  if (!id || !name || !producingProjectId || !completionEvidence || !verificationSourceId || !operatorAttestationMethod) {
+
+  // Step 1 (node-shape): Accept either producingProjectId (backward compat) or parentDeliverableIds (new).
+  // Validation ensures one of them is populated.
+  const hasParentDeliverables = parentDeliverableIds.length > 0;
+  const hasProducingProject = Boolean(producingProjectId);
+
+  if (!id || !name || (!hasProducingProject && !hasParentDeliverables) || !completionEvidence || !verificationSourceId || !operatorAttestationMethod) {
     state.lastPlanError = {
       code: 'ARTIFACT_INVALID',
       reason:
-        'Artifact requires id, name, producingProjectId, completionEvidence, verificationSourceId, and operatorAttestationMethod.',
+        'Artifact requires id, name, (producingProjectId or parentDeliverableIds), completionEvidence, verificationSourceId, and operatorAttestationMethod.',
       meta: {
         id,
         hasName: Boolean(name),
-        hasProducingProject: Boolean(producingProjectId),
+        hasProducingProject,
+        hasParentDeliverables,
         hasEvidence: Boolean(completionEvidence),
         hasSource: Boolean(verificationSourceId),
         hasAttestationMethod: Boolean(operatorAttestationMethod),
@@ -16920,7 +16930,22 @@ function declareArtifact(state, payload = {}) {
     };
     return;
   }
-  if (!state.matrix.projectsById[producingProjectId]) {
+
+  // Validate parentDeliverableIds if provided (new path)
+  if (hasParentDeliverables) {
+    const unknownDeliverables = parentDeliverableIds.filter((did) => !state.matrix.deliverablesById[did]);
+    if (unknownDeliverables.length > 0) {
+      state.lastPlanError = {
+        code: 'ARTIFACT_PARENT_DELIVERABLE_UNKNOWN',
+        reason: `Artifact parentDeliverableIds reference unknown deliverables: ${unknownDeliverables.join(', ')}.`,
+        meta: { id, unknownDeliverables },
+      };
+      return;
+    }
+  }
+
+  // Validate producingProjectId if provided (backward compat path)
+  if (hasProducingProject && !state.matrix.projectsById[producingProjectId]) {
     state.lastPlanError = {
       code: 'ARTIFACT_PRODUCING_PROJECT_UNKNOWN',
       reason: `Artifact producingProjectId "${producingProjectId}" is not in matrix.projectsById.`,
@@ -16959,10 +16984,13 @@ function declareArtifact(state, payload = {}) {
     return;
   }
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  // Step 1 (node-shape): parentDeliverableIds from payload or derived from loader path.
+  // producingProjectId is kept for compat but nulled (E15 amendment will derive it from parent Deliverable).
   state.matrix.artifactsById[id] = {
     id,
     name,
-    producingProjectId,
+    producingProjectId: null,  // Hollowed out; E15 will derive from parentDeliverableIds
+    parentDeliverableIds,       // NEW: array of parent deliverable IDs
     producedByEntityId,
     consumingProjectIds,
     completionEvidence,
@@ -16987,6 +17015,21 @@ function updateArtifact(state, payload = {}) {
   if (!id) return;
   const existing = state.matrix.artifactsById[id];
   if (!existing) return;
+
+  // Step 1 (node-shape): Handle new parentDeliverableIds field
+  if (Array.isArray(payload.parentDeliverableIds)) {
+    const nextParents = payload.parentDeliverableIds.map((id) => String(id || '').trim()).filter(Boolean);
+    const unknownDeliverables = nextParents.filter((did) => !state.matrix.deliverablesById[did]);
+    if (unknownDeliverables.length > 0) {
+      state.lastPlanError = {
+        code: 'ARTIFACT_PARENT_DELIVERABLE_UNKNOWN',
+        reason: `Cannot update artifact parentDeliverableIds — unknown deliverables: ${unknownDeliverables.join(', ')}.`,
+        meta: { id, unknownDeliverables },
+      };
+      return;
+    }
+  }
+
   if (payload.producingProjectId !== undefined) {
     const nextProducer = String(payload.producingProjectId || '').trim();
     if (!nextProducer || !state.matrix.projectsById[nextProducer]) {
@@ -17023,6 +17066,8 @@ function updateArtifact(state, payload = {}) {
   }
   const patch = {};
   if (payload.name !== undefined) patch.name = String(payload.name || '').trim();
+  if (Array.isArray(payload.parentDeliverableIds))
+    patch.parentDeliverableIds = payload.parentDeliverableIds.map((id) => String(id || '').trim()).filter(Boolean);
   if (payload.producingProjectId !== undefined) patch.producingProjectId = String(payload.producingProjectId).trim();
   if (Array.isArray(payload.consumingProjectIds))
     patch.consumingProjectIds = payload.consumingProjectIds.map((cid) => String(cid || '').trim()).filter(Boolean);

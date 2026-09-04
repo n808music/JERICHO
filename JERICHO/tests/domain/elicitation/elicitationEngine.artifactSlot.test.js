@@ -391,7 +391,8 @@ describe('Elicitation Engine — Artifact slot: matrix landing', () => {
       expect.objectContaining({
         id: 'romance-riot-tape',
         name: 'Romance Riot tape',
-        producingProjectId: 'proj-ofl-3',
+        parentDeliverableIds: [],  // Step 1: node-shape; empty until deliverables populate
+        producingProjectId: null,   // Step 1: hollowed out; will be derived in E15 amendment
         verificationSourceId: 'vs-distrokid',
         completionEvidence: 'mastered WAV listed on DistroKid and in the Spotify catalog',
         operatorAttestationMethod:

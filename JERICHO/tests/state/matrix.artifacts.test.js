@@ -50,6 +50,7 @@ const ARTIFACT_MASTER_WAV = {
   id: 'artifact-rr-master-wav',
   name: 'Romance Riot mastered WAV',
   producingProjectId: 'project-romance-riot',
+  parentDeliverableIds: [],  // Step 1: node-shape; deliverables will be populated in Step 3
   completionEvidence: 'Master WAV exported to project archive with timestamp',
   verificationSourceId: 'src-archive',
   operatorAttestationMethod: 'Operator opens project archive, confirms WAV exists with mastering timestamp, attests',
@@ -66,7 +67,8 @@ describe('MATRIX SECTION 6 — DECLARE / UPDATE / REMOVE ARTIFACT', () => {
       expect.objectContaining({
         id: ARTIFACT_MASTER_WAV.id,
         name: ARTIFACT_MASTER_WAV.name,
-        producingProjectId: ARTIFACT_MASTER_WAV.producingProjectId,
+        parentDeliverableIds: [],  // Step 1: node-shape; empty until Step 3 populates
+        producingProjectId: null,   // Step 1: hollowed out; will be derived in E15 amendment
         completionEvidence: ARTIFACT_MASTER_WAV.completionEvidence,
         verificationSourceId: ARTIFACT_MASTER_WAV.verificationSourceId,
         operatorAttestationMethod: ARTIFACT_MASTER_WAV.operatorAttestationMethod,
@@ -128,13 +130,12 @@ describe('MATRIX SECTION 6 — DECLARE / UPDATE / REMOVE ARTIFACT', () => {
     expect(updated.matrix.artifactsById[ARTIFACT_MASTER_WAV.id]?.name).toBe(
       'Romance Riot mastered WAV (final)'
     );
+    // Step 1: producingProjectId is now null (hollowed out). Verify rejection of invalid update doesn't change it.
     const danglingProducer = computeDerivedState(declared, {
       type: 'UPDATE_ARTIFACT',
       payload: { id: ARTIFACT_MASTER_WAV.id, producingProjectId: 'project-ghost' },
     });
-    expect(danglingProducer.matrix.artifactsById[ARTIFACT_MASTER_WAV.id]?.producingProjectId).toBe(
-      ARTIFACT_MASTER_WAV.producingProjectId
-    );
+    expect(danglingProducer.matrix.artifactsById[ARTIFACT_MASTER_WAV.id]?.producingProjectId).toBe(null);
     expect(danglingProducer.lastPlanError?.code).toBe('ARTIFACT_PRODUCING_PROJECT_UNKNOWN');
   });
 
