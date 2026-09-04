@@ -45,16 +45,63 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
     state = computeDerivedState(state, action);
   };
 
+  // Apply class-specific prefix to node ids (aligns with builder schemes).
+  // Builder schemes: entity-${slug}, initiative-${slug}, project-${slug}, deliverable-${slug},
+  // system-${slug}; artifact uses bare slug (matches loader).
+  const getNodeIdForClass = (slug, nodeClass) => {
+    switch (nodeClass) {
+      case 'Entity': return `entity-${slug}`;
+      case 'Initiative': return `initiative-${slug}`;
+      case 'Project': return `project-${slug}`;
+      case 'Deliverable': return `deliverable-${slug}`;
+      case 'System': return `system-${slug}`;
+      case 'Artifact': return slug; // Artifact builder uses bare slug
+      default: return slug;
+    }
+  };
+
+  // Class-specific resolvers for parent references (knows the class from the context).
+  // These avoid collision issues because the reference field name implies the class.
+  const resolveInitiative = (nm) => {
+    const baseId = resolve(nm);
+    return baseId ? getNodeIdForClass(baseId, 'Initiative') : null;
+  };
+  const resolveProject = (nm) => {
+    const baseId = resolve(nm);
+    return baseId ? getNodeIdForClass(baseId, 'Project') : null;
+  };
+  const resolveDeliverable = (nm) => {
+    const baseId = resolve(nm);
+    return baseId ? getNodeIdForClass(baseId, 'Deliverable') : null;
+  };
+  const resolveSystem = (nm) => {
+    const baseId = resolve(nm);
+    return baseId ? getNodeIdForClass(baseId, 'System') : null;
+  };
+
+  // For edges/milestones where the class is unknown, look up the node to determine class.
+  // Cache the results to avoid repeated searches.
+  const nodesByName = new Map(nodes.map((n) => [n.name, n]));
+  const resolveGeneric = (nm) => {
+    const node = nodesByName.get(nm);
+    if (!node) return null;
+    const baseId = resolve(nm);
+    return baseId ? getNodeIdForClass(baseId, node.class) : null;
+  };
+
   // Owner / produced_by resolution: apply the exact alias, then require an
   // EXACT match against an already-declared entity. Nothing fuzzy — a name
   // that is not an alias and not a declared entity (e.g. "Cross-cutting")
   // resolves to null. Entities are declared before any referencing class, so
   // state.matrix.entitiesById is populated by the time this runs for owners.
+  // Entity IDs use type-prefix scheme (entity-${slug}) to align with builder.
   const resolveEntity = (nm) => {
     if (!nm) return null;
     const canonical = ENTITY_ALIASES[nm] || nm;
-    const id = idByName.get(canonical);
-    return id && state.matrix?.entitiesById?.[id] ? id : null;
+    const baseId = idByName.get(canonical);
+    if (!baseId) return null;
+    const entityId = getNodeIdForClass(baseId, 'Entity');
+    return state.matrix?.entitiesById?.[entityId] ? entityId : null;
   };
 
   // Single shared verification source so Project/Deliverable required refs resolve.
@@ -65,7 +112,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
 
   for (const cls of CLASS_SEQUENCE) {
     for (const n of nodes.filter((x) => x.class === cls)) {
-      const id = idByName.get(n.name);
+      const id = getNodeIdForClass(slugId(n.name), n.class);
       const common = {
         id,
         name: n.name,
