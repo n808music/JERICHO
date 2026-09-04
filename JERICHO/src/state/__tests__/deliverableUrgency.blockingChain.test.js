@@ -88,8 +88,8 @@ describe('Task 2: blocking-chain urgency ranking', () => {
     // d1 blocks d2 dependency
     baseState.matrix.dependenciesById.dep1 = {
       id: 'dep1',
-      blockerId: d1,
-      blockedId: d2,
+      upstreamId: d1,
+      downstreamId: d2,
     };
 
     // Lane with deadline 3 days away = CRITICAL
@@ -168,8 +168,8 @@ describe('Task 2: blocking-chain urgency ranking', () => {
     // d1 blocks d2
     baseState.matrix.dependenciesById.dep1 = {
       id: 'dep1',
-      blockerId: d1,
-      blockedId: d2,
+      upstreamId: d1,
+      downstreamId: d2,
     };
 
     // Lane with deadline 10 days away = HIGH
@@ -312,14 +312,14 @@ describe('Task 2: blocking-chain urgency ranking', () => {
     // Dependencies
     baseState.matrix.dependenciesById.dep1 = {
       id: 'dep1',
-      blockerId: lowDemandD,
-      blockedId: d3,
+      upstreamId: lowDemandD,
+      downstreamId: d3,
     };
 
     baseState.matrix.dependenciesById.dep2 = {
       id: 'dep2',
-      blockerId: highDemandD,
-      blockedId: d3,
+      upstreamId: highDemandD,
+      downstreamId: d3,
     };
 
     // Add demand blocks

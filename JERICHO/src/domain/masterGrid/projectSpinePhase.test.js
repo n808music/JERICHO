@@ -55,12 +55,12 @@ describe('computeProjectSpinePhase', () => {
     ['on the P2 boundary (inclusive)', '2029-08-17', 2],
     ['first day of P3', '2029-08-18', 3],
     ['well inside P3', '2031-06-01', 3],
-  ])('windows %s', (_label, targetDate, expected) => {
-    expect(computeProjectSpinePhase({ targetDate })).toBe(expected);
+  ])('windows %s', (_label, phaseAnchor, expected) => {
+    expect(computeProjectSpinePhase({ phaseAnchor })).toBe(expected);
   });
 
   it('returns a NUMBER, not the P-form string — consumers bucket on 1|2|3', () => {
-    const phase = computeProjectSpinePhase({ targetDate: '2026-10-17' });
+    const phase = computeProjectSpinePhase({ phaseAnchor: '2026-10-17' });
     expect(phase).toBe(1);
     expect(typeof phase).toBe('number');
     expect(phase).not.toBe('P1');
@@ -69,11 +69,11 @@ describe('computeProjectSpinePhase', () => {
   // The regression this whole helper exists to prevent: a dateless node must surface as a
   // residual, never as a plausible-looking P3.
   it.each([
-    ['no targetDate key at all', {}],
-    ['null targetDate', { targetDate: null }],
-    ['empty targetDate', { targetDate: '' }],
-    ['TBD targetDate', { targetDate: 'TBD' }],
-    ['TBD with a note', { targetDate: 'TBD (post-2028 acquisition)' }],
+    ['no phaseAnchor key at all', {}],
+    ['null phaseAnchor', { phaseAnchor: null }],
+    ['empty phaseAnchor', { phaseAnchor: '' }],
+    ['TBD phaseAnchor', { phaseAnchor: 'TBD' }],
+    ['TBD with a note', { phaseAnchor: 'TBD (post-2028 acquisition)' }],
   ])('returns null (residual) for %s — never P3', (_label, node) => {
     expect(computeProjectSpinePhase(node)).toBeNull();
   });
@@ -84,22 +84,22 @@ describe('computeProjectSpinePhase', () => {
   });
 
   it('returns null for a calendar-impossible date (765dee5 hardening reaches through)', () => {
-    expect(computeProjectSpinePhase({ targetDate: '2027-02-29' })).toBeNull();
-    expect(computeProjectSpinePhase({ targetDate: '2027-04-31' })).toBeNull();
+    expect(computeProjectSpinePhase({ phaseAnchor: '2027-02-29' })).toBeNull();
+    expect(computeProjectSpinePhase({ phaseAnchor: '2027-04-31' })).toBeNull();
   });
 
   it('returns null for an unparseable target rather than guessing', () => {
-    expect(computeProjectSpinePhase({ targetDate: 'sometime after the tour' })).toBeNull();
+    expect(computeProjectSpinePhase({ phaseAnchor: 'sometime after the tour' })).toBeNull();
   });
 
   // Period-form windowing, stated as a behaviour rather than left implicit: end-of-period means a
   // span can land later than an operator reading the start year might expect. Confirmed as the
   // intended semantic 2026-08-23 (phaseSort.js:3-5 doctrine, adopted unforked).
   it('windows a period form by its END, so 2028-2030 is P3 and not P1', () => {
-    expect(computeProjectSpinePhase({ targetDate: '2028-2030' })).toBe(3);
+    expect(computeProjectSpinePhase({ phaseAnchor: '2028-2030' })).toBe(3);
   });
 
   it('windows a bare 2028 to P2 (2028-12-31), not P1', () => {
-    expect(computeProjectSpinePhase({ targetDate: '2028' })).toBe(2);
+    expect(computeProjectSpinePhase({ phaseAnchor: '2028' })).toBe(2);
   });
 });

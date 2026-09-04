@@ -1,0 +1,124 @@
+OPERATION MORNING SUN OFFICIAL REFERENCE MATRIX  - 5. ARTIFACTS
+Artifact,Parent Deliverable(s),Satisfaction Mode,Target Date,status,notes
+Intake,The Jericho System – MVP,AND,2026-08-29,needs verification,"Structure/Deliverable/Artifact admission produces valid records, no unresolved gate defects. Deliverable admission step still missing per 2026-08-28 review – verify before marking done."
+Plan Quality,The Jericho System – MVP,AND,2026-08-31,needs verification,"Done-when: planQualityStandardAudit.js runs against a real plan, returns pass/fail on all four Output Results Standard terms. Prior build entry exists (2026-08-17) – re-verify against current code before accepting."
+Feasibility,The Jericho System – MVP,AND,2026-09-01,needs verification,"Done-when: P.O.S. feasibility gate correctly blocks a known-infeasible test plan and passes a known-feasible one. Phase 1 hard Demand≤Constraint built (2026-08-07/10 log) – re-verify, not assumed done."
+Course Correction,The Jericho System – MVP,AND,2026-09-03,not started,Done-when: Phase Diagnostic Resolution Rule correctly re-derives Phase after an injected date/dependency change on a test case.
+Live P.O.S.,The Jericho System – MVP,AND,2026-09-04,not started,Done-when: scheduler output on a real Deliverable+Artifact set survives Efficient Phase Sequencing check (no unexplained gaps). Same test as the full manual-entry test planned earlier tonight.
+Jericho – End-to-End Integration Verified,The Jericho System – MVP,AND,2026-09-05,not started,"Rollup – true only when Intake, Plan Quality, Feasibility, Course Correction, and Live P.O.S. are all independently verified true, not asserted from progress elsewhere."
+HYS Broadcast – One-Page Plan Document,HYS Broadcast – One-Page Business Plan,AND,2026-08-24,not started,
+State of Control – One-Page Plan Document,State of Control – One-Page Business Plan,AND,2026-08-25,not started,
+GSS – One-Page Plan Document,GSS – One-Page Business Plan,AND,2026-08-31,not started,Atomic – doc exists or it doesn't.
+GS Corp. – One-Page Plan Document,GS Corp. – One-Page Business Plan,AND,2026-09-02,not started,
+Patent – Attorney Review Complete,Behavioral Execution Engine – Patent Submission,AND,2026-09-04,not started,Draft.
+HYS Batch 1 – Scripts Complete (5 episodes),Help Yourself Broadcast – Batch 1 (5 episodes),AND,2026-09-09,needs draft,1wk-per-stage backward from publish.
+GS Productions – One-Page Plan Document,GS Productions – One-Page Business Plan,AND,2026-09-11,not started,
+Patent – Filed/Submitted,Behavioral Execution Engine – Patent Submission,AND,2026-09-11,needs mvp,Matches existing attested gate deadline.
+GS Systems – One-Page Plan Document,GS Systems – One-Page Business Plan,AND,2026-09-14,not started,
+HYS Batch 1 – Recording Complete,Help Yourself Broadcast – Batch 1 (5 episodes),AND,2026-09-16,not started,
+GS Holdings – One-Page Plan Document,GS Holdings – One-Page Business Plan,AND,2026-09-17,not started,
+D8 N8 – Script,D8 N8,AND,2026-09-19,needs draft,Draft – 3wk buffer ahead of film target.
+GS Academy – One-Page Plan Document,GS Academy – One-Page Business Plan,AND,2026-09-20,not started,
+F8 Energy – One-Page Plan Document,F8 Energy – One-Page Business Plan,AND,2026-09-23,not started,
+HYS Batch 1 – Edit Complete,Help Yourself Broadcast – Batch 1 (5 episodes),AND,2026-09-23,not started,
+D8 N8 – Set Secured,D8 N8,AND,2026-09-26,not started,Draft – 2wk buffer.
+HYS Batch 1 – Published (5 episodes live),Help Yourself Broadcast – Batch 1 (5 episodes),AND,2026-09-30,not started,Also the declared Pilot's data-collection point.
+79th St Renovation – One-Page Plan Document,79th St Renovation – One-Page Business Plan,AND,2026-10-01,not started,
+First Academy Building – One-Page Plan Document,First Academy Building – One-Page Business Plan,AND,2026-10-05,not started,
+7 Seals – One-Page Plan Document,7 Seals – One-Page Business Plan,AND,2026-10-09,not started,
+Album Cover Art,Romance Riot – Artwork & Packaging,AND,2026-10-10,needs assets,
+D8 N8 (Short Film),D8 N8,AND,2026-10-10,needs script,Required to hit release window.
+Release Packaging,Romance Riot – Artwork & Packaging,AND,2026-10-10,needs assets,"Checklist: Metadata & Distribution Submission, Rights & Royalty Splits Confirmed, PRO Registration, Press Kit/EPK, Pre-Save Campaign Live, Promo Content Batch, Editorial Pitch Submitted."
+Imaginary CEO – One-Page Plan Document,Imaginary CEO – One-Page Business Plan,AND,2026-10-13,not started,
+12 Songs,Romance Riot – tape/album,AND,2026-10-17,in progress,Meticulous Demand not declared – batched as one Artifact.
+Blackman – Script,BLACKMAN,N/A,2026-10-17,needs draft,"Non-gating, trails D8 N8."
+Seeds of Destruction – One-Page Plan Document,Seeds of Destruction – One-Page Business Plan,AND,2026-10-20,not started,
+Blackman – Set Secured,BLACKMAN,N/A,2026-10-24,not started,Non-gating.
+I Am The State – One-Page Plan Document,I Am The State – One-Page Business Plan,AND,2026-10-27,not started,
+F8 Energy GUM – One-Page Plan Document,F8 Energy GUM – One-Page Business Plan,AND,2026-11-06,not started,
+Desiree – One-Page Plan Document,Desiree – One-Page Business Plan,AND,2026-11-06,not started,"Same date as F8 GUM – Deadline Alignment, not Convergence."
+Blackman (Short Film),BLACKMAN,N/A,2026-11-07,needs script,Can trail release by design.
+SOC pt. 1 – Script,State of Control pt. 1,AND,2026-11-26,needs draft,
+SOC pt. 1 – Set Secured,State of Control pt. 1,AND,2026-12-03,not started,
+SOC pt. 1 (Chapter),State of Control pt. 1,AND,2026-12-17,needs script,
+Deluxe Bonus Tracks,Romance Riot – Deluxe Edition,AND,2026-12-17,not started,
+Public App Release Live,The Jericho System – 1.0 Public Launch,AND,2026-12-17,not started,App publicly accessible beyond MVP's internal/limited state.
+Launch Announcement Live,The Jericho System – 1.0 Public Launch,AND,2026-12-17,not started,Ties into marketing flywheel.
+Painkillers Cover Art,Painkillers – Artwork & Packaging,AND,2027-01-25,not started,Reused Deliverable date.
+Release Packaging,Painkillers – Artwork & Packaging,AND,2027-01-25,not started,Same checklist.
+10 Songs (Painkillers),Painkillers – tape/album,AND,2027-03-11,not started,3wk mastering/QC buffer.
+SOC pt. 2 – Script,State of Control pt. 2,AND,2027-03-11,needs draft,
+SOC pt. 2 – Set Secured,State of Control pt. 2,AND,2027-03-18,not started,
+SOC pt. 2 (Chapter),State of Control pt. 2,AND,2027-04-01,needs script,
+IC S1 – Pre-Production Complete,The Imaginary CEO – Season 1,AND,2027-04-21,not started,Per locked 11wk formula.
+Coronation Cover Art,Coronation – Artwork & Packaging,AND,2027-05-09,not started,
+Release Packaging,Coronation – Artwork & Packaging,AND,2027-05-09,not started,Same checklist.
+IC S1 – Shoot Complete,The Imaginary CEO – Season 1,AND,2027-05-12,not started,
+IC S1 – Edit/Post Complete,The Imaginary CEO – Season 1,AND,2027-06-09,not started,
+10 Songs (Coronation),Coronation – tape/album,AND,2027-06-25,not started,
+SOC pt. 3 – Script,State of Control pt. 3,AND,2027-06-25,needs draft,
+SOC pt. 3 – Set Secured,State of Control pt. 3,AND,2027-07-02,not started,
+SOC pt. 3 (Chapter),State of Control pt. 3,AND,2027-07-16,needs script,
+IC S2 – Pre-Production Complete,the imaginary ceo season 2,AND,2027-08-05,not started,
+Savior Cover Art,Savior – Artwork & Packaging,AND,2027-08-24,not started,
+Release Packaging,Savior – Artwork & Packaging,AND,2027-08-24,not started,Same checklist.
+IC S2 – Shoot Complete,the imaginary ceo season 2,AND,2027-08-26,not started,
+IC S2 – Edit/Post Complete,the imaginary ceo season 2,AND,2027-09-23,not started,
+10 Songs (Savior),Savior – tape/album,AND,2027-10-10,not started,
+SOC pt. 4 – Script,State of Control pt. 4,AND,2027-10-10,needs draft,
+SOC pt. 4 – Set Secured,State of Control pt. 4,AND,2027-10-17,not started,
+SOC pt. 4 (Chapter),State of Control pt. 4,AND,2027-10-31,needs script,
+IC S3 – Pre-Production Complete,the imaginary ceo season 3,AND,2027-11-19,not started,
+Sacrifice Cover Art,Sacrifice – Artwork & Packaging,AND,2027-12-10,not started,
+Release Packaging,Sacrifice – Artwork & Packaging,AND,2027-12-10,not started,Same checklist.
+IC S3 – Shoot Complete,the imaginary ceo season 3,AND,2027-12-10,not started,
+IC S3 – Edit/Post Complete,the imaginary ceo season 3,AND,2028-01-07,not started,
+10 Songs (Sacrifice),Sacrifice – tape/album,AND,2028-01-27,not started,
+SOC pt. 5 – Script,State of Control pt. 5,AND,2028-01-27,needs draft,
+SOC pt. 5 – Set Secured,State of Control pt. 5,AND,2028-02-03,not started,
+SOC pt. 5 (Chapter/Finale),State of Control pt. 5,AND,2028-02-17,needs script,Closes SOC series.
+IC S4 – Pre-Production Complete,the imaginary ceo season 4,AND,2028-03-07,not started,
+IC S4 – Shoot Complete,the imaginary ceo season 4,AND,2028-03-28,not started,
+IC S4 – Edit/Post Complete,the imaginary ceo season 4,AND,2028-04-25,not started,
+16 Songs (SoD Entry 1),Seeds of Destruction Entry 1 – Album,AND,2028-07-27,not started,
+SoD Entry 1 Cover Art,SoD Entry 1 – Artwork & Packaging,AND,2028-08-10,not started,
+Release Packaging,SoD Entry 1 – Artwork & Packaging,AND,2028-08-10,not started,Same checklist.
+Max Clout 1 – Script,Max Clout 1,AND,2028-08-10,needs draft,
+Max Clout 1 – Set Secured,Max Clout 1,AND,2028-08-17,not started,
+Max Clout 1 (Short Film),Max Clout 1,AND,2028-08-31,not started,
+IC S5 – Pre-Production Complete,the imaginary ceo season 5,AND,2028-09-06,not started,
+IC S5 – Shoot Complete,the imaginary ceo season 5,AND,2028-09-27,not started,
+IC S5 – Edit/Post Complete,the imaginary ceo season 5,AND,2028-10-25,not started,
+16 Songs (SoD Entry 2),Seeds of Destruction Entry 2 – Album,AND,2029-01-27,not started,
+SoD Entry 2 Cover Art,SoD Entry 2 – Artwork & Packaging,AND,2029-02-10,not started,
+Release Packaging,SoD Entry 2 – Artwork & Packaging,AND,2029-02-10,not started,Same checklist.
+Max Clout 2 – Script,Max Clout 2,AND,2029-02-10,needs draft,
+Max Clout 2 – Set Secured,Max Clout 2,AND,2029-02-17,not started,
+Max Clout 2 (Short Film),Max Clout 2,AND,2029-03-03,not started,
+IC S6 – Pre-Production Complete,the imaginary ceo season 6,AND,2029-03-07,not started,
+IC S6 – Shoot Complete,the imaginary ceo season 6,AND,2029-03-28,not started,
+IC S6 – Edit/Post Complete,the imaginary ceo season 6,AND,2029-04-25,not started,
+16 Songs (SoD Entry 3),Seeds of Destruction Entry 3 – Album,AND,2029-07-27,not started,
+SoD Entry 3 Cover Art,SoD Entry 3 – Artwork & Packaging,AND,2029-08-10,not started,
+Release Packaging,SoD Entry 3 – Artwork & Packaging,AND,2029-08-10,not started,Same checklist.
+Max Clout 3 – Script,Max Clout 3,AND,2029-08-10,needs draft,
+Max Clout 3 – Set Secured,Max Clout 3,AND,2029-08-17,not started,
+Max Clout 3 (Short Film),Max Clout 3,AND,2029-08-31,not started,
+GUM – Product Available for Purchase,F8 Energy GUM – Product Launch,AND,2029-08-31,not started,Confirm anchor date against SoD Entry 3/Max Clout 3 alignment.
+GUM – Launch Marketing Push,F8 Energy GUM – Product Launch,AND,2029-08-31,not started,Coincides with Max Clout 3's premiere.
+IC S7 – Pre-Production Complete,the imaginary ceo season 7,AND,2029-09-06,not started,
+IC S7 – Shoot Complete,the imaginary ceo season 7,AND,2029-09-27,not started,
+IC S7 – Edit/Post Complete,the imaginary ceo season 7,AND,2029-10-25,not started,
+Desiree – Script,Desiree – Feature Film,AND,2031-11-05,needs draft,"8wk buffer, feature-length scope."
+Desiree – Set Secured,Desiree – Feature Film,AND,2031-12-03,not started,4wk buffer.
+Terminal Album Songs,I Am The State – Terminal Album,AND,2031-12-10,not started,
+I Am The State Cover Art,I Am The State – Artwork & Packaging,AND,2031-12-24,not started,
+Release Packaging,I Am The State – Artwork & Packaging,AND,2031-12-24,not started,Same checklist.
+Desiree full length film ,Desiree – Feature Film,AND,2031-12-31,not started,
+IC S8 – Pre-Production Complete,the imaginary ceo season 8,AND,2032-01-19,not started,Series finale.
+IC S8 – Shoot Complete,the imaginary ceo season 8,AND,2032-02-09,not started,
+IC S8 – Edit/Post Complete,the imaginary ceo season 8,AND,2032-03-08,not started,
+Marketing Flywheel – One-Page Plan Document,Marketing Flywheel – One-Page Business Plan,AND,2026-09-18,not started,
+Pre-Save Capture Live,Marketing Flywheel – Capture Layer Live,AND,2026-09-23,not started,Fastest to build – integrates existing pre-save platform infra.
+Platform-Follow Capture Live,Marketing Flywheel – Capture Layer Live,AND,2026-09-26,not started,
+App-Signup Capture Live,Marketing Flywheel – Capture Layer Live,AND,2026-09-30,not started,"Hardest – new build, closes the 12-day window right at the deadline."

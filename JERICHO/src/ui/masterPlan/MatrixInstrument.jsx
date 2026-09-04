@@ -37,6 +37,7 @@ function buildNodeNameMap(matrix) {
   for (const [id, n] of Object.entries(matrix?.initiativesById || {})) map[id] = n.name;
   for (const [id, n] of Object.entries(matrix?.systemsById || {})) map[id] = n.name;
   for (const [id, n] of Object.entries(matrix?.projectsById || {})) map[id] = n.name;
+  for (const [id, n] of Object.entries(matrix?.deliverablesById || {})) map[id] = n.name;
   for (const [id, n] of Object.entries(matrix?.artifactsById || {})) map[id] = n.name;
   for (const [id, n] of Object.entries(matrix?.verificationSourcesById || {})) map[id] = n.source || n.name || id;
   return map;

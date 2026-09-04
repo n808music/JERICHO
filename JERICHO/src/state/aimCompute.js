@@ -511,9 +511,9 @@ function traverseBlockedItems(deliverableId, dependenciesById = {}) {
     // Find all dependencies where 'current' is the blocker (upstream)
     for (const dep of Object.values(dependenciesById)) {
       if (!dep) continue;
-      if (dep.blockerId === current && dep.blockedId && !visited.has(dep.blockedId)) {
-        queue.push(dep.blockedId);
-        blocked.push(dep.blockedId);
+      if (dep.upstreamId === current && dep.downstreamId && !visited.has(dep.downstreamId)) {
+        queue.push(dep.downstreamId);
+        blocked.push(dep.downstreamId);
       }
     }
   }

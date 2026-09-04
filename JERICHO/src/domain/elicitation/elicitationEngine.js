@@ -52,6 +52,11 @@ import {
   buildArtifactDeclarePayload,
 } from './artifactSlot';
 import {
+  DELIVERABLE_SLOT,
+  DELIVERABLE_SLOT_ID,
+  buildDeliverableDeclarePayload,
+} from './slots/deliverableSlot.js';
+import {
   DEPENDENCY_SLOT,
   DEPENDENCY_SLOT_ID,
   buildDependencyDeclarePayload,
@@ -107,6 +112,7 @@ export { ENTITY_SLOT_ID } from './entitySlot';
 export { INITIATIVE_SLOT_ID } from './initiativeSlot';
 export { SYSTEM_SLOT_ID } from './systemSlot';
 export { ARTIFACT_SLOT_ID } from './artifactSlot';
+export { DELIVERABLE_SLOT_ID } from './slots/deliverableSlot.js';
 export { DEPENDENCY_SLOT_ID } from './dependencySlot';
 export { CONVERGENCE_SLOT_ID } from './convergenceSlot';
 export { RESOURCE_PROFILE_SLOT_ID, BINDING_CONSTRAINT_SLOT_ID } from './resourceProfileSlot';
@@ -122,6 +128,7 @@ const SLOT_REGISTRY = {
   [INITIATIVE_SLOT_ID]: INITIATIVE_SLOT,
   [SYSTEM_SLOT_ID]: SYSTEM_SLOT,
   [ARTIFACT_SLOT_ID]: ARTIFACT_SLOT,
+  [DELIVERABLE_SLOT_ID]: DELIVERABLE_SLOT,
   [DEPENDENCY_SLOT_ID]: DEPENDENCY_SLOT,
   [CONVERGENCE_SLOT_ID]: CONVERGENCE_SLOT,
   [RESOURCE_PROFILE_SLOT_ID]: RESOURCE_PROFILE_SLOT,
@@ -180,6 +187,15 @@ function buildPickSet(kind, matrixSnapshot) {
       items: [
         { id: true, label: 'Yes, legally formed (registered)' },
         { id: false, label: 'No, not yet legally formed' },
+      ],
+    };
+  }
+  if (kind === 'legalFormationPrerequisiteOptions') {
+    return {
+      kind,
+      items: [
+        { id: true, label: 'Yes — required before work starts' },
+        { id: false, label: 'No — work can proceed regardless of formation status' },
       ],
     };
   }
@@ -263,6 +279,7 @@ function buildPickSet(kind, matrixSnapshot) {
       ['initiativesById', 'initiative'],
       ['systemsById', 'system'],
       ['projectsById', 'project'],
+      ['deliverablesById', 'deliverable'],
       ['artifactsById', 'artifact'],
     ];
     for (const [reg, nodeType] of registries) {
@@ -338,7 +355,7 @@ function subjectNameFor(slotId, captured, matrixSnapshot) {
     const to = String(captured?.toNodeId || '').trim();
     if (!to) return '';
     const snap = matrixSnapshot || {};
-    for (const reg of ['entitiesById', 'initiativesById', 'systemsById', 'projectsById', 'artifactsById']) {
+    for (const reg of ['entitiesById', 'initiativesById', 'systemsById', 'projectsById', 'deliverablesById', 'artifactsById']) {
       const node = snap[reg]?.[to];
       if (node) return String(node.name || to);
     }

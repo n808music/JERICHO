@@ -32,8 +32,8 @@ describe('Project slot — requiresLegalFormation foundation', () => {
       expect(gate.fieldName).toBe('requiresLegalFormation');
     });
 
-    it('gate pickSet is yesNoOptions', () => {
-      expect(gate.pickSet).toBe('yesNoOptions');
+    it('gate pickSet is legalFormationPrerequisiteOptions', () => {
+      expect(gate.pickSet).toBe('legalFormationPrerequisiteOptions');
     });
   });
 

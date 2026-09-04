@@ -2,6 +2,7 @@ import { ENTITY_REPROBES } from './entityReprobes';
 import { INITIATIVE_REPROBES } from './initiativeReprobes';
 import { SYSTEM_REPROBES } from './systemReprobes';
 import { ARTIFACT_REPROBES } from './artifactReprobes';
+import { DELIVERABLE_REPROBES } from './deliverableReprobes';
 import { DEPENDENCY_REPROBES } from './dependencyReprobes';
 import { CONVERGENCE_REPROBES } from './convergenceReprobes';
 import { RESOURCE_REPROBES } from './resourceReprobes';
@@ -88,7 +89,7 @@ export const REPROBES = {
   PROJECT_LEGAL_FORMATION_MISSING: {
     spine:
       'Does this project require the owning entity to be legally formed (LLC, corporation, etc.) before work can proceed?',
-    pickSet: 'yesNoOptions',
+    pickSet: 'legalFormationPrerequisiteOptions',
     examples: { musician: '', founder: '', writer: '', generic: '' },
   },
   VERIFICATION_SOURCE_SOURCE_MISSING: {
@@ -125,6 +126,7 @@ export const REPROBES = {
   ...INITIATIVE_REPROBES,
   ...SYSTEM_REPROBES,
   ...ARTIFACT_REPROBES,
+  ...DELIVERABLE_REPROBES,
   ...DEPENDENCY_REPROBES,
   ...CONVERGENCE_REPROBES,
   ...RESOURCE_REPROBES,

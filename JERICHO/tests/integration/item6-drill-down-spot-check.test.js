@@ -21,9 +21,9 @@ describe('Item 6 Drill-Down Spot-Check: Section 2.1 Traceability', () => {
   it('displaySummary number traces to real leaf nodes with full traceability', () => {
     // Fixture: realistic Entity with mixed children
     // Phase boundaries (from E15 spec, Section 3):
-    // P1: targetDate < 2028-02-17 (6 months from ~2027-08-23 baseline)
-    // P2: 2028-02-17 <= targetDate < 2029-08-17 (6-18 months)
-    // P3: targetDate >= 2029-08-17 (>18 months)
+    // P1: phaseAnchor < 2028-02-17 (6 months from ~2027-08-23 baseline)
+    // P2: 2028-02-17 <= phaseAnchor < 2029-08-17 (6-18 months)
+    // P3: phaseAnchor >= 2029-08-17 (>18 months)
 
     const matrix = {
       entitiesById: {
@@ -52,7 +52,7 @@ describe('Item 6 Drill-Down Spot-Check: Section 2.1 Traceability', () => {
           name: 'Mobile App Launch',
           owningInitiativeId: 'initiative-product-launch',
           owningEntityId: 'acme-corp',
-          targetDate: '2028-02-01',
+          phaseAnchor: '2028-02-01',
         },
         // P2: 2028-02-17 to 2029-08-17
         'proj-analytics': {
@@ -60,7 +60,7 @@ describe('Item 6 Drill-Down Spot-Check: Section 2.1 Traceability', () => {
           name: 'Analytics Platform',
           owningInitiativeId: 'initiative-product-launch',
           owningEntityId: 'acme-corp',
-          targetDate: '2029-06-15',
+          phaseAnchor: '2029-06-15',
         },
         // P3: after 2029-08-17
         'proj-ai-research': {
@@ -68,7 +68,7 @@ describe('Item 6 Drill-Down Spot-Check: Section 2.1 Traceability', () => {
           name: 'AI Research Lab',
           owningInitiativeId: 'initiative-infrastructure',
           owningEntityId: 'acme-corp',
-          targetDate: '2030-02-01',
+          phaseAnchor: '2030-02-01',
         },
       },
       deliverablesById: {

@@ -7,8 +7,9 @@
 ## Baseline Specification
 
 - **Reference Run:** Run 2 (2026-08-27 10:51 CDT, post-quarantine)
-- **Canonical Failure Count:** 50 failing tests, 4396 passing, 7 skipped out of 4453 total
-- **Stability Evidence:** Runs 2-3 produced identical failure sets (50 tests, same names, verified with symmetric diff)
+- **Canonical Failure Count:** 49 failing tests, 4396 passing, 7 skipped out of 4453 total (per `/docs/reference/test-baseline.json`)
+- **Stability Evidence:** Runs 2-3 produced identical failure sets (49 tests, same names, verified with symmetric diff)
+- **Note (2026-08-28):** Initial canonicalization documented 50, but actual JSON capture has 49 entries; JSON is authoritative
 
 ## Why Run 2 Was Chosen
 
@@ -54,9 +55,9 @@ Run 2 is the authoritative baseline because:
 
 **Evidence:** 4-run sample (Runs 1-4) showed:
 - Run 1: 50 failures (includes "does not emit render-time update warning", "recomputes under freeze threshold")
-- Run 2: 50 failures (differs from Run 1 by 2 tests; identical to Run 3)
-- Run 3: 50 failures (identical to Run 2)
-- Run 4: 48 failures (different set; 2 fewer total)
+- Run 2: 49 failures (the canonical baseline; differs from Run 1 by 2 tests; identical to Run 3)
+- Run 3: 49 failures (identical to Run 2)
+- Run 4: 48 failures (different set; 1 fewer than canonical baseline)
 
 **Pattern:** Scattered, not converging. Different tests fail in different runs across:
 - `generatePlan.calendarIntegration` tests (alternating between 2-3 different tests across runs)

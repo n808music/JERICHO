@@ -32,9 +32,9 @@ describe('aggregatePhaseRollup', () => {
         'init-1': { id: 'init-1', name: 'Test Initiative', owningEntityId: 'ent-1' },
       },
       projectsById: {
-        'proj-1': { id: 'proj-1', name: 'P1 Project', owningInitiativeId: 'init-1', targetDate: '2028-02-01' }, // P1: before 2028-02-17
-        'proj-2': { id: 'proj-2', name: 'P2 Project', owningInitiativeId: 'init-1', targetDate: '2029-06-15' }, // P2: after 2028-02-17, before 2029-08-17
-        'proj-3': { id: 'proj-3', name: 'P3 Project', owningInitiativeId: 'init-1', targetDate: '2030-02-01' }, // P3: after 2029-08-17
+        'proj-1': { id: 'proj-1', name: 'P1 Project', owningInitiativeId: 'init-1', phaseAnchor: '2028-02-01' }, // P1: before 2028-02-17
+        'proj-2': { id: 'proj-2', name: 'P2 Project', owningInitiativeId: 'init-1', phaseAnchor: '2029-06-15' }, // P2: after 2028-02-17, before 2029-08-17
+        'proj-3': { id: 'proj-3', name: 'P3 Project', owningInitiativeId: 'init-1', phaseAnchor: '2030-02-01' }, // P3: after 2029-08-17
       },
     });
 
@@ -54,8 +54,8 @@ describe('aggregatePhaseRollup', () => {
         'init-1': { id: 'init-1', name: 'Test Initiative', owningEntityId: 'ent-1' },
       },
       projectsById: {
-        'proj-1': { id: 'proj-1', name: 'Linked Project', owningInitiativeId: 'init-1', targetDate: '2026-06-01' },
-        'proj-2': { id: 'proj-2', name: 'Orphaned Project', owningInitiativeId: 'init-999', targetDate: '2026-07-01' }, // Points to non-existent initiative
+        'proj-1': { id: 'proj-1', name: 'Linked Project', owningInitiativeId: 'init-1', phaseAnchor: '2026-06-01' },
+        'proj-2': { id: 'proj-2', name: 'Orphaned Project', owningInitiativeId: 'init-999', phaseAnchor: '2026-07-01' }, // Points to non-existent initiative
       },
     });
 
@@ -71,7 +71,7 @@ describe('aggregatePhaseRollup', () => {
         'init-1': { id: 'init-1', name: 'Test Initiative', owningEntityId: 'ent-1' },
       },
       projectsById: {
-        'proj-1': { id: 'proj-1', name: 'Test Project', owningInitiativeId: 'init-1', targetDate: '2026-06-01' },
+        'proj-1': { id: 'proj-1', name: 'Test Project', owningInitiativeId: 'init-1', phaseAnchor: '2026-06-01' },
       },
       deliverablesById: {
         'deliv-1': { id: 'deliv-1', name: 'Deliverable 1', owningProjectId: 'proj-1', successCriteria: 'Done' },
@@ -100,7 +100,7 @@ describe('aggregatePhaseRollup', () => {
         'init-1': { id: 'init-1', name: 'Test Initiative', owningEntityId: 'ent-1' },
       },
       projectsById: {
-        'proj-1': { id: 'proj-1', name: 'Test Project', owningInitiativeId: 'init-1', targetDate: '2026-06-01' },
+        'proj-1': { id: 'proj-1', name: 'Test Project', owningInitiativeId: 'init-1', phaseAnchor: '2026-06-01' },
       },
       artifactsById: {
         'art-1': { id: 'art-1', name: 'Artifact 1', producingProjectId: 'proj-1', completionEvidence: 'Done' },
@@ -128,8 +128,8 @@ describe('aggregatePhaseRollup', () => {
         'init-2': { id: 'init-2', name: 'Init 2', owningEntityId: 'ent-1' },
       },
       projectsById: {
-        'proj-1': { id: 'proj-1', name: 'Project 1', owningInitiativeId: 'init-1', targetDate: '2028-02-01' }, // P1
-        'proj-2': { id: 'proj-2', name: 'Project 2', owningInitiativeId: 'init-2', targetDate: '2030-02-01' }, // P3
+        'proj-1': { id: 'proj-1', name: 'Project 1', owningInitiativeId: 'init-1', phaseAnchor: '2028-02-01' }, // P1
+        'proj-2': { id: 'proj-2', name: 'Project 2', owningInitiativeId: 'init-2', phaseAnchor: '2030-02-01' }, // P3
       },
     });
 
@@ -147,8 +147,8 @@ describe('aggregatePhaseRollup', () => {
         'init-1': { id: 'init-1', name: 'Test Initiative', owningEntityId: 'ent-1' },
       },
       projectsById: {
-        'proj-1': { id: 'proj-1', name: 'P1 Project', owningInitiativeId: 'init-1', targetDate: '2028-02-01' },
-        'proj-2': { id: 'proj-2', name: 'P2 Project', owningInitiativeId: 'init-1', targetDate: '2029-06-15' },
+        'proj-1': { id: 'proj-1', name: 'P1 Project', owningInitiativeId: 'init-1', phaseAnchor: '2028-02-01' },
+        'proj-2': { id: 'proj-2', name: 'P2 Project', owningInitiativeId: 'init-1', phaseAnchor: '2029-06-15' },
       },
     });
 
@@ -158,13 +158,13 @@ describe('aggregatePhaseRollup', () => {
     expect(result.displaySummary).toMatch(/1 P2/);
   });
 
-  it('handles Projects with null targetDate (produces null phase)', () => {
+  it('handles Projects with null phaseAnchor (produces null phase)', () => {
     const matrix = makeMatrix({
       initiativesById: {
         'init-1': { id: 'init-1', name: 'Test Initiative', owningEntityId: 'ent-1' },
       },
       projectsById: {
-        'proj-1': { id: 'proj-1', name: 'Undated Project', owningInitiativeId: 'init-1', targetDate: null },
+        'proj-1': { id: 'proj-1', name: 'Undated Project', owningInitiativeId: 'init-1', phaseAnchor: null },
       },
     });
 
@@ -180,7 +180,7 @@ describe('aggregatePhaseRollup', () => {
         'init-1': { id: 'init-1', name: 'Test Initiative', owningEntityId: 'ent-1' },
       },
       projectsById: {
-        'proj-1': { id: 'proj-1', name: 'Test Project', owningInitiativeId: 'init-1', targetDate: '2026-06-01' },
+        'proj-1': { id: 'proj-1', name: 'Test Project', owningInitiativeId: 'init-1', phaseAnchor: '2026-06-01' },
       },
     });
 
@@ -235,10 +235,10 @@ describe('aggregatePhaseRollup', () => {
       },
       projectsById: {
         // Projects under init-1
-        'proj-1': { id: 'proj-1', name: 'P1 Project', owningInitiativeId: 'init-1', targetDate: '2028-02-01' },
-        'proj-2': { id: 'proj-2', name: 'P2 Project', owningInitiativeId: 'init-1', targetDate: '2029-06-15' },
+        'proj-1': { id: 'proj-1', name: 'P1 Project', owningInitiativeId: 'init-1', phaseAnchor: '2028-02-01' },
+        'proj-2': { id: 'proj-2', name: 'P2 Project', owningInitiativeId: 'init-1', phaseAnchor: '2029-06-15' },
         // Orphaned Project (points to non-existent initiative)
-        'proj-3': { id: 'proj-3', name: 'Orphaned Project', owningInitiativeId: 'init-999', targetDate: '2028-09-01' },
+        'proj-3': { id: 'proj-3', name: 'Orphaned Project', owningInitiativeId: 'init-999', phaseAnchor: '2028-09-01' },
       },
       deliverablesById: {
         // Deliverable under proj-1
@@ -302,9 +302,9 @@ describe('aggregateUrgencyRollup', () => {
         'init-1': { id: 'init-1', name: 'Busy Initiative', owningEntityId: 'ent-1' },
       },
       projectsById: {
-        'proj-1': { id: 'proj-1', name: 'P1', owningInitiativeId: 'init-1', targetDate: '2026-06-01' },
-        'proj-2': { id: 'proj-2', name: 'P2', owningInitiativeId: 'init-1', targetDate: '2026-06-02' },
-        'proj-3': { id: 'proj-3', name: 'P3', owningInitiativeId: 'init-1', targetDate: '2026-06-03' },
+        'proj-1': { id: 'proj-1', name: 'P1', owningInitiativeId: 'init-1', phaseAnchor: '2026-06-01' },
+        'proj-2': { id: 'proj-2', name: 'P2', owningInitiativeId: 'init-1', phaseAnchor: '2026-06-02' },
+        'proj-3': { id: 'proj-3', name: 'P3', owningInitiativeId: 'init-1', phaseAnchor: '2026-06-03' },
         // ... add more to reach threshold
       },
     });
@@ -315,7 +315,7 @@ describe('aggregateUrgencyRollup', () => {
         id: `proj-${i}`,
         name: `Project ${i}`,
         owningInitiativeId: 'init-1',
-        targetDate: '2026-06-01',
+        phaseAnchor: '2026-06-01',
       };
     }
 
@@ -330,7 +330,7 @@ describe('aggregateUrgencyRollup', () => {
         'init-1': { id: 'init-1', name: 'Initiative', owningEntityId: 'ent-1' },
       },
       projectsById: {
-        'proj-1': { id: 'proj-1', name: 'Constrained Project', owningInitiativeId: 'init-1', targetDate: '2026-06-01' },
+        'proj-1': { id: 'proj-1', name: 'Constrained Project', owningInitiativeId: 'init-1', phaseAnchor: '2026-06-01' },
       },
     });
 
@@ -352,8 +352,8 @@ describe('aggregateUrgencyRollup', () => {
         'init-1': { id: 'init-1', name: 'Initiative', owningEntityId: 'ent-1' },
       },
       projectsById: {
-        'proj-1': { id: 'proj-1', name: 'P1', owningInitiativeId: 'init-1', targetDate: '2026-06-01' },
-        'proj-2': { id: 'proj-2', name: 'P2', owningInitiativeId: 'init-1', targetDate: '2026-06-02' },
+        'proj-1': { id: 'proj-1', name: 'P1', owningInitiativeId: 'init-1', phaseAnchor: '2026-06-01' },
+        'proj-2': { id: 'proj-2', name: 'P2', owningInitiativeId: 'init-1', phaseAnchor: '2026-06-02' },
       },
     });
 
@@ -363,7 +363,7 @@ describe('aggregateUrgencyRollup', () => {
         id: `proj-${i}`,
         name: `P${i}`,
         owningInitiativeId: 'init-1',
-        targetDate: '2026-06-01',
+        phaseAnchor: '2026-06-01',
       };
     }
 
@@ -389,7 +389,7 @@ describe('aggregateUrgencyRollup', () => {
         'init-1': { id: 'init-1', name: 'Init 1', owningEntityId: 'ent-1' },
       },
       projectsById: {
-        'proj-1': { id: 'proj-1', name: 'P1', owningInitiativeId: 'init-1', targetDate: '2026-06-01' },
+        'proj-1': { id: 'proj-1', name: 'P1', owningInitiativeId: 'init-1', phaseAnchor: '2026-06-01' },
       },
     });
 
