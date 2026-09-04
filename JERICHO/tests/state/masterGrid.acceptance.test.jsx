@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadReferenceMatrix, slugId, nodeId } from '../../src/domain/masterGrid/loadReferenceMatrix.js';
+import { loadReferenceMatrix, nodeId } from '../../src/domain/masterGrid/loadReferenceMatrix.js';
 import { selectMasterGridRows, countByClass } from '../../src/domain/masterGrid/masterGridSelectors.js';
 import { buildPersistableIdentityState, rehydratePersistedState } from '../../src/state/identityStore.js';
 

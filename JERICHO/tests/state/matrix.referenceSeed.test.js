@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadReferenceMatrix, slugId, nodeId } from '../../src/domain/masterGrid/loadReferenceMatrix.js';
+import { loadReferenceMatrix, nodeId } from '../../src/domain/masterGrid/loadReferenceMatrix.js';
 
 const fixture = JSON.parse(fs.readFileSync(path.resolve('tests/fixtures/reference_matrix_v3_0.json'), 'utf8'));
 
