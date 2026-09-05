@@ -16333,6 +16333,16 @@ function declareEntity(state, payload = {}) {
     return;
   }
 
+  // Layer 2: Uniqueness assertion at mint time
+  if (state.matrix.entitiesById[id]) {
+    state.lastPlanError = {
+      code: 'ENTITY_DUPLICATE_ID',
+      reason: `Entity id "${id}" already exists in the matrix.`,
+      meta: { id },
+    };
+    return;
+  }
+
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
   // Storage field for Owner-backfill (declareInitiative/declareProject/declareSystem).
   // Never elicited at intake (Phase 2), never validated. Purely a backfill target.
@@ -16379,6 +16389,17 @@ function declareInitiative(state, payload = {}) {
     };
     return;
   }
+
+  // Layer 2: Uniqueness assertion at mint time
+  if (state.matrix.initiativesById[id]) {
+    state.lastPlanError = {
+      code: 'INITIATIVE_DUPLICATE_ID',
+      reason: `Initiative id "${id}" already exists in the matrix.`,
+      meta: { id },
+    };
+    return;
+  }
+
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
   // Multi-owner (2026-07-10): owningEntityIds carries every owner; the legacy
   // scalar owningEntityId stays populated with the first owner (or null) for
@@ -16493,6 +16514,17 @@ function declareSystem(state, payload = {}) {
     };
     return;
   }
+
+  // Layer 2: Uniqueness assertion at mint time
+  if (state.matrix.systemsById[id]) {
+    state.lastPlanError = {
+      code: 'SYSTEM_DUPLICATE_ID',
+      reason: `System id "${id}" already exists in the matrix.`,
+      meta: { id },
+    };
+    return;
+  }
+
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
   // Ownership implies capability (mirrors declareInitiative): backfill the
   // [system] role tag onto an owner that lacks it.
@@ -16567,6 +16599,17 @@ function declareProject(state, payload = {}) {
     };
     return;
   }
+
+  // Layer 2: Uniqueness assertion at mint time
+  if (state.matrix.projectsById[id]) {
+    state.lastPlanError = {
+      code: 'PROJECT_DUPLICATE_ID',
+      reason: `Project id "${id}" already exists in the matrix.`,
+      meta: { id },
+    };
+    return;
+  }
+
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
   const requiresLegalFormation = payload?.requiresLegalFormation !== undefined ? Boolean(payload.requiresLegalFormation) : false;
 
@@ -16863,6 +16906,16 @@ function declareDeliverable(state, payload = {}) {
     return;
   }
 
+  // Layer 2: Uniqueness assertion at mint time
+  if (state.matrix.deliverablesById[id]) {
+    state.lastPlanError = {
+      code: 'DELIVERABLE_DUPLICATE_ID',
+      reason: `Deliverable id "${id}" already exists in the matrix.`,
+      meta: { id },
+    };
+    return;
+  }
+
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
 
   // Create the Deliverable node with all intake fields
@@ -16996,6 +17049,17 @@ function declareArtifact(state, payload = {}) {
     };
     return;
   }
+
+  // Layer 2: Uniqueness assertion at mint time
+  if (state.matrix.artifactsById[id]) {
+    state.lastPlanError = {
+      code: 'ARTIFACT_DUPLICATE_ID',
+      reason: `Artifact id "${id}" already exists in the matrix.`,
+      meta: { id },
+    };
+    return;
+  }
+
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
   // Step 1 (node-shape): parentDeliverableIds from payload or derived from loader path.
   // producingProjectId is kept for compat but nulled (E15 amendment will derive it from parent Deliverable).
