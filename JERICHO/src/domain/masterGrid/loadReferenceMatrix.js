@@ -219,6 +219,8 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             verificationSourceId: VERIFICATION_SOURCE_ID,
             operatorAttestationMethod: 'operator',
             targetDate: n.target_date || null,
+            buffer_anchor: n.buffer_anchor || null,         // Step 3: optional parent deliverable for buffer computation
+            buffer_binding: n.buffer_binding || null,       // Step 3: 'hard' | 'advisory'
           },
         });
       } else if (cls === 'System') {

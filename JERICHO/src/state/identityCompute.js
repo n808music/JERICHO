@@ -16983,6 +16983,19 @@ function declareArtifact(state, payload = {}) {
     };
     return;
   }
+  // Step 3: Validate buffer fields (must pair: both null or both present)
+  const bufferAnchor = String(payload?.buffer_anchor || '').trim() || null;
+  const bufferBinding = String(payload?.buffer_binding || '').trim() || null;
+  const hasBufferAnchor = Boolean(bufferAnchor);
+  const hasBufferBinding = Boolean(bufferBinding);
+  if (hasBufferAnchor !== hasBufferBinding) {
+    state.lastPlanError = {
+      code: 'ARTIFACT_BUFFER_BINDING_MISMATCH',
+      reason: `Artifact buffer fields must pair: both present or both absent. Found buffer_anchor=${hasBufferAnchor}, buffer_binding=${hasBufferBinding}.`,
+      meta: { id, hasBufferAnchor, hasBufferBinding },
+    };
+    return;
+  }
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
   // Step 1 (node-shape): parentDeliverableIds from payload or derived from loader path.
   // producingProjectId is kept for compat but nulled (E15 amendment will derive it from parent Deliverable).
@@ -17000,6 +17013,8 @@ function declareArtifact(state, payload = {}) {
     // No stored `phase` (E16 amended doctrine, 2026-08-23): Artifacts pure-copy their parent
     // PROJECT's computed Phase at read time. A stored value here has no legitimate producer.
     targetDate: String(payload?.targetDate || '').trim() || null,
+    buffer_anchor: String(payload?.buffer_anchor || '').trim() || null,     // Step 3: optional parent deliverable for buffer computation
+    buffer_binding: String(payload?.buffer_binding || '').trim() || null,   // Step 3: 'hard' | 'advisory' — must pair with buffer_anchor
     roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
