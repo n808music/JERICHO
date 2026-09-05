@@ -16600,6 +16600,71 @@ function declareProject(state, payload = {}) {
     return;
   }
 
+  // Step 3: Validate new project intake fields
+  const executingEntity = String(payload?.executing_entity || '').trim();
+  const parentInitiative = String(payload?.parent_initiative || '').trim();
+  const boundaryTypeInput = String(payload?.boundary_type || '').trim();
+  const terminalDate = String(payload?.terminal_date || '').trim();
+
+  if (!executingEntity || !parentInitiative || !boundaryTypeInput || !terminalDate) {
+    state.lastPlanError = {
+      code: 'PROJECT_INTAKE_INCOMPLETE',
+      reason: 'Project intake requires executing_entity, parent_initiative, boundary_type, and terminal_date.',
+      meta: { id, hasExecutingEntity: Boolean(executingEntity), hasParentInitiative: Boolean(parentInitiative), hasBoundaryType: Boolean(boundaryTypeInput), hasTerminalDate: Boolean(terminalDate) },
+    };
+    return;
+  }
+
+  // Validate executing_entity exists
+  if (!state.matrix.entitiesById[executingEntity]) {
+    state.lastPlanError = {
+      code: 'PROJECT_EXECUTING_ENTITY_UNKNOWN',
+      reason: `Project executing_entity "${executingEntity}" is not declared in matrix.entitiesById.`,
+      meta: { id, executingEntity },
+    };
+    return;
+  }
+
+  // Validate parent_initiative exists
+  if (!state.matrix.initiativesById[parentInitiative]) {
+    state.lastPlanError = {
+      code: 'PROJECT_PARENT_INITIATIVE_UNKNOWN',
+      reason: `Project parent_initiative "${parentInitiative}" is not declared in matrix.initiativesById.`,
+      meta: { id, parentInitiative },
+    };
+    return;
+  }
+
+  // Validate boundary_type is valid enum
+  const VALID_BOUNDARY_TYPES = ['Terminating', 'Ongoing'];
+  if (!VALID_BOUNDARY_TYPES.includes(boundaryTypeInput)) {
+    state.lastPlanError = {
+      code: 'PROJECT_BOUNDARY_TYPE_INVALID',
+      reason: `Project boundary_type must be "Terminating" or "Ongoing", got "${boundaryTypeInput}".`,
+      meta: { id, boundaryTypeInput },
+    };
+    return;
+  }
+
+  // Validate terminal_date is valid ISO date and in future
+  const dateObj = new Date(terminalDate);
+  if (isNaN(dateObj.getTime())) {
+    state.lastPlanError = {
+      code: 'PROJECT_TERMINAL_DATE_INVALID',
+      reason: `Project terminal_date "${terminalDate}" is not a valid ISO date (YYYY-MM-DD).`,
+      meta: { id, terminalDate },
+    };
+    return;
+  }
+  if (dateObj <= new Date()) {
+    state.lastPlanError = {
+      code: 'PROJECT_TERMINAL_DATE_NOT_FUTURE',
+      reason: `Project terminal_date "${terminalDate}" must be in the future.`,
+      meta: { id, terminalDate },
+    };
+    return;
+  }
+
   // Layer 2: Uniqueness assertion at mint time
   if (state.matrix.projectsById[id]) {
     state.lastPlanError = {
@@ -16613,12 +16678,10 @@ function declareProject(state, payload = {}) {
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
   const requiresLegalFormation = payload?.requiresLegalFormation !== undefined ? Boolean(payload.requiresLegalFormation) : false;
 
-  // Task 1: Compute boundaryType and phaseAnchor from terminalDate
-  const terminalDate = String(payload?.terminalDate || '').trim() || null;
-  const isOngoing = terminalDate && terminalDate.toLowerCase().includes('on going');
-  const boundaryType = isOngoing ? 'ongoing' : (terminalDate ? 'terminating' : null);
+  // Task 1: Compute phaseAnchor from terminalDate
+  const isOngoing = boundaryTypeInput === 'Ongoing';
   // phaseAnchor: if terminating, use terminalDate; if ongoing, use nearest milestone (deferred for now)
-  const phaseAnchor = boundaryType === 'terminating' ? terminalDate : null;
+  const phaseAnchor = !isOngoing ? terminalDate : null;
 
   state.matrix.projectsById[id] = {
     id,
@@ -16628,13 +16691,16 @@ function declareProject(state, payload = {}) {
     status: String(payload?.status || '').trim() || null,
     desiredOutcome: String(payload?.desiredOutcome || '').trim() || null,
     targetDate: String(payload?.targetDate || '').trim() || null,
-    terminalDate: terminalDate,
-    boundaryType: boundaryType,
+    terminal_date: terminalDate,
+    boundary_type: boundaryTypeInput,
     phaseAnchor: phaseAnchor,
     description,
     verificationSourceId,
     evidenceProduced: String(payload?.evidenceProduced || '').trim() || null,
     notes: String(payload?.notes || '').trim() || null,
+    // Step 3: Project intake fields
+    executing_entity: executingEntity,
+    parent_initiative: parentInitiative,
     // No stored `phase` (E15 Sites 1/4, 2026-08-23): Phase(Project) is computed from phaseAnchor
     // by computeSpineWindowPhase(), never stored or hand-fed. Phase 2a removed intake's phase
     // QUESTION but left this payload key accepting one — a write path with no legitimate producer,

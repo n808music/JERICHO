@@ -173,6 +173,11 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             verificationSourceId: VERIFICATION_SOURCE_ID,
             targetDate: n.target_date || null,
             terminalDate: n.terminal_date || n.target_date || null,
+            // Step 3: Project intake fields
+            executing_entity: resolveEntity(n.executing_entity),
+            parent_initiative: resolveInitiative(n.parent_initiative),
+            boundary_type: n.boundary_type || null,
+            terminal_date: n.terminal_date || null,
           },
         });
       } else if (cls === 'Deliverable') {
