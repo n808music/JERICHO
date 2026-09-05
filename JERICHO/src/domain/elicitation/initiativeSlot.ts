@@ -50,6 +50,11 @@ export const INITIATIVE_SLOT = {
       'purposeCompletion',
       'purposeOngoing',
       'doneWhen',
+      // Step 3: Initiative intake fields (function, boundary_type, completion_value, ongoing_output)
+      'function',
+      'boundary_type',
+      'completion_value',
+      'ongoing_output',
     ],
   },
   dependsOn: [],
@@ -211,6 +216,43 @@ export const INITIATIVE_SLOT = {
       detect: (captured) =>
         Boolean(captured?.doneWhen) && !isExternallyVerifiable(String(captured.doneWhen)),
     },
+    // ── Step 3: Initiative intake fields ──────────────────────────────
+    // function, boundary_type, completion_value, ongoing_output.
+    // Foundation initiatives (identified by "Foundation" in name) carry neither
+    // completion_value nor ongoing_output by design; no gate enforces this exception.
+    {
+      code: 'INITIATIVE_FUNCTION_MISSING',
+      fieldName: 'function',
+      detect: (captured) => !captured?.function,
+    },
+    {
+      code: 'INITIATIVE_BOUNDARY_TYPE_MISSING',
+      fieldName: 'boundary_type',
+      detect: (captured) => !captured?.boundary_type,
+      pickSet: 'initiativeBoundaryTypeOptions',
+    },
+    {
+      code: 'INITIATIVE_COMPLETION_VALUE_ONGOING_OUTPUT_MISMATCH',
+      fieldName: 'completion_value',
+      detect: (captured) => {
+        const boundaryType = String(captured?.boundary_type || '').trim();
+        const completionValue = String(captured?.completion_value || '').trim();
+        const ongoingOutput = String(captured?.ongoing_output || '').trim();
+
+        // If boundary_type is Terminating, completion_value required, ongoing_output forbidden
+        if (boundaryType === 'Terminating') {
+          if (!completionValue) return true; // Missing completion_value
+          if (ongoingOutput) return true; // Has forbidden ongoing_output
+        }
+        // If boundary_type is Ongoing, ongoing_output required, completion_value forbidden
+        else if (boundaryType === 'Ongoing') {
+          if (!ongoingOutput) return true; // Missing ongoing_output
+          if (completionValue) return true; // Has forbidden completion_value
+        }
+
+        return false;
+      },
+    },
   ],
 };
 
@@ -253,5 +295,10 @@ export function buildInitiativeDeclarePayload(captured) {
     purposeCompletion: captured.purposeCompletion || null,
     purposeOngoing: captured.purposeOngoing || null,
     doneWhen: captured.doneWhen,
+    // Step 3: Initiative intake fields
+    function: captured.function,
+    boundary_type: captured.boundary_type,
+    completion_value: captured.completion_value || null,
+    ongoing_output: captured.ongoing_output || null,
   };
 }

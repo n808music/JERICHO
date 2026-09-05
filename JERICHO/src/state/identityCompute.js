@@ -16390,6 +16390,68 @@ function declareInitiative(state, payload = {}) {
     return;
   }
 
+  // Step 3: Validate Initiative intake fields
+  const initiativeFunction = String(payload?.function || '').trim();
+  const boundaryType = String(payload?.boundary_type || '').trim();
+  const completionValue = String(payload?.completion_value || '').trim();
+  const ongoingOutput = String(payload?.ongoing_output || '').trim();
+
+  if (!initiativeFunction || !boundaryType) {
+    state.lastPlanError = {
+      code: 'INITIATIVE_INTAKE_INCOMPLETE',
+      reason: 'Initiative intake requires function and boundary_type.',
+      meta: { id, hasFunction: Boolean(initiativeFunction), hasBoundaryType: Boolean(boundaryType) },
+    };
+    return;
+  }
+
+  // Validate boundary_type enum
+  if (boundaryType !== 'Terminating' && boundaryType !== 'Ongoing') {
+    state.lastPlanError = {
+      code: 'INITIATIVE_BOUNDARY_TYPE_INVALID',
+      reason: `Initiative boundary_type must be 'Terminating' or 'Ongoing', got "${boundaryType}".`,
+      meta: { id, boundaryType },
+    };
+    return;
+  }
+
+  // Validate completion_value XOR ongoing_output pairing
+  if (boundaryType === 'Terminating') {
+    if (!completionValue) {
+      state.lastPlanError = {
+        code: 'INITIATIVE_COMPLETION_VALUE_MISSING',
+        reason: 'Initiative with boundary_type "Terminating" requires completion_value.',
+        meta: { id },
+      };
+      return;
+    }
+    if (ongoingOutput) {
+      state.lastPlanError = {
+        code: 'INITIATIVE_ONGOING_OUTPUT_FORBIDDEN',
+        reason: 'Initiative with boundary_type "Terminating" cannot have ongoing_output.',
+        meta: { id },
+      };
+      return;
+    }
+  } else if (boundaryType === 'Ongoing') {
+    if (!ongoingOutput) {
+      state.lastPlanError = {
+        code: 'INITIATIVE_ONGOING_OUTPUT_MISSING',
+        reason: 'Initiative with boundary_type "Ongoing" requires ongoing_output.',
+        meta: { id },
+      };
+      return;
+    }
+    if (completionValue) {
+      state.lastPlanError = {
+        code: 'INITIATIVE_COMPLETION_VALUE_FORBIDDEN',
+        reason: 'Initiative with boundary_type "Ongoing" cannot have completion_value.',
+        meta: { id },
+      };
+      return;
+    }
+  }
+
   // Layer 2: Uniqueness assertion at mint time
   if (state.matrix.initiativesById[id]) {
     state.lastPlanError = {
@@ -16445,6 +16507,11 @@ function declareInitiative(state, payload = {}) {
     riskClassification: String(payload?.riskClassification || '').trim() || null,
     pricingStrategy: String(payload?.pricingStrategy || '').trim() || null,
     pricingReasoning: String(payload?.pricingReasoning || '').trim() || null,
+    // Step 3: Initiative intake fields
+    function: initiativeFunction,
+    boundary_type: boundaryType,
+    completion_value: completionValue || null,
+    ongoing_output: ongoingOutput || null,
   };
 }
 

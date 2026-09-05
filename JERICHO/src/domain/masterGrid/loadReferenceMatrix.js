@@ -160,6 +160,11 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             purpose: n.objective || 'reference',
             doneWhen: n.deadline || n.objective || 'reference',
             roleTags: Array.isArray(n.role_tags) ? n.role_tags.filter(Boolean) : [],
+            // Step 3: Initiative intake fields
+            function: n.function || null,
+            boundary_type: n.boundary_type || null,
+            completion_value: n.completion_value || null,
+            ongoing_output: n.ongoing_output || null,
           },
         });
       } else if (cls === 'Project') {
