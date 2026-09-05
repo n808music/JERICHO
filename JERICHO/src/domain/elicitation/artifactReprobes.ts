@@ -84,7 +84,7 @@ export const ARTIFACT_REPROBES = {
     },
   },
   ARTIFACT_TARGET_DATE_NOT_FUTURE: {
-    spine: 'The target date must be in the future. Give me a date that hasn't arrived yet.',
+    spine: 'The target date must be in the future. Give me a date that has not arrived yet.',
     examples: { musician: '', founder: '', writer: '', generic: '' },
   },
   ARTIFACT_BUFFER_BINDING_MISMATCH: {
