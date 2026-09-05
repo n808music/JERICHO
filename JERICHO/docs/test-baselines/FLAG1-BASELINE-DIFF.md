@@ -8,6 +8,8 @@
 | Passed Tests | 4,463 | 4,318 | -145 |
 | Total Tests | 4,509 | 4,460 | -49 |
 
+**Note**: The 45-failure baseline referenced in prior sessions was never formally measured. This run produced 46. The delta (96 new) holds either way.
+
 ## Categorization
 
 - **Carried Over:** 45 tests (pre-existing failures, not from items 1–3)
