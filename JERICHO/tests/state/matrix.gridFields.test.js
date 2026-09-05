@@ -15,7 +15,7 @@ function runMatrix(actions) {
 describe('matrix grid fields', () => {
   it('initiative declaration defaults reviewStatus=DRAFT, roleTags=[], and carries no phase', () => {
     const s = runMatrix([
-      { type: 'DECLARE_INITIATIVE', payload: { id: 'i1', name: 'Jericho System', purpose: 'x', classification: 'objective', doneWhen: 'y' } },
+      { type: 'DECLARE_INITIATIVE', payload: { id: 'i1', name: 'Jericho System', purpose: 'x', classification: 'objective', doneWhen: 'y', function: 'ops', boundary_type: 'Terminating', completion_value: 'Init complete' } },
     ]);
     const rec = s.matrix.initiativesById.i1;
     expect(rec.reviewStatus).toBe('DRAFT');
@@ -26,7 +26,7 @@ describe('matrix grid fields', () => {
 
   it('declared values persist (reviewStatus/roleTags), and a phase payload key is ignored', () => {
     const s = runMatrix([
-      { type: 'DECLARE_INITIATIVE', payload: { id: 'i2', name: 'F8 ENERGY GUM', purpose: 'x', classification: 'objective', doneWhen: 'y', reviewStatus: 'CONFIRMED', phase: '1', roleTags: ['income'] } },
+      { type: 'DECLARE_INITIATIVE', payload: { id: 'i2', name: 'F8 ENERGY GUM', purpose: 'x', classification: 'objective', doneWhen: 'y', function: 'ops', boundary_type: 'Terminating', completion_value: 'Init complete', reviewStatus: 'CONFIRMED', phase: '1', roleTags: ['income'] } },
     ]);
     const rec = s.matrix.initiativesById.i2;
     expect(rec.reviewStatus).toBe('CONFIRMED');
@@ -40,7 +40,7 @@ describe('matrix grid fields', () => {
     const s = runMatrix([
       { type: 'DECLARE_ENTITY', payload: { id: 'e1', name: 'Global State Corp.', roleTags: ['corp'], purpose: 'p', formationState: 'formed', statusEvidence: 'ev' } },
       { type: 'DECLARE_ENTITY', payload: { id: 'e2', name: 'Global State Productions', roleTags: ['corp'], purpose: 'p', formationState: 'formed', statusEvidence: 'ev' } },
-      { type: 'DECLARE_INITIATIVE', payload: { id: 'i3', name: 'Romance Riot', purpose: 'x', classification: 'objective', doneWhen: 'y' } },
+      { type: 'DECLARE_INITIATIVE', payload: { id: 'i3', name: 'Romance Riot', purpose: 'x', classification: 'objective', doneWhen: 'y', function: 'ops', boundary_type: 'Terminating', completion_value: 'Init complete' } },
       { type: 'DECLARE_VERIFICATION_SOURCE', payload: { id: 'v1', domain: 'src', source: 'm' } },
       { type: 'DECLARE_PROJECT', payload: { id: 'p1', name: 'OUR FEARLESS LEADER 3', owningEntityId: 'e1', owningInitiativeId: 'i3', description: 'sm', verificationSourceId: 'v1' } },
       { type: 'DECLARE_ARTIFACT', payload: { id: 'a1', name: 'OFL 3: Romance Riot — tape/album', producingProjectId: 'p1', producedByEntityId: 'e2', completionEvidence: 'ce', verificationSourceId: 'v1', operatorAttestationMethod: 'am' } },

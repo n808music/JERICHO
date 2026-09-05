@@ -41,7 +41,10 @@ describe('Step 3 Reschedule Piece 3: Automatic Linking', () => {
         name: 'Initiative',
         purpose: 'Test',
         classification: 'objective',
-        doneWhen: 'Complete',
+        doneWhen: 'Complete',,
+        function: 'ops',
+        boundary_type: 'Terminating',
+        completion_value: 'Initiative complete'
       },
     });
 

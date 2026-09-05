@@ -40,7 +40,10 @@ describe('Step 3 Reschedule Piece 2: Three-Way Disposition', () => {
         name: 'Initiative',
         purpose: 'Test',
         classification: 'objective',
-        doneWhen: 'Complete',
+        doneWhen: 'Complete',,
+        function: 'ops',
+        boundary_type: 'Terminating',
+        completion_value: 'Initiative complete'
       },
     });
 

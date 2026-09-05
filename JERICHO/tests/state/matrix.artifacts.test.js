@@ -40,7 +40,10 @@ function seededState() {
       name: 'Music Release Initiative',
       owningEntityId: 'node-gs-corp',
       purpose: 'Release Romance Riot album',
-      doneWhen: 'Album released on all platforms',
+      doneWhen: 'Album released on all platforms',,
+        function: 'ops',
+        boundary_type: 'Terminating',
+        completion_value: 'Initiative complete'
     },
   });
   state = computeDerivedState(state, {

@@ -46,6 +46,10 @@ describe('Project Intake Step 3: New gates and field storage', () => {
         owningEntityId: 'entity-owner',
         purpose: 'test',
         doneWhen: 'test',
+        // Step 3: Initiative intake fields
+        function: 'ops',
+        boundary_type: 'Terminating',
+        completion_value: 'Initiative complete',
       },
     });
   };
