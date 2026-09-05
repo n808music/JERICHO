@@ -150,4 +150,50 @@ export const INITIATIVE_REPROBES = {
       generic: "e.g. 'funds in the bank', not 'the round is done'",
     },
   },
+  // Step 3: Initiative intake fields
+  INITIATIVE_FUNCTION_MISSING: {
+    spine: 'What kind of work is this undertaking — which business function does it belong to?',
+    pickSet: 'initiativeFunctionOptions',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
+  INITIATIVE_BOUNDARY_TYPE_MISSING: {
+    spine: 'Does this undertaking have an end date (Terminating) or does it run indefinitely (Ongoing)?',
+    pickSet: 'boundaryTypeOptions',
+    examples: {
+      musician: "e.g. Terminating for 'ship the 3-album spine', Ongoing for 'continuous licensing revenue'",
+      founder: "e.g. Terminating for 'close Series A', Ongoing for 'run the product platform'",
+      writer: "e.g. Terminating for 'complete the trilogy', Ongoing for 'the monthly newsletter'",
+      generic: "e.g. Terminating ends on a date, Ongoing runs indefinitely",
+    },
+  },
+  INITIATIVE_BOUNDARY_TYPE_INVALID: {
+    spine:
+      'Boundary type must be either "Terminating" (has an end date) or "Ongoing" (runs indefinitely). Give me one of those.',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
+  INITIATIVE_COMPLETION_VALUE_MISSING: {
+    spine:
+      'Terminating initiatives must have a completion value. What accomplishment or milestone marks the project done?',
+    examples: {
+      musician: 'e.g. three-album arc live on streaming platforms',
+      founder: 'e.g. Series A funding closed with $2M in the bank',
+      writer: 'e.g. trilogy published by traditional publishing house',
+      generic: 'e.g. specific milestone or terminal state of the project',
+    },
+  },
+  INITIATIVE_ONGOING_OUTPUT_MISSING: {
+    spine:
+      'Ongoing initiatives must have an ongoing output. What does this system continuously produce or maintain while running?',
+    examples: {
+      musician: 'e.g. $X per month in streaming and licensing revenue',
+      founder: 'e.g. 100+ paying users with Y% retention month-over-month',
+      writer: 'e.g. monthly newsletter to Z subscribers with content releases',
+      generic: 'e.g. specific output, metric, or service maintained ongoing',
+    },
+  },
+  INITIATIVE_PAIRING_MISMATCH: {
+    spine:
+      'Completion value and ongoing output must pair by boundary type. Terminating needs completion_value; Ongoing needs ongoing_output.',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
 };

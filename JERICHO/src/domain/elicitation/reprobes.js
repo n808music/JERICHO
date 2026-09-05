@@ -122,6 +122,49 @@ export const REPROBES = {
       generic: 'e.g. Audience metrics, Bank balance, Application status',
     },
   },
+  // Step 3: Project intake fields
+  PROJECT_EXECUTING_ENTITY_MISSING: {
+    spine:
+      'Which entity is executing this project — who does the work and owns the timeline?',
+    pickSet: 'declaredEntities',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
+  PROJECT_PARENT_INITIATIVE_MISSING: {
+    spine:
+      'Which initiative does this project feed into or support? Pick the initiative it belongs to.',
+    pickSet: 'declaredInitiatives',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
+  PROJECT_BOUNDARY_TYPE_MISSING: {
+    spine:
+      'Does this project have a terminal end date (Terminating) or does it run indefinitely (Ongoing)?',
+    pickSet: 'boundaryTypeOptions',
+    examples: {
+      musician: "e.g. Terminating for 'ship the album', Ongoing for 'maintain the catalog'",
+      founder: "e.g. Terminating for 'beta launch', Ongoing for 'run the platform'",
+      writer: "e.g. Terminating for 'finish the manuscript', Ongoing for 'manage the brand'",
+      generic: "e.g. Terminating ends on a date, Ongoing runs indefinitely",
+    },
+  },
+  PROJECT_BOUNDARY_TYPE_INVALID: {
+    spine:
+      'Boundary type must be "Terminating" (has an end date) or "Ongoing" (runs indefinitely). Give me one of those.',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
+  PROJECT_TERMINAL_DATE_MISSING: {
+    spine:
+      'By what date must this terminating project be complete? Give me the terminal deadline.',
+    examples: {
+      musician: 'e.g. 2026-06-30 for album release deadline',
+      founder: 'e.g. 2026-01-15 for MVP launch date',
+      writer: 'e.g. 2026-03-31 for manuscript submission deadline',
+      generic: 'e.g. a specific future date the project must be done',
+    },
+  },
+  PROJECT_TERMINAL_DATE_NOT_FUTURE: {
+    spine: 'The terminal date must be in the future. Give me a date that hasn't arrived yet.',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
   ...ENTITY_REPROBES,
   ...INITIATIVE_REPROBES,
   ...SYSTEM_REPROBES,
