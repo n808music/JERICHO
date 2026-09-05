@@ -127,6 +127,25 @@ The complete named list is in `baseline-72c717a-failing-tests.txt` beside this f
 Totals match exactly, so the comparison is sound. Items 1–3 of Step 3 resolved 68
 tests and introduced no regressions.
 
+### Total moved to 4556 (Flag 2, artifact-intake tests)
+
+| Metric | Reference `72c717a` | HEAD (Flag 2) | Note |
+|---|---|---|---|
+| tests total | 4509 | **4556** | +47, all newly authored |
+| tests failed | 185 | 117 | unchanged from `ee31866` |
+| test files | 657 | 658 | +1 new file |
+| collection-dead | 2 | 2 | unchanged |
+| regressions vs reference | — | **0** | — |
+
+A moving total is normally the warning sign this document exists to catch, so the
+cause is recorded explicitly: this delta is **added coverage, not execution
+drift**. 23 tests in the new `src/state/__tests__/artifact-intake-step3.test.js`
+and 24 appended to `src/domain/elicitation/artifactSlot.test.ts`; 12 pre-existing
+tests in that file are unchanged (12 + 24 = 36). No test was deleted, skipped, or
+renamed, and the failing set is byte-identical to `ee31866`.
+
+From here, compare against 4556. A total below that is tests going missing.
+
 ### Resolved since reference (68)
 
 | Count | File |
