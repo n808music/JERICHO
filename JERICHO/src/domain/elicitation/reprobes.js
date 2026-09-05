@@ -162,7 +162,7 @@ export const REPROBES = {
     },
   },
   PROJECT_TERMINAL_DATE_NOT_FUTURE: {
-    spine: 'The terminal date must be in the future. Give me a date that hasn't arrived yet.',
+    spine: 'The terminal date must be in the future. Give me a date that has not arrived yet.',
     examples: { musician: '', founder: '', writer: '', generic: '' },
   },
   ...ENTITY_REPROBES,
