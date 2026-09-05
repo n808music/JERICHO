@@ -16569,15 +16569,43 @@ function declareSystem(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
   const name = String(payload?.name || '').trim();
-  const cycle = String(payload?.cycle || '').trim();
-  const activationState = String(payload?.activationState || '').trim().toLowerCase();
-  const owningEntityId = payload?.owningEntityId === null ? null : String(payload?.owningEntityId || '').trim() || null;
-  const VALID_STATES = ['running', 'missing', 'planned'];
-  if (!id || !name || !cycle || !VALID_STATES.includes(activationState)) {
+  const owner = String(payload?.owner || '').trim();
+  const mechanism = String(payload?.mechanism || '').trim();
+  const feedsConvergesInto = String(payload?.feeds_converges_into || '').trim();
+
+  // Step 4: System intake gates (first failure wins)
+  if (!name) {
     state.lastPlanError = {
-      code: 'SYSTEM_INVALID',
-      reason: 'System requires id, name, cycle, and activationState (running|missing|planned).',
-      meta: { id, name, cycle, activationState },
+      code: 'SYSTEM_NAME_MISSING',
+      reason: 'System requires a name.',
+      meta: { id },
+    };
+    return;
+  }
+
+  if (!owner) {
+    state.lastPlanError = {
+      code: 'SYSTEM_OWNER_MISSING',
+      reason: 'System requires an owner (entity name or "Cross-cutting" literal).',
+      meta: { id, name },
+    };
+    return;
+  }
+
+  if (!mechanism) {
+    state.lastPlanError = {
+      code: 'SYSTEM_MECHANISM_MISSING',
+      reason: 'System requires a mechanism (the operating loop description).',
+      meta: { id, name, owner },
+    };
+    return;
+  }
+
+  if (!feedsConvergesInto) {
+    state.lastPlanError = {
+      code: 'SYSTEM_FEEDS_MISSING',
+      reason: 'System requires feeds_converges_into (downstream feed list).',
+      meta: { id, name, owner, mechanism },
     };
     return;
   }
@@ -16592,23 +16620,46 @@ function declareSystem(state, payload = {}) {
     return;
   }
 
-  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
-  // Ownership implies capability (mirrors declareInitiative): backfill the
-  // [system] role tag onto an owner that lacks it.
-  if (owningEntityId) {
-    const owner = state.matrix.entitiesById?.[owningEntityId];
-    if (owner) {
-      const tags = Array.isArray(owner.roleTags) ? owner.roleTags : [];
-      if (!tags.includes('system')) owner.roleTags = [...tags, 'system'];
+  // Resolve owner: 'Cross-cutting' literal OR entity name/id
+  let owningEntityId = null;
+  if (owner !== 'Cross-cutting') {
+    // First try direct ID lookup
+    if (state.matrix.entitiesById[owner]) {
+      owningEntityId = owner;
+    } else {
+      // Try to find by name
+      const found = Object.entries(state.matrix.entitiesById).find(
+        ([, entity]) => entity.name === owner
+      );
+      owningEntityId = found ? found[0] : null;
+    }
+    if (!owningEntityId) {
+      state.lastPlanError = {
+        code: 'SYSTEM_OWNER_UNRESOLVED',
+        reason: `System owner "${owner}" does not resolve to a known entity.`,
+        meta: { id, name, owner },
+      };
+      return;
     }
   }
+
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+  // Ownership implies capability: backfill the [system] role tag onto an owner
+  // that lacks it (mirrors declareInitiative pattern).
+  if (owningEntityId) {
+    const ownerEntity = state.matrix.entitiesById?.[owningEntityId];
+    if (ownerEntity) {
+      const tags = Array.isArray(ownerEntity.roleTags) ? ownerEntity.roleTags : [];
+      if (!tags.includes('system')) ownerEntity.roleTags = [...tags, 'system'];
+    }
+  }
+
   const entry = {
     id,
     name,
     owningEntityId,
-    cycle,
-    activationState,
-    phase: String(payload?.phase || '').trim() || null,
+    mechanism,
+    feeds_converges_into: feedsConvergesInto,
     roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,
@@ -16617,7 +16668,6 @@ function declareSystem(state, payload = {}) {
     confirmedBy: String(payload?.confirmedBy || '').trim() || null,
     confirmationSource: String(payload?.confirmationSource || '').trim() || null,
   };
-  if (payload?.activationCondition) entry.activationCondition = String(payload.activationCondition).trim();
   state.matrix.systemsById[id] = entry;
 }
 

@@ -3,125 +3,91 @@ import { hasAuthoredSubstance } from '../planQuality/hasAuthoredSubstance';
 
 // Section 4 (Systems / Recurring Engines) slot contract.
 //
-// A system is a RECURRING ENGINE — a loop that never ends (the ↺). It can be
-// put in place to serve an initiative's objective, a project's outcome, or an
-// entity's scaling, and it can OUTLIVE all of them. So by design a system has
-// NO doneWhen of its own — it may work TOWARD a done-when, but it is not
-// bounded by one. Its status-of-existence is ACTIVATION (is it looping yet?),
-// not completion.
+// A system is a RECURRING ENGINE — an operating loop that serves entities,
+// initiatives, or projects but outlives them. Systems carry four intake fields:
+// name, owner (entity or 'Cross-cutting'), mechanism (the operating loop prose),
+// and feeds_converges_into (downstream feed list).
 //
-// This refines the fractal status principle: not "done-when at every tier", but
-// "the right status-of-existence at every tier" —
-//   entity      → formationState  (how formed)
-//   initiative  → doneWhen         (a completion)
-//   system      → activationState  (is it operational and looping?)
-//
-// Below the entity tier, so all REQUIRED fields are mandatory. The one optional
-// field is activationCondition (entity-tier-style: available, not mandatory) —
-// most useful for a 'missing' system to surface what must be true before it runs.
-//
-// Reuses the initiative slot's two proven mechanics: nullable-resolved owner
-// (entity-less sentinel) and the role-tag owner filter — here filtered on
-// [system]-capable entities.
+// No phase, boundary_type, or description field — mechanism IS the description.
+// One owning entity per system (no multi-owner variation like Deliverable).
 
 export const SYSTEM_SLOT_ID = 'slot:system';
-
-// Sentinel chosen from the owner pickSet to declare a system entity-less.
-export const SYSTEM_OWNER_ENTITY_LESS = '__entity_less__';
-
-// Start-small closed set. Expand later if real systems need more rungs.
-export const SYSTEM_ACTIVATION_STATES = ['running', 'missing', 'planned'] as const;
 
 export const SYSTEM_SLOT = {
   slotId: SYSTEM_SLOT_ID,
   section: 4,
   matrixBinding: {
     action: 'DECLARE_SYSTEM',
-    fields: ['name', 'owningEntityId', 'cycle', 'activationState', 'activationCondition'],
+    fields: ['name', 'owner', 'mechanism', 'feeds_converges_into'],
   },
   dependsOn: [],
   gate: [
-    // ── name ────────────────────────────────────────────────────────────
+    // ── name: required, non-empty, unique within Systems ──────────────────
     {
       code: 'SYSTEM_NAME_MISSING',
       fieldName: 'name',
-      detect: (captured) => !captured?.name,
+      detect: (captured: Record<string, unknown>) => !captured?.name,
     },
     {
       code: 'SYSTEM_NAME_NOT_HOLDABLE',
       fieldName: 'name',
-      detect: (captured) =>
+      detect: (captured: Record<string, unknown>) =>
         Boolean(captured?.name) && !isHoldableNoun(String(captured.name)),
     },
-    // ── owner: resolved = named ([system]-filtered) OR entity-less ──────
+    // ── owner: required, entity OR 'Cross-cutting' literal ────────────────
+    // Cross-cutting means no individual entity owns it; it is infrastructure.
+    // Gate passes both paths: entity-resolution happens in the reducer.
     {
-      code: 'SYSTEM_OWNER_UNRESOLVED',
-      fieldName: 'owningEntityId',
-      detect: (captured) => !captured?.owningEntityId,
+      code: 'SYSTEM_OWNER_MISSING',
+      fieldName: 'owner',
+      detect: (captured: Record<string, unknown>) => !captured?.owner,
       pickSet: 'systemOwnerOptions',
     },
-    // ── cycle: the loop (prose, substance-gated) — replaces done-when ───
+    // ── mechanism: required, non-empty, the operating loop description ─────
     {
-      code: 'SYSTEM_CYCLE_MISSING',
-      fieldName: 'cycle',
-      detect: (captured) => !captured?.cycle,
+      code: 'SYSTEM_MECHANISM_MISSING',
+      fieldName: 'mechanism',
+      detect: (captured: Record<string, unknown>) => !captured?.mechanism,
     },
     {
-      code: 'SYSTEM_CYCLE_NOT_SUBSTANTIVE',
-      fieldName: 'cycle',
-      detect: (captured) =>
-        Boolean(captured?.cycle) && !hasAuthoredSubstance(String(captured.cycle)),
+      code: 'SYSTEM_MECHANISM_NOT_SUBSTANTIVE',
+      fieldName: 'mechanism',
+      detect: (captured: Record<string, unknown>) =>
+        Boolean(captured?.mechanism) && !hasAuthoredSubstance(String(captured.mechanism)),
     },
-    // ── activationState: recurring-tier status (closed set) ─────────────
+    // ── feeds_converges_into: required, non-empty, downstream feed list ────
+    // Delimiter: semicolon (normalized in reducer). Multiple feeds separated
+    // by '; ' in the fixture, stored as-is after normalization.
     {
-      code: 'SYSTEM_ACTIVATION_STATE_MISSING',
-      fieldName: 'activationState',
-      detect: (captured) => !captured?.activationState,
-      pickSet: 'activationStateOptions',
+      code: 'SYSTEM_FEEDS_MISSING',
+      fieldName: 'feeds_converges_into',
+      detect: (captured: Record<string, unknown>) => !captured?.feeds_converges_into,
     },
     {
-      code: 'SYSTEM_ACTIVATION_STATE_INVALID',
-      fieldName: 'activationState',
-      detect: (captured) =>
-        Boolean(captured?.activationState) &&
-        !(SYSTEM_ACTIVATION_STATES as readonly string[]).includes(
-          String(captured.activationState).trim().toLowerCase(),
-        ),
-      pickSet: 'activationStateOptions',
+      code: 'SYSTEM_FEEDS_NOT_SUBSTANTIVE',
+      fieldName: 'feeds_converges_into',
+      detect: (captured: Record<string, unknown>) =>
+        Boolean(captured?.feeds_converges_into) &&
+        !hasAuthoredSubstance(String(captured.feeds_converges_into)),
     },
-    // ── activationCondition: OPTIONAL — validity only when present ───────
-    // No presence gate (optional). If authored, must be substantive (it names
-    // what must be true before the system runs — most useful for 'missing').
-    {
-      code: 'SYSTEM_ACTIVATION_CONDITION_NOT_SUBSTANTIVE',
-      fieldName: 'activationCondition',
-      detect: (captured) =>
-        Boolean(captured?.activationCondition) &&
-        !hasAuthoredSubstance(String(captured.activationCondition)),
-    },
-  ],
+  ] as const,
 };
 
-export function fieldNameForCode(code) {
-  const found = SYSTEM_SLOT.gate.find((g) => g.code === code);
-  return found?.fieldName || null;
-}
-
-export function buildSystemDeclarePayload(captured) {
+export function buildSystemDeclarePayload(captured: Record<string, unknown>) {
   const idSlug = String(captured?.name || '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  const owningEntityId =
-    captured.owningEntityId === SYSTEM_OWNER_ENTITY_LESS ? null : captured.owningEntityId;
-  const payload = {
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
+  return {
     id: `system-${idSlug}`,
-    name: captured.name,
-    owningEntityId,
-    cycle: captured.cycle,
-    activationState: String(captured.activationState).trim().toLowerCase(),
+    name: String(captured?.name || '').trim(),
+    owner: String(captured?.owner || '').trim(),
+    mechanism: String(captured?.mechanism || '').trim(),
+    feeds_converges_into: String(captured?.feeds_converges_into || '')
+      .trim()
+      .split(/\s*[;,]\s*/) // split on ; or , with optional whitespace
+      .filter(Boolean)
+      .join('; '), // normalize to semicolon delimiter
   };
-  // activationCondition is optional — include only when authored.
-  if (captured?.activationCondition) payload.activationCondition = captured.activationCondition;
-  return payload;
 }

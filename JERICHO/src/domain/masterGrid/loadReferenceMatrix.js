@@ -240,9 +240,10 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
           type: 'DECLARE_SYSTEM',
           payload: {
             ...common,
-            owningEntityId: resolveEntity(n.owner),
-            cycle: n.mechanism || 'ongoing',
-            activationState: 'planned',
+            name: n.name || '',
+            owner: n.owner || '', // 'Cross-cutting' or entity name
+            mechanism: n.mechanism || '',
+            feeds_converges_into: n.feeds_converges_into || '',
           },
         });
       }
