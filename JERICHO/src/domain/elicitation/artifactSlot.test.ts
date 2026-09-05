@@ -142,7 +142,6 @@ describe('ARTIFACT_SLOT gates', () => {
 
     it('passes when satisfaction_mode is present', () => {
       expect(gateOf('ARTIFACT_SATISFACTION_MODE_MISSING').detect({ satisfaction_mode: 'AND' })).toBe(false);
-      expect(gateOf('ARTIFACT_SATISFACTION_MODE_MISSING').detect({ satisfaction_mode: 'OR' })).toBe(false);
     });
 
     it('offers a pickSet so the operator selects rather than free-types the mode', () => {
@@ -150,13 +149,14 @@ describe('ARTIFACT_SLOT gates', () => {
     });
 
     // Documents a real gap between the two enforcement layers. The slot gate
-    // checks presence only; the AND/OR enum is enforced solely by the
-    // declareArtifact reducer (ARTIFACT_SATISFACTION_MODE_INVALID). An operator
-    // can therefore clear every slot gate with a bogus mode and still be
+    // checks presence only; the frozen 'AND' literal is enforced solely by the
+    // declareArtifact reducer (ARTIFACT_SATISFACTION_MODE_NOT_YET_SUPPORTED). An
+    // operator can therefore clear every slot gate with a bogus mode and still be
     // rejected at dispatch. Asserting it here means the day someone closes that
     // gap, this test fails and forces the decision to be deliberate.
-    it('does NOT validate the AND/OR enum at the slot layer (reducer owns that)', () => {
+    it('does NOT constrain the value at the slot layer (reducer owns the freeze)', () => {
       expect(gateOf('ARTIFACT_SATISFACTION_MODE_MISSING').detect({ satisfaction_mode: 'MAYBE' })).toBe(false);
+      expect(gateOf('ARTIFACT_SATISFACTION_MODE_MISSING').detect({ satisfaction_mode: 'OR' })).toBe(false);
     });
   });
 
@@ -298,10 +298,10 @@ describe('ARTIFACT_SLOT gates', () => {
     it('trims whitespace from intake values', () => {
       const payload = buildArtifactDeclarePayload({
         name: 'Master WAV',
-        satisfaction_mode: '  OR  ',
+        satisfaction_mode: '  AND  ',
         targetDate: '  2099-12-31  ',
       });
-      expect(payload.satisfaction_mode).toBe('OR');
+      expect(payload.satisfaction_mode).toBe('AND');
       expect(payload.targetDate).toBe('2099-12-31');
     });
   });

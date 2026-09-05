@@ -17182,11 +17182,22 @@ function declareArtifact(state, payload = {}) {
     return;
   }
 
-  // Validate satisfaction_mode enum
-  if (satisfactionMode !== 'AND' && satisfactionMode !== 'OR') {
+  // Step 3: satisfaction_mode is frozen to the single literal 'AND'.
+  //
+  // OR is deferred until multi-parent Artifacts exist. As of fixture v3.0 all
+  // 175 artifacts carry satisfaction_mode 'AND' and all 175 have
+  // parentDeliverableIds.length === 0, so no declared artifact reaches the
+  // cardinality (> 1) at which OR would mean anything. Accepting OR today would
+  // admit a value nothing produces and nothing reads.
+  //
+  // Thaw signal: a fixture in which parentDeliverableIds actually has 2+ entries.
+  // At that point decide the vocabulary too — dependency edges already express
+  // this concept as 'ALL' | 'ANY_ONE' (see todayAuthority.ts, dependencySlot.ts),
+  // and artifacts should probably join that vocabulary rather than keep AND/OR.
+  if (satisfactionMode !== 'AND') {
     state.lastPlanError = {
-      code: 'ARTIFACT_SATISFACTION_MODE_INVALID',
-      reason: `Artifact satisfaction_mode must be 'AND' or 'OR', got "${satisfactionMode}".`,
+      code: 'ARTIFACT_SATISFACTION_MODE_NOT_YET_SUPPORTED',
+      reason: `Artifact satisfaction_mode currently hardcoded to 'AND'. OR is deferred until multi-parent Artifacts exist (parentDeliverableIds.length > 1).`,
       meta: { id, satisfactionMode },
     };
     return;

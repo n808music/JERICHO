@@ -145,12 +145,33 @@ describe('Artifact Intake Step 3: reducer enforcement', () => {
     });
   });
 
-  describe('ARTIFACT_SATISFACTION_MODE_INVALID', () => {
+  describe('ARTIFACT_SATISFACTION_MODE_NOT_YET_SUPPORTED', () => {
     beforeEach(setupMatrix);
 
-    it("rejects a mode outside the AND/OR enum — satisfaction has no other semantics", () => {
+    // satisfaction_mode is frozen to the single literal 'AND'. These tests pin
+    // the constant, not an enum. The value of pinning something this trivial is
+    // that the freeze is deliberate and documented: when multi-parent artifacts
+    // arrive, these tests fail and force the thaw to be an explicit decision
+    // rather than a silently widened compare.
+
+    it("accepts 'AND', the only currently supported mode", () => {
+      declare({ satisfaction_mode: 'AND' });
+      expect(state.lastPlanError).toBeFalsy();
+      expect(state.matrix.artifactsById['artifact-test'].satisfaction_mode).toBe('AND');
+    });
+
+    it("rejects 'OR' — deferred until artifacts have more than one parent deliverable", () => {
+      // Not invalid in principle; unsupported today. As of fixture v3.0 every
+      // artifact has parentDeliverableIds.length === 0, so OR would describe a
+      // choice among parents that do not exist.
+      declare({ satisfaction_mode: 'OR' });
+      expect(state.lastPlanError?.code).toBe('ARTIFACT_SATISFACTION_MODE_NOT_YET_SUPPORTED');
+      expect(state.matrix.artifactsById['artifact-test']).toBeUndefined();
+    });
+
+    it('rejects any other mode', () => {
       declare({ satisfaction_mode: 'MAYBE' });
-      expect(state.lastPlanError?.code).toBe('ARTIFACT_SATISFACTION_MODE_INVALID');
+      expect(state.lastPlanError?.code).toBe('ARTIFACT_SATISFACTION_MODE_NOT_YET_SUPPORTED');
       expect(state.matrix.artifactsById['artifact-test']).toBeUndefined();
     });
 
@@ -158,24 +179,29 @@ describe('Artifact Intake Step 3: reducer enforcement', () => {
       // Deliberate. A permissive compare here would let the fixture loader admit
       // casing variants that then read inconsistently downstream.
       declare({ satisfaction_mode: 'and' });
-      expect(state.lastPlanError?.code).toBe('ARTIFACT_SATISFACTION_MODE_INVALID');
+      expect(state.lastPlanError?.code).toBe('ARTIFACT_SATISFACTION_MODE_NOT_YET_SUPPORTED');
     });
 
-    it('accepts AND', () => {
-      declare({ satisfaction_mode: 'AND' });
-      expect(state.lastPlanError).toBeFalsy();
-      expect(state.matrix.artifactsById['artifact-test'].satisfaction_mode).toBe('AND');
-    });
-
-    it('accepts OR', () => {
+    it('explains the deferral in the error, so the reader is not left guessing', () => {
       declare({ satisfaction_mode: 'OR' });
-      expect(state.lastPlanError).toBeFalsy();
-      expect(state.matrix.artifactsById['artifact-test'].satisfaction_mode).toBe('OR');
+      expect(state.lastPlanError?.reason).toMatch(/parentDeliverableIds\.length > 1/);
     });
 
-    it('runs only after presence, so a blank mode reports INCOMPLETE not INVALID', () => {
+    it('runs only after presence, so a blank mode reports INCOMPLETE not UNSUPPORTED', () => {
       declare({ satisfaction_mode: '' });
       expect(state.lastPlanError?.code).toBe('ARTIFACT_INTAKE_INCOMPLETE');
+    });
+
+    // Guards the freeze itself: if someone later flips the literal (say to 'OR')
+    // instead of widening the compare deliberately, this fails.
+    it("the frozen literal is 'AND' and nothing else round-trips", () => {
+      ['OR', 'ALL', 'ANY_ONE', 'and', 'And', ''].forEach((mode) => {
+        state = buildBlankIdentityState({ nowISO: '2026-09-04T12:00:00Z' });
+        state.appTime = { nowISO: '2026-09-04T12:00:00Z' };
+        setupMatrix();
+        declare({ satisfaction_mode: mode });
+        expect(state.matrix.artifactsById['artifact-test']).toBeUndefined();
+      });
     });
   });
 
@@ -254,9 +280,9 @@ describe('Artifact Intake Step 3: reducer enforcement', () => {
       expect(state.lastPlanError?.code).toBe('ARTIFACT_INTAKE_INCOMPLETE');
     });
 
-    it('reports SATISFACTION_MODE_INVALID before TARGET_DATE_INVALID', () => {
+    it('reports SATISFACTION_MODE_NOT_YET_SUPPORTED before TARGET_DATE_INVALID', () => {
       declare({ satisfaction_mode: 'MAYBE', targetDate: '2020-01-01' });
-      expect(state.lastPlanError?.code).toBe('ARTIFACT_SATISFACTION_MODE_INVALID');
+      expect(state.lastPlanError?.code).toBe('ARTIFACT_SATISFACTION_MODE_NOT_YET_SUPPORTED');
     });
 
     it('reports TARGET_DATE_INVALID before BUFFER_BINDING_MISMATCH', () => {
@@ -271,14 +297,14 @@ describe('Artifact Intake Step 3: reducer enforcement', () => {
     it('persists all four intake fields onto the stored artifact', () => {
       // The gates are worthless if the values they protect are dropped at write.
       declare({
-        satisfaction_mode: 'OR',
+        satisfaction_mode: 'AND',
         targetDate: '2099-06-30',
         buffer_anchor: 'deliv-mastering',
         buffer_binding: 'advisory',
       });
       expect(state.lastPlanError).toBeFalsy();
       expect(state.matrix.artifactsById['artifact-test']).toMatchObject({
-        satisfaction_mode: 'OR',
+        satisfaction_mode: 'AND',
         targetDate: '2099-06-30',
         buffer_anchor: 'deliv-mastering',
         buffer_binding: 'advisory',

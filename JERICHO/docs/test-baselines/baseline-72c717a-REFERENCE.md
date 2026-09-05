@@ -144,7 +144,11 @@ and 24 appended to `src/domain/elicitation/artifactSlot.test.ts`; 12 pre-existin
 tests in that file are unchanged (12 + 24 = 36). No test was deleted, skipped, or
 renamed, and the failing set is byte-identical to `ee31866`.
 
-From here, compare against 4556. A total below that is tests going missing.
+Freezing `satisfaction_mode` to `'AND'` then moved the total to **4558** (+2:
+net of tests added for the frozen-literal guard and tests removed that fed
+`'OR'` expecting it to pass). Failing set unchanged at 117; 0 regressions.
+
+From here, compare against 4558. A total below that is tests going missing.
 
 ### Resolved since reference (68)
 
