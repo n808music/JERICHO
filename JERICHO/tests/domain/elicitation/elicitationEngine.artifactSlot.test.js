@@ -60,6 +60,20 @@ function buildSeededState() {
     payload: { id: 'vs-distrokid', source: 'DistroKid', domain: 'Music distribution' },
   });
   state = computeDerivedState(state, {
+    type: 'DECLARE_INITIATIVE',
+    payload: {
+      id: 'init-ofl-1',
+      name: 'OFL Music Release',
+      owningEntityId: 'ent-ofl',
+      purpose: 'Release music catalog',
+      classification: 'objective',
+      doneWhen: 'Music released',
+      function: 'core_operations',
+      boundary_type: 'Terminating',
+      completion_value: 'Release complete',
+    },
+  });
+  state = computeDerivedState(state, {
     type: 'DECLARE_PROJECT',
     payload: {
       id: 'proj-ofl-3',
@@ -67,6 +81,11 @@ function buildSeededState() {
       owningEntityId: 'ent-ofl',
       description: '10,000 streams in the first 30 days',
       verificationSourceId: 'vs-distrokid',
+      // Step 3: Project intake fields
+      executing_entity: 'ent-ofl',
+      parent_initiative: 'init-ofl-1',
+      boundary_type: 'Terminating',
+      terminal_date: '2026-12-31',
     },
   });
   return state;
@@ -83,13 +102,15 @@ const HAPPY_PATH_SCRIPT = [
     operatorAttestationMethod:
       'open Spotify for Artists, confirm the release is live in catalog',
   },
+  { satisfaction_mode: 'AND' },
+  { targetDate: '2026-12-31' },
 ];
 
 // ── 1. Structural ─────────────────────────────────────────────────────────────
 
 describe('Elicitation Engine — Artifact slot: structural', () => {
-  it('gate ladder has exactly 9 gates', () => {
-    expect(ARTIFACT_SLOT.gate).toHaveLength(9);
+  it('gate ladder has exactly 13 gates', () => {
+    expect(ARTIFACT_SLOT.gate).toHaveLength(13);
   });
 
   it('no gate has fieldName doneWhen or activationState', () => {
@@ -110,6 +131,10 @@ describe('Elicitation Engine — Artifact slot: structural', () => {
       'verificationSourceId',
       'operatorAttestationMethod',
       'operatorAttestationMethod',
+      'satisfaction_mode',
+      'targetDate',
+      'targetDate',
+      'buffer_anchor',
     ]);
   });
 });
@@ -128,7 +153,7 @@ describe('Elicitation Engine — Artifact slot: gate sequence', () => {
     expect(first.probe.code).toBe('ARTIFACT_NAME_MISSING');
   });
 
-  it('drives the full gate sequence: name → producingProjectId → completionEvidence → verificationSourceId → operatorAttestationMethod', () => {
+  it('drives the full gate sequence: name → producingProjectId → completionEvidence → verificationSourceId → operatorAttestationMethod → satisfaction_mode → targetDate', () => {
     const state = buildSeededState();
     const { probes } = runArtifactScript(HAPPY_PATH_SCRIPT, { initialState: state });
     expect(probes.map((p) => p.fieldName)).toEqual([
@@ -137,6 +162,8 @@ describe('Elicitation Engine — Artifact slot: gate sequence', () => {
       'completionEvidence',
       'verificationSourceId',
       'operatorAttestationMethod',
+      'satisfaction_mode',
+      'targetDate',
     ]);
   });
 });

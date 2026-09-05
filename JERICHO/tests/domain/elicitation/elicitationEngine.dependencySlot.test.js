@@ -27,6 +27,20 @@ function buildBaseState() {
     payload: { id: 'vs-1', source: 'TestSource', domain: 'Testing' },
   });
   state = computeDerivedState(state, {
+    type: 'DECLARE_INITIATIVE',
+    payload: {
+      id: 'init-1',
+      name: 'Test Initiative',
+      owningEntityId: 'ent-1',
+      purpose: 'Testing',
+      classification: 'objective',
+      doneWhen: 'Testing complete',
+      function: 'core_operations',
+      boundary_type: 'Terminating',
+      completion_value: 'Initiative complete',
+    },
+  });
+  state = computeDerivedState(state, {
     type: 'DECLARE_PROJECT',
     payload: {
       id: 'proj-1',
@@ -34,6 +48,11 @@ function buildBaseState() {
       owningEntityId: 'ent-1',
       description: '100 users confirmed in TestSource',
       verificationSourceId: 'vs-1',
+      // Step 3: Project intake fields
+      executing_entity: 'ent-1',
+      parent_initiative: 'init-1',
+      boundary_type: 'Terminating',
+      terminal_date: '2026-12-31',
     },
   });
   return state;
@@ -49,6 +68,8 @@ function addArtifact(state, artId) {
       completionEvidence: `listed in TestSource and confirmed in catalog`,
       verificationSourceId: 'vs-1',
       operatorAttestationMethod: `open TestSource, confirm ${artId} exists`,
+      satisfaction_mode: 'AND',
+      targetDate: '2026-12-31',
     },
   });
 }
