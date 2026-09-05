@@ -17169,6 +17169,40 @@ function declareArtifact(state, payload = {}) {
     };
     return;
   }
+  // Step 3: Validate Artifact intake fields
+  const satisfactionMode = String(payload?.satisfaction_mode || '').trim();
+  const targetDate = String(payload?.targetDate || '').trim();
+
+  if (!satisfactionMode || !targetDate) {
+    state.lastPlanError = {
+      code: 'ARTIFACT_INTAKE_INCOMPLETE',
+      reason: 'Artifact intake requires satisfaction_mode and targetDate.',
+      meta: { id, hasSatisfactionMode: Boolean(satisfactionMode), hasTargetDate: Boolean(targetDate) },
+    };
+    return;
+  }
+
+  // Validate satisfaction_mode enum
+  if (satisfactionMode !== 'AND' && satisfactionMode !== 'OR') {
+    state.lastPlanError = {
+      code: 'ARTIFACT_SATISFACTION_MODE_INVALID',
+      reason: `Artifact satisfaction_mode must be 'AND' or 'OR', got "${satisfactionMode}".`,
+      meta: { id, satisfactionMode },
+    };
+    return;
+  }
+
+  // Validate targetDate is future
+  const targetDateObj = new Date(targetDate);
+  if (isNaN(targetDateObj.getTime()) || targetDateObj <= new Date()) {
+    state.lastPlanError = {
+      code: 'ARTIFACT_TARGET_DATE_INVALID',
+      reason: `Artifact targetDate must be a valid future ISO date, got "${targetDate}".`,
+      meta: { id, targetDate },
+    };
+    return;
+  }
+
   // Step 3: Validate buffer fields (must pair: both null or both present)
   const bufferAnchor = String(payload?.buffer_anchor || '').trim() || null;
   const bufferBinding = String(payload?.buffer_binding || '').trim() || null;
@@ -17212,6 +17246,8 @@ function declareArtifact(state, payload = {}) {
     targetDate: String(payload?.targetDate || '').trim() || null,
     buffer_anchor: String(payload?.buffer_anchor || '').trim() || null,     // Step 3: optional parent deliverable for buffer computation
     buffer_binding: String(payload?.buffer_binding || '').trim() || null,   // Step 3: 'hard' | 'advisory' — must pair with buffer_anchor
+    // Step 3: Artifact intake fields
+    satisfaction_mode: satisfactionMode,
     roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,

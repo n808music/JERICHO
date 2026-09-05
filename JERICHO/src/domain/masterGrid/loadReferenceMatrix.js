@@ -231,6 +231,8 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             targetDate: n.target_date || null,
             buffer_anchor: n.buffer_anchor || null,         // Step 3: optional parent deliverable for buffer computation
             buffer_binding: n.buffer_binding || null,       // Step 3: 'hard' | 'advisory'
+            // Step 3: Artifact intake fields
+            satisfaction_mode: n.satisfaction_mode || null,
           },
         });
       } else if (cls === 'System') {

@@ -7,6 +7,23 @@ export const ARTIFACT_SLOT_ID = 'slot:artifact';
 export const ARTIFACT_SLOT = {
   slotId: ARTIFACT_SLOT_ID,
   section: 6,
+  matrixBinding: {
+    action: 'DECLARE_ARTIFACT',
+    fields: [
+      'name',
+      'parentDeliverableIds',
+      'producedByEntityId',
+      'completionEvidence',
+      'verificationSourceId',
+      'operatorAttestationMethod',
+      // Step 3: Artifact intake fields
+      'satisfaction_mode',
+      'targetDate',
+      'buffer_anchor',
+      'buffer_binding',
+    ],
+  },
+  dependsOn: [],
   gate: [
     {
       code: 'ARTIFACT_NAME_MISSING',
@@ -68,6 +85,39 @@ export const ARTIFACT_SLOT = {
         Boolean(captured?.operatorAttestationMethod) &&
         !hasAuthoredSubstance(String(captured.operatorAttestationMethod)),
     },
+    // ── Step 3: Artifact intake fields ──────────────────────────────
+    {
+      code: 'ARTIFACT_SATISFACTION_MODE_MISSING',
+      fieldName: 'satisfaction_mode',
+      detect: (captured: Record<string, unknown>) => !captured?.satisfaction_mode,
+      pickSet: 'artifactSatisfactionModeOptions',
+    },
+    {
+      code: 'ARTIFACT_TARGET_DATE_MISSING',
+      fieldName: 'targetDate',
+      detect: (captured: Record<string, unknown>) => !captured?.targetDate,
+    },
+    {
+      code: 'ARTIFACT_TARGET_DATE_NOT_FUTURE',
+      fieldName: 'targetDate',
+      detect: (captured: Record<string, unknown>) => {
+        if (!captured?.targetDate) return false;
+        const date = new Date(String(captured.targetDate));
+        return isNaN(date.getTime()) || date <= new Date();
+      },
+    },
+    {
+      code: 'ARTIFACT_BUFFER_BINDING_MISMATCH',
+      fieldName: 'buffer_anchor',
+      detect: (captured: Record<string, unknown>) => {
+        const bufferAnchor = String(captured?.buffer_anchor || '').trim();
+        const bufferBinding = String(captured?.buffer_binding || '').trim();
+        const hasAnchor = Boolean(bufferAnchor);
+        const hasBinding = Boolean(bufferBinding);
+        // Both must be present or both absent
+        return hasAnchor !== hasBinding;
+      },
+    },
   ] as const,
 };
 
@@ -95,5 +145,10 @@ export function buildArtifactDeclarePayload(captured: Record<string, unknown>) {
     verificationSourceId: String(captured?.verificationSourceId || '').trim(),
     operatorAttestationMethod: String(captured?.operatorAttestationMethod || '').trim(),
     notes: String(captured?.notes || '').trim() || null,
+    // Step 3: Artifact intake fields
+    satisfaction_mode: String(captured?.satisfaction_mode || '').trim(),
+    targetDate: String(captured?.targetDate || '').trim(),
+    buffer_anchor: String(captured?.buffer_anchor || '').trim() || null,
+    buffer_binding: String(captured?.buffer_binding || '').trim() || null,
   };
 }
