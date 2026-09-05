@@ -34,6 +34,16 @@ function seededState() {
     payload: { id: 'node-gs-corp', name: 'Global State Corp.', roleTags: ['Business'] },
   });
   state = computeDerivedState(state, {
+    type: 'DECLARE_INITIATIVE',
+    payload: {
+      id: 'init-music-release',
+      name: 'Music Release Initiative',
+      owningEntityId: 'node-gs-corp',
+      purpose: 'Release Romance Riot album',
+      doneWhen: 'Album released on all platforms',
+    },
+  });
+  state = computeDerivedState(state, {
     type: 'DECLARE_PROJECT',
     payload: {
       id: 'project-romance-riot',
@@ -41,6 +51,30 @@ function seededState() {
       owningEntityId: 'node-gs-corp',
       description: '≥10,000 first-week streams',
       verificationSourceId: 'src-archive',
+      owningInitiativeId: 'init-music-release',
+    },
+  });
+  // Step 3: Add test deliverables for artifact parentDeliverableIds wiring
+  state = computeDerivedState(state, {
+    type: 'DECLARE_DELIVERABLE',
+    payload: {
+      id: 'deliv-rr-recording',
+      name: 'Romance Riot recording sessions',
+      owningProjectId: 'project-romance-riot',
+      owningInitiativeId: 'init-music-release',
+      successCriteria: 'All 12 tracks recorded and mixed',
+      targetDate: '2026-08-15',
+    },
+  });
+  state = computeDerivedState(state, {
+    type: 'DECLARE_DELIVERABLE',
+    payload: {
+      id: 'deliv-rr-mastering',
+      name: 'Romance Riot mastering',
+      owningProjectId: 'project-romance-riot',
+      owningInitiativeId: 'init-music-release',
+      successCriteria: 'Master WAV files finalized',
+      targetDate: '2026-08-25',
     },
   });
   return state;
@@ -50,7 +84,7 @@ const ARTIFACT_MASTER_WAV = {
   id: 'artifact-rr-master-wav',
   name: 'Romance Riot mastered WAV',
   producingProjectId: 'project-romance-riot',
-  parentDeliverableIds: [],  // Step 1: node-shape; deliverables will be populated in Step 3
+  parentDeliverableIds: ['deliv-rr-recording', 'deliv-rr-mastering'],  // Step 3: wired to test deliverables
   completionEvidence: 'Master WAV exported to project archive with timestamp',
   verificationSourceId: 'src-archive',
   operatorAttestationMethod: 'Operator opens project archive, confirms WAV exists with mastering timestamp, attests',
@@ -67,7 +101,7 @@ describe('MATRIX SECTION 6 — DECLARE / UPDATE / REMOVE ARTIFACT', () => {
       expect.objectContaining({
         id: ARTIFACT_MASTER_WAV.id,
         name: ARTIFACT_MASTER_WAV.name,
-        parentDeliverableIds: [],  // Step 1: node-shape; empty until Step 3 populates
+        parentDeliverableIds: ['deliv-rr-recording', 'deliv-rr-mastering'],  // Step 3: wired to test deliverables
         producingProjectId: null,   // Step 1: hollowed out; will be derived in E15 amendment
         completionEvidence: ARTIFACT_MASTER_WAV.completionEvidence,
         verificationSourceId: ARTIFACT_MASTER_WAV.verificationSourceId,
