@@ -190,7 +190,7 @@ describe('Elicitation Engine — Initiative slot: owner options (unfiltered, 202
         owningEntityId: 'ent-f8-system',
         owningEntityIds: ['ent-f8-system'],
         purpose: 'Prove ownership implies capability',
-        doneWhen: 'Initiative published on the public roadmap',,
+        doneWhen: 'Initiative published on the public roadmap',
         function: 'ops',
         boundary_type: 'Terminating',
         completion_value: 'Initiative complete'

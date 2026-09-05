@@ -72,7 +72,7 @@ describe('Legal Formation Advisory', () => {
         purposeCompletion: 'MVP launched and users acquired',
         classification: 'objective',
         doneWhen: 'Product is live and first 100 users acquired',
-        roleTags: ['project'],,
+        roleTags: ['project'],
         function: 'ops',
         boundary_type: 'Terminating',
         completion_value: 'Initiative complete'
@@ -138,7 +138,7 @@ describe('Legal Formation Advisory', () => {
         purposeCompletion: '$1M in new market revenue',
         classification: 'objective',
         doneWhen: 'New market launch complete',
-        roleTags: ['project'],,
+        roleTags: ['project'],
         function: 'ops',
         boundary_type: 'Terminating',
         completion_value: 'Initiative complete'
@@ -187,7 +187,7 @@ describe('Legal Formation Advisory', () => {
         purposeCompletion: 'Beta release',
         classification: 'objective',
         doneWhen: 'Live with users',
-        roleTags: ['project'],,
+        roleTags: ['project'],
         function: 'ops',
         boundary_type: 'Terminating',
         completion_value: 'Initiative complete'

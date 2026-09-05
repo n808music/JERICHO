@@ -48,7 +48,7 @@ describe('Step 3 Reschedule Piece 1: Pre-Population of Sources', () => {
         name: 'Pre-Population Initiative',
         purpose: 'Test pre-population',
         classification: 'objective',
-        doneWhen: 'All complete',,
+        doneWhen: 'All complete',
         function: 'ops',
         boundary_type: 'Terminating',
         completion_value: 'Initiative complete'
@@ -269,7 +269,7 @@ describe('Step 3 Reschedule Piece 1: Pre-Population of Sources', () => {
         name: 'Initiative',
         purpose: 'Test',
         classification: 'objective',
-        doneWhen: 'Complete',,
+        doneWhen: 'Complete',
         function: 'ops',
         boundary_type: 'Terminating',
         completion_value: 'Initiative complete'

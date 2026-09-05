@@ -50,7 +50,7 @@ describe('Convergence Step 4: Status Computation', () => {
           name: 'Converged Initiative',
           purpose: 'Complete convergence test',
           classification: 'objective',
-          doneWhen: 'All deliverables done',,
+          doneWhen: 'All deliverables done',
         function: 'ops',
         boundary_type: 'Terminating',
         completion_value: 'Initiative complete'
@@ -197,7 +197,7 @@ describe('Convergence Step 4: Status Computation', () => {
           name: 'Partial Initiative',
           purpose: 'Partial completion test',
           classification: 'objective',
-          doneWhen: 'Some done',,
+          doneWhen: 'Some done',
         function: 'ops',
         boundary_type: 'Terminating',
         completion_value: 'Initiative complete'
@@ -319,7 +319,7 @@ describe('Convergence Step 4: Status Computation', () => {
           name: 'Missed Initiative',
           purpose: 'Missed deadline test',
           classification: 'objective',
-          doneWhen: 'All complete',,
+          doneWhen: 'All complete',
         function: 'ops',
         boundary_type: 'Terminating',
         completion_value: 'Initiative complete'
@@ -452,7 +452,7 @@ describe('Convergence Step 4: Status Computation', () => {
           name: 'Initiative 1',
           purpose: 'Multi-source test',
           classification: 'objective',
-          doneWhen: 'Complete',,
+          doneWhen: 'Complete',
         function: 'ops',
         boundary_type: 'Terminating',
         completion_value: 'Initiative complete'
@@ -466,7 +466,7 @@ describe('Convergence Step 4: Status Computation', () => {
           name: 'Initiative 2',
           purpose: 'Multi-source test',
           classification: 'objective',
-          doneWhen: 'Complete',,
+          doneWhen: 'Complete',
         function: 'ops',
         boundary_type: 'Terminating',
         completion_value: 'Initiative complete'
@@ -622,7 +622,7 @@ describe('Convergence Step 4: Status Computation', () => {
           name: 'Early Initiative',
           purpose: 'Test',
           classification: 'objective',
-          doneWhen: 'Complete',,
+          doneWhen: 'Complete',
         function: 'ops',
         boundary_type: 'Terminating',
         completion_value: 'Initiative complete'
@@ -691,7 +691,7 @@ describe('Convergence Step 4: Status Computation', () => {
           name: 'No Action Initiative',
           purpose: 'Test',
           classification: 'objective',
-          doneWhen: 'Complete',,
+          doneWhen: 'Complete',
         function: 'ops',
         boundary_type: 'Terminating',
         completion_value: 'Initiative complete'

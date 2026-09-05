@@ -24,7 +24,7 @@ describe('Convergence Step 3: Comprehensive Multi-Part Test', () => {
         name: 'Album Production',
         purpose: 'Produce and release album',
         classification: 'objective',
-        doneWhen: 'Album is released and on all platforms',,
+        doneWhen: 'Album is released and on all platforms',
         function: 'ops',
         boundary_type: 'Terminating',
         completion_value: 'Initiative complete'
