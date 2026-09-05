@@ -1,9 +1,25 @@
-# Test Baseline: f62a88f (142 failures)
+# Test Baseline: f62a88f (142 failures) — SUPERSEDED, DO NOT USE
+
+> **SUPERSEDED 2026-09-05 by [`baseline-72c717a-REFERENCE.md`](baseline-72c717a-REFERENCE.md).**
+>
+> This baseline is not valid. It was measured on a tree that could not fully
+> collect. `f62a88f` itself introduced 19 duplicated commas (`,,`) into fixture
+> object literals across 9 test files, which are parse errors. Those 9 files
+> failed to collect, so their tests were absent from the run rather than counted.
+>
+> The `4460 total` recorded below is the tell: the true total at the immediately
+> preceding commit `72c717a` is **4509**. The missing 49 tests are the contents of
+> the 9 files `f62a88f` broke. Every failure count in this document was taken
+> against a suite that was 49 tests short, so it cannot be compared against any
+> run that collects cleanly.
+>
+> Retained for history only. Use `72c717a` (4509 total, 185 failing) as the
+> reference for all diffs.
 
 **Commit**: f62a88f6f8b712f4ffeef883545ca913eca490d0
 **Date**: 2026-09-05 06:21 UTC
 **Command**: `npx vitest run --reporter=json`
-**Result**: 142 failed | 4318 passed | 7 skipped (4460 total)
+**Result**: 142 failed | 4318 passed | 7 skipped (4460 total) — measured on a tree with 9 files failing collection
 
 ## Failing Tests by File (142 total, 43 files)
 
