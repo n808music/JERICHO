@@ -297,7 +297,8 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
       const fromId = resolveGeneric(from);
       const toId = resolveGeneric(to);
       if (fromId && toId) {
-        dispatch({ type: 'DECLARE_MATRIX_LINK', payload: { id: `link-${++linkSeq}`, kind: e.type, fromId, toId } });
+        const targetDate = String(e.target_date ?? '').trim() || null;
+        dispatch({ type: 'DECLARE_MATRIX_LINK', payload: { id: `link-${++linkSeq}`, kind: e.type, fromId, toId, targetDate } });
       }
     }
   }
