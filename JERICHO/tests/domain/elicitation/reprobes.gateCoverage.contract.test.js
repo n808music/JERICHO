@@ -63,11 +63,68 @@ const KNOWN_UNAUTHORED = [
   'ARTIFACT_SLUG_EMPTY',
 ];
 
-// Same ledger, for gate/reprobe pickSet disagreement. probeFor() returns the
-// REPROBE's pickSet and discards the gate's, so both of these resolve to
-// 'boundaryTypeOptions' — a kind elicitationEngine does not handle at all, so
-// the boundary-type pick renders with no options in either slot.
+// elicitationEngine.js:380 resolves a probe's pickSet as:
+//     const pickKind = gateEntry?.pickSet || base.pickSet;
+// The GATE's pickSet wins over the reprobe's base.pickSet. That precedence is
+// correct and deliberate — the gate is the authority on what it is asking for.
+//
+// Same ledger shape as above, keyed by gate CODE, for gates whose reprobe
+// declares a different kind. The gate's kind is what renders; the reprobe's is
+// dead text. Both entries below declare a gate-side *BoundaryTypeOptions kind
+// against a reprobe-side 'boundaryTypeOptions'.
 const KNOWN_PICKSET_DRIFT = ['PROJECT_BOUNDARY_TYPE_MISSING', 'INITIATIVE_BOUNDARY_TYPE_MISSING'];
+
+// The kinds elicitationEngine.buildPickSet() (elicitationEngine.js:156-320)
+// actually implements. Every other kind falls through to the tail
+// `return { kind, items: [] }`.
+const IMPLEMENTED_PICKSET_KINDS = [
+  'declaredEntities',
+  'declaredSources',
+  'roleTagOptions',
+  'formationStateOptions',
+  'yesNoOptions',
+  'legalFormationPrerequisiteOptions',
+  'initiativeOwnerOptions',
+  'initiativeRoleTagOptions',
+  'systemOwnerOptions',
+  'producingProjectOptions',
+  'declaredNodeOptions',
+  'dependencyTypeOptions',
+  'allDeclaredNodeOptions',
+  'convergenceSourceOptions',
+  'unprofiledInitiativeOptions',
+  'resourceDimensionOptions',
+  'bootstrapCandidateOptions',
+];
+
+// KNOWN_UNHANDLED_PICKSET_KINDS — declared kinds buildPickSet does not implement.
+//
+// BLOCKER CLASS (2026-09-05). Soft-fail, not a crash: an unimplemented kind
+// yields items: [], which sets probe.dependencyGap = true
+// (elicitationEngine.js:383-385), and MatrixIntake.jsx:1584 gates rendering on
+// `probe.pickSet && !probe.dependencyGap`. The operator is therefore told a
+// PREREQUISITE IS MISSING when the truth is the pickSet kind was never built.
+// A false diagnosis is worse than an empty list — it sends the operator to fix
+// a dependency that is not broken.
+//
+// Fix scope is the ENGINE, not the reprobe registry. Adding reprobe entries
+// cannot clear any line below. Blocks Test 1 entry.
+//
+// Compounding: slot:initiative sits on BOTH failure classes — an unauthored
+// reprobe (KNOWN_UNAUTHORED) and two dead pickSets (function, boundary_type).
+// The function gate is the first pick an operator reaches, so Initiative is
+// the worst entry point in the ladder.
+//
+// Same one-way rule as the other ledgers: it may only shrink.
+const KNOWN_UNHANDLED_PICKSET_KINDS = [
+  'declaredProjects', // deliverableSlot.js:39 (gate) + deliverableReprobes.js:29
+  'declaredInitiatives', // projectSlot.js:52 (gate) + reprobes.js:135 — Item 1
+  'projectBoundaryTypeOptions', // projectSlot.js:59 (gate) — Item 1
+  'initiativeBoundaryTypeOptions', // initiativeSlot.ts:232 (gate) — Item 2
+  'initiativeFunctionOptions', // initiativeReprobes.ts:156 — Item 2
+  'artifactSatisfactionModeOptions', // artifactSlot.ts:93 (gate) + artifactReprobes.ts:69 — Item 3
+  'boundaryTypeOptions', // reprobes.js:141, initiativeReprobes.ts:161 — reprobe side, loses to gate
+];
 
 describe('reprobe registry — gate coverage contract', () => {
   it('every slot in the inventory is defined and carries a gate ladder', () => {
@@ -105,12 +162,61 @@ describe('reprobe registry — gate coverage contract', () => {
     }
   );
 
+  it('every declared pickSet kind is either implemented or on the debt ledger', () => {
+    // Collect every kind the registry can hand to buildPickSet: gate-side
+    // (which wins) and reprobe-side (which renders when the gate declares none).
+    const declared = new Set();
+    for (const slot of ALL_SLOTS) {
+      for (const g of slot.gate) if (g?.pickSet) declared.add(g.pickSet);
+    }
+    for (const entry of Object.values(REPROBES)) {
+      if (entry?.pickSet) declared.add(entry.pickSet);
+    }
+
+    const unaccounted = [...declared]
+      .filter((kind) => !IMPLEMENTED_PICKSET_KINDS.includes(kind))
+      .filter((kind) => !KNOWN_UNHANDLED_PICKSET_KINDS.includes(kind));
+
+    expect(
+      unaccounted,
+      `pickSet kinds with no buildPickSet branch and no ledger entry: ${unaccounted.join(', ')}. ` +
+        `Either implement the kind in elicitationEngine.buildPickSet() or the probe renders a ` +
+        `false dependency gap.`
+    ).toEqual([]);
+  });
+
+  it('the unhandled-kind ledger carries no stale entries', () => {
+    // One-way rule enforcement in the other direction: once a kind is
+    // implemented or its last declaration is deleted, its ledger line must go.
+    const declared = new Set();
+    for (const slot of ALL_SLOTS) {
+      for (const g of slot.gate) if (g?.pickSet) declared.add(g.pickSet);
+    }
+    for (const entry of Object.values(REPROBES)) {
+      if (entry?.pickSet) declared.add(entry.pickSet);
+    }
+
+    const stale = KNOWN_UNHANDLED_PICKSET_KINDS.filter(
+      (kind) => IMPLEMENTED_PICKSET_KINDS.includes(kind) || !declared.has(kind)
+    );
+    expect(stale, `ledger entries that no longer describe a live gap: ${stale.join(', ')}`).toEqual(
+      []
+    );
+  });
+
   // The System slot is the one this contract was written for. It carries no
   // exemptions, and must never acquire one.
-  it('slot:system claims no entry in either debt ledger', () => {
+  it('slot:system claims no entry in any debt ledger', () => {
     const systemCodes = SYSTEM_SLOT.gate.map((g) => g.code);
     for (const code of [...KNOWN_UNAUTHORED, ...KNOWN_PICKSET_DRIFT]) {
       expect(systemCodes, `${code} must not be exempted for slot:system`).not.toContain(code);
+    }
+    const systemKinds = SYSTEM_SLOT.gate.map((g) => g?.pickSet).filter(Boolean);
+    for (const kind of systemKinds) {
+      expect(
+        KNOWN_UNHANDLED_PICKSET_KINDS,
+        `slot:system declares ${kind}, which is on the unhandled-kind ledger`
+      ).not.toContain(kind);
     }
   });
 });
