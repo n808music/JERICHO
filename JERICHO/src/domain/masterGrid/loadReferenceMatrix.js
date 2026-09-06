@@ -55,7 +55,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
   // Full name -> id map (all classes) for parent_initiative / parent_project
   // references, which appear in the fixture with exact names.
   const idByName = new Map();
-  for (const n of nodes) idByName.set(n.name, slugId(n.name));
+  for (const n of nodes) {idByName.set(n.name, slugId(n.name));}
   const resolve = (nm) => (nm && idByName.has(nm) ? idByName.get(nm) : null);
 
   let state = buildBlankIdentityState({ nowISO });
@@ -103,7 +103,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
   const nodesByName = new Map(nodes.map((n) => [n.name, n]));
   const resolveGeneric = (nm) => {
     const node = nodesByName.get(nm);
-    if (!node) return null;
+    if (!node) {return null;}
     const baseId = resolve(nm);
     return baseId ? getNodeIdForClass(baseId, node.class) : null;
   };
@@ -115,10 +115,10 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
   // state.matrix.entitiesById is populated by the time this runs for owners.
   // Entity IDs use type-prefix scheme (entity-${slug}) to align with builder.
   const resolveEntity = (nm) => {
-    if (!nm) return null;
+    if (!nm) {return null;}
     const canonical = ENTITY_ALIASES[nm] || nm;
     const baseId = idByName.get(canonical);
-    if (!baseId) return null;
+    if (!baseId) {return null;}
     const entityId = getNodeIdForClass(baseId, 'Entity');
     return state.matrix?.entitiesById?.[entityId] ? entityId : null;
   };
@@ -127,16 +127,15 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
   // Artifact names may refer to Artifacts (same grain), Deliverables (parent grain),
   // Projects (ancestor grain), or Initiatives (meta-container). Search in precedence order:
   // Artifact → Deliverable → Project → Initiative, first match wins.
-  const nodesByName = new Map(nodes.map((n) => [n.name, n]));
   const resolveBufferAnchor = (nm) => {
-    if (!nm) return null;
+    if (!nm) {return null;}
     const trimmed = String(nm).trim();
     const node = nodesByName.get(trimmed);
-    if (!node) return null;
+    if (!node) {return null;}
 
     // Only accept nodes in the allowed precedence classes
     const precedence = ['Artifact', 'Deliverable', 'Project', 'Initiative'];
-    if (!precedence.includes(node.class)) return null;
+    if (!precedence.includes(node.class)) {return null;}
 
     const baseId = idByName.get(trimmed);
     return baseId ? getNodeIdForClass(baseId, node.class) : null;
