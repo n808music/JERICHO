@@ -131,4 +131,10 @@ export const ENTITY_REPROBES = {
       generic: "e.g. 'the gum is on shelves generating revenue', not 'it's up and running'",
     },
   },
+  // ── foundation_initiative: required, one hop up in Origin Doctrine ──────
+  ENTITY_FOUNDATION_INITIATIVE_MISSING: {
+    spine: 'Which initiative founded this entity — the undertaking that created it? Pick the initiative this entity exists to support.',
+    pickSet: 'declaredInitiatives',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
 };
