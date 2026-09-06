@@ -77,6 +77,10 @@ const dimensionGates = RESOURCE_DIMENSIONS.flatMap((dim) => {
 });
 
 export const RESOURCE_PROFILE_SLOT = {
+  matrixBinding: {
+    action: 'DECLARE_RESOURCE_PROFILE',
+    fields: ['initiativeId', 'moneyNeed', 'moneyGap', 'timeNeed', 'timeGap', 'skillsNeed', 'skillsGap', 'techNeed', 'techGap'],
+  },
   slotId: RESOURCE_PROFILE_SLOT_ID,
   section: 9,
   gate: [
@@ -106,6 +110,10 @@ export const RESOURCE_PROFILE_SLOT = {
 };
 
 export const BINDING_CONSTRAINT_SLOT = {
+  matrixBinding: {
+    action: 'DECLARE_BINDING_CONSTRAINT',
+    fields: ['bindingDimension', 'rationale'],
+  },
   slotId: BINDING_CONSTRAINT_SLOT_ID,
   section: 9,
   dependsOn: ['slot:resourceProfile'],
