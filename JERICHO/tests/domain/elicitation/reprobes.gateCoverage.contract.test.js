@@ -53,15 +53,9 @@ const ALL_SLOTS = [
 // This list is a debt ledger, not a permission slip: it may only shrink. A new
 // entry here means someone shipped the 18a59c1 defect again.
 //
-//   INITIATIVE_COMPLETION_VALUE_ONGOING_OUTPUT_MISMATCH — Step 3 Item 2
-//     pairing gate. probeFor() throws when an Initiative supplies both a
-//     completion_value and an ongoing_output.
-//   ARTIFACT_SLUG_EMPTY — Gate C (2026-09-04). probeFor() throws when an
-//     artifact name slugifies to the empty string.
-const KNOWN_UNAUTHORED = [
-  'INITIATIVE_COMPLETION_VALUE_ONGOING_OUTPUT_MISMATCH',
-  'ARTIFACT_SLUG_EMPTY',
-];
+// [2026-09-05] Both gaps resolved: INITIATIVE_COMPLETION_VALUE_ONGOING_OUTPUT_MISMATCH
+// and ARTIFACT_SLUG_EMPTY authored in initiativeReprobes.ts and artifactReprobes.ts.
+const KNOWN_UNAUTHORED = [];
 
 // elicitationEngine.js:380 resolves a probe's pickSet as:
 //     const pickKind = gateEntry?.pickSet || base.pickSet;

@@ -91,4 +91,13 @@ export const ARTIFACT_REPROBES = {
     spine: 'Buffer fields (anchor and binding type) must pair — either both filled or both empty. Provide both or neither.',
     examples: { musician: '', founder: '', writer: '', generic: '' },
   },
+  ARTIFACT_SLUG_EMPTY: {
+    spine: 'This artifact\'s name has no letters or numbers — give me one with at least one alphanumeric character so this artifact can be named in the system.',
+    examples: {
+      musician: "e.g. 'Romance Riot tape', not '—' or '...'",
+      founder: "e.g. 'MVP launch', not '---' or '(unnamed)'",
+      writer: "e.g. 'manuscript v2', not '/' or '***'",
+      generic: "e.g. any name with at least one letter or number, not special characters only",
+    },
+  },
 };

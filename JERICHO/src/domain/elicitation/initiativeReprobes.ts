@@ -196,4 +196,13 @@ export const INITIATIVE_REPROBES = {
       'Completion value and ongoing output must pair by boundary type. Terminating needs completion_value; Ongoing needs ongoing_output.',
     examples: { musician: '', founder: '', writer: '', generic: '' },
   },
+  INITIATIVE_COMPLETION_VALUE_ONGOING_OUTPUT_MISMATCH: {
+    spine: 'This initiative is either a bounded project (with a completion value) OR an ongoing system (with ongoing output) — not both. Pick one for this initiative: is it what completes the project, or what it produces while running?',
+    examples: {
+      musician: "e.g. 'launch the album' (completion) or 'generate monthly revenue' (ongoing) — not both",
+      founder: "e.g. 'close Series A' (completion) or 'sustain 100 users' (ongoing) — not both",
+      writer: "e.g. 'sign agent representation' (completion) or 'publish monthly newsletter' (ongoing) — not both",
+      generic: "e.g. define whether it ends at a milestone (completion) or runs indefinitely (ongoing)",
+    },
+  },
 };
