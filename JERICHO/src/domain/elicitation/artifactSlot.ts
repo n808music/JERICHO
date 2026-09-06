@@ -118,6 +118,15 @@ export const ARTIFACT_SLOT = {
         return hasAnchor !== hasBinding;
       },
     },
+    // Item 6: Buffer anchor resolution — must resolve to a declared node when mode requires buffer
+    {
+      code: 'ARTIFACT_BUFFER_ANCHOR_UNKNOWN',
+      fieldName: 'buffer_anchor',
+      detect: (captured: Record<string, unknown>) =>
+        captured?.satisfaction_mode === 'buffer_anchored' &&
+        !captured?.buffer_anchor,
+      pickSet: 'allDeclaredNodeOptions',
+    },
   ] as const,
 };
 

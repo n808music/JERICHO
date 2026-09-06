@@ -123,6 +123,25 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
     return state.matrix?.entitiesById?.[entityId] ? entityId : null;
   };
 
+  // Item 6: Buffer anchor resolution — grain-scoped precedence.
+  // Artifact names may refer to Artifacts (same grain), Deliverables (parent grain),
+  // Projects (ancestor grain), or Initiatives (meta-container). Search in precedence order:
+  // Artifact → Deliverable → Project → Initiative, first match wins.
+  const nodesByName = new Map(nodes.map((n) => [n.name, n]));
+  const resolveBufferAnchor = (nm) => {
+    if (!nm) return null;
+    const trimmed = String(nm).trim();
+    const node = nodesByName.get(trimmed);
+    if (!node) return null;
+
+    // Only accept nodes in the allowed precedence classes
+    const precedence = ['Artifact', 'Deliverable', 'Project', 'Initiative'];
+    if (!precedence.includes(node.class)) return null;
+
+    const baseId = idByName.get(trimmed);
+    return baseId ? getNodeIdForClass(baseId, node.class) : null;
+  };
+
   // Single shared verification source so Project/Deliverable required refs resolve.
   dispatch({
     type: 'DECLARE_VERIFICATION_SOURCE',
@@ -231,7 +250,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             verificationSourceId: VERIFICATION_SOURCE_ID,
             operatorAttestationMethod: 'operator',
             targetDate: n.target_date || null,
-            buffer_anchor: n.buffer_anchor || null,         // Step 3: optional parent deliverable for buffer computation
+            buffer_anchor: resolveBufferAnchor(n.buffer_anchor),  // Item 6: resolve name → grain-scoped ID
             buffer_binding: n.buffer_binding || null,       // Step 3: 'hard' | 'advisory'
             // Step 3: Artifact intake fields
             satisfaction_mode: n.satisfaction_mode || null,

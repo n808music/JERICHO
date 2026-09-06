@@ -17301,6 +17301,25 @@ function declareArtifact(state, payload = {}) {
     return;
   }
 
+  // Item 6: Validate buffer_anchor resolves to a declared node when present
+  // Search across registries in grain-scoped precedence order.
+  if (bufferAnchor) {
+    const anchorExists =
+      state.matrix.artifactsById[bufferAnchor] ||
+      state.matrix.deliverablesById[bufferAnchor] ||
+      state.matrix.projectsById[bufferAnchor] ||
+      state.matrix.initiativesById[bufferAnchor];
+
+    if (!anchorExists) {
+      state.lastPlanError = {
+        code: 'ARTIFACT_BUFFER_ANCHOR_UNKNOWN',
+        reason: `Artifact buffer_anchor "${bufferAnchor}" is not declared in any registry (Artifact, Deliverable, Project, or Initiative).`,
+        meta: { id, bufferAnchor },
+      };
+      return;
+    }
+  }
+
   // Layer 2: Uniqueness assertion at mint time
   if (state.matrix.artifactsById[id]) {
     state.lastPlanError = {

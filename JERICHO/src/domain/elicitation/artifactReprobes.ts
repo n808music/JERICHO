@@ -91,6 +91,12 @@ export const ARTIFACT_REPROBES = {
     spine: 'Buffer fields (anchor and binding type) must pair — either both filled or both empty. Provide both or neither.',
     examples: { musician: '', founder: '', writer: '', generic: '' },
   },
+  // Item 6: Buffer anchor resolution
+  ARTIFACT_BUFFER_ANCHOR_UNKNOWN: {
+    spine: 'The buffer anchor must be a declared node (Artifact, Deliverable, Project, or Initiative). Pick from the list of existing nodes in your operation.',
+    pickSet: 'allDeclaredNodeOptions',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
   ARTIFACT_SLUG_EMPTY: {
     spine: 'This artifact\'s name has no letters or numbers — give me one with at least one alphanumeric character so this artifact can be named in the system.',
     examples: {
