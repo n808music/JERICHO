@@ -45,6 +45,7 @@ describe('Artifact Buffer Directive (Item 6): Buffer anchor resolution & validat
       payload: {
         id: 'project-anchor',
         name: 'Anchor Project',
+        owningEntityId: 'entity-producer',
         executing_entity: 'entity-producer',
         parent_initiative: 'initiative-anchor',
         boundary_type: 'Terminating',
@@ -59,10 +60,10 @@ describe('Artifact Buffer Directive (Item 6): Buffer anchor resolution & validat
       payload: {
         id: 'deliverable-anchor',
         name: 'Anchor Deliverable',
-        parentProjectId: 'project-anchor',
-        executingEntityId: 'entity-producer',
+        parent_project: 'project-anchor',
+        executing_entity: 'entity-producer',
         description: 'test',
-        targetDate: '2026-11-30',
+        target_date: '2026-11-30',
       },
     });
 
