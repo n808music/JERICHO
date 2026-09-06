@@ -110,6 +110,29 @@ const IMPLEMENTED_PICKSET_KINDS = [
 // the worst entry point in the ladder.
 //
 // Same one-way rule as the other ledgers: it may only shrink.
+
+// KNOWN_UNIMPLEMENTED_PICKSETS — kinds that elicitationEngine.buildPickSet()
+// throws on when encountered (loud-fail, not silent empty-items fallback).
+//
+// CLASS 2 BLOCKER, OPTION B (2026-09-05): loud-fail pattern.
+// When an unimplemented kind is declared in a gate, buildPickSet throws
+// immediately instead of returning empty items. This exposes the boundary
+// (feature not implemented) instead of hiding it under false-dependency-gap.
+//
+// The 7 entries below are in gates/reprobes across Items 1–3. Items 5–8 will
+// not need any of these kinds — new kinds added by Items 5–8 will be
+// implemented immediately or added to this list. One-way rule: may only shrink
+// when the kind is implemented and the throw is removed.
+const KNOWN_UNIMPLEMENTED_PICKSETS = [
+  'declaredProjects',        // deliverableSlot.js:39 (gate) + deliverableReprobes.js:29
+  'declaredInitiatives',     // projectSlot.js:52 (gate) + reprobes.js:135 — Item 1
+  'projectBoundaryTypeOptions', // projectSlot.js:59 (gate) — Item 1
+  'initiativeBoundaryTypeOptions', // initiativeSlot.ts:232 (gate) — Item 2
+  'initiativeFunctionOptions', // initiativeReprobes.ts:156 — Item 2
+  'artifactSatisfactionModeOptions', // artifactSlot.ts:93 (gate) + artifactReprobes.ts:69 — Item 3
+  'boundaryTypeOptions', // reprobes.js:141, initiativeReprobes.ts:161 — reprobe side, loses to gate
+];
+
 const KNOWN_UNHANDLED_PICKSET_KINDS = [
   'declaredProjects', // deliverableSlot.js:39 (gate) + deliverableReprobes.js:29
   'declaredInitiatives', // projectSlot.js:52 (gate) + reprobes.js:135 — Item 1

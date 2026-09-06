@@ -317,7 +317,10 @@ function buildPickSet(kind, matrixSnapshot) {
       })),
     };
   }
-  return { kind, items: [] };
+  // No branch matched. Throw loudly instead of silently returning empty items
+  // (which would cause a false-dependency-gap diagnosis in the UI).
+  // This boundary is tracked in reprobes.gateCoverage.contract.test.js:KNOWN_UNIMPLEMENTED_PICKSETS.
+  throw new Error(`buildPickSet: unimplemented kind "${kind}". Add a branch to elicitationEngine.js:156-320 or the kind will render as a false dependency gap.`);
 }
 
 // Slot-type placeholders used in reproe spines, and the captured field that names the item.
