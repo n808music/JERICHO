@@ -16,6 +16,7 @@ import { ARTIFACT_REPROBES } from '../../../src/domain/elicitation/artifactRepro
 const OWNER_SPINES = [
   { code: 'PROJECT_OWNER_MISSING', token: 'this project', spine: () => lookup('PROJECT_OWNER_MISSING') },
   { code: 'INITIATIVE_OWNER_UNRESOLVED', token: 'this undertaking', spine: () => INITIATIVE_REPROBES.INITIATIVE_OWNER_UNRESOLVED.spine },
+  { code: 'SYSTEM_OWNER_MISSING', token: 'this system', spine: () => SYSTEM_REPROBES.SYSTEM_OWNER_MISSING.spine },
   { code: 'SYSTEM_OWNER_UNRESOLVED', token: 'this system', spine: () => SYSTEM_REPROBES.SYSTEM_OWNER_UNRESOLVED.spine },
   { code: 'ARTIFACT_PRODUCING_PROJECT_UNRESOLVED', token: 'this artifact', spine: () => ARTIFACT_REPROBES.ARTIFACT_PRODUCING_PROJECT_UNRESOLVED.spine },
 ];
@@ -35,8 +36,11 @@ describe('reprobe spines — subject-binding contract for owner/parent picks', (
   // INITIATIVE_CLASSIFICATION_MISSING was removed with initiative classification
   // (Item 6 Phase 4) — an Initiative carries no objective|constraint field. The
   // dangling-subject contract still applies to the remaining first-ask spines.
-  it('first-ask spines with a dangling subject carry their token (cycle)', () => {
-    expect(SYSTEM_REPROBES.SYSTEM_CYCLE_MISSING.spine).toContain('this system');
+  // SYSTEM_CYCLE_MISSING was renamed SYSTEM_MECHANISM_MISSING with the Step 4
+  // System intake ladder (name → owner → mechanism → feeds_converges_into).
+  // The dangling-subject contract follows the gate, not the old code name.
+  it('first-ask spines with a dangling subject carry their token (mechanism)', () => {
+    expect(SYSTEM_REPROBES.SYSTEM_MECHANISM_MISSING.spine).toContain('this system');
   });
 
   it('no initiative-classification reprobe survives the Phase 4 removal', () => {

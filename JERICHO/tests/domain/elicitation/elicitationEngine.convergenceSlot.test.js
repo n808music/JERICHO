@@ -82,9 +82,9 @@ function addSystem(state, id, name) {
     payload: {
       id,
       name: name || id,
-      owningEntityId: 'ent-1',
-      cycle: 'continuous production cycle',
-      activationState: 'running',
+      owner: 'ent-1',
+      mechanism: 'continuous production cycle',
+      feeds_converges_into: 'downstream',
     },
   });
 }

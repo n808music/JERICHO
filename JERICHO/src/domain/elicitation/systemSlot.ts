@@ -13,6 +13,12 @@ import { hasAuthoredSubstance } from '../planQuality/hasAuthoredSubstance';
 
 export const SYSTEM_SLOT_ID = 'slot:system';
 
+// Entity-less sentinel. A system marked cross-cutting serves the whole
+// operation rather than one entity; declareSystem matches this literal
+// exactly and stores owningEntityId: null. The value is load-bearing —
+// reference_matrix_v3_0.json carries `"owner": "Cross-cutting"` verbatim.
+export const SYSTEM_OWNER_ENTITY_LESS = 'Cross-cutting';
+
 export const SYSTEM_SLOT = {
   slotId: SYSTEM_SLOT_ID,
   section: 4,

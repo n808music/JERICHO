@@ -44,7 +44,6 @@ import {
   SYSTEM_SLOT_ID,
   buildSystemDeclarePayload,
   SYSTEM_OWNER_ENTITY_LESS,
-  SYSTEM_ACTIVATION_STATES,
 } from './systemSlot';
 import {
   ARTIFACT_SLOT,
@@ -236,17 +235,6 @@ function buildPickSet(kind, matrixSnapshot) {
     return {
       kind,
       items: entries.map((p) => ({ id: p.id, label: p.name || p.id })),
-    };
-  }
-  if (kind === 'activationStateOptions') {
-    const LABELS = {
-      running: 'running now',
-      missing: 'not yet in place',
-      planned: 'planned, not started',
-    };
-    return {
-      kind,
-      items: [...SYSTEM_ACTIVATION_STATES].map((v) => ({ id: v, label: LABELS[v] })),
     };
   }
   if (kind === 'declaredNodeOptions') {
