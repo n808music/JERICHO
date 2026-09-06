@@ -16318,6 +16318,7 @@ function declareEntity(state, payload = {}) {
   const statusEvidence = String(payload?.statusEvidence || '').trim();
   const legallyFormed = payload?.legallyFormed !== undefined ? Boolean(payload.legallyFormed) : null;
   const namedOnlyConfirmed = payload?.namedOnlyConfirmed === true;
+  const foundationInitiative = String(payload?.foundation_initiative || '').trim();
 
   // For named-only entities, statusEvidence is not required (the state itself is
   // self-proving: name exists, nothing built). For other states, statusEvidence
@@ -16329,6 +16330,26 @@ function declareEntity(state, payload = {}) {
       code: 'ENTITY_INVALID',
       reason: 'Entity requires id, name, purpose, and formationState. statusEvidence required except for named-only entities.',
       meta: { id, name, purpose, formationState, statusEvidence },
+    };
+    return;
+  }
+
+  // Step 5: Validate Entity intake fields
+  if (!foundationInitiative) {
+    state.lastPlanError = {
+      code: 'ENTITY_INTAKE_INCOMPLETE',
+      reason: 'Entity intake requires foundation_initiative.',
+      meta: { id, hasFoundationInitiative: Boolean(foundationInitiative) },
+    };
+    return;
+  }
+
+  // Validate foundation_initiative exists
+  if (!state.matrix.initiativesById[foundationInitiative]) {
+    state.lastPlanError = {
+      code: 'ENTITY_FOUNDATION_INITIATIVE_UNKNOWN',
+      reason: `Entity foundation_initiative "${foundationInitiative}" is not declared in matrix.initiativesById.`,
+      meta: { id, foundationInitiative },
     };
     return;
   }
@@ -16364,6 +16385,8 @@ function declareEntity(state, payload = {}) {
     confirmedAt: payload?.confirmedAt || null,
     confirmedBy: String(payload?.confirmedBy || '').trim() || null,
     confirmationSource: String(payload?.confirmationSource || '').trim() || null,
+    // Step 5: Entity intake fields
+    foundation_initiative: foundationInitiative,
   };
   if (payload?.doneWhen) entry.doneWhen = String(payload.doneWhen).trim();
   state.matrix.entitiesById[id] = entry;

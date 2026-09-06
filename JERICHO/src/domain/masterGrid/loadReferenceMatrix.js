@@ -149,6 +149,8 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             purpose: n.purpose || 'reference',
             formationState: n.legal_status || 'formed',
             statusEvidence: n.notes || 'reference',
+            // Step 5: Entity intake fields
+            foundation_initiative: resolveInitiative(n.foundation_initiative),
           },
         });
       } else if (cls === 'Initiative') {

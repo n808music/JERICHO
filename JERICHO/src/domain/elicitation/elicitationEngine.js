@@ -161,6 +161,13 @@ function buildPickSet(kind, matrixSnapshot) {
       items: entries.map((entity) => ({ id: entity.id, label: entity.name || entity.id })),
     };
   }
+  if (kind === 'declaredInitiatives') {
+    const entries = Object.values(matrixSnapshot?.initiativesById || {});
+    return {
+      kind,
+      items: entries.map((initiative) => ({ id: initiative.id, label: initiative.name || initiative.id })),
+    };
+  }
   if (kind === 'declaredSources') {
     const entries = Object.values(matrixSnapshot?.verificationSourcesById || {});
     return {
