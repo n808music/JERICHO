@@ -18,6 +18,20 @@ describe('System Intake Step 4: reducer enforcement', () => {
   });
 
   const setupMatrix = () => {
+    // Declare initiative first (entity foundation_initiative requirement)
+    state = computeDerivedState(state, {
+      type: 'DECLARE_INITIATIVE',
+      payload: {
+        id: 'initiative-music',
+        name: 'Music Initiative',
+        purpose: 'test',
+        doneWhen: 'test',
+        function: 'ops',
+        boundary_type: 'Terminating',
+        completion_value: 'done',
+      },
+    });
+
     state = computeDerivedState(state, {
       type: 'DECLARE_ENTITY',
       payload: {
@@ -27,6 +41,7 @@ describe('System Intake Step 4: reducer enforcement', () => {
         purpose: 'test',
         formationState: 'formed',
         statusEvidence: 'test',
+        foundation_initiative: 'initiative-music',
       },
     });
   };
