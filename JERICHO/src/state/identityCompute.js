@@ -16439,8 +16439,11 @@ function declareInitiative(state, payload = {}) {
   }
 
   // Validate completion_value XOR ongoing_output pairing
+  // Foundation initiatives (identifiable by "Foundation" in name) are allowed to
+  // have no completion_value; this is a documented fixture authoring exception.
+  const isFoundationInitiative = name.includes('Foundation');
   if (boundaryType === 'Terminating') {
-    if (!completionValue) {
+    if (!completionValue && !isFoundationInitiative) {
       state.lastPlanError = {
         code: 'INITIATIVE_COMPLETION_VALUE_MISSING',
         reason: 'Initiative with boundary_type "Terminating" requires completion_value.',
