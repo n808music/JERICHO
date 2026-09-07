@@ -11,10 +11,26 @@ describe('Project Intake Step 3: New gates and field storage', () => {
   });
 
   // Setup: declare necessary entities, initiatives, and verification source
+  // NOTE: Initiative must be declared BEFORE entities because Entity.foundation_initiative
+  // requires the Initiative to exist (per Entity intake validation).
   const setupMatrix = () => {
     state = computeDerivedState(state, {
       type: 'DECLARE_VERIFICATION_SOURCE',
       payload: { id: 'vs-test', domain: 'test', source: 'unit_test' },
+    });
+    // Declare Initiative first so Entity.foundation_initiative can reference it
+    state = computeDerivedState(state, {
+      type: 'DECLARE_INITIATIVE',
+      payload: {
+        id: 'initiative-test',
+        name: 'Test Initiative',
+        purpose: 'test',
+        doneWhen: 'test',
+        // Step 3: Initiative intake fields
+        function: 'ops',
+        boundary_type: 'Terminating',
+        completion_value: 'Initiative complete',
+      },
     });
     state = computeDerivedState(state, {
       type: 'DECLARE_ENTITY',
@@ -25,6 +41,8 @@ describe('Project Intake Step 3: New gates and field storage', () => {
         purpose: 'test',
         formationState: 'formed',
         statusEvidence: 'test',
+        // Step 5: Entity intake field
+        foundation_initiative: 'initiative-test',
       },
     });
     state = computeDerivedState(state, {
@@ -36,20 +54,16 @@ describe('Project Intake Step 3: New gates and field storage', () => {
         purpose: 'test',
         formationState: 'formed',
         statusEvidence: 'test',
+        // Step 5: Entity intake field
+        foundation_initiative: 'initiative-test',
       },
     });
+    // Update initiative to be owned by entity-owner so Project.owningEntityId validation works
     state = computeDerivedState(state, {
-      type: 'DECLARE_INITIATIVE',
+      type: 'UPDATE_INITIATIVE',
       payload: {
         id: 'initiative-test',
-        name: 'Test Initiative',
         owningEntityId: 'entity-owner',
-        purpose: 'test',
-        doneWhen: 'test',
-        // Step 3: Initiative intake fields
-        function: 'ops',
-        boundary_type: 'Terminating',
-        completion_value: 'Initiative complete',
       },
     });
   };
@@ -85,7 +99,7 @@ describe('Project Intake Step 3: New gates and field storage', () => {
           owningEntityId: 'entity-owner',
           description: 'test',
           verificationSourceId: 'vs-test',
-          executing_entity: 'entity-executor',
+          executingEntityIds: ['entity-executor'],
           // parent_initiative: MISSING
           boundary_type: 'Terminating',
           terminal_date: '2026-12-31',
@@ -104,7 +118,7 @@ describe('Project Intake Step 3: New gates and field storage', () => {
           owningEntityId: 'entity-owner',
           description: 'test',
           verificationSourceId: 'vs-test',
-          executing_entity: 'entity-executor',
+          executingEntityIds: ['entity-executor'],
           parent_initiative: 'initiative-test',
           // boundary_type: MISSING
           terminal_date: '2026-12-31',
@@ -123,7 +137,7 @@ describe('Project Intake Step 3: New gates and field storage', () => {
           owningEntityId: 'entity-owner',
           description: 'test',
           verificationSourceId: 'vs-test',
-          executing_entity: 'entity-executor',
+          executingEntityIds: ['entity-executor'],
           parent_initiative: 'initiative-test',
           boundary_type: 'Terminating',
           // terminal_date: MISSING
@@ -133,7 +147,7 @@ describe('Project Intake Step 3: New gates and field storage', () => {
       expect(state.matrix.projectsById['project-missing-date']).toBeUndefined();
     });
 
-    it('Gate 2: PROJECT_EXECUTING_ENTITY_UNKNOWN — executing_entity not in matrix', () => {
+    it('Gate 2: PROJECT_EXECUTING_ENTITY_UNKNOWN — executingEntityIds contains invalid entity', () => {
       state = computeDerivedState(state, {
         type: 'DECLARE_PROJECT',
         payload: {
@@ -142,7 +156,7 @@ describe('Project Intake Step 3: New gates and field storage', () => {
           owningEntityId: 'entity-owner',
           description: 'test',
           verificationSourceId: 'vs-test',
-          executing_entity: 'entity-nonexistent',
+          executingEntityIds: ['entity-nonexistent'],
           parent_initiative: 'initiative-test',
           boundary_type: 'Terminating',
           terminal_date: '2026-12-31',
@@ -161,7 +175,7 @@ describe('Project Intake Step 3: New gates and field storage', () => {
           owningEntityId: 'entity-owner',
           description: 'test',
           verificationSourceId: 'vs-test',
-          executing_entity: 'entity-executor',
+          executingEntityIds: ['entity-executor'],
           parent_initiative: 'initiative-nonexistent',
           boundary_type: 'Terminating',
           terminal_date: '2026-12-31',
@@ -180,7 +194,7 @@ describe('Project Intake Step 3: New gates and field storage', () => {
           owningEntityId: 'entity-owner',
           description: 'test',
           verificationSourceId: 'vs-test',
-          executing_entity: 'entity-executor',
+          executingEntityIds: ['entity-executor'],
           parent_initiative: 'initiative-test',
           boundary_type: 'InvalidBoundary',
           terminal_date: '2026-12-31',
@@ -199,7 +213,7 @@ describe('Project Intake Step 3: New gates and field storage', () => {
           owningEntityId: 'entity-owner',
           description: 'test',
           verificationSourceId: 'vs-test',
-          executing_entity: 'entity-executor',
+          executingEntityIds: ['entity-executor'],
           parent_initiative: 'initiative-test',
           boundary_type: 'Terminating',
           terminal_date: 'not-a-date',
@@ -218,7 +232,7 @@ describe('Project Intake Step 3: New gates and field storage', () => {
           owningEntityId: 'entity-owner',
           description: 'test',
           verificationSourceId: 'vs-test',
-          executing_entity: 'entity-executor',
+          executingEntityIds: ['entity-executor'],
           parent_initiative: 'initiative-test',
           boundary_type: 'Terminating',
           terminal_date: '2020-01-01',
@@ -237,7 +251,7 @@ describe('Project Intake Step 3: New gates and field storage', () => {
           owningEntityId: 'entity-owner',
           description: 'test',
           verificationSourceId: 'vs-test',
-          executing_entity: 'entity-executor',
+          executingEntityIds: ['entity-executor'],
           parent_initiative: 'initiative-test',
           boundary_type: 'Terminating',
           terminal_date: '2026-09-04',
@@ -260,7 +274,7 @@ describe('Project Intake Step 3: New gates and field storage', () => {
           owningEntityId: 'entity-owner',
           description: 'test',
           verificationSourceId: 'vs-test',
-          executing_entity: 'entity-executor',
+          executingEntityIds: ['entity-executor'],
           parent_initiative: 'initiative-test',
           boundary_type: 'Terminating',
           terminal_date: '2026-12-31',
@@ -291,7 +305,7 @@ describe('Project Intake Step 3: New gates and field storage', () => {
           owningEntityId: 'entity-owner',
           description: 'test',
           verificationSourceId: 'vs-test',
-          executing_entity: 'entity-executor',
+          executingEntityIds: ['entity-executor'],
           parent_initiative: 'initiative-test',
           boundary_type: 'Terminating',
           terminal_date: '2026-12-31',
@@ -300,7 +314,7 @@ describe('Project Intake Step 3: New gates and field storage', () => {
       expect(state.lastPlanError).toBeNull();
       const project = state.matrix.projectsById['project-full-intake'];
       expect(project).toBeDefined();
-      expect(project.executing_entity).toBe('entity-executor');
+      expect(project.executingEntityIds).toEqual(['entity-executor']);
       expect(project.parent_initiative).toBe('initiative-test');
       expect(project.boundary_type).toBe('Terminating');
       expect(project.terminal_date).toBe('2026-12-31');
@@ -315,7 +329,7 @@ describe('Project Intake Step 3: New gates and field storage', () => {
           owningEntityId: 'entity-owner',
           description: 'test',
           verificationSourceId: 'vs-test',
-          executing_entity: 'entity-executor',
+          executingEntityIds: ['entity-executor'],
           parent_initiative: 'initiative-test',
           boundary_type: 'Ongoing',
           terminal_date: '2026-12-31',
