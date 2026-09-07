@@ -16439,8 +16439,11 @@ function declareInitiative(state, payload = {}) {
   }
 
   // Validate completion_value XOR ongoing_output pairing
+  // Foundation lanes (structural detection: own "Business Plan" projects) are exempt
+  // from the completion_value requirement per doctrine.
+  const isFoundationLane = payload.isFoundationLane || false;
   if (boundaryType === 'Terminating') {
-    if (!completionValue) {
+    if (!completionValue && !isFoundationLane) {
       state.lastPlanError = {
         code: 'INITIATIVE_COMPLETION_VALUE_MISSING',
         reason: 'Initiative with boundary_type "Terminating" requires completion_value.',
@@ -16741,28 +16744,36 @@ function declareProject(state, payload = {}) {
   }
 
   // Step 3: Validate new project intake fields
-  const executingEntity = String(payload?.executing_entity || '').trim();
+  // executingEntityIds is an array (multi-value); legacy scalar executing_entity supported for compatibility
+  let executingEntityIds = Array.isArray(payload?.executingEntityIds) ? payload.executingEntityIds : [];
+  const legacyExecutingEntity = String(payload?.executing_entity || '').trim();
+  if (legacyExecutingEntity && executingEntityIds.length === 0) {
+    executingEntityIds = [legacyExecutingEntity];
+  }
+
   const parentInitiative = String(payload?.parent_initiative || '').trim();
   const boundaryTypeInput = String(payload?.boundary_type || '').trim();
   const terminalDate = String(payload?.terminal_date || '').trim();
 
-  if (!executingEntity || !parentInitiative || !boundaryTypeInput || !terminalDate) {
+  if (executingEntityIds.length === 0 || !parentInitiative || !boundaryTypeInput || !terminalDate) {
     state.lastPlanError = {
       code: 'PROJECT_INTAKE_INCOMPLETE',
-      reason: 'Project intake requires executing_entity, parent_initiative, boundary_type, and terminal_date.',
-      meta: { id, hasExecutingEntity: Boolean(executingEntity), hasParentInitiative: Boolean(parentInitiative), hasBoundaryType: Boolean(boundaryTypeInput), hasTerminalDate: Boolean(terminalDate) },
+      reason: 'Project intake requires executingEntityIds (non-empty array), parent_initiative, boundary_type, and terminal_date.',
+      meta: { id, hasExecutingEntities: executingEntityIds.length > 0, hasParentInitiative: Boolean(parentInitiative), hasBoundaryType: Boolean(boundaryTypeInput), hasTerminalDate: Boolean(terminalDate) },
     };
     return;
   }
 
-  // Validate executing_entity exists
-  if (!state.matrix.entitiesById[executingEntity]) {
-    state.lastPlanError = {
-      code: 'PROJECT_EXECUTING_ENTITY_UNKNOWN',
-      reason: `Project executing_entity "${executingEntity}" is not declared in matrix.entitiesById.`,
-      meta: { id, executingEntity },
-    };
-    return;
+  // Validate all executing entities exist
+  for (const entityId of executingEntityIds) {
+    if (!state.matrix.entitiesById[entityId]) {
+      state.lastPlanError = {
+        code: 'PROJECT_EXECUTING_ENTITY_UNKNOWN',
+        reason: `Project executing entity "${entityId}" is not declared in matrix.entitiesById.`,
+        meta: { id, executingEntityId: entityId },
+      };
+      return;
+    }
   }
 
   // Validate parent_initiative exists
@@ -16838,8 +16849,8 @@ function declareProject(state, payload = {}) {
     verificationSourceId,
     evidenceProduced: String(payload?.evidenceProduced || '').trim() || null,
     notes: String(payload?.notes || '').trim() || null,
-    // Step 3: Project intake fields
-    executing_entity: executingEntity,
+    // Step 3: Project intake fields (multi-value executingEntityIds)
+    executingEntityIds,
     parent_initiative: parentInitiative,
     // No stored `phase` (E15 Sites 1/4, 2026-08-23): Phase(Project) is computed from phaseAnchor
     // by computeSpineWindowPhase(), never stored or hand-fed. Phase 2a removed intake's phase

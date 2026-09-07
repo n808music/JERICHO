@@ -24,11 +24,12 @@ export function nodeId(nodeClass, name) {
   }
 }
 
-// Declaration order. Artifact follows Deliverable because an Artifact's
-// producingProjectId is resolved through its parent Deliverable, which must
-// already be declared. Artifact was absent here until 2026-08-29, which silently
-// skipped every Artifact-class node in the fixture (122 of 304 in v2.0).
-const CLASS_SEQUENCE = ['Entity', 'Initiative', 'Project', 'Deliverable', 'Artifact', 'System'];
+// Declaration order. Initiative must precede Entity because Entity.foundation_initiative
+// is validated against declared initiativesById during intake. Artifact follows Deliverable
+// because an Artifact's producingProjectId is resolved through its parent Deliverable, which
+// must already be declared. Artifact was absent here until 2026-08-29, which silently skipped
+// every Artifact-class node in the fixture (122 of 304 in v2.0).
+const CLASS_SEQUENCE = ['Initiative', 'Entity', 'Project', 'Deliverable', 'Artifact', 'System'];
 const VERIFICATION_SOURCE_ID = 'vs-reference';
 
 // Some reference-matrix rows carry an abbreviated owner/produced_by string
@@ -141,6 +142,27 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
     return baseId ? getNodeIdForClass(baseId, node.class) : null;
   };
 
+  // Multi-value executing_entity resolution. The schema uses "; " (semicolon + space)
+  // as the separator for multi-value cells. Splits, trims, and resolves each entity name.
+  // Returns array of entity IDs. Empty array if no values resolve.
+  const resolveExecutingEntities = (fieldValue) => {
+    if (!fieldValue) {return [];}
+    const entityNames = String(fieldValue).split(';').map((s) => s.trim()).filter(Boolean);
+    return entityNames.map(resolveEntity).filter(Boolean);
+  };
+
+  // Foundation lane detection: structural, not name-based. A Foundation initiative
+  // owns projects with "Business Plan" in the name (one per Foundation lane).
+  // Per doctrine, Foundation lanes require neither completion_value nor ongoing_output.
+  const isFoundationLane = (initiativeName) => {
+    return nodes.some(
+      (n) =>
+        n.class === 'Project' &&
+        n.parent_initiative === initiativeName &&
+        String(n.name || '').includes('Business Plan')
+    );
+  };
+
   // Single shared verification source so Project/Deliverable required refs resolve.
   dispatch({
     type: 'DECLARE_VERIFICATION_SOURCE',
@@ -185,6 +207,8 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             boundary_type: n.boundary_type || null,
             completion_value: n.completion_value || null,
             ongoing_output: n.ongoing_output || null,
+            // Foundation lane detection: structural marker for exception to completion_value rule
+            isFoundationLane: isFoundationLane(n.name),
           },
         });
       } else if (cls === 'Project') {
@@ -199,7 +223,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             targetDate: n.target_date || null,
             terminalDate: n.terminal_date || n.target_date || null,
             // Step 3: Project intake fields
-            executing_entity: resolveEntity(n.executing_entity),
+            executingEntityIds: resolveExecutingEntities(n.executing_entity),  // Multi-value: array
             parent_initiative: resolveInitiative(n.parent_initiative),
             boundary_type: n.boundary_type || null,
             terminal_date: n.terminal_date || null,
