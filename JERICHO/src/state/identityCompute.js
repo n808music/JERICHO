@@ -16710,6 +16710,11 @@ function declareSystem(state, payload = {}) {
 //  pair at declaration time or it is rejected.
 // ─────────────────────────────────────────────────────────────────────────
 
+// Boundary Type doctrine: an Ongoing project has no terminal date, and records that
+// absence as this literal rather than as an empty cell — an empty cell is indistinguishable
+// from a missing declaration, which the intake ladder must keep rejecting.
+const ONGOING_TERMINAL_DATE = 'Ongoing';
+
 function declareProject(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
@@ -16797,23 +16802,47 @@ function declareProject(state, payload = {}) {
     return;
   }
 
-  // Validate terminal_date is valid ISO date and in future
-  const dateObj = new Date(terminalDate);
-  if (isNaN(dateObj.getTime())) {
-    state.lastPlanError = {
-      code: 'PROJECT_TERMINAL_DATE_INVALID',
-      reason: `Project terminal_date "${terminalDate}" is not a valid ISO date (YYYY-MM-DD).`,
-      meta: { id, terminalDate },
-    };
-    return;
-  }
-  if (dateObj <= new Date()) {
-    state.lastPlanError = {
-      code: 'PROJECT_TERMINAL_DATE_NOT_FUTURE',
-      reason: `Project terminal_date "${terminalDate}" must be in the future.`,
-      meta: { id, terminalDate },
-    };
-    return;
+  // Validate terminal_date against boundary_type. Boundary Type doctrine: a Terminating
+  // project carries a Terminal Date; an Ongoing project carries the literal "Ongoing",
+  // because it has no terminal date by definition. Requiring a parseable date for both
+  // rejected every Ongoing project in the reference matrix. The two forms are checked
+  // against each other so neither can be entered under the wrong boundary_type.
+  const isOngoing = boundaryTypeInput === 'Ongoing';
+  if (isOngoing) {
+    if (terminalDate !== ONGOING_TERMINAL_DATE) {
+      state.lastPlanError = {
+        code: 'PROJECT_TERMINAL_DATE_INVALID',
+        reason: `Project boundary_type "Ongoing" requires terminal_date "${ONGOING_TERMINAL_DATE}", got "${terminalDate}".`,
+        meta: { id, terminalDate, boundaryTypeInput },
+      };
+      return;
+    }
+  } else {
+    if (terminalDate === ONGOING_TERMINAL_DATE) {
+      state.lastPlanError = {
+        code: 'PROJECT_TERMINAL_DATE_INVALID',
+        reason: `Project boundary_type "Terminating" requires a dated terminal_date, got "${ONGOING_TERMINAL_DATE}".`,
+        meta: { id, terminalDate, boundaryTypeInput },
+      };
+      return;
+    }
+    const dateObj = new Date(terminalDate);
+    if (isNaN(dateObj.getTime())) {
+      state.lastPlanError = {
+        code: 'PROJECT_TERMINAL_DATE_INVALID',
+        reason: `Project terminal_date "${terminalDate}" is not a valid ISO date (YYYY-MM-DD).`,
+        meta: { id, terminalDate },
+      };
+      return;
+    }
+    if (dateObj <= new Date()) {
+      state.lastPlanError = {
+        code: 'PROJECT_TERMINAL_DATE_NOT_FUTURE',
+        reason: `Project terminal_date "${terminalDate}" must be in the future.`,
+        meta: { id, terminalDate },
+      };
+      return;
+    }
   }
 
   // Layer 2: Uniqueness assertion at mint time
@@ -16829,8 +16858,7 @@ function declareProject(state, payload = {}) {
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
   const requiresLegalFormation = payload?.requiresLegalFormation !== undefined ? Boolean(payload.requiresLegalFormation) : false;
 
-  // Task 1: Compute phaseAnchor from terminalDate
-  const isOngoing = boundaryTypeInput === 'Ongoing';
+  // Task 1: Compute phaseAnchor from terminalDate (isOngoing computed above, at validation)
   // phaseAnchor: if terminating, use terminalDate; if ongoing, use nearest milestone (deferred for now)
   const phaseAnchor = !isOngoing ? terminalDate : null;
 
