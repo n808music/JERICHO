@@ -24,12 +24,11 @@ export function nodeId(nodeClass, name) {
   }
 }
 
-// Declaration order. Initiative must precede Entity because Entity.foundation_initiative
-// is validated against declared initiativesById during intake. Artifact follows
-// Deliverable because an Artifact's producingProjectId is resolved through its parent
-// Deliverable, which must already be declared. Artifact was absent here until 2026-08-29,
-// which silently skipped every Artifact-class node in the fixture (122 of 304 in v2.0).
-const CLASS_SEQUENCE = ['Initiative', 'Entity', 'Project', 'Deliverable', 'Artifact', 'System'];
+// Declaration order. Artifact follows Deliverable because an Artifact's
+// producingProjectId is resolved through its parent Deliverable, which must
+// already be declared. Artifact was absent here until 2026-08-29, which silently
+// skipped every Artifact-class node in the fixture (122 of 304 in v2.0).
+const CLASS_SEQUENCE = ['Entity', 'Initiative', 'Project', 'Deliverable', 'Artifact', 'System'];
 const VERIFICATION_SOURCE_ID = 'vs-reference';
 
 // Some reference-matrix rows carry an abbreviated owner/produced_by string
