@@ -4,15 +4,19 @@ import { phaseGridFromStore } from '../../domain/masterGrid/phaseGridFromStore.j
 import { sortByPhase } from '../../domain/masterGrid/phaseSort.js';
 import { selectMasterGridRows, countByClass, CLASS_ORDER } from '../../domain/masterGrid/masterGridSelectors.js';
 import { buildPhaseReorganizationRecommendations } from '../../domain/masterGrid/phaseFromDependencies.js';
+import { aggregatePhaseRollup, aggregateUrgencyRollup } from '../../domain/masterGrid/matrixAggregation.js';
+import { buildConstraintsByNode } from '../../domain/masterGrid/constraintsByNodeDerivation.js';
+import { resolveBacklogBlocks } from '../../core/engine/resolveBacklogBlocks.ts';
 
 const PHASE_LABEL = { 1: 'Phase 1', 2: 'Phase 2', 3: 'Phase 3' };
 const STATUS_COLOR = { CONFIRMED: '#16a34a', NEEDS_REVIEW: '#ca8a04', DRAFT: '#6b7280' };
 
-// The Master Grid renders one of two SCOPES of the same canonical store (Gate 7):
+// The Master Grid renders one of three SCOPES of the same canonical store (Gate 7):
 //   - phase-execution (default): the execution tier as three phase groups (Gate 5).
 //   - class rollup: every matrix node across all five classes (original 2026-07-08 view).
-// The selector is view-state only — read-only (D2): no matrixDispatch in either scope; a
-// row click deep-links via onOpenNode. Both scopes recompute from store.matrix (D1).
+//   - hierarchy rollup: Entity/Initiative-level aggregates with drill-down traceability (Item 6, Phase 4).
+// The selector is view-state only — read-only (D2): no matrixDispatch in any scope; a
+// row click deep-links via onOpenNode. All scopes recompute from store.matrix (D1).
 export function MasterGridTab({ onOpenNode } = {}) {
   const store = useIdentityStore();
   const [scope, setScope] = React.useState('phase');
@@ -37,12 +41,15 @@ export function MasterGridTab({ onOpenNode } = {}) {
       <div data-testid="mastergrid-scope-selector" className="flex gap-1 text-xs">
         {tab('phase', 'Phases', 'mastergrid-scope-phase')}
         {tab('class', 'All classes', 'mastergrid-scope-class')}
+        {tab('hierarchy', 'Hierarchy rollup', 'mastergrid-scope-hierarchy')}
       </div>
 
       {scope === 'phase' ? (
         <PhaseScopeView matrix={matrix} onOpenNode={onOpenNode} />
-      ) : (
+      ) : scope === 'class' ? (
         <ClassScopeView matrix={matrix} onOpenNode={onOpenNode} />
+      ) : (
+        <HierarchyRollupView store={store} matrix={matrix} onOpenNode={onOpenNode} />
       )}
     </div>
   );
@@ -175,6 +182,121 @@ function ClassScopeView({ matrix, onOpenNode }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Hierarchy rollup scope: Entity/Initiative-level aggregates with Phase distribution drill-down
+// Item 6 Phase 4 Step 4: Wiring aggregatePhaseRollup() and aggregateUrgencyRollup() into display consumer
+function HierarchyRollupView({ store, matrix, onOpenNode }) {
+  const backlogBlocks = resolveBacklogBlocks(store);
+  const constraintsByNode = buildConstraintsByNode(matrix, backlogBlocks);
+
+  const entityRollups = Object.values(matrix.entitiesById || {}).map(entity => ({
+    entity,
+    phaseRollup: aggregatePhaseRollup(entity, matrix),
+    urgencyRollup: aggregateUrgencyRollup(entity, matrix, constraintsByNode),
+  }));
+
+  return (
+    <div className="space-y-4" data-testid="mastergrid-hierarchy">
+      {entityRollups.map(({ entity, phaseRollup, urgencyRollup }) => (
+        <EntityRollupRow
+          key={entity.id}
+          entity={entity}
+          phaseRollup={phaseRollup}
+          urgencyRollup={urgencyRollup}
+          matrix={matrix}
+          onOpenNode={onOpenNode}
+        />
+      ))}
+    </div>
+  );
+}
+
+function EntityRollupRow({ entity, phaseRollup, urgencyRollup, matrix, onOpenNode }) {
+  // Helper: determine class of a node from its ID (direct lookup, no parsing)
+  const getNodeClass = (nodeId) => {
+    if (matrix.projectsById?.[nodeId]) return 'Project';
+    if (matrix.deliverablesById?.[nodeId]) return 'Deliverable';
+    if (matrix.artifactsById?.[nodeId]) return 'Artifact';
+    return null;
+  };
+
+  const handleNodeClick = (leafId) => {
+    const nodeClass = getNodeClass(leafId);
+    if (nodeClass) {
+      onOpenNode?.({ class: nodeClass, id: leafId });
+    }
+  };
+
+  const [expanded, setExpanded] = React.useState(false);
+
+  return (
+    <div className="space-y-2 rounded-lg border border-line/60 p-3">
+      <div
+        onClick={() => setExpanded(!expanded)}
+        style={{ cursor: 'pointer' }}
+        className="flex justify-between items-center"
+      >
+        <div>
+          <div className="font-medium">{entity.name}</div>
+          <div className="text-xs text-muted">{phaseRollup.displaySummary}</div>
+        </div>
+        <div className="text-xs space-x-2">
+          <span className="badge">{urgencyRollup.effectiveUrgency}</span>
+          {phaseRollup.orphanedProjects.length > 0 && (
+            <span className="text-amber-600">
+              {phaseRollup.orphanedProjects.length} orphaned
+            </span>
+          )}
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="mt-3 space-y-2 text-xs">
+          {['P1', 'P2', 'P3', 'null'].map(phase => (
+            phaseRollup.leafCounts[phase] > 0 && (
+              <div key={phase}>
+                <div className="font-semibold">{phase}: {phaseRollup.leafCounts[phase]}</div>
+                <div className="ml-4 space-y-1">
+                  {phaseRollup.leafRefs[phase].map(leafId => {
+                    const parentProjId = phaseRollup.leafRefSources[leafId];
+                    const label = parentProjId && leafId !== parentProjId
+                      ? `${leafId} (via ${parentProjId})`
+                      : leafId;
+                    return (
+                      <div
+                        key={leafId}
+                        className="text-muted cursor-pointer hover:text-jericho-accent"
+                        onClick={() => handleNodeClick(leafId)}
+                      >
+                        • {label}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )
+          ))}
+          {phaseRollup.orphanedProjects.length > 0 && (
+            <div className="mt-3 p-2 bg-amber-50 rounded">
+              <div className="font-semibold text-amber-900">Orphaned projects:</div>
+              <div className="ml-4 space-y-1">
+                {phaseRollup.orphanedProjects.map(projId => (
+                  <div
+                    key={projId}
+                    className="text-amber-700 cursor-pointer hover:text-amber-900"
+                    onClick={() => onOpenNode?.({ class: 'Project', id: projId })}
+                  >
+                    • {projId}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

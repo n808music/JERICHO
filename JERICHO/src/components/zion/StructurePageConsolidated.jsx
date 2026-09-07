@@ -337,15 +337,31 @@ function CycleManagementSection({
   onArchiveCycle = null,
   onResetCycle = null,
   onDeleteCycle = null,
+  // An unfinished Contract Admission survey exists — for the active cycle or an
+  // orphaned one. Surfaced HERE, as the first option, because this is the module
+  // the operator actually lands on; a notice rendered further up the page was not
+  // where they were looking. Since the 2026-08-26 design change this button is
+  // the ONLY way back into an unfinished survey — nothing auto-mounts it.
+  hasResumableSurvey = false,
+  onResumeSurvey = null,
 }) {
   const hasActiveCycle = Boolean(activeCycleId && activeCycle);
   const reassessmentStatus = String(activeCycle?.reassessmentStatus || '').trim().toLowerCase();
   return (
-    <details className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4" open={hasActiveMasterPlan && !hasActiveCycle}>
+    <details
+      className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4"
+      open={(hasActiveMasterPlan && !hasActiveCycle) || hasResumableSurvey}
+    >
       <summary className="cursor-pointer flex items-center gap-2">
         <p className="text-xs uppercase tracking-[0.14em] text-muted">Operating Cycle</p>
       </summary>
       <div className="mt-3 space-y-3">
+        {hasResumableSurvey ? (
+          <p className="text-xs" style={{ color: '#4f46e5' }} data-testid="resumable-survey-hint">
+            You have an unfinished Contract Admission survey. Your answers were kept — resume to
+            finish where you left off.
+          </p>
+        ) : null}
         {!hasActiveCycle ? (
           <p className="text-xs text-muted">
             No active Operating Cycle yet. Start one here, then generate the first Sprint from Today.
@@ -366,6 +382,17 @@ function CycleManagementSection({
           </div>
         )}
         <div className="flex flex-wrap gap-2">
+          {hasResumableSurvey ? (
+            <button
+              type="button"
+              data-testid="resume-unfinished-intake"
+              onClick={onResumeSurvey}
+              className="rounded-full px-3 py-1 text-xs font-semibold"
+              style={{ background: '#4f46e5', color: '#ffffff' }}
+            >
+              Resume Survey
+            </button>
+          ) : null}
           <button
             onClick={onStartNewCycleRequest}
             className="rounded-full border border-line/60 px-3 py-1 text-xs text-muted hover:text-jericho-accent"
@@ -719,20 +746,39 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   // dispatch so both updates batch together). Debug-bridge admission never calls it,
   // so external admission correctly falls through to MODULE 2.
   const [intakeSessionActive, setIntakeSessionActive] = useState(false);
-  // Refresh-mid-intake (2026-07-10 defect): intakeSessionActive is component
-  // state and dies with the page, but the resumable session lives in the store
-  // (persisted on every step + pushed by Save Progress). If one exists for the
-  // active cycle, the survey is genuinely in-flight — mount MODULE 1 so
-  // MatrixIntake's resume path can rehydrate it. Sessions are retired on
+  // Set ONLY by the "Resume Survey" affordance — the operator's explicit choice
+  // to re-enter an unfinished session. Never set automatically.
+  const [resumingSurvey, setResumingSurvey] = useState(false);
+  // An unfinished survey for the ACTIVE cycle. Sessions are retired on
   // MARK_MATRIX_INTAKE_COMPLETE, so a present snapshot means unfinished intake.
-  // External/debug-bridge admission never writes a session → still falls
-  // through to MODULE 2 (test-safe).
+  // External/debug-bridge admission never writes a session.
+  //
+  // DISPLAY ONLY, as of the 2026-08-26 design change. This previously mounted
+  // MatrixIntake automatically on load ("an unfinished intake outranks control
+  // mode"), which meant signing in dropped the operator straight into a survey
+  // they had deliberately left. Auto-mount is gone: this flag now decides only
+  // whether the Resume Survey button renders.
   const persistedIntakeSession = activeCycleId
     ? store?.intakeSessionByCycleId?.[activeCycleId] || null
     : null;
   const hasResumableIntake = Boolean(
     persistedIntakeSession?.engineSnapshot && persistedIntakeSession?.currentSlotId
   );
+  // Cycle-INDEPENDENT scan. `hasResumableIntake` above can only ever be true
+  // while a cycle is active, so an unfinished survey became invisible the moment
+  // activeCycleId went null — stored, valid, and unreachable. This finds it
+  // regardless.
+  const orphanedIntakeCycleId =
+    Object.entries(store?.intakeSessionByCycleId || {}).find(
+      ([cycleId, session]) =>
+        cycleId !== activeCycleId && session?.engineSnapshot && session?.currentSlotId
+    )?.[0] || null;
+  // Both shapes of unfinished survey resolve to the cycle whose session should be
+  // rehydrated. The active cycle wins when it has one of its own, since that is
+  // the session the operator was most recently working in. Reaching either is
+  // gated on the button — there is no path that mounts the survey on load.
+  const resumableIntakeCycleId = (hasResumableIntake ? activeCycleId : null) || orphanedIntakeCycleId;
+  const hasResumableSurvey = Boolean(resumableIntakeCycleId);
   const hasGoalDraftRecovery =
     String(planRecovery?.required || '')
       .trim()
@@ -1009,9 +1055,9 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   useEffect(() => {
     console.log('[StructurePage] hasAdmittedGoal changed:', hasAdmittedGoal,
       '| intakeSessionActive:', intakeSessionActive,
-      '| hasResumableIntake:', hasResumableIntake,
-      '| rendering MODULE:', (!hasAdmittedGoal || intakeSessionActive || hasResumableIntake) ? '1 (intake)' : '2 (plan view)');
-  }, [hasAdmittedGoal, intakeSessionActive, hasResumableIntake]);
+      '| hasResumableSurvey (button only):', hasResumableSurvey,
+      '| rendering MODULE:', (!hasAdmittedGoal || intakeSessionActive) ? '1 (intake)' : '2 (plan view)');
+  }, [hasAdmittedGoal, intakeSessionActive, hasResumableSurvey]);
 
   const appNowISO = appTime?.nowISO || new Date().toISOString();
   const appCurrentDayKey = toDayKey(appNowISO);
@@ -1129,6 +1175,43 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
     setSelectedInitiativeForPricing(null);
   };
 
+  // ── Survey resume ─────────────────────────────────────────────────────────
+  // The ONLY path that mounts MatrixIntake for an unfinished session, for both
+  // shapes (active cycle's own session, and an orphaned one whose cycle is no
+  // longer active). Entered exclusively by pressing Resume Survey — there is no
+  // automatic redirect, regardless of cycle state.
+  //
+  // This must sit ABOVE the MODULE 1/2 split: with no active cycle,
+  // hasAdmittedGoal is false and MODULE 1 claims the render, so a resume view
+  // placed inside MODULE 2 alone would never appear.
+  if (resumingSurvey && resumableIntakeCycleId) {
+    return (
+      <div className="space-y-6">
+        <div className="border-b border-line/40 pb-4 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-jericho-text mb-2">Structure</h1>
+            <p className="text-sm text-muted">Contract Admission</p>
+          </div>
+          <SaveProgressButton />
+        </div>
+        <MatrixIntake
+          resumeCycleId={resumableIntakeCycleId}
+          onSurveyStarted={() => setIntakeSessionActive(true)}
+          onComplete={() => {
+            setIntakeSessionActive(false);
+            setResumingSurvey(false);
+          }}
+        />
+      </div>
+    );
+  }
+
+  // NOTE: the resume affordance lives in CycleManagementSection (the "Operating
+  // Cycle" module), as its first button. An earlier attempt put a standalone
+  // notice at the top of each module; it was in the correct render path but not
+  // where the operator actually looks when no cycle is active. Keeping a single
+  // home avoids two controls with the same purpose.
+
   // ============================================================================
   // MODULE 1: Intake flow — no admitted goal, OR admitted in this session but
   // survey not yet finished. intakeSessionActive is false by default; MatrixIntake
@@ -1136,8 +1219,13 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   // updates land in the same React batch — keeping MatrixIntake mounted through
   // the full survey. Debug-bridge / external admission never calls onSurveyStarted,
   // so intakeSessionActive stays false → MODULE 2 shows immediately (test-safe).
+  //
+  // `hasResumableIntake` is deliberately NOT part of this condition. It used to
+  // be, which is what auto-mounted the survey on load for an admitted goal with a
+  // stored session. A resumable session now reaches the survey only through the
+  // Resume Survey branch above.
   // ============================================================================
-  if (!hasAdmittedGoal || intakeSessionActive || hasResumableIntake) {
+  if (!hasAdmittedGoal || intakeSessionActive) {
     const draftStartDayKey = toDayKey(
       admissionDraft?.startDayKey || admissionDraft?.startDateISO || admissionDraft?.startDate || ''
     );
@@ -1156,6 +1244,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
               step transition, so this pushes the in-flight session too. */}
           <SaveProgressButton />
         </div>
+
 
         {hasPersistenceRecovery ? <PersistenceRecoveryNotice planRecovery={planRecovery} /> : null}
 
@@ -1183,7 +1272,10 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
         ) : null}
 
         {hasActiveMasterPlan ? (
-          // Master plan exists but no active cycle — control mode (no intake form)
+          // Master plan exists — control mode. An unfinished intake session used
+          // to outrank this branch and mount the survey instead; that auto-mount
+          // was removed on 2026-08-26. The session stays reachable through the
+          // Resume Survey button in the Operating Cycle module below.
           <MasterPlanStructureSection
             hasActiveMasterPlan={hasActiveMasterPlan}
             masterPlanIntakeStatus="idle"
@@ -1202,6 +1294,8 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
 
         {hasActiveMasterPlan ? (
           <CycleManagementSection
+            hasResumableSurvey={hasResumableSurvey}
+            onResumeSurvey={() => setResumingSurvey(true)}
             activeCycleId={hasValidActiveExecutionCycle ? activeCycleId : null}
             hasActiveMasterPlan={hasActiveMasterPlan}
             activeCycle={hasValidActiveExecutionCycle ? activeCycle : null}
@@ -1227,6 +1321,7 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
   // ============================================================================
   return (
     <div className="space-y-4">
+
       {/* Goal Banner (Canonical, Read-Only) */}
       {activeCycle && (
         <div className="rounded-xl border border-line/60 bg-jericho-surface/90 p-4">
@@ -1894,6 +1989,8 @@ export function StructurePageConsolidated({ onStartNewCycleRequest = null, onOpe
       </div>
 
       <CycleManagementSection
+        hasResumableSurvey={hasResumableSurvey}
+        onResumeSurvey={() => setResumingSurvey(true)}
         activeCycleId={hasValidActiveExecutionCycle ? activeCycleId : null}
         hasActiveMasterPlan={hasActiveMasterPlan}
         activeCycle={hasValidActiveExecutionCycle ? activeCycle : null}

@@ -37,7 +37,6 @@ import {
   INITIATIVE_SLOT_ID,
   buildInitiativeDeclarePayload,
   INITIATIVE_OWNER_ENTITY_LESS,
-  INITIATIVE_CLASSIFICATIONS,
   INITIATIVE_ROLE_TAGS,
 } from './initiativeSlot';
 import {
@@ -45,13 +44,17 @@ import {
   SYSTEM_SLOT_ID,
   buildSystemDeclarePayload,
   SYSTEM_OWNER_ENTITY_LESS,
-  SYSTEM_ACTIVATION_STATES,
 } from './systemSlot';
 import {
   ARTIFACT_SLOT,
   ARTIFACT_SLOT_ID,
   buildArtifactDeclarePayload,
 } from './artifactSlot';
+import {
+  DELIVERABLE_SLOT,
+  DELIVERABLE_SLOT_ID,
+  buildDeliverableDeclarePayload,
+} from './slots/deliverableSlot.js';
 import {
   DEPENDENCY_SLOT,
   DEPENDENCY_SLOT_ID,
@@ -84,8 +87,8 @@ import { probeFor } from './reprobes.js';
 // Byte-identical for identical inputs — no interpolation, no randomness.
 function buildReadbackSentence(captured) {
   const source = String(captured.verificationSource || '').trim();
-  const metric = String(captured.successMetric || '').trim();
-  return `Your done-when will read: 'Open ${source} and confirm ${metric}.' Is that the check you'll perform?`;
+  const deliverable = String(captured.description || '').trim();
+  return `When this is done, you'll open ${source} and verify that ${deliverable} exists. Is that the verification you'll perform?`;
 }
 
 // Formal signature of a compound record (2026-07-10 operator report: an app
@@ -93,13 +96,13 @@ function buildReadbackSentence(captured) {
 // actually perform). The engine cannot comprehend meaning — but it CAN notice
 // this shape: BOTH the target and the source joining two things with a
 // coordinator. Requiring the pattern on both sides keeps false positives low
-// ("mix and master" in a metric alone does not trigger). Advisory only —
+// ("mix and master" in a deliverable alone does not trigger). Advisory only —
 // the operator's judgment stays authoritative at the readback.
 const COMPOUND_JOIN_RE = /\s(?:and|&|\+)\s/i;
 function detectCompoundAttestation(captured) {
   const source = String(captured.verificationSource || '').trim();
-  const metric = String(captured.successMetric || '').trim();
-  return COMPOUND_JOIN_RE.test(source) && COMPOUND_JOIN_RE.test(metric);
+  const deliverable = String(captured.description || '').trim();
+  return COMPOUND_JOIN_RE.test(source) && COMPOUND_JOIN_RE.test(deliverable);
 }
 
 export { PROJECT_SLOT_ID } from './slots/projectSlot.js';
@@ -108,6 +111,7 @@ export { ENTITY_SLOT_ID } from './entitySlot';
 export { INITIATIVE_SLOT_ID } from './initiativeSlot';
 export { SYSTEM_SLOT_ID } from './systemSlot';
 export { ARTIFACT_SLOT_ID } from './artifactSlot';
+export { DELIVERABLE_SLOT_ID } from './slots/deliverableSlot.js';
 export { DEPENDENCY_SLOT_ID } from './dependencySlot';
 export { CONVERGENCE_SLOT_ID } from './convergenceSlot';
 export { RESOURCE_PROFILE_SLOT_ID, BINDING_CONSTRAINT_SLOT_ID } from './resourceProfileSlot';
@@ -123,6 +127,7 @@ const SLOT_REGISTRY = {
   [INITIATIVE_SLOT_ID]: INITIATIVE_SLOT,
   [SYSTEM_SLOT_ID]: SYSTEM_SLOT,
   [ARTIFACT_SLOT_ID]: ARTIFACT_SLOT,
+  [DELIVERABLE_SLOT_ID]: DELIVERABLE_SLOT,
   [DEPENDENCY_SLOT_ID]: DEPENDENCY_SLOT,
   [CONVERGENCE_SLOT_ID]: CONVERGENCE_SLOT,
   [RESOURCE_PROFILE_SLOT_ID]: RESOURCE_PROFILE_SLOT,
@@ -156,6 +161,13 @@ function buildPickSet(kind, matrixSnapshot) {
       items: entries.map((entity) => ({ id: entity.id, label: entity.name || entity.id })),
     };
   }
+  if (kind === 'declaredInitiatives') {
+    const entries = Object.values(matrixSnapshot?.initiativesById || {});
+    return {
+      kind,
+      items: entries.map((initiative) => ({ id: initiative.id, label: initiative.name || initiative.id })),
+    };
+  }
   if (kind === 'declaredSources') {
     const entries = Object.values(matrixSnapshot?.verificationSourcesById || {});
     return {
@@ -184,6 +196,15 @@ function buildPickSet(kind, matrixSnapshot) {
       ],
     };
   }
+  if (kind === 'legalFormationPrerequisiteOptions') {
+    return {
+      kind,
+      items: [
+        { id: true, label: 'Yes — required before work starts' },
+        { id: false, label: 'No — work can proceed regardless of formation status' },
+      ],
+    };
+  }
   if (kind === 'initiativeOwnerOptions') {
     // ALL declared entities are offered (2026-07-10). The old [initiative]
     // role-tag filter turned a §2 under-tag into a structural trap: the
@@ -197,16 +218,6 @@ function buildPickSet(kind, matrixSnapshot) {
     // owners — it can be picked alongside entities. Alone it means entity-less.
     items.push({ id: INITIATIVE_OWNER_ENTITY_LESS, label: 'cross-cutting / whole operation' });
     return { kind, items };
-  }
-  if (kind === 'classificationOptions') {
-    const LABELS = {
-      objective: 'the plan works toward it',
-      constraint: 'the plan works around it',
-    };
-    return {
-      kind,
-      items: [...INITIATIVE_CLASSIFICATIONS].map((v) => ({ id: v, label: LABELS[v] })),
-    };
   }
   if (kind === 'initiativeRoleTagOptions') {
     const LABELS = {
@@ -231,17 +242,6 @@ function buildPickSet(kind, matrixSnapshot) {
     return {
       kind,
       items: entries.map((p) => ({ id: p.id, label: p.name || p.id })),
-    };
-  }
-  if (kind === 'activationStateOptions') {
-    const LABELS = {
-      running: 'running now',
-      missing: 'not yet in place',
-      planned: 'planned, not started',
-    };
-    return {
-      kind,
-      items: [...SYSTEM_ACTIVATION_STATES].map((v) => ({ id: v, label: LABELS[v] })),
     };
   }
   if (kind === 'declaredNodeOptions') {
@@ -274,6 +274,7 @@ function buildPickSet(kind, matrixSnapshot) {
       ['initiativesById', 'initiative'],
       ['systemsById', 'system'],
       ['projectsById', 'project'],
+      ['deliverablesById', 'deliverable'],
       ['artifactsById', 'artifact'],
     ];
     for (const [reg, nodeType] of registries) {
@@ -323,7 +324,10 @@ function buildPickSet(kind, matrixSnapshot) {
       })),
     };
   }
-  return { kind, items: [] };
+  // No branch matched. Throw loudly instead of silently returning empty items
+  // (which would cause a false-dependency-gap diagnosis in the UI).
+  // This boundary is tracked in reprobes.gateCoverage.contract.test.js:KNOWN_UNIMPLEMENTED_PICKSETS.
+  throw new Error(`buildPickSet: unimplemented kind "${kind}". Add a branch to elicitationEngine.js:156-320 or the kind will render as a false dependency gap.`);
 }
 
 // Slot-type placeholders used in reproe spines, and the captured field that names the item.
@@ -349,7 +353,7 @@ function subjectNameFor(slotId, captured, matrixSnapshot) {
     const to = String(captured?.toNodeId || '').trim();
     if (!to) return '';
     const snap = matrixSnapshot || {};
-    for (const reg of ['entitiesById', 'initiativesById', 'systemsById', 'projectsById', 'artifactsById']) {
+    for (const reg of ['entitiesById', 'initiativesById', 'systemsById', 'projectsById', 'deliverablesById', 'artifactsById']) {
       const node = snap[reg]?.[to];
       if (node) return String(node.name || to);
     }
@@ -503,7 +507,7 @@ function applyAnswerToCurrentSlot(state, answer) {
   const nextSlotState = { ...topSlotState, captured: merged };
   let nextStack = [...state.slotStack.slice(0, -1), nextSlotState];
 
-  // Special case: Project's PROJECT_SOURCE_MISSING gate.
+  // Special case: Project's PROJECT_VERIFICATION_LOCATION_MISSING gate.
   // If the answer carries `verificationSource` (the source label) and that
   // label is not yet declared in matrixSnapshot, we SPAWN the Section 1A
   // slot. The spawn captures `source` from this answer and asks for the
@@ -563,7 +567,7 @@ function finalizeCompletedSlots(state) {
             compoundSuspected: detectCompoundAttestation(topSlotState.captured),
             fields: {
               name: topSlotState.captured.name,
-              successMetric: topSlotState.captured.successMetric,
+              description: topSlotState.captured.description,
               verificationSource: topSlotState.captured.verificationSource,
             },
           },

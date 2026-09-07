@@ -63,4 +63,47 @@ export const ARTIFACT_REPROBES = {
       generic: "e.g. 'open the system and find the entry with the ID', not 'check it exists'",
     },
   },
+  // Step 3: Artifact intake fields
+  ARTIFACT_SATISFACTION_MODE_MISSING: {
+    spine: 'How does this artifact satisfy the need — all required parts (AND) or any one of them (OR)?',
+    pickSet: 'artifactSatisfactionModeOptions',
+    examples: {
+      musician: "e.g. AND if the tape needs both mixing AND mastering done to it",
+      founder: "e.g. OR if any one of the app OR website OR landing page satisfied the user's need",
+      writer: "e.g. AND if manuscript AND query letter AND synopsis all required for the agent",
+      generic: "e.g. AND = all parts needed, OR = any one part acceptable",
+    },
+  },
+  ARTIFACT_TARGET_DATE_MISSING: {
+    spine: 'By when must this artifact exist — the date it needs to be done and verified?',
+    examples: {
+      musician: 'e.g. 2026-06-30 for album release, 2026-12-15 for year-end catalog',
+      founder: 'e.g. 2026-01-15 for MVP launch, 2026-06-30 for beta period end',
+      writer: 'e.g. 2026-03-31 for manuscript submission, 2026-06-30 for agent pitch',
+      generic: 'e.g. a specific date the work must be complete and verifiable',
+    },
+  },
+  ARTIFACT_TARGET_DATE_NOT_FUTURE: {
+    spine: 'The target date must be in the future. Give me a date that has not arrived yet.',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
+  ARTIFACT_BUFFER_BINDING_MISMATCH: {
+    spine: 'Buffer fields (anchor and binding type) must pair — either both filled or both empty. Provide both or neither.',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
+  // Item 6: Buffer anchor resolution
+  ARTIFACT_BUFFER_ANCHOR_UNKNOWN: {
+    spine: 'The buffer anchor must be a declared node (Artifact, Deliverable, Project, or Initiative). Pick from the list of existing nodes in your operation.',
+    pickSet: 'allDeclaredNodeOptions',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
+  ARTIFACT_SLUG_EMPTY: {
+    spine: 'This artifact\'s name has no letters or numbers — give me one with at least one alphanumeric character so this artifact can be named in the system.',
+    examples: {
+      musician: "e.g. 'Romance Riot tape', not '—' or '...'",
+      founder: "e.g. 'MVP launch', not '---' or '(unnamed)'",
+      writer: "e.g. 'manuscript v2', not '/' or '***'",
+      generic: "e.g. any name with at least one letter or number, not special characters only",
+    },
+  },
 };

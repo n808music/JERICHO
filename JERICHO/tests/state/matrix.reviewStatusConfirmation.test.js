@@ -28,12 +28,18 @@ function seededState() {
   });
   state = computeDerivedState(state, {
     type: 'DECLARE_INITIATIVE',
-    payload: { id: 'i1', name: 'Romance Riot', purpose: 'x', classification: 'objective', doneWhen: 'y' },
+    payload: { id: 'i1', name: 'Romance Riot', purpose: 'x', classification: 'objective', doneWhen: 'y',
+        function: 'ops',
+        boundary_type: 'Terminating',
+        completion_value: 'Initiative complete' },
   });
   // An operator-flagged node — must NOT be auto-confirmed by the readback.
   state = computeDerivedState(state, {
     type: 'DECLARE_INITIATIVE',
-    payload: { id: 'i2', name: 'Flagged One', purpose: 'x', classification: 'objective', doneWhen: 'y', reviewStatus: 'NEEDS_REVIEW' },
+    payload: { id: 'i2', name: 'Flagged One', purpose: 'x', classification: 'objective', doneWhen: 'y', reviewStatus: 'NEEDS_REVIEW',
+        function: 'ops',
+        boundary_type: 'Terminating',
+        completion_value: 'Initiative complete' },
   });
   return state;
 }

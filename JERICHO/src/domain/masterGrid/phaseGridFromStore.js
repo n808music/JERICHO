@@ -15,15 +15,20 @@
 // Lane→grid projection. Returns { claimedProjectByLane, promotedDeliverableIds }.
 function projectLanes(matrix) {
   const projects = matrix.projectsById || {};
-  const artifacts = matrix.artifactsById || {};
+  // Lanes are DELIVERABLES. This read was matrix.artifactsById until 2026-08-29,
+  // matching loadReferenceMatrix's inverted dispatch (fixture Deliverables were
+  // filed as artifacts). Both moved together; the parent field moves with the
+  // slot, since a Deliverable carries owningProjectId and an Artifact carries
+  // producingProjectId.
+  const deliverables = matrix.deliverablesById || {};
   const milestones = matrix.milestonesById || {};
   const claimedProjects = new Set();
   const promotedDeliverableIds = new Set();
   for (const ms of Object.values(milestones)) {
     for (const laneId of ms.laneIds || []) {
-      const deliv = artifacts[laneId];
+      const deliv = deliverables[laneId];
       if (!deliv) continue;
-      const parentId = deliv.producingProjectId;
+      const parentId = deliv.owningProjectId;
       if (parentId && projects[parentId] && !claimedProjects.has(parentId)) {
         claimedProjects.add(parentId); // lane collapses into its (still-free) parent project
       } else {
@@ -37,11 +42,11 @@ function projectLanes(matrix) {
 // The grid's execution-tier node set (17 projects + promoted lane deliverables).
 export function selectGridNodes(matrix = {}) {
   const projects = matrix.projectsById || {};
-  const artifacts = matrix.artifactsById || {};
+  const deliverables = matrix.deliverablesById || {};
   const { promotedDeliverableIds } = projectLanes(matrix);
   const nodes = [];
   for (const id of Object.keys(projects)) nodes.push({ ...projects[id], id, primaryClass: 'Project' });
-  for (const id of promotedDeliverableIds) if (artifacts[id]) nodes.push({ ...artifacts[id], id, primaryClass: 'Deliverable' });
+  for (const id of promotedDeliverableIds) if (deliverables[id]) nodes.push({ ...deliverables[id], id, primaryClass: 'Deliverable' });
   return nodes;
 }
 
@@ -91,7 +96,14 @@ function resolveNodePhase(node, canonicalRaw, derivedEffective, projects) {
   // was "parent Initiative's Phase" before Initiative became phase-less). Copy the parent's
   // COMPUTED phase first, for the same reason the node's own computed value leads above: the
   // parent's stored phase is legacy data, its computed one is the live answer.
-  const pid = node.producingProjectId;
+  // E15 amendment: Artifacts now derive the parent project through parentDeliverableIds[0] (Step 1 node-shape)
+  // instead of direct producingProjectId. Deliverables use owningProjectId (unchanged).
+  let pid = node.owningProjectId;  // Deliverable: use owningProjectId directly
+  if (!pid && node.parentDeliverableIds?.[0]) {
+    // Artifact: resolve parent project through parent deliverable
+    const parentDelivId = node.parentDeliverableIds[0];
+    pid = deliverables[parentDelivId]?.owningProjectId || null;
+  }
   if (pid) {
     const parentComputed = computeProjectSpinePhase(projects[pid]);
     if (parentComputed != null) return parentComputed;
@@ -109,7 +121,7 @@ function resolveNodePhase(node, canonicalRaw, derivedEffective, projects) {
 //   so the sorter's mutual-tie detection fires.
 // - milestones: milestonesById with lanes tier-bridged from deliverable ids to grid-row titles.
 export function phaseGridFromStore(matrix = {}) {
-  const artifacts = matrix.artifactsById || {};
+  const deliverables = matrix.deliverablesById || {};
   const projects = matrix.projectsById || {};
   const gridNodes = selectGridNodes(matrix);
   const gridIds = new Set(gridNodes.map((n) => n.id));
@@ -120,8 +132,8 @@ export function phaseGridFromStore(matrix = {}) {
   // any node id -> its grid-row id (itself if a grid row; else its parent project if that's a grid row)
   const toGridRowId = (id) => {
     if (gridIds.has(id)) return id;
-    const d = artifacts[id];
-    if (d && d.producingProjectId && gridIds.has(d.producingProjectId)) return d.producingProjectId;
+    const d = deliverables[id];
+    if (d && d.owningProjectId && gridIds.has(d.owningProjectId)) return d.owningProjectId;
     return null;
   };
 
@@ -143,7 +155,20 @@ export function phaseGridFromStore(matrix = {}) {
       }
     }
     const phase = resolveNodePhase(n, canonicalRaw, derivedEffective, projects);
-    rowById[n.id] = { title: n.name, phase, target: n.targetDate ?? 'TBD', targetNote: null, links: [] };
+    // Date column is grain-aware, mirroring resolveNodePhase's Project/Deliverable split.
+    //
+    // PROJECT: phaseAnchor ONLY, never targetDate. phaseAnchor already IS the single
+    // authoritative date (Terminal Date if Terminating, nearest Milestone if Ongoing) per the
+    // Boundary Type / Phase Anchor doctrine, and it is the same field the phase probe reads.
+    // Falling back to targetDate here would reinstate a second competing "due date" beside
+    // phaseAnchor — precisely what that doctrine exists to prevent. A Project with no
+    // phaseAnchor is a genuine missing input and must surface as TBD, not borrow a value.
+    //
+    // DELIVERABLE: targetDate, because phaseAnchor is Project-grain and promoted lane
+    // deliverables (selectGridNodes, above) never carry one. Reading phaseAnchor for them
+    // would blank every promoted row to TBD the moment deliverablesById is populated.
+    const rowTarget = n.primaryClass === 'Project' ? n.phaseAnchor : n.targetDate;
+    rowById[n.id] = { title: n.name, phase, target: rowTarget ?? 'TBD', targetNote: null, links: [] };
   }
 
   for (const l of Object.values(matrix.matrixLinksById || {})) {

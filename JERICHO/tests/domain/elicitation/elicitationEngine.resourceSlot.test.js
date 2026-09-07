@@ -41,6 +41,10 @@ function addInitiative(state, id, name = id) {
       purpose: `${name} — test initiative for profiling`,
       classification: 'objective',
       doneWhen: `${name} is complete and delivering results`,
+      // Step 3: Initiative intake fields
+      function: 'core_operations',
+      boundary_type: 'Terminating',
+      completion_value: 'Initiative successfully completed',
     },
   });
 }

@@ -1,0 +1,3636 @@
+{
+  "version": "3.0",
+  "source": "OPERATION MORNING SUN live sheet, seven tab exports",
+  "nodes": [
+    {
+      "class": "Entity",
+      "name": "Global State Corporation",
+      "purpose": "Independent record label; owns the music catalog and music business operations.",
+      "llc_registered": "No",
+      "foundation_initiative": "Global State Corporation Foundation"
+    },
+    {
+      "class": "Entity",
+      "name": "Global State Solutions",
+      "purpose": "Project management company; coordinates and allocates resources, capital, and strategic direction across the subsidiary entities.",
+      "llc_registered": "Yes",
+      "foundation_initiative": "Global State Solutions Foundation"
+    },
+    {
+      "class": "Entity",
+      "name": "Global State Productions",
+      "purpose": "Production company; produces all visual content for the enterprise.",
+      "llc_registered": "No",
+      "foundation_initiative": "Global State Productions Foundation"
+    },
+    {
+      "class": "Entity",
+      "name": "Global State Systems",
+      "purpose": "Technology company; owns Jericho system development.",
+      "llc_registered": "No",
+      "foundation_initiative": "Global State Systems Foundation"
+    },
+    {
+      "class": "Entity",
+      "name": "Global State Holdings",
+      "purpose": "Real estate company; responsible for property acquisition and management for the enterprise.",
+      "llc_registered": "No",
+      "foundation_initiative": "Global State Holdings Foundation"
+    },
+    {
+      "class": "Entity",
+      "name": "Global State Academy",
+      "purpose": "Private school company and franchise; manages school operations and franchise expansion.",
+      "llc_registered": "No",
+      "foundation_initiative": "Global State Academy Foundation"
+    },
+    {
+      "class": "Entity",
+      "name": "F8 Energy Company",
+      "purpose": "Consumer energy products company; produces F8 Energy GUM and manages sales and marketing operations.",
+      "llc_registered": "No",
+      "foundation_initiative": "F8 Energy Company Foundation"
+    },
+    {
+      "class": "Initiative",
+      "name": "Global State Solutions Foundation",
+      "owner": "Global State Solutions",
+      "objective": "Gives Global State Solutions a defined operational identity.",
+      "deadline": "2026-09-29",
+      "function": "Establishes Global State Solutions' own business plan and brand identity.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "Help Yourself Broadcast Foundation",
+      "owner": "Global State Productions",
+      "objective": "Gives Help Yourself Broadcast a defined operational identity as its own audience-facing venture.",
+      "deadline": "2026-09-22",
+      "function": "Establishes Help Yourself Broadcast's own business plan and brand identity, distinct from Global State Productions' general identity.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "Help Yourself Broadcast",
+      "owner": "Global State Productions",
+      "objective": "Converts listener attention into Help Yourself audience growth and directs it toward Global State's owned channels.",
+      "deadline": "Ongoing",
+      "function": "Produces and airs a recurring podcast broadcast.",
+      "ongoing_output": "Recurring episode output; sustained audience engagement feeding the flywheel indefinitely.",
+      "boundary_type": "Ongoing"
+    },
+    {
+      "class": "Initiative",
+      "name": "Global State Corporation Foundation",
+      "owner": "Global State Corporation",
+      "objective": "Gives Global State Corporation a defined operational identity separate from Our Fearless Leader, Seeds of Destruction, and I Am The State outputs.",
+      "deadline": "2026-09-23",
+      "function": "Establishes Global State Corporation's own business plan and brand identity, distinct from any single release.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "State of Control Foundation",
+      "owner": "Global State Productions",
+      "objective": "Gives State of Control a defined operational identity as its own standing venture.",
+      "deadline": "2026-09-23",
+      "function": "Establishes State of Control's own business plan and brand identity, distinct from Our Fearless Leader's Foundation coverage.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "The Jericho System",
+      "owner": "Global State Systems",
+      "objective": "Gives the enterprise one execution engine instead of scattered, ungoverned plans across ventures.",
+      "deadline": "Ongoing",
+      "function": "Orchestrates the multi-lane master plan system across all enterprise lanes; runs the execution engine the enterprise operates on.",
+      "ongoing_output": "Runs live plan generation and priority ranking for every lane; sustains subscription/licensing revenue tied to the system once operational.",
+      "boundary_type": "Ongoing"
+    },
+    {
+      "class": "Initiative",
+      "name": "Global State Productions Foundation",
+      "owner": "Global State Productions",
+      "objective": "Gives Global State Productions a defined operational identity separate from Help Yourself Broadcast and The Imaginary CEO outputs.",
+      "deadline": "2026-10-02",
+      "function": "Establishes Global State Productions' own business plan and brand identity, distinct from any single production.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "Global State Systems Foundation",
+      "owner": "Global State Systems",
+      "objective": "Gives Global State Systems a defined operational identity separate from The Jericho System output.",
+      "deadline": "2026-10-05",
+      "function": "Establishes Global State Systems' own business plan and brand identity, distinct from The Jericho System's output.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "Global State Holdings Foundation",
+      "owner": "Global State Holdings",
+      "objective": "Gives Global State Holdings a defined operational identity.",
+      "deadline": "2026-10-08",
+      "function": "Establishes Global State Holdings' own business plan and brand identity, distinct from any single property.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "Marketing Flywheel Foundation",
+      "owner": "Global State Solutions",
+      "objective": "Gives the flywheel a defined operational identity as Global State Solutions' first owned product function.",
+      "deadline": "2026-10-09",
+      "function": "Establishes the flywheel's own business plan and brand identity, distinct from Global State Solutions' general identity.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "Global State Academy Foundation",
+      "owner": "Global State Academy",
+      "objective": "Gives Global State Academy a defined operational identity.",
+      "deadline": "2026-10-11",
+      "function": "Establishes Global State Academy's own business plan and brand identity, separate from any single building.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "F8 Energy Company Foundation",
+      "owner": "F8 Energy Company",
+      "objective": "Gives F8 Energy Company a defined operational identity.",
+      "deadline": "2026-10-14",
+      "function": "Establishes F8 Energy Company's own business plan and brand identity.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "79th Street Renovation",
+      "owner": "Global State Holdings",
+      "objective": "Establishes Global State Holdings' physical real-estate footprint and houses both HQ and the Academy.",
+      "deadline": "Ongoing",
+      "function": "Acquires and restores property along 79th Street, starting with the First Building, from 79th and Stony Island to Exchange.",
+      "ongoing_output": "Ongoing property holdings and physical infrastructure supporting HQ and Academy operations indefinitely.",
+      "boundary_type": "Ongoing"
+    },
+    {
+      "class": "Initiative",
+      "name": "First Academy Building Foundation",
+      "owner": "Global State Academy",
+      "objective": "Gives the building its own defined strategy as Global State Academy's first physical venture.",
+      "deadline": "2026-10-26",
+      "function": "Establishes First Academy Building's own business plan, distinct from Global State Academy's general identity.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "Our Fearless Leader: 7 Seals Foundation",
+      "owner": "Global State Corporation",
+      "objective": "Gives the tape series its own defined strategy as Global State Corporation's first real venture.",
+      "deadline": "2026-10-30",
+      "function": "Establishes Our Fearless Leader: 7 Seals' own business plan, distinct from Global State Corporation's general identity.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "The Imaginary CEO Foundation",
+      "owner": "Global State Productions",
+      "objective": "Gives the series its own defined strategy as an audience-facing venture.",
+      "deadline": "2026-11-03",
+      "function": "Establishes The Imaginary CEO's own business plan, distinct from Global State Productions' general identity.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "Seeds of Destruction Foundation",
+      "owner": "Global State Corporation",
+      "objective": "Gives the trilogy its own defined strategy for its higher-complexity era.",
+      "deadline": "2026-11-03",
+      "function": "Establishes Seeds of Destruction's own business plan, distinct from Global State Corporation's general identity.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "Marketing Flywheel — Audience Capture",
+      "owner": "Global State Solutions",
+      "objective": "Gives Global State Solutions a concrete owned output that directly feeds the financial funnel it already owns.",
+      "deadline": "Ongoing",
+      "function": "Builds and operates cross-venture audience-capture infrastructure (pre-save, platform follow, app signup).",
+      "ongoing_output": "Continuous audience capture feeding the financial funnel indefinitely.",
+      "boundary_type": "Ongoing"
+    },
+    {
+      "class": "Initiative",
+      "name": "Our Fearless Leader: 7 Seals",
+      "owner": "Global State Corporation",
+      "objective": "Establishes Global State Corporation's label identity and builds the core audience the rest of the music catalog depends on.",
+      "deadline": "2028-05-25",
+      "function": "Produces and releases the Our Fearless Leader tape series (tapes 1-7).",
+      "completion_value": "All 7 tapes shipped, with a proven, built audience.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "I Am The State Foundation",
+      "owner": "Global State Corporation",
+      "objective": "Gives the terminal album its own defined strategy as the closing chapter of the enterprise's arc.",
+      "deadline": "2026-11-10",
+      "function": "Establishes I Am The State's own business plan and brand identity, distinct from Global State Corporation's general identity.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "F8 Energy GUM Foundation",
+      "owner": "F8 Energy Company",
+      "objective": "Gives GUM its own defined strategy as F8's first product venture.",
+      "deadline": "2026-11-20",
+      "function": "Establishes GUM's own business plan, distinct from F8 Energy Company's general identity.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "Desiree Foundation",
+      "owner": "Global State Productions",
+      "objective": "Gives the feature film its own defined strategy as the terminal arc's visual capstone.",
+      "deadline": "2026-11-20",
+      "function": "Establishes Desiree's own business plan, distinct from Global State Productions' general identity.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "State of Control",
+      "owner": "Global State Productions",
+      "objective": "Gives the campaign its own operational identity, separate from Our Fearless Leader's music-focused venture.",
+      "deadline": "2028-04-17",
+      "function": "Produces the ongoing State of Control visual series, paired with each Our Fearless Leader tape release.",
+      "completion_value": "5 short films uploaded to YouTube.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "The Imaginary CEO",
+      "owner": "Global State Productions",
+      "objective": "Advertises the Jericho system by dramatizing its real use.",
+      "deadline": "2032-03-15",
+      "function": "Produces a scripted reality/documentary series following the execution of the enterprise's initiatives.",
+      "completion_value": "Season 8 airs covering I Am The State and is published to the Global State YouTube channel.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "Seeds of Destruction",
+      "owner": "Global State Corporation",
+      "objective": "Extends the label's narrative arc into its second era, building on the audience Our Fearless Leader established.",
+      "deadline": "2029-11-23",
+      "function": "Produces the Seeds of Destruction album trilogy alongside the Max Clout short-film trilogy.",
+      "completion_value": "Album trilogy and Max Clout short-film trilogy both shipped.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "F8 Energy GUM",
+      "owner": "F8 Energy Company",
+      "objective": "Creates an institutional revenue stream from product sales.",
+      "deadline": "Ongoing",
+      "function": "Produces the energy gum product line and manages its business operations.",
+      "ongoing_output": "Operational production-to-distribution chain for consumable energy products.",
+      "boundary_type": "Ongoing"
+    },
+    {
+      "class": "Initiative",
+      "name": "First Academy Building",
+      "owner": "Global State Academy",
+      "objective": "Seats Global State Academy's first enrolled cohort at 79th and Essex.",
+      "deadline": "Ongoing",
+      "function": "Secures the 79th and Essex property as the site for the Academy's first physical campus and Global State Solutions headquarters.",
+      "ongoing_output": "Real estate property and education business revenue.",
+      "boundary_type": "Ongoing"
+    },
+    {
+      "class": "Initiative",
+      "name": "79th Street Renovation Foundation",
+      "owner": "Global State Holdings",
+      "objective": "Gives the acquisition its own defined strategy as Global State Holdings' first real-estate deal.",
+      "deadline": "2026-10-22",
+      "function": "Establishes 79th Street's own business plan, distinct from Global State Holdings' general identity.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Initiative",
+      "name": "I Am The State",
+      "owner": "Global State Corporation",
+      "objective": "Releases the terminal album alongside the Desiree film as the final chapter of the Our Fearless Leader to I Am The State story.",
+      "deadline": "2032-06-30",
+      "function": "Produces the terminal album and the Desiree feature film closing the enterprise's creative arc.",
+      "completion_value": "Terminal album released; Desiree feature film released; arc complete.",
+      "boundary_type": "Terminating"
+    },
+    {
+      "class": "Project",
+      "name": "Global State Corporation — Business Plan",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation",
+      "parent_initiative": "Global State Corporation Foundation",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-09-23"
+    },
+    {
+      "class": "Project",
+      "name": "Help Yourself Broadcast — Business Plan",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "Help Yourself Broadcast Foundation",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-09-22"
+    },
+    {
+      "class": "Project",
+      "name": "Global State Productions — Business Plan",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "Global State Productions Foundation",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-10-02"
+    },
+    {
+      "class": "Project",
+      "name": "Global State Systems — Business Plan",
+      "owner": "Global State Systems",
+      "executing_entity": "Global State Systems",
+      "parent_initiative": "Global State Systems Foundation",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-10-05"
+    },
+    {
+      "class": "Project",
+      "name": "Global State Solutions — Business Plan",
+      "owner": "Global State Solutions",
+      "executing_entity": "Global State Solutions",
+      "parent_initiative": "Global State Solutions Foundation",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-09-29"
+    },
+    {
+      "class": "Project",
+      "name": "Our Fearless Leader: 7 Seals — Business Plan",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation",
+      "parent_initiative": "Our Fearless Leader: 7 Seals Foundation",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-10-30"
+    },
+    {
+      "class": "Project",
+      "name": "The Imaginary CEO — Business Plan",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "The Imaginary CEO Foundation",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-11-03"
+    },
+    {
+      "class": "Project",
+      "name": "Global State Holdings — Business Plan",
+      "owner": "Global State Holdings",
+      "executing_entity": "Global State Holdings",
+      "parent_initiative": "Global State Holdings Foundation",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-10-08"
+    },
+    {
+      "class": "Project",
+      "name": "Global State Academy — Business Plan",
+      "owner": "Global State Academy",
+      "executing_entity": "Global State Academy",
+      "parent_initiative": "Global State Academy Foundation",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-10-11"
+    },
+    {
+      "class": "Project",
+      "name": "F8 Energy Company — Business Plan",
+      "owner": "F8 Energy Company",
+      "executing_entity": "F8 Energy Company",
+      "parent_initiative": "F8 Energy Company Foundation",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-10-14"
+    },
+    {
+      "class": "Project",
+      "name": "F8 Energy GUM — Business Plan",
+      "owner": "F8 Energy Company",
+      "executing_entity": "F8 Energy Company",
+      "parent_initiative": "F8 Energy GUM Foundation",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-11-20"
+    },
+    {
+      "class": "Project",
+      "name": "Seeds of Destruction — Business Plan",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation",
+      "parent_initiative": "Seeds of Destruction Foundation",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-11-03"
+    },
+    {
+      "class": "Project",
+      "name": "79th Street Renovation — Business Plan",
+      "owner": "Global State Holdings",
+      "executing_entity": "Global State Holdings",
+      "parent_initiative": "79th Street Renovation Foundation",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-10-22"
+    },
+    {
+      "class": "Project",
+      "name": "First Academy Building — Business Plan",
+      "owner": "Global State Academy",
+      "executing_entity": "Global State Academy",
+      "parent_initiative": "First Academy Building Foundation",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-10-26"
+    },
+    {
+      "class": "Project",
+      "name": "I Am The State — Business Plan",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation",
+      "parent_initiative": "I Am The State Foundation",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-11-10"
+    },
+    {
+      "class": "Project",
+      "name": "State of Control — Business Plan",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "State of Control Foundation",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-09-23"
+    },
+    {
+      "class": "Project",
+      "name": "Desiree — Business Plan",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "Desiree Foundation",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-11-20"
+    },
+    {
+      "class": "Project",
+      "name": "Marketing Flywheel — Business Plan",
+      "owner": "Global State Solutions",
+      "executing_entity": "Global State Solutions",
+      "parent_initiative": "Marketing Flywheel Foundation",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-10-09"
+    },
+    {
+      "class": "Project",
+      "name": "Our Fearless Leader 3: Romance Riot",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation",
+      "parent_initiative": "Our Fearless Leader: 7 Seals",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-10-24"
+    },
+    {
+      "class": "Project",
+      "name": "Our Fearless Leader 4: Painkillers",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation",
+      "parent_initiative": "Our Fearless Leader: 7 Seals",
+      "boundary_type": "Terminating",
+      "terminal_date": "2027-04-01"
+    },
+    {
+      "class": "Project",
+      "name": "Our Fearless Leader 5: Coronation",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation",
+      "parent_initiative": "Our Fearless Leader: 7 Seals",
+      "boundary_type": "Terminating",
+      "terminal_date": "2027-07-16"
+    },
+    {
+      "class": "Project",
+      "name": "Our Fearless Leader 6: Savior",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation",
+      "parent_initiative": "Our Fearless Leader: 7 Seals",
+      "boundary_type": "Terminating",
+      "terminal_date": "2027-10-31"
+    },
+    {
+      "class": "Project",
+      "name": "Our Fearless Leader 7: Sacrifice",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation",
+      "parent_initiative": "Our Fearless Leader: 7 Seals",
+      "boundary_type": "Terminating",
+      "terminal_date": "2028-02-17"
+    },
+    {
+      "class": "Project",
+      "name": "Our Fearless Leader 3: Romance Riot — Rollout & Assets",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation; Global State Productions",
+      "parent_initiative": "Our Fearless Leader: 7 Seals",
+      "boundary_type": "Terminating",
+      "terminal_date": "2027-03-14"
+    },
+    {
+      "class": "Project",
+      "name": "Our Fearless Leader 4: Painkillers — Rollout & Assets",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation; Global State Productions",
+      "parent_initiative": "Our Fearless Leader: 7 Seals",
+      "boundary_type": "Terminating",
+      "terminal_date": "2027-07-08"
+    },
+    {
+      "class": "Project",
+      "name": "Our Fearless Leader 5: Coronation — Rollout & Assets",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation; Global State Productions",
+      "parent_initiative": "Our Fearless Leader: 7 Seals",
+      "boundary_type": "Terminating",
+      "terminal_date": "2027-10-22"
+    },
+    {
+      "class": "Project",
+      "name": "Our Fearless Leader 6: Savior — Rollout & Assets",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation; Global State Productions",
+      "parent_initiative": "Our Fearless Leader: 7 Seals",
+      "boundary_type": "Terminating",
+      "terminal_date": "2028-02-06"
+    },
+    {
+      "class": "Project",
+      "name": "Our Fearless Leader 7: Sacrifice — Rollout & Assets",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation; Global State Productions",
+      "parent_initiative": "Our Fearless Leader: 7 Seals",
+      "boundary_type": "Terminating",
+      "terminal_date": "2028-05-25"
+    },
+    {
+      "class": "Project",
+      "name": "State of Control — Our Fearless Leader 3",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "State of Control",
+      "boundary_type": "Terminating",
+      "terminal_date": "2027-03-28"
+    },
+    {
+      "class": "Project",
+      "name": "State of Control — Our Fearless Leader 4",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "State of Control",
+      "boundary_type": "Terminating",
+      "terminal_date": "2027-06-01"
+    },
+    {
+      "class": "Project",
+      "name": "State of Control — Our Fearless Leader 5",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "State of Control",
+      "boundary_type": "Terminating",
+      "terminal_date": "2027-09-16"
+    },
+    {
+      "class": "Project",
+      "name": "State of Control — Our Fearless Leader 6",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "State of Control",
+      "boundary_type": "Terminating",
+      "terminal_date": "2027-12-31"
+    },
+    {
+      "class": "Project",
+      "name": "State of Control — Our Fearless Leader 7",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "State of Control",
+      "boundary_type": "Terminating",
+      "terminal_date": "2028-04-17"
+    },
+    {
+      "class": "Project",
+      "name": "The Imaginary CEO — Season 1",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "The Imaginary CEO",
+      "boundary_type": "Terminating",
+      "terminal_date": "2027-06-16"
+    },
+    {
+      "class": "Project",
+      "name": "The Imaginary CEO — Season 2",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "The Imaginary CEO",
+      "boundary_type": "Terminating",
+      "terminal_date": "2027-09-30"
+    },
+    {
+      "class": "Project",
+      "name": "The Imaginary CEO — Season 3",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "The Imaginary CEO",
+      "boundary_type": "Terminating",
+      "terminal_date": "2028-01-14"
+    },
+    {
+      "class": "Project",
+      "name": "The Imaginary CEO — Season 4",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "The Imaginary CEO",
+      "boundary_type": "Terminating",
+      "terminal_date": "2028-05-02"
+    },
+    {
+      "class": "Project",
+      "name": "The Imaginary CEO — Season 5",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "The Imaginary CEO",
+      "boundary_type": "Terminating",
+      "terminal_date": "2028-11-01"
+    },
+    {
+      "class": "Project",
+      "name": "The Imaginary CEO — Season 6",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "The Imaginary CEO",
+      "boundary_type": "Terminating",
+      "terminal_date": "2029-05-02"
+    },
+    {
+      "class": "Project",
+      "name": "The Imaginary CEO — Season 7",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "The Imaginary CEO",
+      "boundary_type": "Terminating",
+      "terminal_date": "2029-11-01"
+    },
+    {
+      "class": "Project",
+      "name": "The Imaginary CEO — Season 8",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "The Imaginary CEO",
+      "boundary_type": "Terminating",
+      "terminal_date": "2032-03-15"
+    },
+    {
+      "class": "Project",
+      "name": "The Jericho System — 1.0 Build",
+      "owner": "Global State Systems",
+      "executing_entity": "Global State Systems",
+      "parent_initiative": "The Jericho System",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-12-17"
+    },
+    {
+      "class": "Project",
+      "name": "Help Yourself Broadcast — Batch 1 Production",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "Help Yourself Broadcast",
+      "boundary_type": "Ongoing",
+      "terminal_date": "Ongoing"
+    },
+    {
+      "class": "Project",
+      "name": "F8 Energy GUM Production",
+      "owner": "F8 Energy Company",
+      "executing_entity": "F8 Energy Company",
+      "parent_initiative": "F8 Energy GUM",
+      "boundary_type": "Ongoing",
+      "terminal_date": "Ongoing"
+    },
+    {
+      "class": "Project",
+      "name": "Max Clout 1",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "Seeds of Destruction",
+      "boundary_type": "Terminating",
+      "terminal_date": "2028-11-09"
+    },
+    {
+      "class": "Project",
+      "name": "Max Clout 2",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "Seeds of Destruction",
+      "boundary_type": "Terminating",
+      "terminal_date": "2029-05-12"
+    },
+    {
+      "class": "Project",
+      "name": "Max Clout 3",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "Seeds of Destruction",
+      "boundary_type": "Terminating",
+      "terminal_date": "2029-11-09"
+    },
+    {
+      "class": "Project",
+      "name": "Seeds of Destruction Entry 1",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation",
+      "parent_initiative": "Seeds of Destruction",
+      "boundary_type": "Terminating",
+      "terminal_date": "2028-08-17"
+    },
+    {
+      "class": "Project",
+      "name": "Seeds of Destruction Entry 2",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation",
+      "parent_initiative": "Seeds of Destruction",
+      "boundary_type": "Terminating",
+      "terminal_date": "2029-02-17"
+    },
+    {
+      "class": "Project",
+      "name": "Seeds of Destruction Entry 3",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation",
+      "parent_initiative": "Seeds of Destruction",
+      "boundary_type": "Terminating",
+      "terminal_date": "2029-08-17"
+    },
+    {
+      "class": "Project",
+      "name": "Seeds of Destruction Entry 1 — Rollout & Assets",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation; Global State Productions",
+      "parent_initiative": "Seeds of Destruction",
+      "boundary_type": "Terminating",
+      "terminal_date": "2028-11-23"
+    },
+    {
+      "class": "Project",
+      "name": "Seeds of Destruction Entry 2 — Rollout & Assets",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation; Global State Productions",
+      "parent_initiative": "Seeds of Destruction",
+      "boundary_type": "Terminating",
+      "terminal_date": "2029-05-26"
+    },
+    {
+      "class": "Project",
+      "name": "Seeds of Destruction Entry 3 — Rollout & Assets",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation; Global State Productions",
+      "parent_initiative": "Seeds of Destruction",
+      "boundary_type": "Terminating",
+      "terminal_date": "2029-11-23"
+    },
+    {
+      "class": "Project",
+      "name": "I Am The State — Terminal Album Production",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation",
+      "parent_initiative": "I Am The State",
+      "boundary_type": "Terminating",
+      "terminal_date": "2031-12-31"
+    },
+    {
+      "class": "Project",
+      "name": "I Am The State — Rollout & Assets",
+      "owner": "Global State Corporation",
+      "executing_entity": "Global State Corporation; Global State Productions",
+      "parent_initiative": "I Am The State",
+      "boundary_type": "Terminating",
+      "terminal_date": "2032-06-09"
+    },
+    {
+      "class": "Project",
+      "name": "Desiree",
+      "owner": "Global State Productions",
+      "executing_entity": "Global State Productions",
+      "parent_initiative": "I Am The State",
+      "boundary_type": "Terminating",
+      "terminal_date": "2032-06-30"
+    },
+    {
+      "class": "Project",
+      "name": "79th Street Renovation Production",
+      "owner": "Global State Holdings",
+      "executing_entity": "Global State Holdings",
+      "parent_initiative": "79th Street Renovation",
+      "boundary_type": "Ongoing",
+      "terminal_date": "Ongoing"
+    },
+    {
+      "class": "Project",
+      "name": "First Academy Building Production",
+      "owner": "Global State Academy",
+      "executing_entity": "Global State Academy; Global State Holdings",
+      "parent_initiative": "First Academy Building",
+      "boundary_type": "Ongoing",
+      "terminal_date": "Ongoing"
+    },
+    {
+      "class": "Project",
+      "name": "Marketing Flywheel — Capture Layer Build",
+      "owner": "Global State Solutions",
+      "executing_entity": "Global State Systems",
+      "parent_initiative": "Marketing Flywheel — Audience Capture",
+      "boundary_type": "Terminating",
+      "terminal_date": "2026-10-07"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Romance Riot — tape/album",
+      "parent_project": "Our Fearless Leader 3: Romance Riot",
+      "executing_entity": "Global State Corporation",
+      "target_date": "2026-10-24"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Romance Riot — Artwork & Packaging",
+      "parent_project": "Our Fearless Leader 3: Romance Riot — Rollout & Assets",
+      "executing_entity": "Global State Corporation",
+      "target_date": "2027-03-14"
+    },
+    {
+      "class": "Deliverable",
+      "name": "D8 N8",
+      "parent_project": "Our Fearless Leader 3: Romance Riot — Rollout & Assets",
+      "executing_entity": "Global State Productions",
+      "what_ships": "Short film — dating audition tape reel",
+      "target_date": "2027-01-31",
+      "buffer_anchor": "Release Packaging (Romance Riot)",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Deliverable",
+      "name": "BLACKMAN",
+      "parent_project": "Our Fearless Leader 3: Romance Riot — Rollout & Assets",
+      "executing_entity": "Global State Productions",
+      "what_ships": "Short film — hood superhero",
+      "target_date": "2027-02-14",
+      "buffer_anchor": "Release Packaging (Romance Riot)",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Deliverable",
+      "name": "State of Control pt. 1",
+      "parent_project": "State of Control — Our Fearless Leader 3",
+      "executing_entity": "Global State Productions",
+      "what_ships": "Chapter 1 — mad scientist serial killer",
+      "target_date": "2027-03-28",
+      "buffer_anchor": "Romance Riot — tape/album",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Painkillers — Artwork & Packaging",
+      "parent_project": "Our Fearless Leader 4: Painkillers — Rollout & Assets",
+      "executing_entity": "Global State Corporation",
+      "target_date": "2027-07-08"
+    },
+    {
+      "class": "Deliverable",
+      "name": "State of Control pt. 2",
+      "parent_project": "State of Control — Our Fearless Leader 4",
+      "executing_entity": "Global State Productions",
+      "what_ships": "Chapter 2 — mad scientist serial killer",
+      "target_date": "2027-06-01",
+      "buffer_anchor": "Painkillers — tape/album",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Coronation — Artwork & Packaging",
+      "parent_project": "Our Fearless Leader 5: Coronation — Rollout & Assets",
+      "executing_entity": "Global State Corporation",
+      "target_date": "2027-10-22"
+    },
+    {
+      "class": "Deliverable",
+      "name": "State of Control pt. 3",
+      "parent_project": "State of Control — Our Fearless Leader 5",
+      "executing_entity": "Global State Productions",
+      "what_ships": "Chapter 3 — mad scientist serial killer",
+      "target_date": "2027-09-16",
+      "buffer_anchor": "Coronation — tape/album",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Savior — Artwork & Packaging",
+      "parent_project": "Our Fearless Leader 6: Savior — Rollout & Assets",
+      "executing_entity": "Global State Corporation",
+      "target_date": "2028-02-06"
+    },
+    {
+      "class": "Deliverable",
+      "name": "State of Control pt. 4",
+      "parent_project": "State of Control — Our Fearless Leader 6",
+      "executing_entity": "Global State Productions",
+      "what_ships": "Chapter 4 — mad scientist serial killer",
+      "target_date": "2027-12-31",
+      "buffer_anchor": "Savior — tape/album",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Sacrifice — Artwork & Packaging",
+      "parent_project": "Our Fearless Leader 7: Sacrifice — Rollout & Assets",
+      "executing_entity": "Global State Corporation",
+      "target_date": "2028-05-25"
+    },
+    {
+      "class": "Deliverable",
+      "name": "State of Control pt. 5",
+      "parent_project": "State of Control — Our Fearless Leader 7",
+      "executing_entity": "Global State Productions",
+      "what_ships": "Finale — mad scientist serial killer, closes the series",
+      "target_date": "2028-04-17",
+      "buffer_anchor": "Sacrifice — tape/album",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Deliverable",
+      "name": "The Jericho System — MVP",
+      "parent_project": "The Jericho System — 1.0 Build",
+      "executing_entity": "Global State Systems",
+      "what_ships": "App MVP shipped, live",
+      "target_date": "2026-09-12"
+    },
+    {
+      "class": "Deliverable",
+      "name": "The Jericho System — 1.0 Public Launch",
+      "parent_project": "The Jericho System — 1.0 Build",
+      "executing_entity": "Global State Systems",
+      "what_ships": "Full 1.0 app shipped, publicly launched",
+      "target_date": "2026-12-17"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Help Yourself Broadcast — Batch 1 (5 episodes)",
+      "parent_project": "Help Yourself Broadcast — Batch 1 Production",
+      "executing_entity": "Global State Productions",
+      "what_ships": "First 5 episodes, script→record→edit→publish pipeline",
+      "target_date": "2026-10-07"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Seeds of Destruction Entry 1 — Album",
+      "parent_project": "Seeds of Destruction Entry 1",
+      "executing_entity": "Global State Corporation",
+      "target_date": "2028-08-17"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Seeds of Destruction Entry 1 — Artwork & Packaging",
+      "parent_project": "Seeds of Destruction Entry 1 — Rollout & Assets",
+      "executing_entity": "Global State Corporation",
+      "target_date": "2028-11-23"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Max Clout 1",
+      "parent_project": "Max Clout 1",
+      "executing_entity": "Global State Productions",
+      "what_ships": "Fictional short",
+      "target_date": "2028-11-09",
+      "buffer_anchor": "Release Packaging (Seeds of Destruction Entry 1)",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Seeds of Destruction Entry 2 — Album",
+      "parent_project": "Seeds of Destruction Entry 2",
+      "executing_entity": "Global State Corporation",
+      "target_date": "2029-02-17"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Seeds of Destruction Entry 2 — Artwork & Packaging",
+      "parent_project": "Seeds of Destruction Entry 2 — Rollout & Assets",
+      "executing_entity": "Global State Corporation",
+      "target_date": "2029-05-26"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Max Clout 2",
+      "parent_project": "Max Clout 2",
+      "executing_entity": "Global State Productions",
+      "what_ships": "Fictional short",
+      "target_date": "2029-05-12",
+      "buffer_anchor": "Release Packaging (Seeds of Destruction Entry 2)",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Deliverable",
+      "name": "The Imaginary CEO — Season 5",
+      "parent_project": "The Imaginary CEO — Season 5",
+      "executing_entity": "Global State Productions",
+      "what_ships": "Documentary coverage",
+      "target_date": "2028-11-01",
+      "buffer_anchor": "Seeds of Destruction Entry 1 — Album",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Deliverable",
+      "name": "The Imaginary CEO — Season 6",
+      "parent_project": "The Imaginary CEO — Season 6",
+      "executing_entity": "Global State Productions",
+      "what_ships": "Documentary coverage",
+      "target_date": "2029-05-02",
+      "buffer_anchor": "Seeds of Destruction Entry 2 — Album",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Seeds of Destruction Entry 3 — Album",
+      "parent_project": "Seeds of Destruction Entry 3",
+      "executing_entity": "Global State Corporation",
+      "what_ships": "Closes the trilogy",
+      "target_date": "2029-08-17"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Seeds of Destruction Entry 3 — Artwork & Packaging",
+      "parent_project": "Seeds of Destruction Entry 3 — Rollout & Assets",
+      "executing_entity": "Global State Corporation",
+      "target_date": "2029-11-23"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Max Clout 3",
+      "parent_project": "Max Clout 3",
+      "executing_entity": "Global State Productions",
+      "what_ships": "Fictional short, closes the trilogy",
+      "target_date": "2029-11-09",
+      "buffer_anchor": "Release Packaging (Seeds of Destruction Entry 3)",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Deliverable",
+      "name": "The Imaginary CEO — Season 7",
+      "parent_project": "The Imaginary CEO — Season 7",
+      "executing_entity": "Global State Productions",
+      "what_ships": "Documentary coverage",
+      "target_date": "2029-11-01",
+      "buffer_anchor": "Seeds of Destruction Entry 3 — Album",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Desiree — Feature Film",
+      "parent_project": "Desiree",
+      "executing_entity": "Global State Productions",
+      "what_ships": "feature film closing the terminal creative arc",
+      "target_date": "2032-06-30",
+      "buffer_anchor": "I Am The State — Terminal Album",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Deliverable",
+      "name": "I Am The State — Terminal Album",
+      "parent_project": "I Am The State — Terminal Album Production",
+      "executing_entity": "Global State Corporation",
+      "target_date": "2031-12-31"
+    },
+    {
+      "class": "Deliverable",
+      "name": "I Am The State — Artwork & Packaging",
+      "parent_project": "I Am The State — Rollout & Assets",
+      "executing_entity": "Global State Corporation",
+      "target_date": "2032-06-09"
+    },
+    {
+      "class": "Deliverable",
+      "name": "The Imaginary CEO — Season 8",
+      "parent_project": "The Imaginary CEO — Season 8",
+      "executing_entity": "Global State Productions",
+      "what_ships": "Documentary coverage, series finale",
+      "target_date": "2032-03-15",
+      "buffer_anchor": "I Am The State — Terminal Album",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Deliverable",
+      "name": "79th Street — Acquisition Complete",
+      "parent_project": "79th Street Renovation Production",
+      "executing_entity": "Global State Holdings",
+      "what_ships": "Target property acquired, launch milestone for the renovation initiative",
+      "target_date": "2028-06-30"
+    },
+    {
+      "class": "Deliverable",
+      "name": "First Academy Building — Opening",
+      "parent_project": "First Academy Building Production",
+      "executing_entity": "Global State Academy",
+      "what_ships": "Academy's first physical school location opens; houses Global State Solutions HQ",
+      "target_date": "2030-12-30",
+      "buffer_anchor": "79th Street — Acquisition Complete",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Global State Corporation — Business Plan",
+      "parent_project": "Global State Corporation — Business Plan",
+      "executing_entity": "Global State Corporation",
+      "target_date": "2026-09-23"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Help Yourself Broadcast — Business Plan",
+      "parent_project": "Help Yourself Broadcast — Business Plan",
+      "executing_entity": "Global State Productions",
+      "target_date": "2026-09-22"
+    },
+    {
+      "class": "Deliverable",
+      "name": "State of Control — Business Plan",
+      "parent_project": "State of Control — Business Plan",
+      "executing_entity": "Global State Productions",
+      "target_date": "2026-09-23"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Global State Solutions — Business Plan",
+      "parent_project": "Global State Solutions — Business Plan",
+      "executing_entity": "Global State Solutions",
+      "target_date": "2026-09-29"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Global State Productions — Business Plan",
+      "parent_project": "Global State Productions — Business Plan",
+      "executing_entity": "Global State Productions",
+      "target_date": "2026-10-02"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Global State Systems — Business Plan",
+      "parent_project": "Global State Systems — Business Plan",
+      "executing_entity": "Global State Systems",
+      "target_date": "2026-10-05"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Global State Holdings — Business Plan",
+      "parent_project": "Global State Holdings — Business Plan",
+      "executing_entity": "Global State Holdings",
+      "target_date": "2026-10-08"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Global State Academy — Business Plan",
+      "parent_project": "Global State Academy — Business Plan",
+      "executing_entity": "Global State Academy",
+      "target_date": "2026-10-11"
+    },
+    {
+      "class": "Deliverable",
+      "name": "F8 Energy Company — Business Plan",
+      "parent_project": "F8 Energy Company — Business Plan",
+      "executing_entity": "F8 Energy Company",
+      "target_date": "2026-10-14"
+    },
+    {
+      "class": "Deliverable",
+      "name": "79th Street Renovation — Business Plan",
+      "parent_project": "79th Street Renovation — Business Plan",
+      "executing_entity": "Global State Holdings",
+      "target_date": "2026-10-22"
+    },
+    {
+      "class": "Deliverable",
+      "name": "First Academy Building — Business Plan",
+      "parent_project": "First Academy Building — Business Plan",
+      "executing_entity": "Global State Academy",
+      "target_date": "2026-10-26"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Our Fearless Leader: 7 Seals — Business Plan",
+      "parent_project": "Our Fearless Leader: 7 Seals — Business Plan",
+      "executing_entity": "Global State Corporation",
+      "target_date": "2026-10-30"
+    },
+    {
+      "class": "Deliverable",
+      "name": "The Imaginary CEO — Business Plan",
+      "parent_project": "The Imaginary CEO — Business Plan",
+      "executing_entity": "Global State Productions",
+      "target_date": "2026-11-03"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Seeds of Destruction — Business Plan",
+      "parent_project": "Seeds of Destruction — Business Plan",
+      "executing_entity": "Global State Corporation",
+      "target_date": "2026-11-03"
+    },
+    {
+      "class": "Deliverable",
+      "name": "I Am The State — Business Plan",
+      "parent_project": "I Am The State — Business Plan",
+      "executing_entity": "Global State Corporation",
+      "target_date": "2026-11-10"
+    },
+    {
+      "class": "Deliverable",
+      "name": "F8 Energy GUM — Business Plan",
+      "parent_project": "F8 Energy GUM — Business Plan",
+      "executing_entity": "F8 Energy Company",
+      "target_date": "2026-11-20"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Desiree — Business Plan",
+      "parent_project": "Desiree — Business Plan",
+      "executing_entity": "Global State Productions",
+      "target_date": "2026-11-20"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Marketing Flywheel — Business Plan",
+      "parent_project": "Marketing Flywheel — Business Plan",
+      "executing_entity": "Global State Solutions",
+      "target_date": "2026-10-09"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Painkillers — tape/album",
+      "parent_project": "Our Fearless Leader 4: Painkillers",
+      "executing_entity": "Global State Corporation",
+      "target_date": "2027-04-01"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Coronation — tape/album",
+      "parent_project": "Our Fearless Leader 5: Coronation",
+      "executing_entity": "Global State Corporation",
+      "target_date": "2027-07-16"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Savior — tape/album",
+      "parent_project": "Our Fearless Leader 6: Savior",
+      "executing_entity": "Global State Corporation",
+      "target_date": "2027-10-31"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Sacrifice — tape/album",
+      "parent_project": "Our Fearless Leader 7: Sacrifice",
+      "executing_entity": "Global State Corporation",
+      "what_ships": "Closes the 7 Seals series",
+      "target_date": "2028-02-17"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Behavioral Execution Engine — Patent Submission",
+      "parent_project": "The Jericho System — 1.0 Build",
+      "executing_entity": "Global State Systems",
+      "target_date": "2026-09-18"
+    },
+    {
+      "class": "Deliverable",
+      "name": "The Imaginary CEO — Season 1",
+      "parent_project": "The Imaginary CEO — Season 1",
+      "executing_entity": "Global State Productions",
+      "what_ships": "Documentary coverage",
+      "target_date": "2027-06-16",
+      "buffer_anchor": "Painkillers — tape/album",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Deliverable",
+      "name": "The Imaginary CEO — Season 2",
+      "parent_project": "The Imaginary CEO — Season 2",
+      "executing_entity": "Global State Productions",
+      "what_ships": "Documentary coverage",
+      "target_date": "2027-09-30",
+      "buffer_anchor": "Coronation — tape/album",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Deliverable",
+      "name": "The Imaginary CEO — Season 3",
+      "parent_project": "The Imaginary CEO — Season 3",
+      "executing_entity": "Global State Productions",
+      "what_ships": "Documentary coverage",
+      "target_date": "2028-01-14",
+      "buffer_anchor": "Savior — tape/album",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Deliverable",
+      "name": "The Imaginary CEO — Season 4",
+      "parent_project": "The Imaginary CEO — Season 4",
+      "executing_entity": "Global State Productions",
+      "what_ships": "Documentary coverage, closing Our Fearless Leader's companion coverage",
+      "target_date": "2028-05-02",
+      "buffer_anchor": "Sacrifice — tape/album",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Deliverable",
+      "name": "F8 Energy GUM — Product Launch",
+      "parent_project": "F8 Energy GUM Production",
+      "executing_entity": "F8 Energy Company",
+      "what_ships": "Produces GUM's product and manages its chain from production through distribution.",
+      "target_date": "2029-08-31"
+    },
+    {
+      "class": "Deliverable",
+      "name": "Marketing Flywheel — Capture Layer Live",
+      "parent_project": "Marketing Flywheel — Capture Layer Build",
+      "executing_entity": "Global State Systems",
+      "what_ships": "Capture layer built and live across pre-save, platform-follow, and app-signup channels",
+      "target_date": "2026-10-07"
+    },
+    {
+      "class": "Artifact",
+      "name": "Feasibility",
+      "parent_deliverable": "The Jericho System — MVP",
+      "satisfaction_mode": "AND",
+      "what_ships": "Probability of Success feasibility gate correctly blocks a known-infeasible test plan and passes a known-feasible one — test output",
+      "target_date": "2026-09-08"
+    },
+    {
+      "class": "Artifact",
+      "name": "Help Yourself Broadcast — One-Page Business Plan Document",
+      "parent_deliverable": "Help Yourself Broadcast — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated — plan document",
+      "target_date": "2026-09-08"
+    },
+    {
+      "class": "Artifact",
+      "name": "Intake",
+      "parent_deliverable": "The Jericho System — MVP",
+      "satisfaction_mode": "AND",
+      "what_ships": "Structure/Deliverable/Artifact admission produces valid records, no unresolved gate defects — system output",
+      "target_date": "2026-09-08"
+    },
+    {
+      "class": "Artifact",
+      "name": "Plan Quality",
+      "parent_deliverable": "The Jericho System — MVP",
+      "satisfaction_mode": "AND",
+      "what_ships": "planQualityStandardAudit.js runs against a real plan, returns pass/fail on all four Output Results Standard terms — test output",
+      "target_date": "2026-09-08"
+    },
+    {
+      "class": "Artifact",
+      "name": "Global State Corporation — One-Page Business Plan Document",
+      "parent_deliverable": "Global State Corporation — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated — plan document",
+      "target_date": "2026-09-09"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control — One-Page Business Plan Document",
+      "parent_deliverable": "State of Control — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated — plan document",
+      "target_date": "2026-09-09"
+    },
+    {
+      "class": "Artifact",
+      "name": "Course Correction",
+      "parent_deliverable": "The Jericho System — MVP",
+      "satisfaction_mode": "AND",
+      "what_ships": "Phase Diagnostic Resolution Rule correctly re-derives Phase after an injected date/dependency change on a test case — test output",
+      "target_date": "2026-09-10"
+    },
+    {
+      "class": "Artifact",
+      "name": "Live Probability of Success",
+      "parent_deliverable": "The Jericho System — MVP",
+      "satisfaction_mode": "AND",
+      "what_ships": "Scheduler output on a real Deliverable+Artifact set survives Efficient Phase Sequencing check, no unexplained gaps — test output",
+      "target_date": "2026-09-11"
+    },
+    {
+      "class": "Artifact",
+      "name": "Patent — Attorney Review Complete",
+      "parent_deliverable": "Behavioral Execution Engine — Patent Submission",
+      "satisfaction_mode": "AND",
+      "what_ships": "Attorney review complete, comments incorporated — reviewed draft",
+      "target_date": "2026-09-11"
+    },
+    {
+      "class": "Artifact",
+      "name": "Jericho — End-to-End Integration Verified",
+      "parent_deliverable": "The Jericho System — MVP",
+      "satisfaction_mode": "AND",
+      "what_ships": "Intake, Plan Quality, Feasibility, Course Correction, and Live Probability of Success all independently verified true — rollup confirmation",
+      "target_date": "2026-09-12"
+    },
+    {
+      "class": "Artifact",
+      "name": "Global State Solutions — One-Page Business Plan Document",
+      "parent_deliverable": "Global State Solutions — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated — plan document",
+      "target_date": "2026-09-15"
+    },
+    {
+      "class": "Artifact",
+      "name": "Help Yourself Broadcast — Batch 1 — Scripts Complete (5 episodes)",
+      "parent_deliverable": "Help Yourself Broadcast — Batch 1 (5 episodes)",
+      "satisfaction_mode": "AND",
+      "what_ships": "All 5 episode scripts complete and reviewed — script files",
+      "target_date": "2026-09-16",
+      "buffer_anchor": "Help Yourself Broadcast — Batch 1 — Recording Complete",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "Global State Productions — One-Page Business Plan Document",
+      "parent_deliverable": "Global State Productions — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated — plan document",
+      "target_date": "2026-09-18"
+    },
+    {
+      "class": "Artifact",
+      "name": "Patent — Filed/Submitted",
+      "parent_deliverable": "Behavioral Execution Engine — Patent Submission",
+      "satisfaction_mode": "AND",
+      "what_ships": "USPTO filing confirmation number received — filing receipt",
+      "target_date": "2026-09-18"
+    },
+    {
+      "class": "Artifact",
+      "name": "Global State Systems — One-Page Business Plan Document",
+      "parent_deliverable": "Global State Systems — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated — plan document",
+      "target_date": "2026-09-21"
+    },
+    {
+      "class": "Artifact",
+      "name": "Help Yourself Broadcast — Full Business Plan File",
+      "parent_deliverable": "Help Yourself Broadcast — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated, all at full elaborated depth (not one-page compression) — full plan document",
+      "target_date": "2026-09-22",
+      "buffer_anchor": "Help Yourself Broadcast — One-Page Business Plan Document",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "Global State Corporation — Full Business Plan File",
+      "parent_deliverable": "Global State Corporation — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated, all at full elaborated depth (not one-page compression) — full plan document",
+      "target_date": "2026-09-23",
+      "buffer_anchor": "Global State Corporation — One-Page Business Plan Document",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "Help Yourself Broadcast — Batch 1 — Recording Complete",
+      "parent_deliverable": "Help Yourself Broadcast — Batch 1 (5 episodes)",
+      "satisfaction_mode": "AND",
+      "what_ships": "All 5 episodes recorded — raw footage/audio files",
+      "target_date": "2026-09-23",
+      "buffer_anchor": "Help Yourself Broadcast — Batch 1 — Edit Complete",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control — Full Business Plan File",
+      "parent_deliverable": "State of Control — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated, all at full elaborated depth (not one-page compression) — full plan document",
+      "target_date": "2026-09-23",
+      "buffer_anchor": "State of Control — One-Page Business Plan Document",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "Global State Holdings — One-Page Business Plan Document",
+      "parent_deliverable": "Global State Holdings — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated — plan document",
+      "target_date": "2026-09-24"
+    },
+    {
+      "class": "Artifact",
+      "name": "Marketing Flywheel — One-Page Business Plan Document",
+      "parent_deliverable": "Marketing Flywheel — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated — plan document",
+      "target_date": "2026-09-25"
+    },
+    {
+      "class": "Artifact",
+      "name": "Global State Academy — One-Page Business Plan Document",
+      "parent_deliverable": "Global State Academy — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated — plan document",
+      "target_date": "2026-09-27"
+    },
+    {
+      "class": "Artifact",
+      "name": "Global State Solutions — Full Business Plan File",
+      "parent_deliverable": "Global State Solutions — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated, all at full elaborated depth (not one-page compression) — full plan document",
+      "target_date": "2026-09-29",
+      "buffer_anchor": "Global State Solutions — One-Page Business Plan Document",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "F8 Energy Company — One-Page Business Plan Document",
+      "parent_deliverable": "F8 Energy Company — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated — plan document",
+      "target_date": "2026-09-30"
+    },
+    {
+      "class": "Artifact",
+      "name": "Help Yourself Broadcast — Batch 1 — Edit Complete",
+      "parent_deliverable": "Help Yourself Broadcast — Batch 1 (5 episodes)",
+      "satisfaction_mode": "AND",
+      "what_ships": "All 5 episodes edited, ready for publish — edited files",
+      "target_date": "2026-09-30",
+      "buffer_anchor": "Help Yourself Broadcast — Batch 1 — Published (5 episodes live)",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "Pre-Save Capture Live",
+      "parent_deliverable": "Marketing Flywheel — Capture Layer Live",
+      "satisfaction_mode": "AND",
+      "what_ships": "Channel built and live, accepting real signups — live URL/dashboard",
+      "target_date": "2026-09-30"
+    },
+    {
+      "class": "Artifact",
+      "name": "Global State Productions — Full Business Plan File",
+      "parent_deliverable": "Global State Productions — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated, all at full elaborated depth (not one-page compression) — full plan document",
+      "target_date": "2026-10-02",
+      "buffer_anchor": "Global State Productions — One-Page Business Plan Document",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "12 Songs (Romance Riot)",
+      "parent_deliverable": "Romance Riot — tape/album",
+      "satisfaction_mode": "AND",
+      "what_ships": "Mix/master complete for all tracks, delivered — final audio files",
+      "target_date": "2026-10-03",
+      "buffer_anchor": "Romance Riot — tape/album",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "Platform-Follow Capture Live",
+      "parent_deliverable": "Marketing Flywheel — Capture Layer Live",
+      "satisfaction_mode": "AND",
+      "what_ships": "Channel built and live, accepting real signups — live URL/dashboard",
+      "target_date": "2026-10-03"
+    },
+    {
+      "class": "Artifact",
+      "name": "Global State Systems — Full Business Plan File",
+      "parent_deliverable": "Global State Systems — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated, all at full elaborated depth (not one-page compression) — full plan document",
+      "target_date": "2026-10-05",
+      "buffer_anchor": "Global State Systems — One-Page Business Plan Document",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "App-Signup Capture Live",
+      "parent_deliverable": "Marketing Flywheel — Capture Layer Live",
+      "satisfaction_mode": "AND",
+      "what_ships": "Channel built and live, accepting real signups — live URL/dashboard",
+      "target_date": "2026-10-07"
+    },
+    {
+      "class": "Artifact",
+      "name": "Help Yourself Broadcast — Batch 1 — Published (5 episodes live)",
+      "parent_deliverable": "Help Yourself Broadcast — Batch 1 (5 episodes)",
+      "satisfaction_mode": "AND",
+      "what_ships": "All 5 episodes live and publicly accessible — published URLs",
+      "target_date": "2026-10-07"
+    },
+    {
+      "class": "Artifact",
+      "name": "79th Street Renovation — One-Page Business Plan Document",
+      "parent_deliverable": "79th Street Renovation — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated — plan document",
+      "target_date": "2026-10-08"
+    },
+    {
+      "class": "Artifact",
+      "name": "Global State Holdings — Full Business Plan File",
+      "parent_deliverable": "Global State Holdings — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated, all at full elaborated depth (not one-page compression) — full plan document",
+      "target_date": "2026-10-08",
+      "buffer_anchor": "Global State Holdings — One-Page Business Plan Document",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "Marketing Flywheel — Full Business Plan File",
+      "parent_deliverable": "Marketing Flywheel — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated, all at full elaborated depth (not one-page compression) — full plan document",
+      "target_date": "2026-10-09",
+      "buffer_anchor": "Marketing Flywheel — One-Page Business Plan Document",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "Global State Academy — Full Business Plan File",
+      "parent_deliverable": "Global State Academy — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated, all at full elaborated depth (not one-page compression) — full plan document",
+      "target_date": "2026-10-11",
+      "buffer_anchor": "Global State Academy — One-Page Business Plan Document",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "First Academy Building — One-Page Business Plan Document",
+      "parent_deliverable": "First Academy Building — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated — plan document",
+      "target_date": "2026-10-12"
+    },
+    {
+      "class": "Artifact",
+      "name": "F8 Energy Company — Full Business Plan File",
+      "parent_deliverable": "F8 Energy Company — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated, all at full elaborated depth (not one-page compression) — full plan document",
+      "target_date": "2026-10-14",
+      "buffer_anchor": "F8 Energy Company — One-Page Business Plan Document",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "Our Fearless Leader: 7 Seals — One-Page Business Plan Document",
+      "parent_deliverable": "Our Fearless Leader: 7 Seals — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated — plan document",
+      "target_date": "2026-10-16"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — One-Page Business Plan Document",
+      "parent_deliverable": "The Imaginary CEO — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated — plan document",
+      "target_date": "2026-10-20"
+    },
+    {
+      "class": "Artifact",
+      "name": "79th Street Renovation — Full Business Plan File",
+      "parent_deliverable": "79th Street Renovation — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated, all at full elaborated depth (not one-page compression) — full plan document",
+      "target_date": "2026-10-22",
+      "buffer_anchor": "79th Street Renovation — One-Page Business Plan Document",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "First Academy Building — Full Business Plan File",
+      "parent_deliverable": "First Academy Building — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated, all at full elaborated depth (not one-page compression) — full plan document",
+      "target_date": "2026-10-26",
+      "buffer_anchor": "First Academy Building — One-Page Business Plan Document",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "Seeds of Destruction — One-Page Business Plan Document",
+      "parent_deliverable": "Seeds of Destruction — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated — plan document",
+      "target_date": "2026-10-27"
+    },
+    {
+      "class": "Artifact",
+      "name": "Our Fearless Leader: 7 Seals — Full Business Plan File",
+      "parent_deliverable": "Our Fearless Leader: 7 Seals — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated, all at full elaborated depth (not one-page compression) — full plan document",
+      "target_date": "2026-10-30",
+      "buffer_anchor": "Our Fearless Leader: 7 Seals — One-Page Business Plan Document",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "I Am The State — One-Page Business Plan Document",
+      "parent_deliverable": "I Am The State — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated — plan document",
+      "target_date": "2026-11-03"
+    },
+    {
+      "class": "Artifact",
+      "name": "Seeds of Destruction — Full Business Plan File",
+      "parent_deliverable": "Seeds of Destruction — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated, all at full elaborated depth (not one-page compression) — full plan document",
+      "target_date": "2026-11-03",
+      "buffer_anchor": "Seeds of Destruction — One-Page Business Plan Document",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Full Business Plan File",
+      "parent_deliverable": "The Imaginary CEO — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated, all at full elaborated depth (not one-page compression) — full plan document",
+      "target_date": "2026-11-03",
+      "buffer_anchor": "The Imaginary CEO — One-Page Business Plan Document",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "Desiree — One-Page Business Plan Document",
+      "parent_deliverable": "Desiree — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated — plan document",
+      "target_date": "2026-11-06"
+    },
+    {
+      "class": "Artifact",
+      "name": "F8 Energy GUM — One-Page Business Plan Document",
+      "parent_deliverable": "F8 Energy GUM — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated — plan document",
+      "target_date": "2026-11-06"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 1 — Script",
+      "parent_deliverable": "State of Control pt. 1",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script draft complete and reviewed — script file",
+      "target_date": "2026-11-08"
+    },
+    {
+      "class": "Artifact",
+      "name": "I Am The State — Full Business Plan File",
+      "parent_deliverable": "I Am The State — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated, all at full elaborated depth (not one-page compression) — full plan document",
+      "target_date": "2026-11-10",
+      "buffer_anchor": "I Am The State — One-Page Business Plan Document",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "Desiree — Full Business Plan File",
+      "parent_deliverable": "Desiree — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated, all at full elaborated depth (not one-page compression) — full plan document",
+      "target_date": "2026-11-20",
+      "buffer_anchor": "Desiree — One-Page Business Plan Document",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "F8 Energy GUM — Full Business Plan File",
+      "parent_deliverable": "F8 Energy GUM — Business Plan",
+      "satisfaction_mode": "AND",
+      "what_ships": "Business/Company Description stated; Problem/Opportunity identified; Solution/Offering described; Target Market defined; Marketing & Sales Strategy stated; Financial Plan/Revenue Model stated; Team named; Timeline and/or Funding Requirements stated, all at full elaborated depth (not one-page compression) — full plan document",
+      "target_date": "2026-11-20",
+      "buffer_anchor": "F8 Energy GUM — One-Page Business Plan Document",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 1 — Pre-Production Complete",
+      "parent_deliverable": "State of Control pt. 1",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script, casting, and location locked — pre-production package",
+      "target_date": "2026-11-21"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 1 — Shoot Complete",
+      "parent_deliverable": "State of Control pt. 1",
+      "satisfaction_mode": "AND",
+      "what_ships": "Principal photography complete, footage delivered — footage/dailies confirmation",
+      "target_date": "2026-12-01"
+    },
+    {
+      "class": "Artifact",
+      "name": "Launch Announcement Live",
+      "parent_deliverable": "The Jericho System — 1.0 Public Launch",
+      "satisfaction_mode": "AND",
+      "what_ships": "Announcement publicly live and accessible — live URL",
+      "target_date": "2026-12-17"
+    },
+    {
+      "class": "Artifact",
+      "name": "Public App Release Live",
+      "parent_deliverable": "The Jericho System — 1.0 Public Launch",
+      "satisfaction_mode": "AND",
+      "what_ships": "App publicly live and accessible — live URL",
+      "target_date": "2026-12-17"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 1 (Chapter)",
+      "parent_deliverable": "State of Control pt. 1",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final cut delivered and approved for release — delivered master file",
+      "target_date": "2026-12-17"
+    },
+    {
+      "class": "Artifact",
+      "name": "Romance Riot Cover Art",
+      "parent_deliverable": "Romance Riot — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final cover art file delivered, approved — asset file",
+      "target_date": "2027-01-10",
+      "buffer_anchor": "Release Packaging (Romance Riot)",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "D8 N8 — Script",
+      "parent_deliverable": "D8 N8",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script draft complete and reviewed — script file",
+      "target_date": "2027-01-18"
+    },
+    {
+      "class": "Artifact",
+      "name": "BLACKMAN — Script",
+      "parent_deliverable": "BLACKMAN",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script draft complete and reviewed — script file",
+      "target_date": "2027-01-20"
+    },
+    {
+      "class": "Artifact",
+      "name": "D8 N8 — Pre-Production Complete",
+      "parent_deliverable": "D8 N8",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script, casting, and location locked — pre-production package",
+      "target_date": "2027-01-22"
+    },
+    {
+      "class": "Artifact",
+      "name": "Upload Verified Live (Romance Riot)",
+      "parent_deliverable": "Romance Riot — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Upload confirmed live on distributor dashboard, release date scheduled — distributor confirmation",
+      "target_date": "2027-01-24",
+      "buffer_anchor": "Release Packaging (Romance Riot)",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "D8 N8 — Shoot Complete",
+      "parent_deliverable": "D8 N8",
+      "satisfaction_mode": "AND",
+      "what_ships": "Principal photography complete, footage delivered — footage/dailies confirmation",
+      "target_date": "2027-01-26"
+    },
+    {
+      "class": "Artifact",
+      "name": "BLACKMAN — Pre-Production Complete",
+      "parent_deliverable": "BLACKMAN",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script, casting, and location locked — pre-production package",
+      "target_date": "2027-01-28"
+    },
+    {
+      "class": "Artifact",
+      "name": "D8 N8 — Edit/Post Complete",
+      "parent_deliverable": "D8 N8",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final edit locked, ready for delivery — final cut file",
+      "target_date": "2027-01-31"
+    },
+    {
+      "class": "Artifact",
+      "name": "D8 N8 — Release",
+      "parent_deliverable": "D8 N8",
+      "satisfaction_mode": "AND",
+      "what_ships": "Content publicly released across declared channels — publish/distribution confirmation",
+      "target_date": "2027-01-31",
+      "buffer_anchor": "Release Packaging (Romance Riot)",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "Release Packaging (Romance Riot)",
+      "parent_deliverable": "Romance Riot — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "v2 checklist: Rights & Royalty Splits Confirmed; Metadata & Distribution Submission; Performing Rights Organization Registration; Electronic Press Kit Complete; Pre-Save Campaign Live; Editorial Pitch Submitted; Promo Content Batch Delivered. (Romance Riot Cover Art + Upload Verified Live (Romance Riot) = promoted lanes, referenced not restated)",
+      "target_date": "2027-01-31"
+    },
+    {
+      "class": "Artifact",
+      "name": "BLACKMAN — Shoot Complete",
+      "parent_deliverable": "BLACKMAN",
+      "satisfaction_mode": "AND",
+      "what_ships": "Principal photography complete, footage delivered — footage/dailies confirmation",
+      "target_date": "2027-02-04"
+    },
+    {
+      "class": "Artifact",
+      "name": "BLACKMAN — Edit/Post Complete",
+      "parent_deliverable": "BLACKMAN",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final edit locked, ready for delivery — final cut file",
+      "target_date": "2027-02-14"
+    },
+    {
+      "class": "Artifact",
+      "name": "BLACKMAN — Release",
+      "parent_deliverable": "BLACKMAN",
+      "satisfaction_mode": "AND",
+      "what_ships": "Content publicly released across declared channels — publish/distribution confirmation",
+      "target_date": "2027-02-14",
+      "buffer_anchor": "Release Packaging (Romance Riot)",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "10 Songs (Painkillers)",
+      "parent_deliverable": "Painkillers — tape/album",
+      "satisfaction_mode": "AND",
+      "what_ships": "Mix/master complete for all tracks, delivered — final audio files",
+      "target_date": "2027-03-11",
+      "buffer_anchor": "Painkillers — tape/album",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "Post-Release Rollout Complete (Romance Riot)",
+      "parent_deliverable": "Romance Riot — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Release-Day Push live (+0) — channel posts; Post-Release Promo Wave delivered (+2wk) — asset batch; Release Retrospective complete (+4wk) — response/streaming data reviewed",
+      "target_date": "2027-03-14",
+      "buffer_anchor": "Release Packaging (Romance Riot)",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 1 — Release",
+      "parent_deliverable": "State of Control pt. 1",
+      "satisfaction_mode": "AND",
+      "what_ships": "Episode/chapter publicly released across declared channels — publish confirmation",
+      "target_date": "2027-03-28",
+      "buffer_anchor": "Post-Release Rollout Complete (Romance Riot)",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 1 — Pre-Production Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 1",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script, casting, and location locked — pre-production package",
+      "target_date": "2027-04-21"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 2 — Script",
+      "parent_deliverable": "State of Control pt. 2",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script draft complete and reviewed — script file",
+      "target_date": "2027-04-23"
+    },
+    {
+      "class": "Artifact",
+      "name": "Painkillers Cover Art",
+      "parent_deliverable": "Painkillers — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final cover art file delivered, approved — asset file",
+      "target_date": "2027-05-06",
+      "buffer_anchor": "Release Packaging (Painkillers)",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 2 — Pre-Production Complete",
+      "parent_deliverable": "State of Control pt. 2",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script, casting, and location locked — pre-production package",
+      "target_date": "2027-05-06"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 1 — Shoot Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 1",
+      "satisfaction_mode": "AND",
+      "what_ships": "Principal photography complete, footage delivered — footage/dailies confirmation",
+      "target_date": "2027-05-12"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 2 — Shoot Complete",
+      "parent_deliverable": "State of Control pt. 2",
+      "satisfaction_mode": "AND",
+      "what_ships": "Principal photography complete, footage delivered — footage/dailies confirmation",
+      "target_date": "2027-05-16"
+    },
+    {
+      "class": "Artifact",
+      "name": "Upload Verified Live (Painkillers)",
+      "parent_deliverable": "Painkillers — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Upload confirmed live on distributor dashboard, release date scheduled — distributor confirmation",
+      "target_date": "2027-05-20",
+      "buffer_anchor": "Release Packaging (Painkillers)",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "Release Packaging (Painkillers)",
+      "parent_deliverable": "Painkillers — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "v2 checklist: Rights & Royalty Splits Confirmed; Metadata & Distribution Submission; Performing Rights Organization Registration; Electronic Press Kit Complete; Pre-Save Campaign Live; Editorial Pitch Submitted; Promo Content Batch Delivered. (Painkillers Cover Art + Upload Verified Live (Painkillers) = promoted lanes, referenced not restated)",
+      "target_date": "2027-05-27"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 2 (Chapter)",
+      "parent_deliverable": "State of Control pt. 2",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final cut delivered and approved for release — delivered master file",
+      "target_date": "2027-06-01"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 1 — Edit/Post Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 1",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final edit locked, ready for delivery — final cut file",
+      "target_date": "2027-06-09"
+    },
+    {
+      "class": "Artifact",
+      "name": "10 Songs (Coronation)",
+      "parent_deliverable": "Coronation — tape/album",
+      "satisfaction_mode": "AND",
+      "what_ships": "Mix/master complete for all tracks, delivered — final audio files",
+      "target_date": "2027-06-25",
+      "buffer_anchor": "Coronation — tape/album",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "Post-Release Rollout Complete (Painkillers)",
+      "parent_deliverable": "Painkillers — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Release-Day Push live (+0) — channel posts; Post-Release Promo Wave delivered (+2wk) — asset batch; Release Retrospective complete (+4wk) — response/streaming data reviewed",
+      "target_date": "2027-07-08",
+      "buffer_anchor": "Release Packaging (Painkillers)",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 2 — Pre-Production Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 2",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script, casting, and location locked — pre-production package",
+      "target_date": "2027-08-05"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 3 — Script",
+      "parent_deliverable": "State of Control pt. 3",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script draft complete and reviewed — script file",
+      "target_date": "2027-08-08"
+    },
+    {
+      "class": "Artifact",
+      "name": "Coronation Cover Art",
+      "parent_deliverable": "Coronation — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final cover art file delivered, approved — asset file",
+      "target_date": "2027-08-20",
+      "buffer_anchor": "Release Packaging (Coronation)",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 3 — Pre-Production Complete",
+      "parent_deliverable": "State of Control pt. 3",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script, casting, and location locked — pre-production package",
+      "target_date": "2027-08-21"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 2 — Shoot Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 2",
+      "satisfaction_mode": "AND",
+      "what_ships": "Principal photography complete, footage delivered — footage/dailies confirmation",
+      "target_date": "2027-08-26"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 3 — Shoot Complete",
+      "parent_deliverable": "State of Control pt. 3",
+      "satisfaction_mode": "AND",
+      "what_ships": "Principal photography complete, footage delivered — footage/dailies confirmation",
+      "target_date": "2027-08-31"
+    },
+    {
+      "class": "Artifact",
+      "name": "Upload Verified Live (Coronation)",
+      "parent_deliverable": "Coronation — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Upload confirmed live on distributor dashboard, release date scheduled — distributor confirmation",
+      "target_date": "2027-09-03",
+      "buffer_anchor": "Release Packaging (Coronation)",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "Release Packaging (Coronation)",
+      "parent_deliverable": "Coronation — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "v2 checklist: Rights & Royalty Splits Confirmed; Metadata & Distribution Submission; Performing Rights Organization Registration; Electronic Press Kit Complete; Pre-Save Campaign Live; Editorial Pitch Submitted; Promo Content Batch Delivered. (Coronation Cover Art + Upload Verified Live (Coronation) = promoted lanes, referenced not restated)",
+      "target_date": "2027-09-10"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 3 (Chapter)",
+      "parent_deliverable": "State of Control pt. 3",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final cut delivered and approved for release — delivered master file",
+      "target_date": "2027-09-16"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 2 — Edit/Post Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 2",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final edit locked, ready for delivery — final cut file",
+      "target_date": "2027-09-23"
+    },
+    {
+      "class": "Artifact",
+      "name": "10 Songs (Savior)",
+      "parent_deliverable": "Savior — tape/album",
+      "satisfaction_mode": "AND",
+      "what_ships": "Mix/master complete for all tracks, delivered — final audio files",
+      "target_date": "2027-10-10",
+      "buffer_anchor": "Savior — tape/album",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "Post-Release Rollout Complete (Coronation)",
+      "parent_deliverable": "Coronation — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Release-Day Push live (+0) — channel posts; Post-Release Promo Wave delivered (+2wk) — asset batch; Release Retrospective complete (+4wk) — response/streaming data reviewed",
+      "target_date": "2027-10-22",
+      "buffer_anchor": "Release Packaging (Coronation)",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 3 — Pre-Production Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 3",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script, casting, and location locked — pre-production package",
+      "target_date": "2027-11-19"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 4 — Script",
+      "parent_deliverable": "State of Control pt. 4",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script draft complete and reviewed — script file",
+      "target_date": "2027-11-22"
+    },
+    {
+      "class": "Artifact",
+      "name": "Savior Cover Art",
+      "parent_deliverable": "Savior — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final cover art file delivered, approved — asset file",
+      "target_date": "2027-12-05",
+      "buffer_anchor": "Release Packaging (Savior)",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 4 — Pre-Production Complete",
+      "parent_deliverable": "State of Control pt. 4",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script, casting, and location locked — pre-production package",
+      "target_date": "2027-12-05"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 3 — Shoot Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 3",
+      "satisfaction_mode": "AND",
+      "what_ships": "Principal photography complete, footage delivered — footage/dailies confirmation",
+      "target_date": "2027-12-10"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 4 — Shoot Complete",
+      "parent_deliverable": "State of Control pt. 4",
+      "satisfaction_mode": "AND",
+      "what_ships": "Principal photography complete, footage delivered — footage/dailies confirmation",
+      "target_date": "2027-12-15"
+    },
+    {
+      "class": "Artifact",
+      "name": "Upload Verified Live (Savior)",
+      "parent_deliverable": "Savior — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Upload confirmed live on distributor dashboard, release date scheduled — distributor confirmation",
+      "target_date": "2027-12-19",
+      "buffer_anchor": "Release Packaging (Savior)",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "Release Packaging (Savior)",
+      "parent_deliverable": "Savior — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "v2 checklist: Rights & Royalty Splits Confirmed; Metadata & Distribution Submission; Performing Rights Organization Registration; Electronic Press Kit Complete; Pre-Save Campaign Live; Editorial Pitch Submitted; Promo Content Batch Delivered. (Savior Cover Art + Upload Verified Live (Savior) = promoted lanes, referenced not restated)",
+      "target_date": "2027-12-26"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 4 (Chapter)",
+      "parent_deliverable": "State of Control pt. 4",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final cut delivered and approved for release — delivered master file",
+      "target_date": "2027-12-31"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 3 — Edit/Post Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 3",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final edit locked, ready for delivery — final cut file",
+      "target_date": "2028-01-07"
+    },
+    {
+      "class": "Artifact",
+      "name": "10 Songs (Sacrifice)",
+      "parent_deliverable": "Sacrifice — tape/album",
+      "satisfaction_mode": "AND",
+      "what_ships": "Mix/master complete for all tracks, delivered — final audio files",
+      "target_date": "2028-01-27",
+      "buffer_anchor": "Sacrifice — tape/album",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "Post-Release Rollout Complete (Savior)",
+      "parent_deliverable": "Savior — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Release-Day Push live (+0) — channel posts; Post-Release Promo Wave delivered (+2wk) — asset batch; Release Retrospective complete (+4wk) — response/streaming data reviewed",
+      "target_date": "2028-02-06",
+      "buffer_anchor": "Release Packaging (Savior)",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 4 — Pre-Production Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 4",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script, casting, and location locked — pre-production package",
+      "target_date": "2028-03-07"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 5 — Script",
+      "parent_deliverable": "State of Control pt. 5",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script draft complete and reviewed — script file",
+      "target_date": "2028-03-09"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 5 — Pre-Production Complete",
+      "parent_deliverable": "State of Control pt. 5",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script, casting, and location locked — pre-production package",
+      "target_date": "2028-03-22"
+    },
+    {
+      "class": "Artifact",
+      "name": "Sacrifice Cover Art",
+      "parent_deliverable": "Sacrifice — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final cover art file delivered, approved — asset file",
+      "target_date": "2028-03-23",
+      "buffer_anchor": "Release Packaging (Sacrifice)",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 4 — Shoot Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 4",
+      "satisfaction_mode": "AND",
+      "what_ships": "Principal photography complete, footage delivered — footage/dailies confirmation",
+      "target_date": "2028-03-28"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 5 — Shoot Complete",
+      "parent_deliverable": "State of Control pt. 5",
+      "satisfaction_mode": "AND",
+      "what_ships": "Principal photography complete, footage delivered — footage/dailies confirmation",
+      "target_date": "2028-04-01"
+    },
+    {
+      "class": "Artifact",
+      "name": "Upload Verified Live (Sacrifice)",
+      "parent_deliverable": "Sacrifice — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Upload confirmed live on distributor dashboard, release date scheduled — distributor confirmation",
+      "target_date": "2028-04-06",
+      "buffer_anchor": "Release Packaging (Sacrifice)",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "Release Packaging (Sacrifice)",
+      "parent_deliverable": "Sacrifice — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "v2 checklist: Rights & Royalty Splits Confirmed; Metadata & Distribution Submission; Performing Rights Organization Registration; Electronic Press Kit Complete; Pre-Save Campaign Live; Editorial Pitch Submitted; Promo Content Batch Delivered. (Sacrifice Cover Art + Upload Verified Live (Sacrifice) = promoted lanes, referenced not restated)",
+      "target_date": "2028-04-13"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 5 (Chapter)",
+      "parent_deliverable": "State of Control pt. 5",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final cut delivered and approved for release — delivered master file",
+      "target_date": "2028-04-17"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 4 — Edit/Post Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 4",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final edit locked, ready for delivery — final cut file",
+      "target_date": "2028-04-25"
+    },
+    {
+      "class": "Artifact",
+      "name": "Post-Release Rollout Complete (Sacrifice)",
+      "parent_deliverable": "Sacrifice — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Release-Day Push live (+0) — channel posts; Post-Release Promo Wave delivered (+2wk) — asset batch; Release Retrospective complete (+4wk) — response/streaming data reviewed",
+      "target_date": "2028-05-25",
+      "buffer_anchor": "Release Packaging (Sacrifice)",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "16 Songs (Seeds of Destruction Entry 1)",
+      "parent_deliverable": "Seeds of Destruction Entry 1 — Album",
+      "satisfaction_mode": "AND",
+      "what_ships": "Mix/master complete for all tracks, delivered — final audio files",
+      "target_date": "2028-07-27",
+      "buffer_anchor": "Seeds of Destruction Entry 1 — Album",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "Max Clout 1 — Script",
+      "parent_deliverable": "Max Clout 1",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script draft complete and reviewed — script file",
+      "target_date": "2028-08-22"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 5 — Pre-Production Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 5",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script, casting, and location locked — pre-production package",
+      "target_date": "2028-09-06"
+    },
+    {
+      "class": "Artifact",
+      "name": "Max Clout 1 — Pre-Production Complete",
+      "parent_deliverable": "Max Clout 1",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script, casting, and location locked — pre-production package",
+      "target_date": "2028-09-17"
+    },
+    {
+      "class": "Artifact",
+      "name": "Seeds of Destruction Entry 1 Cover Art",
+      "parent_deliverable": "Seeds of Destruction Entry 1 — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final cover art file delivered, approved — asset file",
+      "target_date": "2028-09-21",
+      "buffer_anchor": "Release Packaging (Seeds of Destruction Entry 1)",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 5 — Shoot Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 5",
+      "satisfaction_mode": "AND",
+      "what_ships": "Principal photography complete, footage delivered — footage/dailies confirmation",
+      "target_date": "2028-09-27"
+    },
+    {
+      "class": "Artifact",
+      "name": "Upload Verified Live (Seeds of Destruction Entry 1)",
+      "parent_deliverable": "Seeds of Destruction Entry 1 — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Upload confirmed live on distributor dashboard, release date scheduled — distributor confirmation",
+      "target_date": "2028-10-05",
+      "buffer_anchor": "Release Packaging (Seeds of Destruction Entry 1)",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "Max Clout 1 — Shoot Complete",
+      "parent_deliverable": "Max Clout 1",
+      "satisfaction_mode": "AND",
+      "what_ships": "Principal photography complete, footage delivered — footage/dailies confirmation",
+      "target_date": "2028-10-08"
+    },
+    {
+      "class": "Artifact",
+      "name": "Release Packaging (Seeds of Destruction Entry 1)",
+      "parent_deliverable": "Seeds of Destruction Entry 1 — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "v2 checklist: Rights & Royalty Splits Confirmed; Metadata & Distribution Submission; Performing Rights Organization Registration; Electronic Press Kit Complete; Pre-Save Campaign Live; Editorial Pitch Submitted; Promo Content Batch Delivered. (Seeds of Destruction Entry 1 Cover Art + Upload Verified Live (Seeds of Destruction Entry 1) = promoted lanes, referenced not restated)",
+      "target_date": "2028-10-12"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 5 — Edit/Post Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 5",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final edit locked, ready for delivery — final cut file",
+      "target_date": "2028-10-25"
+    },
+    {
+      "class": "Artifact",
+      "name": "Max Clout 1 — Edit/Post Complete",
+      "parent_deliverable": "Max Clout 1",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final edit locked, ready for delivery — final cut file",
+      "target_date": "2028-11-09"
+    },
+    {
+      "class": "Artifact",
+      "name": "Max Clout 1 — Release",
+      "parent_deliverable": "Max Clout 1",
+      "satisfaction_mode": "AND",
+      "what_ships": "Content publicly released across declared channels — publish/distribution confirmation",
+      "target_date": "2028-11-09",
+      "buffer_anchor": "Release Packaging (Seeds of Destruction Entry 1)",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "Post-Release Rollout Complete (Seeds of Destruction Entry 1)",
+      "parent_deliverable": "Seeds of Destruction Entry 1 — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Release-Day Push live (+0) — channel posts; Post-Release Promo Wave delivered (+2wk) — asset batch; Release Retrospective complete (+4wk) — response/streaming data reviewed",
+      "target_date": "2028-11-23",
+      "buffer_anchor": "Release Packaging (Seeds of Destruction Entry 1)",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "16 Songs (Seeds of Destruction Entry 2)",
+      "parent_deliverable": "Seeds of Destruction Entry 2 — Album",
+      "satisfaction_mode": "AND",
+      "what_ships": "Mix/master complete for all tracks, delivered — final audio files",
+      "target_date": "2029-01-27",
+      "buffer_anchor": "Seeds of Destruction Entry 2 — Album",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "Max Clout 2 — Script",
+      "parent_deliverable": "Max Clout 2",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script draft complete and reviewed — script file",
+      "target_date": "2029-02-22"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 6 — Pre-Production Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 6",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script, casting, and location locked — pre-production package",
+      "target_date": "2029-03-07"
+    },
+    {
+      "class": "Artifact",
+      "name": "Max Clout 2 — Pre-Production Complete",
+      "parent_deliverable": "Max Clout 2",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script, casting, and location locked — pre-production package",
+      "target_date": "2029-03-20"
+    },
+    {
+      "class": "Artifact",
+      "name": "Seeds of Destruction Entry 2 Cover Art",
+      "parent_deliverable": "Seeds of Destruction Entry 2 — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final cover art file delivered, approved — asset file",
+      "target_date": "2029-03-24",
+      "buffer_anchor": "Release Packaging (Seeds of Destruction Entry 2)",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 6 — Shoot Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 6",
+      "satisfaction_mode": "AND",
+      "what_ships": "Principal photography complete, footage delivered — footage/dailies confirmation",
+      "target_date": "2029-03-28"
+    },
+    {
+      "class": "Artifact",
+      "name": "Upload Verified Live (Seeds of Destruction Entry 2)",
+      "parent_deliverable": "Seeds of Destruction Entry 2 — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Upload confirmed live on distributor dashboard, release date scheduled — distributor confirmation",
+      "target_date": "2029-04-07",
+      "buffer_anchor": "Release Packaging (Seeds of Destruction Entry 2)",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "Max Clout 2 — Shoot Complete",
+      "parent_deliverable": "Max Clout 2",
+      "satisfaction_mode": "AND",
+      "what_ships": "Principal photography complete, footage delivered — footage/dailies confirmation",
+      "target_date": "2029-04-10"
+    },
+    {
+      "class": "Artifact",
+      "name": "Release Packaging (Seeds of Destruction Entry 2)",
+      "parent_deliverable": "Seeds of Destruction Entry 2 — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "v2 checklist: Rights & Royalty Splits Confirmed; Metadata & Distribution Submission; Performing Rights Organization Registration; Electronic Press Kit Complete; Pre-Save Campaign Live; Editorial Pitch Submitted; Promo Content Batch Delivered. (Seeds of Destruction Entry 2 Cover Art + Upload Verified Live (Seeds of Destruction Entry 2) = promoted lanes, referenced not restated)",
+      "target_date": "2029-04-14"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 6 — Edit/Post Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 6",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final edit locked, ready for delivery — final cut file",
+      "target_date": "2029-04-25"
+    },
+    {
+      "class": "Artifact",
+      "name": "Max Clout 2 — Edit/Post Complete",
+      "parent_deliverable": "Max Clout 2",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final edit locked, ready for delivery — final cut file",
+      "target_date": "2029-05-12"
+    },
+    {
+      "class": "Artifact",
+      "name": "Max Clout 2 — Release",
+      "parent_deliverable": "Max Clout 2",
+      "satisfaction_mode": "AND",
+      "what_ships": "Content publicly released across declared channels — publish/distribution confirmation",
+      "target_date": "2029-05-12",
+      "buffer_anchor": "Release Packaging (Seeds of Destruction Entry 2)",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "Post-Release Rollout Complete (Seeds of Destruction Entry 2)",
+      "parent_deliverable": "Seeds of Destruction Entry 2 — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Release-Day Push live (+0) — channel posts; Post-Release Promo Wave delivered (+2wk) — asset batch; Release Retrospective complete (+4wk) — response/streaming data reviewed",
+      "target_date": "2029-05-26",
+      "buffer_anchor": "Release Packaging (Seeds of Destruction Entry 2)",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "16 Songs (Seeds of Destruction Entry 3)",
+      "parent_deliverable": "Seeds of Destruction Entry 3 — Album",
+      "satisfaction_mode": "AND",
+      "what_ships": "Mix/master complete for all tracks, delivered — final audio files",
+      "target_date": "2029-07-27",
+      "buffer_anchor": "Seeds of Destruction Entry 3 — Album",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "Max Clout 3 — Script",
+      "parent_deliverable": "Max Clout 3",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script draft complete and reviewed — script file",
+      "target_date": "2029-08-22"
+    },
+    {
+      "class": "Artifact",
+      "name": "GUM — Launch Marketing Push",
+      "parent_deliverable": "F8 Energy GUM — Product Launch",
+      "satisfaction_mode": "AND",
+      "what_ships": "Campaign live — campaign URL",
+      "target_date": "2029-08-31"
+    },
+    {
+      "class": "Artifact",
+      "name": "GUM — Product Available for Purchase",
+      "parent_deliverable": "F8 Energy GUM — Product Launch",
+      "satisfaction_mode": "AND",
+      "what_ships": "Product listed and purchasable — live listing",
+      "target_date": "2029-08-31"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 7 — Pre-Production Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 7",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script, casting, and location locked — pre-production package",
+      "target_date": "2029-09-06"
+    },
+    {
+      "class": "Artifact",
+      "name": "Max Clout 3 — Pre-Production Complete",
+      "parent_deliverable": "Max Clout 3",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script, casting, and location locked — pre-production package",
+      "target_date": "2029-09-17"
+    },
+    {
+      "class": "Artifact",
+      "name": "Seeds of Destruction Entry 3 Cover Art",
+      "parent_deliverable": "Seeds of Destruction Entry 3 — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final cover art file delivered, approved — asset file",
+      "target_date": "2029-09-21",
+      "buffer_anchor": "Release Packaging (Seeds of Destruction Entry 3)",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 7 — Shoot Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 7",
+      "satisfaction_mode": "AND",
+      "what_ships": "Principal photography complete, footage delivered — footage/dailies confirmation",
+      "target_date": "2029-09-27"
+    },
+    {
+      "class": "Artifact",
+      "name": "Upload Verified Live (Seeds of Destruction Entry 3)",
+      "parent_deliverable": "Seeds of Destruction Entry 3 — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Upload confirmed live on distributor dashboard, release date scheduled — distributor confirmation",
+      "target_date": "2029-10-05",
+      "buffer_anchor": "Release Packaging (Seeds of Destruction Entry 3)",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "Max Clout 3 — Shoot Complete",
+      "parent_deliverable": "Max Clout 3",
+      "satisfaction_mode": "AND",
+      "what_ships": "Principal photography complete, footage delivered — footage/dailies confirmation",
+      "target_date": "2029-10-08"
+    },
+    {
+      "class": "Artifact",
+      "name": "Release Packaging (Seeds of Destruction Entry 3)",
+      "parent_deliverable": "Seeds of Destruction Entry 3 — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "v2 checklist: Rights & Royalty Splits Confirmed; Metadata & Distribution Submission; Performing Rights Organization Registration; Electronic Press Kit Complete; Pre-Save Campaign Live; Editorial Pitch Submitted; Promo Content Batch Delivered. (Seeds of Destruction Entry 3 Cover Art + Upload Verified Live (Seeds of Destruction Entry 3) = promoted lanes, referenced not restated)",
+      "target_date": "2029-10-12"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 7 — Edit/Post Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 7",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final edit locked, ready for delivery — final cut file",
+      "target_date": "2029-10-25"
+    },
+    {
+      "class": "Artifact",
+      "name": "Max Clout 3 — Edit/Post Complete",
+      "parent_deliverable": "Max Clout 3",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final edit locked, ready for delivery — final cut file",
+      "target_date": "2029-11-09"
+    },
+    {
+      "class": "Artifact",
+      "name": "Max Clout 3 — Release",
+      "parent_deliverable": "Max Clout 3",
+      "satisfaction_mode": "AND",
+      "what_ships": "Content publicly released across declared channels — publish/distribution confirmation",
+      "target_date": "2029-11-09",
+      "buffer_anchor": "Release Packaging (Seeds of Destruction Entry 3)",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "Post-Release Rollout Complete (Seeds of Destruction Entry 3)",
+      "parent_deliverable": "Seeds of Destruction Entry 3 — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Release-Day Push live (+0) — channel posts; Post-Release Promo Wave delivered (+2wk) — asset batch; Release Retrospective complete (+4wk) — response/streaming data reviewed",
+      "target_date": "2029-11-23",
+      "buffer_anchor": "Release Packaging (Seeds of Destruction Entry 3)",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "Desiree — Script",
+      "parent_deliverable": "Desiree — Feature Film",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script draft complete and reviewed — script file",
+      "target_date": "2030-12-16"
+    },
+    {
+      "class": "Artifact",
+      "name": "Desiree — Pre-Production Complete",
+      "parent_deliverable": "Desiree — Feature Film",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script, casting, and location locked — pre-production package",
+      "target_date": "2031-06-16"
+    },
+    {
+      "class": "Artifact",
+      "name": "Desiree — Shoot Complete",
+      "parent_deliverable": "Desiree — Feature Film",
+      "satisfaction_mode": "AND",
+      "what_ships": "Principal photography complete, footage delivered — footage/dailies confirmation",
+      "target_date": "2031-09-16"
+    },
+    {
+      "class": "Artifact",
+      "name": "18 Songs (I Am The State)",
+      "parent_deliverable": "I Am The State — Terminal Album",
+      "satisfaction_mode": "AND",
+      "what_ships": "Mix/master complete for all tracks, delivered — final audio files",
+      "target_date": "2031-12-10",
+      "buffer_anchor": "I Am The State — Terminal Album",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 8 — Pre-Production Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 8",
+      "satisfaction_mode": "AND",
+      "what_ships": "Script, casting, and location locked — pre-production package",
+      "target_date": "2032-01-19"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 8 — Shoot Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 8",
+      "satisfaction_mode": "AND",
+      "what_ships": "Principal photography complete, footage delivered — footage/dailies confirmation",
+      "target_date": "2032-02-09"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 8 — Edit/Post Complete",
+      "parent_deliverable": "The Imaginary CEO — Season 8",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final edit locked, ready for delivery — final cut file",
+      "target_date": "2032-03-08"
+    },
+    {
+      "class": "Artifact",
+      "name": "I Am The State Cover Art",
+      "parent_deliverable": "I Am The State — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final cover art file delivered, approved — asset file",
+      "target_date": "2032-04-07",
+      "buffer_anchor": "Release Packaging (I Am The State)",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "Upload Verified Live (I Am The State)",
+      "parent_deliverable": "I Am The State — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Upload confirmed live on distributor dashboard, release date scheduled — distributor confirmation",
+      "target_date": "2032-04-21",
+      "buffer_anchor": "Release Packaging (I Am The State)",
+      "buffer_binding": "hard"
+    },
+    {
+      "class": "Artifact",
+      "name": "Release Packaging (I Am The State)",
+      "parent_deliverable": "I Am The State — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "v2 checklist: Rights & Royalty Splits Confirmed; Metadata & Distribution Submission; Performing Rights Organization Registration; Electronic Press Kit Complete; Pre-Save Campaign Live; Editorial Pitch Submitted; Promo Content Batch Delivered. (I Am The State Cover Art + Upload Verified Live (I Am The State) = promoted lanes, referenced not restated)",
+      "target_date": "2032-04-28"
+    },
+    {
+      "class": "Artifact",
+      "name": "Post-Release Rollout Complete (I Am The State)",
+      "parent_deliverable": "I Am The State — Artwork & Packaging",
+      "satisfaction_mode": "AND",
+      "what_ships": "Release-Day Push live (+0) — channel posts; Post-Release Promo Wave delivered (+2wk) — asset batch; Release Retrospective complete (+4wk) — response/streaming data reviewed",
+      "target_date": "2032-06-09",
+      "buffer_anchor": "Release Packaging (I Am The State)",
+      "buffer_binding": "advisory"
+    },
+    {
+      "class": "Artifact",
+      "name": "Desiree — Edit/Post Complete",
+      "parent_deliverable": "Desiree — Feature Film",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final edit locked, ready for delivery — final cut file",
+      "target_date": "2032-06-16"
+    },
+    {
+      "class": "Artifact",
+      "name": "Desiree (Feature Film)",
+      "parent_deliverable": "Desiree — Feature Film",
+      "satisfaction_mode": "AND",
+      "what_ships": "Final cut delivered and approved for release — delivered master file",
+      "target_date": "2032-06-30"
+    },
+    {
+      "class": "System",
+      "name": "Music System",
+      "owner": "Global State Corporation",
+      "mechanism": "Writing/recording → mix/master → tape release on the Our Fearless Leader cadence",
+      "feeds_converges_into": "Marketing Flywheel; Financial Funnel System"
+    },
+    {
+      "class": "System",
+      "name": "Production System",
+      "owner": "Global State Productions",
+      "mechanism": "Concept/script → shoot/edit → shipped visual deliverable (short films, episodes, features)",
+      "feeds_converges_into": "Music System releases; Marketing Flywheel"
+    },
+    {
+      "class": "System",
+      "name": "Software System",
+      "owner": "Global State Systems",
+      "mechanism": "Build → ship → iterate on Jericho and apps",
+      "feeds_converges_into": "Financial Funnel System (software sales → Global State Solutions); Execution Feedback System"
+    },
+    {
+      "class": "System",
+      "name": "Financial Funnel System",
+      "owner": "Global State Solutions",
+      "mechanism": "Revenue from every venture → collected → allocated by Global State Solutions to entities and projects",
+      "feeds_converges_into": "Global State Solutions — funds from software sales flow to the project management company"
+    },
+    {
+      "class": "System",
+      "name": "Execution Feedback System",
+      "owner": "Global State Solutions",
+      "mechanism": "Global State Solutions operates on Jericho; Jericho improves from Global State Solutions's use",
+      "feeds_converges_into": "The Jericho System"
+    },
+    {
+      "class": "System",
+      "name": "Marketing Flywheel",
+      "owner": "Cross-cutting",
+      "mechanism": "Content (music/film/podcast/app) → audience discovery (editorial pitch, promo content batches, pre-save campaigns) → audience capture (multi-channel: pre-save, platform follow, app signup — not email-only) → cross-venture promotion (each release markets the next; The Imaginary CEO dramatizes Jericho; State of Control rides Our Fearless Leader's audience) → conversion (product/software sales) → revenue → reinvestment into next release, cascading up to the Global State Solutions parent brand",
+      "feeds_converges_into": "Financial Funnel System"
+    },
+    {
+      "class": "System",
+      "name": "79th Street Corridor System",
+      "owner": "Global State Holdings",
+      "mechanism": "Acquire abandoned/distressed property → renovate/flip → hold or resell corridor-wide (Stony Island to Exchange)",
+      "feeds_converges_into": "79th Street Renovation initiative"
+    },
+    {
+      "class": "System",
+      "name": "Academy Site Acquisition System",
+      "owner": "Global State Holdings",
+      "mechanism": "Acquire land/property specifically for Academy franchise expansion",
+      "feeds_converges_into": "Global State Academy franchise sites"
+    },
+    {
+      "class": "System",
+      "name": "Education System",
+      "owner": "Global State Academy",
+      "mechanism": "Acquire site (via Academy Site Acquisition System) → build/renovate → enroll students → operate school",
+      "feeds_converges_into": "First Academy Building initiative; future Academy franchise sites"
+    },
+    {
+      "class": "System",
+      "name": "Consumer Products System",
+      "owner": "F8 Energy Company",
+      "mechanism": "Formulate product → produce → distribute → sell",
+      "feeds_converges_into": "F8 Energy GUM Production; future F8 product lines"
+    }
+  ],
+  "canonical_edges": [
+    {
+      "type": "companion_content",
+      "from": "State of Control pt. 1",
+      "to": "Romance Riot — tape/album"
+    },
+    {
+      "type": "companion_content",
+      "from": "State of Control pt. 2",
+      "to": "Painkillers — tape/album"
+    },
+    {
+      "type": "companion_content",
+      "from": "State of Control pt. 3",
+      "to": "Coronation — tape/album"
+    },
+    {
+      "type": "companion_content",
+      "from": "State of Control pt. 4",
+      "to": "Savior — tape/album"
+    },
+    {
+      "type": "companion_content",
+      "from": "State of Control pt. 5",
+      "to": "Sacrifice — tape/album"
+    },
+    {
+      "type": "companion_content",
+      "from": "Max Clout 1",
+      "to": "Seeds of Destruction Entry 1 — Album"
+    },
+    {
+      "type": "companion_content",
+      "from": "Max Clout 2",
+      "to": "Seeds of Destruction Entry 2 — Album"
+    },
+    {
+      "type": "companion_content",
+      "from": "The Imaginary CEO — Season 5",
+      "to": "Seeds of Destruction Entry 1 — Album"
+    },
+    {
+      "type": "companion_content",
+      "from": "The Imaginary CEO — Season 6",
+      "to": "Seeds of Destruction Entry 2 — Album"
+    },
+    {
+      "type": "companion_content",
+      "from": "Max Clout 3",
+      "to": "Seeds of Destruction Entry 3 — Album"
+    },
+    {
+      "type": "companion_content",
+      "from": "The Imaginary CEO — Season 7",
+      "to": "Seeds of Destruction Entry 3 — Album"
+    },
+    {
+      "type": "structural",
+      "from": "Desiree — Feature Film",
+      "to": "I Am The State — Terminal Album"
+    },
+    {
+      "type": "companion_content",
+      "from": "The Imaginary CEO — Season 8",
+      "to": "I Am The State — Terminal Album"
+    },
+    {
+      "type": "structural",
+      "from": "79th Street — Acquisition Complete",
+      "to": "79th Street Renovation — Business Plan"
+    },
+    {
+      "type": "structural",
+      "from": "First Academy Building — Opening",
+      "to": "79th Street — Acquisition Complete"
+    },
+    {
+      "type": "companion_content",
+      "from": "The Imaginary CEO — Season 1",
+      "to": "Painkillers — tape/album"
+    },
+    {
+      "type": "companion_content",
+      "from": "The Imaginary CEO — Season 2",
+      "to": "Coronation — tape/album"
+    },
+    {
+      "type": "companion_content",
+      "from": "The Imaginary CEO — Season 3",
+      "to": "Savior — tape/album"
+    },
+    {
+      "type": "companion_content",
+      "from": "The Imaginary CEO — Season 4",
+      "to": "Sacrifice — tape/album"
+    },
+    {
+      "type": "structural",
+      "from": "Feasibility",
+      "to": "Plan Quality"
+    },
+    {
+      "type": "structural",
+      "from": "Plan Quality",
+      "to": "Intake"
+    },
+    {
+      "type": "structural",
+      "from": "Course Correction",
+      "to": "Feasibility"
+    },
+    {
+      "type": "structural",
+      "from": "Live Probability of Success",
+      "to": "Course Correction"
+    },
+    {
+      "type": "structural",
+      "from": "Jericho — End-to-End Integration Verified",
+      "to": "Intake"
+    },
+    {
+      "type": "structural",
+      "from": "Jericho — End-to-End Integration Verified",
+      "to": "Plan Quality"
+    },
+    {
+      "type": "structural",
+      "from": "Jericho — End-to-End Integration Verified",
+      "to": "Feasibility"
+    },
+    {
+      "type": "structural",
+      "from": "Jericho — End-to-End Integration Verified",
+      "to": "Course Correction"
+    },
+    {
+      "type": "structural",
+      "from": "Jericho — End-to-End Integration Verified",
+      "to": "Live Probability of Success"
+    },
+    {
+      "type": "structural",
+      "from": "Patent — Filed/Submitted",
+      "to": "Patent — Attorney Review Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Help Yourself Broadcast — Full Business Plan File",
+      "to": "Help Yourself Broadcast — One-Page Business Plan Document"
+    },
+    {
+      "type": "structural",
+      "from": "Global State Corporation — Full Business Plan File",
+      "to": "Global State Corporation — One-Page Business Plan Document"
+    },
+    {
+      "type": "structural",
+      "from": "Help Yourself Broadcast — Batch 1 — Recording Complete",
+      "to": "Help Yourself Broadcast — Batch 1 — Scripts Complete (5 episodes)"
+    },
+    {
+      "type": "structural",
+      "from": "State of Control — Full Business Plan File",
+      "to": "State of Control — One-Page Business Plan Document"
+    },
+    {
+      "type": "structural",
+      "from": "Global State Solutions — Full Business Plan File",
+      "to": "Global State Solutions — One-Page Business Plan Document"
+    },
+    {
+      "type": "structural",
+      "from": "Help Yourself Broadcast — Batch 1 — Edit Complete",
+      "to": "Help Yourself Broadcast — Batch 1 — Recording Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Global State Productions — Full Business Plan File",
+      "to": "Global State Productions — One-Page Business Plan Document"
+    },
+    {
+      "type": "structural",
+      "from": "Global State Systems — Full Business Plan File",
+      "to": "Global State Systems — One-Page Business Plan Document"
+    },
+    {
+      "type": "structural",
+      "from": "Help Yourself Broadcast — Batch 1 — Published (5 episodes live)",
+      "to": "Help Yourself Broadcast — Batch 1 — Edit Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Global State Holdings — Full Business Plan File",
+      "to": "Global State Holdings — One-Page Business Plan Document"
+    },
+    {
+      "type": "structural",
+      "from": "Marketing Flywheel — Full Business Plan File",
+      "to": "Marketing Flywheel — One-Page Business Plan Document"
+    },
+    {
+      "type": "structural",
+      "from": "Global State Academy — Full Business Plan File",
+      "to": "Global State Academy — One-Page Business Plan Document"
+    },
+    {
+      "type": "structural",
+      "from": "F8 Energy Company — Full Business Plan File",
+      "to": "F8 Energy Company — One-Page Business Plan Document"
+    },
+    {
+      "type": "structural",
+      "from": "79th Street Renovation — Full Business Plan File",
+      "to": "79th Street Renovation — One-Page Business Plan Document"
+    },
+    {
+      "type": "structural",
+      "from": "First Academy Building — Full Business Plan File",
+      "to": "First Academy Building — One-Page Business Plan Document"
+    },
+    {
+      "type": "structural",
+      "from": "Our Fearless Leader: 7 Seals — Full Business Plan File",
+      "to": "Our Fearless Leader: 7 Seals — One-Page Business Plan Document"
+    },
+    {
+      "type": "structural",
+      "from": "Seeds of Destruction — Full Business Plan File",
+      "to": "Seeds of Destruction — One-Page Business Plan Document"
+    },
+    {
+      "type": "structural",
+      "from": "The Imaginary CEO — Full Business Plan File",
+      "to": "The Imaginary CEO — One-Page Business Plan Document"
+    },
+    {
+      "type": "structural",
+      "from": "I Am The State — Full Business Plan File",
+      "to": "I Am The State — One-Page Business Plan Document"
+    },
+    {
+      "type": "structural",
+      "from": "Desiree — Full Business Plan File",
+      "to": "Desiree — One-Page Business Plan Document"
+    },
+    {
+      "type": "structural",
+      "from": "F8 Energy GUM — Full Business Plan File",
+      "to": "F8 Energy GUM — One-Page Business Plan Document"
+    },
+    {
+      "type": "structural",
+      "from": "State of Control pt. 1 — Pre-Production Complete",
+      "to": "State of Control pt. 1 — Script"
+    },
+    {
+      "type": "structural",
+      "from": "State of Control pt. 1 — Shoot Complete",
+      "to": "State of Control pt. 1 — Pre-Production Complete"
+    },
+    {
+      "type": "structural",
+      "from": "State of Control pt. 1 (Chapter)",
+      "to": "State of Control pt. 1 — Shoot Complete"
+    },
+    {
+      "type": "structural",
+      "from": "D8 N8 — Pre-Production Complete",
+      "to": "D8 N8 — Script"
+    },
+    {
+      "type": "structural",
+      "from": "D8 N8 — Shoot Complete",
+      "to": "D8 N8 — Pre-Production Complete"
+    },
+    {
+      "type": "structural",
+      "from": "BLACKMAN — Pre-Production Complete",
+      "to": "BLACKMAN — Script"
+    },
+    {
+      "type": "structural",
+      "from": "D8 N8 — Edit/Post Complete",
+      "to": "D8 N8 — Shoot Complete"
+    },
+    {
+      "type": "structural",
+      "from": "D8 N8 — Release",
+      "to": "D8 N8 — Edit/Post Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Release Packaging (Romance Riot)",
+      "to": "Upload Verified Live (Romance Riot)"
+    },
+    {
+      "type": "structural",
+      "from": "Release Packaging (Romance Riot)",
+      "to": "Romance Riot Cover Art"
+    },
+    {
+      "type": "structural",
+      "from": "BLACKMAN — Shoot Complete",
+      "to": "BLACKMAN — Pre-Production Complete"
+    },
+    {
+      "type": "structural",
+      "from": "BLACKMAN — Edit/Post Complete",
+      "to": "BLACKMAN — Shoot Complete"
+    },
+    {
+      "type": "structural",
+      "from": "BLACKMAN — Release",
+      "to": "BLACKMAN — Edit/Post Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Post-Release Rollout Complete (Romance Riot)",
+      "to": "Release Packaging (Romance Riot)"
+    },
+    {
+      "type": "structural",
+      "from": "State of Control pt. 1 — Release",
+      "to": "State of Control pt. 1 (Chapter)"
+    },
+    {
+      "type": "structural",
+      "from": "State of Control pt. 2 — Pre-Production Complete",
+      "to": "State of Control pt. 2 — Script"
+    },
+    {
+      "type": "structural",
+      "from": "The Imaginary CEO — Season 1 — Shoot Complete",
+      "to": "The Imaginary CEO — Season 1 — Pre-Production Complete"
+    },
+    {
+      "type": "structural",
+      "from": "State of Control pt. 2 — Shoot Complete",
+      "to": "State of Control pt. 2 — Pre-Production Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Release Packaging (Painkillers)",
+      "to": "Upload Verified Live (Painkillers)"
+    },
+    {
+      "type": "structural",
+      "from": "Release Packaging (Painkillers)",
+      "to": "Painkillers Cover Art"
+    },
+    {
+      "type": "structural",
+      "from": "State of Control pt. 2 (Chapter)",
+      "to": "State of Control pt. 2 — Shoot Complete"
+    },
+    {
+      "type": "structural",
+      "from": "The Imaginary CEO — Season 1 — Edit/Post Complete",
+      "to": "The Imaginary CEO — Season 1 — Shoot Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Post-Release Rollout Complete (Painkillers)",
+      "to": "Release Packaging (Painkillers)"
+    },
+    {
+      "type": "structural",
+      "from": "State of Control pt. 3 — Pre-Production Complete",
+      "to": "State of Control pt. 3 — Script"
+    },
+    {
+      "type": "structural",
+      "from": "The Imaginary CEO — Season 2 — Shoot Complete",
+      "to": "The Imaginary CEO — Season 2 — Pre-Production Complete"
+    },
+    {
+      "type": "structural",
+      "from": "State of Control pt. 3 — Shoot Complete",
+      "to": "State of Control pt. 3 — Pre-Production Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Release Packaging (Coronation)",
+      "to": "Upload Verified Live (Coronation)"
+    },
+    {
+      "type": "structural",
+      "from": "Release Packaging (Coronation)",
+      "to": "Coronation Cover Art"
+    },
+    {
+      "type": "structural",
+      "from": "State of Control pt. 3 (Chapter)",
+      "to": "State of Control pt. 3 — Shoot Complete"
+    },
+    {
+      "type": "structural",
+      "from": "The Imaginary CEO — Season 2 — Edit/Post Complete",
+      "to": "The Imaginary CEO — Season 2 — Shoot Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Post-Release Rollout Complete (Coronation)",
+      "to": "Release Packaging (Coronation)"
+    },
+    {
+      "type": "structural",
+      "from": "State of Control pt. 4 — Pre-Production Complete",
+      "to": "State of Control pt. 4 — Script"
+    },
+    {
+      "type": "structural",
+      "from": "The Imaginary CEO — Season 3 — Shoot Complete",
+      "to": "The Imaginary CEO — Season 3 — Pre-Production Complete"
+    },
+    {
+      "type": "structural",
+      "from": "State of Control pt. 4 — Shoot Complete",
+      "to": "State of Control pt. 4 — Pre-Production Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Release Packaging (Savior)",
+      "to": "Upload Verified Live (Savior)"
+    },
+    {
+      "type": "structural",
+      "from": "Release Packaging (Savior)",
+      "to": "Savior Cover Art"
+    },
+    {
+      "type": "structural",
+      "from": "State of Control pt. 4 (Chapter)",
+      "to": "State of Control pt. 4 — Shoot Complete"
+    },
+    {
+      "type": "structural",
+      "from": "The Imaginary CEO — Season 3 — Edit/Post Complete",
+      "to": "The Imaginary CEO — Season 3 — Shoot Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Post-Release Rollout Complete (Savior)",
+      "to": "Release Packaging (Savior)"
+    },
+    {
+      "type": "structural",
+      "from": "State of Control pt. 5 — Pre-Production Complete",
+      "to": "State of Control pt. 5 — Script"
+    },
+    {
+      "type": "structural",
+      "from": "The Imaginary CEO — Season 4 — Shoot Complete",
+      "to": "The Imaginary CEO — Season 4 — Pre-Production Complete"
+    },
+    {
+      "type": "structural",
+      "from": "State of Control pt. 5 — Shoot Complete",
+      "to": "State of Control pt. 5 — Pre-Production Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Release Packaging (Sacrifice)",
+      "to": "Upload Verified Live (Sacrifice)"
+    },
+    {
+      "type": "structural",
+      "from": "Release Packaging (Sacrifice)",
+      "to": "Sacrifice Cover Art"
+    },
+    {
+      "type": "structural",
+      "from": "State of Control pt. 5 (Chapter)",
+      "to": "State of Control pt. 5 — Shoot Complete"
+    },
+    {
+      "type": "structural",
+      "from": "The Imaginary CEO — Season 4 — Edit/Post Complete",
+      "to": "The Imaginary CEO — Season 4 — Shoot Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Post-Release Rollout Complete (Sacrifice)",
+      "to": "Release Packaging (Sacrifice)"
+    },
+    {
+      "type": "structural",
+      "from": "Max Clout 1 — Pre-Production Complete",
+      "to": "Max Clout 1 — Script"
+    },
+    {
+      "type": "structural",
+      "from": "The Imaginary CEO — Season 5 — Shoot Complete",
+      "to": "The Imaginary CEO — Season 5 — Pre-Production Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Max Clout 1 — Shoot Complete",
+      "to": "Max Clout 1 — Pre-Production Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Release Packaging (Seeds of Destruction Entry 1)",
+      "to": "Upload Verified Live (Seeds of Destruction Entry 1)"
+    },
+    {
+      "type": "structural",
+      "from": "Release Packaging (Seeds of Destruction Entry 1)",
+      "to": "Seeds of Destruction Entry 1 Cover Art"
+    },
+    {
+      "type": "structural",
+      "from": "The Imaginary CEO — Season 5 — Edit/Post Complete",
+      "to": "The Imaginary CEO — Season 5 — Shoot Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Max Clout 1 — Edit/Post Complete",
+      "to": "Max Clout 1 — Shoot Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Max Clout 1 — Release",
+      "to": "Max Clout 1 — Edit/Post Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Post-Release Rollout Complete (Seeds of Destruction Entry 1)",
+      "to": "Release Packaging (Seeds of Destruction Entry 1)"
+    },
+    {
+      "type": "structural",
+      "from": "Max Clout 2 — Pre-Production Complete",
+      "to": "Max Clout 2 — Script"
+    },
+    {
+      "type": "structural",
+      "from": "The Imaginary CEO — Season 6 — Shoot Complete",
+      "to": "The Imaginary CEO — Season 6 — Pre-Production Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Max Clout 2 — Shoot Complete",
+      "to": "Max Clout 2 — Pre-Production Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Release Packaging (Seeds of Destruction Entry 2)",
+      "to": "Upload Verified Live (Seeds of Destruction Entry 2)"
+    },
+    {
+      "type": "structural",
+      "from": "Release Packaging (Seeds of Destruction Entry 2)",
+      "to": "Seeds of Destruction Entry 2 Cover Art"
+    },
+    {
+      "type": "structural",
+      "from": "The Imaginary CEO — Season 6 — Edit/Post Complete",
+      "to": "The Imaginary CEO — Season 6 — Shoot Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Max Clout 2 — Edit/Post Complete",
+      "to": "Max Clout 2 — Shoot Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Max Clout 2 — Release",
+      "to": "Max Clout 2 — Edit/Post Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Post-Release Rollout Complete (Seeds of Destruction Entry 2)",
+      "to": "Release Packaging (Seeds of Destruction Entry 2)"
+    },
+    {
+      "type": "structural",
+      "from": "Max Clout 3 — Pre-Production Complete",
+      "to": "Max Clout 3 — Script"
+    },
+    {
+      "type": "structural",
+      "from": "The Imaginary CEO — Season 7 — Shoot Complete",
+      "to": "The Imaginary CEO — Season 7 — Pre-Production Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Max Clout 3 — Shoot Complete",
+      "to": "Max Clout 3 — Pre-Production Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Release Packaging (Seeds of Destruction Entry 3)",
+      "to": "Upload Verified Live (Seeds of Destruction Entry 3)"
+    },
+    {
+      "type": "structural",
+      "from": "Release Packaging (Seeds of Destruction Entry 3)",
+      "to": "Seeds of Destruction Entry 3 Cover Art"
+    },
+    {
+      "type": "structural",
+      "from": "The Imaginary CEO — Season 7 — Edit/Post Complete",
+      "to": "The Imaginary CEO — Season 7 — Shoot Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Max Clout 3 — Edit/Post Complete",
+      "to": "Max Clout 3 — Shoot Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Max Clout 3 — Release",
+      "to": "Max Clout 3 — Edit/Post Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Post-Release Rollout Complete (Seeds of Destruction Entry 3)",
+      "to": "Release Packaging (Seeds of Destruction Entry 3)"
+    },
+    {
+      "type": "structural",
+      "from": "Desiree — Pre-Production Complete",
+      "to": "Desiree — Script"
+    },
+    {
+      "type": "structural",
+      "from": "Desiree — Shoot Complete",
+      "to": "Desiree — Pre-Production Complete"
+    },
+    {
+      "type": "structural",
+      "from": "The Imaginary CEO — Season 8 — Shoot Complete",
+      "to": "The Imaginary CEO — Season 8 — Pre-Production Complete"
+    },
+    {
+      "type": "structural",
+      "from": "The Imaginary CEO — Season 8 — Edit/Post Complete",
+      "to": "The Imaginary CEO — Season 8 — Shoot Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Release Packaging (I Am The State)",
+      "to": "Upload Verified Live (I Am The State)"
+    },
+    {
+      "type": "structural",
+      "from": "Release Packaging (I Am The State)",
+      "to": "I Am The State Cover Art"
+    },
+    {
+      "type": "structural",
+      "from": "Post-Release Rollout Complete (I Am The State)",
+      "to": "Release Packaging (I Am The State)"
+    },
+    {
+      "type": "structural",
+      "from": "Desiree — Edit/Post Complete",
+      "to": "Desiree — Shoot Complete"
+    },
+    {
+      "type": "structural",
+      "from": "Desiree (Feature Film)",
+      "to": "Desiree — Edit/Post Complete"
+    },
+    {
+      "type": "converges",
+      "from": "Launch Convergence",
+      "to": "Romance Riot — tape/album; State of Control pt. 1 (Chapter); Behavioral Execution Engine — Patent Submission",
+      "target_date": "2026-12-17"
+    }
+  ]
+}

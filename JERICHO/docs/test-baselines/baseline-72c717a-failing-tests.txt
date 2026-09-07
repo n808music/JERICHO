@@ -1,0 +1,185 @@
+src/domain/masterGrid/phaseGridFromStore.test.js :: phaseGridFromStore — phase classification at ingest absent raw phase with NO derivation → residual sentinel (E16: Initiative.phase removed)
+src/domain/masterGrid/phaseGridFromStore.test.js :: phaseGridFromStore — phase classification at ingest present-but-invalid phase ("7") → treated as absent (null), grid renders without throwing
+src/domain/masterGrid/phaseGridFromStore.test.js :: phaseGridFromStore — phase classification at ingest present-but-invalid phase ("banana") → treated as absent, grid renders without throwing
+src/domain/masterGrid/phaseGridFromStore.test.js :: phaseGridFromStore → sortByPhase (③④⑤ from canonical store) ③ phase 1 — demoV2 order, canonical titles
+src/domain/masterGrid/phaseGridFromStore.test.js :: phaseGridFromStore → sortByPhase (③④⑤ from canonical store) ③ phase 2 + phase 3 — demoV2 order, canonical titles
+src/domain/masterGrid/phaseGridFromStore.test.js :: phaseGridFromStore → sortByPhase (③④⑤ from canonical store) ④ residual = exactly 3 phase-null questions (Energy Gum, Smoke Pens, Academy #1)
+src/domain/masterGrid/phaseGridFromStore.test.js :: phaseGridFromStore → sortByPhase (③④⑤ from canonical store) ⑤ the Oct-17 milestone stars exactly its four lanes
+src/domain/masterGrid/phaseGridFromStore.test.js :: selectGridNodes — grid default-tier rule (allProjects ∪ promoted lane deliverables) CAUSALITY: Patent is in the grid BECAUSE it is a lane whose parent is already claimed
+src/domain/masterGrid/phaseGridFromStore.test.js :: selectGridNodes — grid default-tier rule (allProjects ∪ promoted lane deliverables) derives exactly 18 from the reference store: 17 projects + the Patent deliverable
+src/state/__tests__/autoAsana.scheduler.v1_1.test.js :: autoAsana scheduler v1.1 prefers deliverable titles over generic action labels when expanding action sequences
+src/state/__tests__/autoAsana.scheduler.v1_1.test.js :: autoAsana scheduler v1.1 prefers deliverable titles over generic session titles when placing explicit session plans
+src/state/__tests__/convergence_detection_pass.test.js :: Convergence Detection Pass should delete questions when source is removed
+src/state/__tests__/convergence_detection_pass.test.js :: Convergence Detection Pass should delete questions when targetDate changes on a source
+src/state/__tests__/convergence_detection_pass.test.js :: Convergence Detection Pass should generate same questionId for same cluster across runs
+src/state/__tests__/convergence_detection_pass.test.js :: Convergence Detection Pass should not create duplicate questions if same cluster detected again
+src/state/__tests__/convergence_detection_pass.test.js :: Convergence Detection Pass should prune pending questions that are subsets of other pending questions
+src/state/__tests__/convergence_detection_pass.test.js :: Convergence Detection Pass should prune smaller clusters when larger clusters with same members are detected
+src/state/__tests__/convergence_detection_pass.test.js :: Convergence Detection Pass should record DeadlineAlignment disposition and never re-ask
+src/state/__tests__/convergence_detection_pass.test.js :: Convergence Detection Pass should set navigation intent on Declared without creating edge
+src/state/__tests__/convergence_detection_pass.test.js :: Convergence Detection Pass should surface each shared-deadline cluster exactly once
+src/state/__tests__/convergence_step3_comprehensive.test.js :: Convergence Step 3: Comprehensive Multi-Part Test walkdown discovers deliverables, name is editable, destination validation works
+src/state/__tests__/convergence_step3_e2e_walkdown.test.js :: Convergence Step 3: Real End-to-End Declaration declares convergence edge with name and targetDate, validates sources correctly
+src/state/__tests__/convergence_step3_e2e_walkdown.test.js :: Convergence Step 3: Real End-to-End Declaration hard-blocks convergence with sequential dependencies
+src/state/__tests__/convergence_step3_forward_declaration.test.js :: Convergence Step 3: Forward Declaration Step 3.1: Name Requirement should accept convergence edge with name
+src/state/__tests__/convergence_step3_forward_declaration.test.js :: Convergence Step 3: Forward Declaration Step 3.2: Dependency-Chain Exclusion (Hard Block) should accept if sources are truly parallel (no sequential dependency)
+src/state/__tests__/convergence_step3_forward_declaration.test.js :: Convergence Step 3: Forward Declaration Step 3.2: Dependency-Chain Exclusion (Hard Block) should reject if two sources are sequentially dependent
+src/state/__tests__/convergence_step3_forward_declaration.test.js :: Convergence Step 3: Forward Declaration Step 3.3: Deliverable Walkdown should discover and store owned deliverables from sources
+src/state/__tests__/convergence_step3_forward_declaration.test.js :: Convergence Step 3: Forward Declaration Step 3.4: TargetDate Assignment should assign targetDate to discovered deliverables
+src/state/__tests__/convergence_step3_reschedule_piece1_prepopulation.test.js :: Step 3 Reschedule Piece 1: Pre-Population of Sources correctly distinguishes priorCompletion vs priorMissed for each source
+src/state/__tests__/convergence_step3_reschedule_piece1_prepopulation.test.js :: Step 3 Reschedule Piece 1: Pre-Population of Sources pre-populates reassessment session with both completed and missed sources from PARTIAL edge
+src/state/__tests__/convergence_step3_reschedule_piece2_disposition.test.js :: Step 3 Reschedule Piece 2: Three-Way Disposition HARD-BLOCKS: Satisfied disposition for source that was never completed
+src/state/__tests__/convergence_step3_reschedule_piece2_disposition.test.js :: Step 3 Reschedule Piece 2: Three-Way Disposition accepts valid dispositions for completed and missed sources
+src/state/__tests__/convergence_step3_reschedule_piece2_disposition.test.js :: Step 3 Reschedule Piece 2: Three-Way Disposition rejects invalid disposition value
+src/state/__tests__/convergence_step3_reschedule_piece2_disposition.test.js :: Step 3 Reschedule Piece 2: Three-Way Disposition rejects missing disposition for any source
+src/state/__tests__/convergence_step3_reschedule_piece2_disposition.test.js :: Step 3 Reschedule Piece 2: Three-Way Disposition validates Needs Redo is valid for both prior states
+src/state/__tests__/convergence_step3_reschedule_piece2_disposition.test.js :: Step 3 Reschedule Piece 2: Three-Way Disposition validates Removed is valid for both prior states
+src/state/__tests__/convergence_step3_reschedule_piece3_autolinking.test.js :: Step 3 Reschedule Piece 3: Automatic Linking automatically links via supersedes/supersededBy without manual ID entry
+src/state/__tests__/convergence_step3_reschedule_piece4_satisfied_recognition.test.js :: Step 3 Reschedule Piece 4: Satisfied Carries Forward Unaltered Satisfied source remains unaltered even if new deadline has passed (backward evaluation)
+src/state/__tests__/convergence_step3_reschedule_piece4_satisfied_recognition.test.js :: Step 3 Reschedule Piece 4: Satisfied Carries Forward Unaltered proves Satisfied source unaltered credit: only Needs Redo completing suffices for CONVERGED
+src/state/__tests__/convergence_step4_status_computation.test.js :: Convergence Step 4: Status Computation CONVERGED: All sources completed on time computes status as CONVERGED and writes Milestone record
+src/state/__tests__/convergence_step4_status_computation.test.js :: Convergence Step 4: Status Computation MISSED: Deadline passed without completion HARD BLOCKS close of multi-source edge without all dispositions
+src/state/__tests__/convergence_step4_status_computation.test.js :: Convergence Step 4: Status Computation MISSED: Deadline passed without completion routes MISSED edge to reschedule (operator re-declares sources)
+src/state/__tests__/convergence_step4_status_computation.test.js :: Convergence Step 4: Status Computation PARTIAL: Some sources completed, some missed computes status as PARTIAL and surfaces per-source disclosure
+src/state/__tests__/convergence_step4_status_computation.test.js :: Convergence Step 4: Status Computation Status computation edge cases remains PENDING if evaluation date is before targetDate
+src/state/__tests__/convergence_step4_status_computation.test.js :: Convergence Step 4: Status Computation Status computation edge cases returns error for MISSED edge without action
+src/state/__tests__/legalFormationAdvisory.test.js :: Legal Formation Advisory handles multiple entities with mixed formation states
+src/state/__tests__/legalFormationAdvisory.test.js :: Legal Formation Advisory surfaces entity with non-functioning state that owns initiatives with projects
+src/state/__tests__/project-intake-step3.test.js :: Project Intake Step 3: New gates and field storage Field storage verification Stores all four new Step 3 fields on project object
+src/state/__tests__/project-intake-step3.test.js :: Project Intake Step 3: New gates and field storage Field storage verification Stores boundary_type as Ongoing when specified
+src/state/__tests__/project-intake-step3.test.js :: Project Intake Step 3: New gates and field storage Gate order validation (first failure wins) Gate 4: PROJECT_BOUNDARY_TYPE_INVALID — boundary_type is not Terminating or Ongoing
+src/state/__tests__/project-intake-step3.test.js :: Project Intake Step 3: New gates and field storage Gate order validation (first failure wins) Gate 5: PROJECT_TERMINAL_DATE_INVALID — terminal_date is not valid ISO
+src/state/__tests__/project-intake-step3.test.js :: Project Intake Step 3: New gates and field storage Gate order validation (first failure wins) Gate 6: PROJECT_TERMINAL_DATE_NOT_FUTURE — terminal_date is in the past
+src/state/__tests__/project-intake-step3.test.js :: Project Intake Step 3: New gates and field storage Gate order validation (first failure wins) Gate 6: PROJECT_TERMINAL_DATE_NOT_FUTURE — terminal_date is today
+src/state/__tests__/project-intake-step3.test.js :: Project Intake Step 3: New gates and field storage Holdability check: terminal_date must be in future Accepts a valid future date
+src/state/__tests__/suggestion.accept.idempotence.test.js :: suggestion accept idempotence accepting the same suggestion twice creates one committed block
+tests/components/AppShell.onboardingToGoalAdmission.flow.test.jsx :: AppShell structure entry without an active cycle lands in the review-mode Structure shell and offers starting a new cycle
+tests/components/AppShell.onboardingToGoalAdmission.flow.test.jsx :: AppShell structure entry without an active cycle starts a new coherent profile in the true blank lifecycle state
+tests/components/BlockDetailsPanel.hierarchyDisplay.test.jsx :: BlockDetailsPanel hierarchy display renders hard-anchor protection work with concrete explanation, validation work type, and completed artifact language
+tests/components/BlockDetailsPanel.hierarchyDisplay.test.jsx :: BlockDetailsPanel hierarchy display resolves raw lane ids to canonical enterprise labels instead of showing Lane: Missing
+tests/components/BlockDetailsPanel.hierarchyDisplay.test.jsx :: BlockDetailsPanel hierarchy display shows explicit P1 justification for future-phase prerequisite governance work
+tests/components/MasterPlanTimeline.render.test.jsx :: MasterPlanTimeline rendering renders lanes, anchors, milestones, and first-cycle preview from canonical master-plan state
+tests/components/MatrixIntake.resumeAfterRulesChange.test.jsx :: MatrixIntake — resume when restored slot now passes all gates Back steps into the previous answered field; Next confirms and declares, then advances to Mission B
+tests/components/MatrixIntake.resumeAfterRulesChange.test.jsx :: MatrixIntake — resume when restored slot now passes all gates lands ON the in-flight question, answer prefilled, nothing auto-declared
+tests/components/MatrixIntake.resumeIntoReadback.test.jsx :: MatrixIntake — resume into a readback keeps its buttons alive confirm responds: the project is declared and fan-out advances
+tests/components/MatrixIntake.resumeIntoReadback.test.jsx :: MatrixIntake — resume into a readback keeps its buttons alive reopen chip responds: clicking description re-asks the deliverable question
+tests/components/ZionDashboard.pos.afterAdmit.test.jsx :: ZionDashboard POS after admit starts the first execution cycle directly from Structure when no active cycle exists
+tests/domain/barriers/legalFormation.detection.test.js :: Barrier detection — legal formation prerequisites clears the barrier when entity becomes legally formed
+tests/domain/barriers/legalFormation.detection.test.js :: Barrier detection — legal formation prerequisites emits a CONSTRAINT barrier when unformed entity owns a legal-formation-required project
+tests/domain/barriers/message-format.proof.test.js :: Barrier message format — PROOF produces exact locked message format: "BARRIER — {Entity}: not legally formed. {Project} requires legal formation to proceed. This step cannot proceed until resolved."
+tests/domain/elicitation/elicitationEngine.acceptance.test.js :: Elicitation Engine — Project slot (§9 worked trace, Law 2 proving ground) runs the full §9 worked trace end-to-end and dispatches DECLARE_PROJECT
+tests/domain/elicitation/elicitationEngine.acceptance.test.js :: Elicitation Engine — acceptance criterion #1: deterministic replay emits a byte-identical probe sequence and identical DECLARE_* payloads across two runs of the same script
+tests/domain/elicitation/elicitationEngine.acceptance.test.js :: Elicitation Engine — acceptance criterion #4: extract-not-recall after the engine completes a project, every populated field traces to a captured answer (none from seed)
+tests/domain/elicitation/elicitationEngine.artifactSlot.test.js :: Elicitation Engine — Artifact slot: DECLARE_ARTIFACT dispatch auto-generates an id from the name as a slug
+tests/domain/elicitation/elicitationEngine.artifactSlot.test.js :: Elicitation Engine — Artifact slot: DECLARE_ARTIFACT dispatch dispatches with type DECLARE_ARTIFACT and all 6 required payload fields
+tests/domain/elicitation/elicitationEngine.artifactSlot.test.js :: Elicitation Engine — Artifact slot: gate sequence drives the full gate sequence: name → producingProjectId → completionEvidence → verificationSourceId → operatorAttestationMethod
+tests/domain/elicitation/elicitationEngine.artifactSlot.test.js :: Elicitation Engine — Artifact slot: matrix landing artifact lands in matrix.artifactsById with all required fields
+tests/domain/elicitation/elicitationEngine.artifactSlot.test.js :: Elicitation Engine — Artifact slot: optional fields dispatches without consumingProjectIds or notes (reducer defaults apply)
+tests/domain/elicitation/elicitationEngine.artifactSlot.test.js :: Elicitation Engine — Artifact slot: producingProjectOptions pickSet contains only declared projects and no VS records
+tests/domain/elicitation/elicitationEngine.artifactSlot.test.js :: Elicitation Engine — Artifact slot: structural gate fieldNames follow reducer-derived order
+tests/domain/elicitation/elicitationEngine.artifactSlot.test.js :: Elicitation Engine — Artifact slot: structural gate ladder has exactly 9 gates
+tests/domain/elicitation/elicitationEngine.bootstrapSlot.test.js :: bootstrap — DECLARE_BOOTSTRAP reducer stores selectedNodeId and candidates in matrix.bootstrap
+tests/domain/elicitation/elicitationEngine.compoundReadback.test.js :: project readback — compound-attestation advisory does NOT flag a single-check record (coordinator on one side only)
+tests/domain/elicitation/elicitationEngine.compoundReadback.test.js :: project readback — compound-attestation advisory flags when BOTH metric and source join two things with a coordinator
+tests/domain/elicitation/elicitationEngine.compoundReadback.test.js :: project readback — reopening verificationSource re-asks it reopen cascades to the resolved id, so the source question actually returns
+tests/domain/elicitation/elicitationEngine.convergenceSlot.test.js :: Convergence slot: allDeclaredNodeOptions cross-registry items carry nodeType labels per registry
+tests/domain/elicitation/elicitationEngine.convergenceSlot.test.js :: Convergence slot: allDeclaredNodeOptions cross-registry pickSet includes nodes from entity, system, and artifact registries
+tests/domain/elicitation/elicitationEngine.convergenceSlot.test.js :: Convergence slot: broken edge is first-class broken defaults to false when not specified
+tests/domain/elicitation/elicitationEngine.convergenceSlot.test.js :: Convergence slot: broken edge is first-class broken: true with substantive gives succeeds and stores broken: true
+tests/domain/elicitation/elicitationEngine.convergenceSlot.test.js :: Convergence slot: gate sequence binds later questions to the destination name (subject binding)
+tests/domain/elicitation/elicitationEngine.convergenceSlot.test.js :: Convergence slot: gate sequence drives the full gate sequence: toNodeId → fromNodeId → gives
+tests/domain/elicitation/elicitationEngine.convergenceSlot.test.js :: Convergence slot: gate sequence emits CONVERGENCE_FROM_UNRESOLVED for unknown fromNodeId
+tests/domain/elicitation/elicitationEngine.convergenceSlot.test.js :: Convergence slot: gate sequence emits CONVERGENCE_GIVES_MISSING when gives absent
+tests/domain/elicitation/elicitationEngine.convergenceSlot.test.js :: Convergence slot: loops are legal (inverse of dependency cycle guard) 2-cycle (A→B and B→A) both succeed via reducer — no cycle guard
+tests/domain/elicitation/elicitationEngine.convergenceSlot.test.js :: Convergence slot: loops are legal (inverse of dependency cycle guard) 3-cycle (A→B→C→A) all succeed — the master flywheel is valid
+tests/domain/elicitation/elicitationEngine.convergenceSlot.test.js :: Convergence slot: loops are legal (inverse of dependency cycle guard) engine does not emit a cycle gate code for B→A after A→B is declared
+tests/domain/elicitation/elicitationEngine.convergenceSlot.test.js :: Convergence slot: loops are legal (inverse of dependency cycle guard) mutual (A⇄B) succeeds — bidirectional is valid
+tests/domain/elicitation/elicitationEngine.convergenceSlot.test.js :: Convergence slot: self-edge rejection CONVERGENCE_SELF_EDGE fires when a source equals the destination (via engine)
+tests/domain/elicitation/elicitationEngine.convergenceSlot.test.js :: DECLARE_CONVERGENCE reducer accepts endpoint from entity registry (cross-registry)
+tests/domain/elicitation/elicitationEngine.convergenceSlot.test.js :: DECLARE_CONVERGENCE reducer accepts endpoint from system registry (cross-registry)
+tests/domain/elicitation/elicitationEngine.convergenceSlot.test.js :: DECLARE_CONVERGENCE reducer rejects self-edge
+tests/domain/elicitation/elicitationEngine.convergenceSlot.test.js :: DECLARE_CONVERGENCE reducer rejects unknown toNodeId
+tests/domain/elicitation/elicitationEngine.convergenceSlot.test.js :: DECLARE_CONVERGENCE reducer stores edge in convergenceEdgesById with all fields
+tests/domain/elicitation/elicitationEngine.dependencySlot.test.js :: Dependency slot: DECLARE_DEPENDENCY dispatch auto-generates id as dep-{upstream}-to-{downstream}
+tests/domain/elicitation/elicitationEngine.dependencySlot.test.js :: Dependency slot: DECLARE_DEPENDENCY dispatch dispatches DECLARE_DEPENDENCY with correct payload fields
+tests/domain/elicitation/elicitationEngine.dependencySlot.test.js :: Dependency slot: DECLARE_DEPENDENCY dispatch label defaults to null when not provided
+tests/domain/elicitation/elicitationEngine.dependencySlot.test.js :: Dependency slot: declaredNodeOptions pickSet contains declared artifacts with nodeType: artifact
+tests/domain/elicitation/elicitationEngine.dependencySlot.test.js :: Dependency slot: gate sequence drives the full gate sequence: downstreamId → upstreamId → type
+tests/domain/elicitation/elicitationEngine.dependencySlot.test.js :: Dependency slot: matrix landing edge lands in matrix.dependenciesById with all required fields
+tests/domain/elicitation/elicitationEngine.dependencySlot.test.js :: Dependency slot: reducer cycle guard (last-line-of-defense) reducer accepts a valid legal edge
+tests/domain/elicitation/elicitationEngine.dependencySlot.test.js :: Dependency slot: reducer cycle guard (last-line-of-defense) reducer rejects a direct cycle via DEPENDENCY_CYCLE in lastPlanError
+tests/domain/elicitation/elicitationEngine.dependencySlot.test.js :: Dependency slot: reducer cycle guard (last-line-of-defense) reducer rejects a transitive cycle (A→B→C, attempt C→A)
+tests/domain/elicitation/elicitationEngine.dependencySlot.test.js :: Dependency slot: reducer cycle guard (last-line-of-defense) reducer rejects self-edge
+tests/domain/elicitation/elicitationEngine.initiativeSlot.test.js :: Elicitation Engine — Initiative slot: DECLARE_INITIATIVE dispatch dispatches DECLARE_INITIATIVE with null owner for entity-less initiative
+tests/domain/elicitation/elicitationEngine.initiativeSlot.test.js :: Elicitation Engine — Initiative slot: DECLARE_INITIATIVE dispatch dispatches DECLARE_INITIATIVE with real owner id for owned initiative
+tests/domain/elicitation/elicitationEngine.initiativeSlot.test.js :: Elicitation Engine — Initiative slot: DECLARE_INITIATIVE dispatch initiative lands in matrix.initiativesById with all required fields
+tests/domain/elicitation/elicitationEngine.initiativeSlot.test.js :: Elicitation Engine — Initiative slot: DECLARE_INITIATIVE dispatch populated initiativesById from entity-less and owned initiatives coexist
+tests/domain/elicitation/elicitationEngine.initiativeSlot.test.js :: Elicitation Engine — Initiative slot: gate ladder drives the full gate sequence for project-type: name→owner→roleTags→purpose→purposeFor→purposeCompletion→doneWhen
+tests/domain/elicitation/elicitationEngine.initiativeSlot.test.js :: Elicitation Engine — Initiative slot: owner options (unfiltered, 2026-07-10) declaring an initiative under an untagged owner backfills its [initiative] role tag
+tests/domain/elicitation/elicitationEngine.initiativeSlot.test.js :: Elicitation Engine — Initiative slot: owner options (unfiltered, 2026-07-10) entity-less sentinel resolves the owner gate — fires once then does not re-fire
+tests/domain/elicitation/elicitationEngine.legalFormationLabels.test.js :: Legal Formation Gate vs Status Label Separation PROJECT_LEGAL_FORMATION_MISSING gate uses legalFormationPrerequisiteOptions pickSet
+tests/domain/elicitation/elicitationEngine.projectPhase.test.js :: project slot — phase attestation (the gap, before the fix) carries phase through to the DECLARE_PROJECT payload (canonical number)
+tests/domain/elicitation/elicitationEngine.projectPhase.test.js :: project slot — phase attestation (the gap, before the fix) elicits phase: phase is a captured field of the project slot
+tests/domain/elicitation/elicitationEngine.projectPhase.test.js :: project slot — phase attestation (the gap, before the fix) has a non-canonical phase gate (validated through the single classifyPhase, not a second validator)
+tests/domain/elicitation/elicitationEngine.projectPhase.test.js :: project slot — phase attestation (the gap, before the fix) has a phase-unattested gate that fires when phase is absent
+tests/domain/elicitation/elicitationEngine.projectPhase.test.js :: project slot — phase attestation (the gap, before the fix) ships a Disclosure-compliant phase probe (beginning/middle/end spine)
+tests/domain/elicitation/elicitationEngine.projectPhase.test.js :: project slot — phase lands on the node end-to-end (real declare path) an absent phase still stores null (residual bucket) — not fabricated
+tests/domain/elicitation/elicitationEngine.projectPhase.test.js :: project slot — phase lands on the node end-to-end (real declare path) an attested phase reaches node.phase via DECLARE_PROJECT (verified in the store)
+tests/domain/elicitation/elicitationEngine.projectPhaseFlow.test.js :: Elicitation Engine — §5 phase probe fires in the real flow and lands in the store emits PROJECT_PHASE_UNATTESTED after the verification source, before dispatch
+tests/domain/elicitation/elicitationEngine.projectPhaseFlow.test.js :: Elicitation Engine — §5 phase probe fires in the real flow and lands in the store shows the Disclosure-compliant, referent-bound phase copy at the probe
+tests/domain/elicitation/elicitationEngine.projectPhaseFlow.test.js :: Elicitation Engine — §5 phase probe fires in the real flow and lands in the store writes the attested phase onto the node (read back from the store)
+tests/domain/elicitation/elicitationEngine.projectSlot.requiresLegal.test.js :: Project slot — requiresLegalFormation field capture captures requiresLegalFormation=false when declared
+tests/domain/elicitation/elicitationEngine.projectSlot.requiresLegal.test.js :: Project slot — requiresLegalFormation field capture captures requiresLegalFormation=true when declared
+tests/domain/elicitation/elicitationEngine.resourceSlot.test.js :: Binding constraint slot: dispatch and matrix landing binding constraint lands in matrix.bindingConstraint
+tests/domain/elicitation/elicitationEngine.resourceSlot.test.js :: Binding constraint slot: dispatch and matrix landing dispatches DECLARE_BINDING_CONSTRAINT with valid dimension and substantive rationale
+tests/domain/elicitation/elicitationEngine.resourceSlot.test.js :: Binding constraint slot: gate behavior BINDING_COVERAGE_INCOMPLETE does not fire when all initiatives profiled
+tests/domain/elicitation/elicitationEngine.resourceSlot.test.js :: Resource profile slot: NO_GAP_SENTINEL handling jargon gap (not sentinel) fails substance gate
+tests/domain/elicitation/elicitationEngine.resourceSlot.test.js :: Resource profile slot: NO_GAP_SENTINEL handling sentinel "none" passes the gap substance gate and stores as null
+tests/domain/elicitation/elicitationEngine.resourceSlot.test.js :: Resource profile slot: dispatch and matrix landing dispatches DECLARE_RESOURCE_PROFILE after all nine fields captured
+tests/domain/elicitation/elicitationEngine.resourceSlot.test.js :: Resource profile slot: dispatch and matrix landing profile lands in matrix.resourceProfilesById keyed by initiativeId
+tests/domain/elicitation/elicitationEngine.resourceSlot.test.js :: Resource profile slot: per-dimension gate sequencing asks initiative first, then money need, gap, then time need, gap, then skills, tech
+tests/domain/elicitation/elicitationEngine.resourceSlot.test.js :: Resource profile slot: per-dimension gate sequencing re-asks money need when jargon-shell answer given
+tests/domain/elicitation/elicitationEngine.resourceSlot.test.js :: Resource profile slot: unprofiledInitiativeOptions returns all initiative ids when none profiled
+tests/domain/elicitation/elicitationEngine.resourceSlot.test.js :: Resource profile slot: unprofiledInitiativeOptions shrinks after one profile: 3 initiatives → 2 remaining after first profile
+tests/domain/elicitation/elicitationEngine.resourceSlot.test.js :: isSection9Complete: coverage invariant returns true when all 3 initiatives are profiled
+tests/domain/elicitation/elicitationEngine.resourceSlot.test.js :: isSection9Complete: coverage invariant transitions from false to true upon profiling the last initiative
+tests/domain/elicitation/elicitationReadback.test.js :: Elicitation Engine — read-back step confirmed:false+reopen clears only the named field and re-probes it, preserving siblings
+tests/domain/elicitation/elicitationReadback.test.js :: Elicitation Engine — read-back step confirmed:true dispatches DECLARE_PROJECT and the engine is done
+tests/domain/elicitation/elicitationReadback.test.js :: Elicitation Engine — read-back step halts at readback when all project slot gates pass (does not dispatch or finish)
+tests/domain/elicitation/elicitationReadback.test.js :: Elicitation Engine — read-back step re-answering after reject re-emits readback with updated sentence, then confirms cleanly
+tests/domain/elicitation/elicitationReadback.test.js :: Elicitation Engine — read-back step readback sentence is byte-identical across two runs with the same inputs
+tests/state/autoAsanaPlan.distribution.spread.test.ts :: autoAsanaPlan deterministic day distribution rewrites commercial family-shell action titles into operational block titles
+tests/state/autoAsanaPlan.distribution.spread.test.ts :: autoAsanaPlan deterministic day distribution rewrites explicit session-plan family shells before rendering blocks
+tests/state/autoAsanaPlan.distribution.spread.test.ts :: autoAsanaPlan deterministic day distribution uses concrete session titles from action sequences instead of repeated parent action shells
+tests/state/dailyCheckIn.energyGum.acceptance.test.ts :: daily check-in energy gum acceptance surfaces week-6 on-track manufacturer outreach state honestly
+tests/state/gumGoal.liveParity.test.ts :: gum goal live/test parity materializes a commercially continuous long-horizon schedule for the exact gum goal text
+tests/state/jerichoLoop.creativeProduction.ep.e2e.test.ts :: jericho creative production ep loop e2e regression generalizes the first complete loop from planning through execution evidence for an EP release
+tests/state/jerichoLoop.gum.e2e.test.ts :: jericho gum loop e2e regression freezes the first complete loop from initial feasibility through first execution evidence
+tests/state/masterGrid.acceptance.test.jsx :: Master Grid acceptance AC1: seed renders exactly 53 rows with 7/11/17/12/6
+tests/state/masterGrid.acceptance.test.jsx :: Master Grid acceptance AC2: names byte-identical to the seed file
+tests/state/masterGrid.acceptance.test.jsx :: Master Grid acceptance AC6: kill/relaunch — 53 survive a localStorage round-trip
+tests/state/masterPlanAtomicBlocks.test.js :: atomic block decomposition — product gate app store split app store screenshots appear as a standalone block
+tests/state/masterPlanBlockDisplayProjection.test.js :: master-plan block display projection attaches display titles to generated full-horizon blocks without changing canonical titles
+tests/state/masterPlanBlockDisplayProjection.test.js :: master-plan block display projection calendar month projection retains display and detail fields for drill-down inspection
+tests/state/masterPlanBlockDisplayProjection.test.js :: master-plan block display projection quality evaluation continues to trust canonical titles even if display titles are compressed further
+tests/state/masterPlanDepth.blockExpansion.test.js :: master-plan cadence density — active lanes generate recurring work each active primary lane generates at least 2 cadence blocks per month for the first 3 months
+tests/state/masterPlanFullHorizon.coverage.test.js :: master-plan full-horizon coverage audit passes fullHorizonCovered when meaningful work reaches through May 2031
+tests/state/matrix.artifacts.test.js :: MATRIX SECTION 6 — DECLARE / UPDATE / REMOVE ARTIFACT DECLARE_ARTIFACT adds an artifact when all required fields resolve
+tests/state/matrix.artifacts.test.js :: MATRIX SECTION 6 — DECLARE / UPDATE / REMOVE ARTIFACT DECLARE_ARTIFACT rejects payload whose producingProjectId is not in projectsById
+tests/state/matrix.artifacts.test.js :: MATRIX SECTION 6 — DECLARE / UPDATE / REMOVE ARTIFACT DECLARE_ARTIFACT rejects payload whose verificationSourceId is not in verificationSourcesById
+tests/state/matrix.artifacts.test.js :: MATRIX SECTION 6 — DECLARE / UPDATE / REMOVE ARTIFACT UPDATE_ARTIFACT patches an existing artifact (cross-section invariants enforced)
+tests/state/matrix.gridFields.test.js :: matrix grid fields artifact carries producedByEntityId resolved to a declared entity
+tests/state/matrix.gridFields.test.js :: matrix grid fields declared values persist (reviewStatus/roleTags), and a phase payload key is ignored
+tests/state/matrix.gridFields.test.js :: matrix grid fields initiative declaration defaults reviewStatus=DRAFT, roleTags=[], and carries no phase
+tests/state/matrix.projects.test.js :: MATRIX SECTION 5 — DECLARE / UPDATE / REMOVE PROJECT DECLARE_PROJECT adds a project when all required fields are present and cross-references resolve
+tests/state/matrix.projects.test.js :: MATRIX SECTION 5 — DECLARE / UPDATE / REMOVE PROJECT UPDATE_PROJECT patches an existing project but cannot dangle owningEntityId
+tests/state/matrix.referenceEdges.test.js :: loadReferenceMatrix edges + milestone (Gate 5 data layer) declares typed relational links (ships_with / soundtrack_of) referencing declared nodes
+tests/state/matrix.referenceSeed.test.js :: loadReferenceMatrix declares all nodes from the corrected matrix v3.0 with proper breakdown
+tests/state/matrix.referenceSeed.test.js :: loadReferenceMatrix preserves node names byte-identical to the fixture, for every node it declares
+tests/state/matrix.referenceSeed.test.js :: loadReferenceMatrix resolves entity owners correctly to declared entities
+tests/state/matrix.reviewStatusConfirmation.test.js :: reviewStatus readback confirmation (V8 producer) NEEDS_REVIEW stays operator-set (readback does not auto-confirm it)
+tests/state/matrix.reviewStatusConfirmation.test.js :: reviewStatus readback confirmation (V8 producer) a confirmed readback (MARK_MATRIX_INTAKE_COMPLETE) advances DRAFT -> CONFIRMED and flips Ready
+tests/state/matrix.reviewStatusConfirmation.test.js :: reviewStatus readback confirmation (V8 producer) nodes default DRAFT and stay DRAFT with no completion (unconfirmed readback)
+tests/state/podcast.fullPlan.apply.test.js :: podcast full-plan apply commits the full generated proposal set across the horizon
+tests/state/regulatedConsumable.energyGum.acceptance.test.ts :: regulated consumable energy gum founder acceptance generates the Illinois white-label founder plan instead of a generic regulated consumable plan
+tests/state/schedule.generate.nonSilent.test.js :: schedule generation non-silent deterministic behavior emits NO_ADMISSIBLE_PROPOSED_BLOCKS when generated blocks exist but all fail admission

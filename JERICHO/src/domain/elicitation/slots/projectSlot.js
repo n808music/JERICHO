@@ -1,9 +1,8 @@
 import { REPROBES } from '../reprobes.js';
 import { isHoldableNoun } from '../../planQuality/isHoldableNoun';
-import { isQuantifiableMetric } from '../../planQuality/isQuantifiableMetric';
 
 // Section 5 (Projects) slot contract.
-// Required declaration fields: id, name, owningEntityId, successMetric, verificationSourceId, requiresLegalFormation.
+// Step 3: Project intake elicits executing_entity, parent_initiative, boundary_type, terminal_date.
 // Phase is now computed from terminal deadline (E15) — not captured at intake.
 // Field order matches gate order — first failure wins gives a natural probe sequence.
 
@@ -14,7 +13,7 @@ export const PROJECT_SLOT = {
   section: 5,
   matrixBinding: {
     action: 'DECLARE_PROJECT',
-    fields: ['name', 'owningEntityId', 'successMetric', 'verificationSourceId', 'requiresLegalFormation'],
+    fields: ['name', 'owningEntityId', 'executing_entity', 'parent_initiative', 'boundary_type', 'terminal_date'],
   },
   dependsOn: [],
   // Field-by-field gate ladder. Each entry is a pure detector over the
@@ -37,29 +36,41 @@ export const PROJECT_SLOT = {
       // Cross-section pick: reads matrix.entitiesById from the current snapshot.
       pickSet: 'declaredEntities',
     },
+    // Step 3: New project intake fields
     {
-      code: 'PROJECT_METRIC_MISSING',
-      fieldName: 'successMetric',
-      detect: (captured) => !captured?.successMetric,
+      code: 'PROJECT_EXECUTING_ENTITY_MISSING',
+      fieldName: 'executing_entity',
+      detect: (captured) => !captured?.executing_entity,
+      // Cross-section pick: entity responsible for execution
+      pickSet: 'declaredEntities',
     },
     {
-      code: 'PROJECT_METRIC_UNQUANTIFIED',
-      fieldName: 'successMetric',
-      detect: (captured) =>
-        Boolean(captured?.successMetric) && !isQuantifiableMetric(String(captured.successMetric)),
+      code: 'PROJECT_PARENT_INITIATIVE_MISSING',
+      fieldName: 'parent_initiative',
+      detect: (captured) => !captured?.parent_initiative,
+      // Cross-section pick: initiative this project belongs to
+      pickSet: 'declaredInitiatives',
     },
     {
-      code: 'PROJECT_SOURCE_MISSING',
-      fieldName: 'verificationSource',
-      // Detect via the resolved verificationSourceId — set after spawn.
-      detect: (captured) => !captured?.verificationSourceId,
+      code: 'PROJECT_BOUNDARY_TYPE_MISSING',
+      fieldName: 'boundary_type',
+      detect: (captured) => !captured?.boundary_type,
+      // Enum: 'Terminating' or 'Ongoing'
+      pickSet: 'projectBoundaryTypeOptions',
     },
-    // ── legal formation prerequisite ────────────────────────────────────
     {
-      code: 'PROJECT_LEGAL_FORMATION_MISSING',
-      fieldName: 'requiresLegalFormation',
-      detect: (captured) => captured?.requiresLegalFormation === undefined || captured?.requiresLegalFormation === null,
-      pickSet: 'yesNoOptions',
+      code: 'PROJECT_TERMINAL_DATE_MISSING',
+      fieldName: 'terminal_date',
+      detect: (captured) => !captured?.terminal_date,
+    },
+    {
+      code: 'PROJECT_TERMINAL_DATE_NOT_FUTURE',
+      fieldName: 'terminal_date',
+      detect: (captured) => {
+        if (!captured?.terminal_date) return false;
+        const date = new Date(captured.terminal_date);
+        return isNaN(date.getTime()) || date <= new Date();
+      },
     },
   ],
 };
@@ -82,10 +93,12 @@ export function buildProjectDeclarePayload(captured) {
     id: `project-${idSlug}`,
     name: captured.name,
     owningEntityId: captured.owningEntityId,
-    successMetric: captured.successMetric,
-    verificationSourceId: captured.verificationSourceId,
-    // Phase is now computed from targetDate via computeSpineWindowPhase() (E15);
+    // Step 3: New project intake fields
+    executing_entity: captured.executing_entity,
+    parent_initiative: captured.parent_initiative,
+    boundary_type: captured.boundary_type,
+    terminal_date: captured.terminal_date,
+    // Phase is now computed from terminal_date via computeSpineWindowPhase() (E15);
     // no longer hand-typed at intake.
-    requiresLegalFormation: captured.requiresLegalFormation !== undefined ? Boolean(captured.requiresLegalFormation) : false,
   };
 }

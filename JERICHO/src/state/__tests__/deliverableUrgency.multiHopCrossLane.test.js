@@ -139,14 +139,14 @@ describe('Task 2: multi-hop cross-lane blocking-chain urgency', () => {
     // Blocking chain: d1 blocks d2, d2 blocks d3
     baseState.matrix.dependenciesById.dep1 = {
       id: 'dep1',
-      blockerId: d1,
-      blockedId: d2,
+      upstreamId: d1,
+      downstreamId: d2,
     };
 
     baseState.matrix.dependenciesById.dep2 = {
       id: 'dep2',
-      blockerId: d2,
-      blockedId: d3,
+      upstreamId: d2,
+      downstreamId: d3,
     };
 
     // Lane 1: 90 days away (far)

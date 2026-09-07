@@ -73,6 +73,9 @@ describe('Legal Formation Advisory', () => {
         classification: 'objective',
         doneWhen: 'Product is live and first 100 users acquired',
         roleTags: ['project'],
+        function: 'ops',
+        boundary_type: 'Terminating',
+        completion_value: 'Initiative complete'
       },
     });
     // Create a project under that initiative
@@ -136,6 +139,9 @@ describe('Legal Formation Advisory', () => {
         classification: 'objective',
         doneWhen: 'New market launch complete',
         roleTags: ['project'],
+        function: 'ops',
+        boundary_type: 'Terminating',
+        completion_value: 'Initiative complete'
       },
     });
 
@@ -182,6 +188,9 @@ describe('Legal Formation Advisory', () => {
         classification: 'objective',
         doneWhen: 'Live with users',
         roleTags: ['project'],
+        function: 'ops',
+        boundary_type: 'Terminating',
+        completion_value: 'Initiative complete'
       },
     });
     // Entity 3: conceptual, no work (should NOT appear)

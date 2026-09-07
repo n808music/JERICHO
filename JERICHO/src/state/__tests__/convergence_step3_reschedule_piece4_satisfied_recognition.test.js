@@ -50,6 +50,9 @@ describe('Step 3 Reschedule Piece 4: Satisfied Carries Forward Unaltered', () =>
         purpose: 'Test',
         classification: 'objective',
         doneWhen: 'Complete',
+        function: 'ops',
+        boundary_type: 'Terminating',
+        completion_value: 'Initiative complete'
       },
     });
 
@@ -60,7 +63,7 @@ describe('Step 3 Reschedule Piece 4: Satisfied Carries Forward Unaltered', () =>
         id: 'proj-piece4',
         name: 'Project',
         owningEntityId: 'entity-piece4-src',
-        successMetric: 'Complete',
+        description: 'Complete',
         verificationSourceId: 'vs-piece4',
       },
     });
@@ -298,6 +301,9 @@ describe('Step 3 Reschedule Piece 4: Satisfied Carries Forward Unaltered', () =>
         purpose: 'Test',
         classification: 'objective',
         doneWhen: 'Complete',
+        function: 'ops',
+        boundary_type: 'Terminating',
+        completion_value: 'Initiative complete'
       },
     });
 
@@ -307,7 +313,7 @@ describe('Step 3 Reschedule Piece 4: Satisfied Carries Forward Unaltered', () =>
         id: 'proj-past',
         name: 'Project',
         owningEntityId: 'entity-past-src',
-        successMetric: 'Complete',
+        description: 'Complete',
         verificationSourceId: 'vs-past',
       },
     });
