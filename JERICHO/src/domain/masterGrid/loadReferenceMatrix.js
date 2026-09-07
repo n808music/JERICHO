@@ -189,6 +189,9 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
           },
         });
       } else if (cls === 'Project') {
+        // executing_entity may be semicolon-separated (e.g. "Entity A; Entity B");
+        // resolve only the first entity when multiple are listed.
+        const executingEntityName = n.executing_entity ? String(n.executing_entity).split(';')[0].trim() : null;
         dispatch({
           type: 'DECLARE_PROJECT',
           payload: {
@@ -200,7 +203,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             targetDate: n.target_date || null,
             terminalDate: n.terminal_date || n.target_date || null,
             // Step 3: Project intake fields
-            executing_entity: resolveEntity(n.executing_entity),
+            executing_entity: resolveEntity(executingEntityName),
             parent_initiative: resolveInitiative(n.parent_initiative),
             boundary_type: n.boundary_type || null,
             terminal_date: n.terminal_date || null,
