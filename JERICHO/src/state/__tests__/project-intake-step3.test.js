@@ -320,6 +320,9 @@ describe('Project Intake Step 3: New gates and field storage', () => {
       expect(project.terminal_date).toBe('2026-12-31');
     });
 
+    // Boundary Type doctrine: an Ongoing project has no terminal date and records that
+    // absence as the literal "Ongoing". This test previously paired boundary_type 'Ongoing'
+    // with a dated terminal_date, which the doctrine does not permit.
     it('Stores boundary_type as Ongoing when specified', () => {
       state = computeDerivedState(state, {
         type: 'DECLARE_PROJECT',
@@ -332,12 +335,52 @@ describe('Project Intake Step 3: New gates and field storage', () => {
           executingEntityIds: ['entity-executor'],
           parent_initiative: 'initiative-test',
           boundary_type: 'Ongoing',
-          terminal_date: '2026-12-31',
+          terminal_date: 'Ongoing',
         },
       });
       expect(state.lastPlanError).toBeNull();
       const project = state.matrix.projectsById['project-ongoing'];
       expect(project.boundary_type).toBe('Ongoing');
+      // Transcribed verbatim — the loader must not invent a date for an Ongoing project.
+      expect(project.terminal_date).toBe('Ongoing');
+      expect(project.phaseAnchor).toBeNull();
+    });
+  });
+
+  // These two cases are the ENTIRE protection for the boundary_type/terminal_date pairing
+  // rule. The v3.0 fixture cannot discriminate either failure: all 55 Terminating rows
+  // carry dates, all 4 Ongoing rows carry the literal, and every one of them loads green.
+  // A regression that dropped either rejection would pass a full fixture load unnoticed.
+  describe('Boundary type / terminal_date pairing (fixture cannot cover these)', () => {
+    beforeEach(setupMatrix);
+
+    const declare = (overrides) =>
+      computeDerivedState(state, {
+        type: 'DECLARE_PROJECT',
+        payload: {
+          id: 'project-pairing',
+          name: 'Pairing Project',
+          owningEntityId: 'entity-owner',
+          description: 'test',
+          verificationSourceId: 'vs-test',
+          executingEntityIds: ['entity-executor'],
+          parent_initiative: 'initiative-test',
+          ...overrides,
+        },
+      });
+
+    it('Rejects boundary_type Ongoing carrying a dated terminal_date', () => {
+      state = declare({ boundary_type: 'Ongoing', terminal_date: '2026-12-31' });
+      expect(state.lastPlanError).toBeTruthy();
+      expect(state.lastPlanError.code).toBe('PROJECT_TERMINAL_DATE_INVALID');
+      expect(state.matrix.projectsById['project-pairing']).toBeUndefined();
+    });
+
+    it('Rejects boundary_type Terminating carrying the literal "Ongoing"', () => {
+      state = declare({ boundary_type: 'Terminating', terminal_date: 'Ongoing' });
+      expect(state.lastPlanError).toBeTruthy();
+      expect(state.lastPlanError.code).toBe('PROJECT_TERMINAL_DATE_INVALID');
+      expect(state.matrix.projectsById['project-pairing']).toBeUndefined();
     });
   });
 });
