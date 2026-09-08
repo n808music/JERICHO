@@ -58,15 +58,16 @@ function seededState() {
     },
   });
   // Step 3: Add test deliverables for artifact parentDeliverableIds wiring
+  // NOTE: v3 intake format (2026-09-07): parent_project + executing_entity + target_date
   state = computeDerivedState(state, {
     type: 'DECLARE_DELIVERABLE',
     payload: {
       id: 'deliv-rr-recording',
       name: 'Romance Riot recording sessions',
-      owningProjectId: 'project-romance-riot',
-      owningInitiativeId: 'init-music-release',
-      successCriteria: 'All 12 tracks recorded and mixed',
-      targetDate: '2026-08-15',
+      parent_project: 'project-romance-riot',
+      executing_entity: 'node-gs-corp',
+      target_date: '2026-08-15',
+      description: 'All 12 tracks recorded and mixed',
     },
   });
   state = computeDerivedState(state, {
@@ -74,10 +75,10 @@ function seededState() {
     payload: {
       id: 'deliv-rr-mastering',
       name: 'Romance Riot mastering',
-      owningProjectId: 'project-romance-riot',
-      owningInitiativeId: 'init-music-release',
-      successCriteria: 'Master WAV files finalized',
-      targetDate: '2026-08-25',
+      parent_project: 'project-romance-riot',
+      executing_entity: 'node-gs-corp',
+      target_date: '2026-08-25',
+      description: 'Master WAV files finalized',
     },
   });
   return state;

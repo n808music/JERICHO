@@ -1253,20 +1253,11 @@ export function computeDerivedState(state, action) {
     case 'REMOVE_PROJECT':
       removeProject(next, action.payload || {});
       break;
-    case 'DECLARE_DELIVERABLE': {
-      // Dispatch to new intake path (parent_project + executing_entity) or legacy path (owningProjectId + owningInitiativeId)
-      const payload = action.payload || {};
-      if (payload.parent_project !== undefined || payload.executing_entity !== undefined) {
-        // New intake path (locked design v3, 2026-09-02)
-        declareDeliverable(next, payload);
-      } else {
-        // Legacy path (backward compatibility)
-        declareMatrixDeliverable(next, payload);
-      }
+    case 'DECLARE_DELIVERABLE':
+      declareDeliverable(next, action.payload || {});
       break;
-    }
     case 'REMOVE_DELIVERABLE':
-      removeMatrixDeliverable(next, action.payload || {});
+      removeDeliverable(next, action.payload || {});
       break;
     case 'DECLARE_ARTIFACT':
       declareArtifact(next, action.payload || {});
@@ -17012,61 +17003,7 @@ function computeLegalFormationBarriers(state) {
 //  to aggregate Demand for urgency ranking (Task 2).
 // ─────────────────────────────────────────────────────────────────────────
 
-function declareMatrixDeliverable(state, payload = {}) {
-  ensureMatrixSlot(state);
-  const id = String(payload?.id || '').trim();
-  const name = String(payload?.name || '').trim();
-  const owningProjectId = String(payload?.owningProjectId || '').trim();
-  const owningInitiativeId = String(payload?.owningInitiativeId || '').trim();
-  if (!id || !name || !owningProjectId || !owningInitiativeId) {
-    state.lastPlanError = {
-      code: 'DELIVERABLE_INVALID',
-      reason:
-        'Deliverable requires id, name, owningProjectId, and owningInitiativeId.',
-      meta: {
-        id,
-        hasName: Boolean(name),
-        hasProject: Boolean(owningProjectId),
-        hasInitiative: Boolean(owningInitiativeId),
-      },
-    };
-    return;
-  }
-  if (!state.matrix.projectsById[owningProjectId]) {
-    state.lastPlanError = {
-      code: 'DELIVERABLE_OWNING_PROJECT_UNKNOWN',
-      reason: `Deliverable owningProjectId "${owningProjectId}" is not declared in matrix.projectsById. Declare the project first.`,
-      meta: { id, owningProjectId },
-    };
-    return;
-  }
-  if (!state.matrix.initiativesById[owningInitiativeId]) {
-    state.lastPlanError = {
-      code: 'DELIVERABLE_OWNING_INITIATIVE_UNKNOWN',
-      reason: `Deliverable owningInitiativeId "${owningInitiativeId}" is not declared in matrix.initiativesById. Declare the initiative first.`,
-      meta: { id, owningInitiativeId },
-    };
-    return;
-  }
-  const nowISO = new Date().toISOString();
-  state.matrix.deliverablesById[id] = {
-    id,
-    name,
-    owningProjectId,
-    owningInitiativeId,
-    // No stored `phase` (E16 amended doctrine, 2026-08-23): Deliverables pure-copy their parent
-    // PROJECT's computed Phase at read time. A stored value here has no legitimate producer.
-    successCriteria: String(payload?.successCriteria || '').trim() || null,
-    targetDate: String(payload?.targetDate || '').trim() || null,
-    reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
-    declaredAtISO: nowISO,
-    confirmedAt: payload?.confirmedAt || null,
-    confirmedBy: String(payload?.confirmedBy || '').trim() || null,
-    confirmationSource: String(payload?.confirmationSource || '').trim() || null,
-  };
-}
-
-function removeMatrixDeliverable(state, payload = {}) {
+function removeDeliverable(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
   if (!id) {return;}
