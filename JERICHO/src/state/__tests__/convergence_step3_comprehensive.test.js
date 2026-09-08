@@ -25,6 +25,9 @@ describe('Convergence Step 3: Comprehensive Multi-Part Test', () => {
         purpose: 'Produce and release album',
         classification: 'objective',
         doneWhen: 'Album is released and on all platforms',
+        function: 'ops',
+        boundary_type: 'Terminating',
+        completion_value: 'Initiative complete'
       },
     });
 
@@ -58,7 +61,7 @@ describe('Convergence Step 3: Comprehensive Multi-Part Test', () => {
         id: 'proj-album',
         name: 'Album Project',
         owningEntityId: 'entity-producer',
-        successMetric: 'Album released and verified',
+        description: 'Album released and verified',
         verificationSourceId: 'vs-album',
       },
     });

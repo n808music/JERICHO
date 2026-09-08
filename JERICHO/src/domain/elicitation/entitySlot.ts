@@ -27,7 +27,7 @@ export const ENTITY_SLOT = {
   section: 2,
   matrixBinding: {
     action: 'DECLARE_ENTITY',
-    fields: ['name', 'purpose', 'formationState', 'statusEvidence', 'legallyFormed', 'namedOnlyConfirmed', 'doneWhen'],
+    fields: ['name', 'purpose', 'formationState', 'statusEvidence', 'legallyFormed', 'namedOnlyConfirmed', 'foundation_initiative', 'doneWhen'],
   },
   dependsOn: [],
   // First-failure-wins gate ladder. Field order = probe order.
@@ -118,6 +118,13 @@ export const ENTITY_SLOT = {
       detect: (captured) => captured?.legallyFormed === undefined || captured?.legallyFormed === null,
       pickSet: 'yesNoOptions',
     },
+    // ── foundation_initiative: required, must resolve to Initiative ─
+    {
+      code: 'ENTITY_FOUNDATION_INITIATIVE_MISSING',
+      fieldName: 'foundation_initiative',
+      detect: (captured) => !captured?.foundation_initiative,
+      pickSet: 'declaredInitiatives',
+    },
     // ── doneWhen: OPTIONAL — no presence gate; validity only when present ─
     {
       code: 'ENTITY_DONEWHEN_NOT_VERIFIABLE',
@@ -148,6 +155,7 @@ export function buildEntityDeclarePayload(captured) {
     legallyFormed: captured.legallyFormed !== undefined ? Boolean(captured.legallyFormed) : false,
     namedOnlyConfirmed: captured?.formationState === 'named-only' &&
       captured?.namedOnlyConfirmed === true,
+    foundation_initiative: captured.foundation_initiative || null,
   };
   // doneWhen is optional — include only when authored.
   if (captured?.doneWhen) payload.doneWhen = captured.doneWhen;

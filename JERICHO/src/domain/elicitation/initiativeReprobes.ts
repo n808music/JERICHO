@@ -1,12 +1,7 @@
 // Initiative slot reprobes. Merge into REPROBES alongside entity/project/VS.
 //
-// Two pickSet-bearing gates keep example rows empty (the operator picks):
+// One pickSet-bearing gate keeps its example row empty (the operator picks):
 //   - INITIATIVE_OWNER_UNRESOLVED  → 'initiativeOwnerOptions'
-//   - INITIATIVE_CLASSIFICATION_*  → 'classificationOptions'
-//
-// The classification probe IS the goal-relative ask-don't-infer question — it
-// asks whether this undertaking is something the plan works TOWARD or works
-// AROUND, relative to the declared goal.
 
 export const INITIATIVE_REPROBES = {
   INITIATIVE_NAME_MISSING: {
@@ -135,17 +130,6 @@ export const INITIATIVE_REPROBES = {
       generic: "e.g. 'funding secured to open the first site', not 'enable growth'",
     },
   },
-  INITIATIVE_CLASSIFICATION_MISSING: {
-    spine:
-      'Is this undertaking something the plan should work TOWARD, or a reality it should work AROUND? Pick one — it sets how the plan treats this.',
-    pickSet: 'classificationOptions',
-    examples: { musician: '', founder: '', writer: '', generic: '' },
-  },
-  INITIATIVE_CLASSIFICATION_INVALID: {
-    spine: 'Pick either objective (the plan works toward it) or constraint (the plan works around it).',
-    pickSet: 'classificationOptions',
-    examples: { musician: '', founder: '', writer: '', generic: '' },
-  },
   INITIATIVE_DONEWHEN_MISSING: {
     spine:
       "When is this undertaking done? Name the condition that ends it — and it has to be checkable in the real world.",
@@ -164,6 +148,61 @@ export const INITIATIVE_REPROBES = {
       founder: "e.g. '100 users in Stripe', not 'we hit our goal'",
       writer: "e.g. 'signed by an agent', not 'the search is complete'",
       generic: "e.g. 'funds in the bank', not 'the round is done'",
+    },
+  },
+  // Step 3: Initiative intake fields
+  INITIATIVE_FUNCTION_MISSING: {
+    spine: 'What kind of work is this undertaking — which business function does it belong to?',
+    pickSet: 'initiativeFunctionOptions',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
+  INITIATIVE_BOUNDARY_TYPE_MISSING: {
+    spine: 'Does this undertaking have an end date (Terminating) or does it run indefinitely (Ongoing)?',
+    pickSet: 'boundaryTypeOptions',
+    examples: {
+      musician: "e.g. Terminating for 'ship the 3-album spine', Ongoing for 'continuous licensing revenue'",
+      founder: "e.g. Terminating for 'close Series A', Ongoing for 'run the product platform'",
+      writer: "e.g. Terminating for 'complete the trilogy', Ongoing for 'the monthly newsletter'",
+      generic: "e.g. Terminating ends on a date, Ongoing runs indefinitely",
+    },
+  },
+  INITIATIVE_BOUNDARY_TYPE_INVALID: {
+    spine:
+      'Boundary type must be either "Terminating" (has an end date) or "Ongoing" (runs indefinitely). Give me one of those.',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
+  INITIATIVE_COMPLETION_VALUE_MISSING: {
+    spine:
+      'Terminating initiatives must have a completion value. What accomplishment or milestone marks the project done?',
+    examples: {
+      musician: 'e.g. three-album arc live on streaming platforms',
+      founder: 'e.g. Series A funding closed with $2M in the bank',
+      writer: 'e.g. trilogy published by traditional publishing house',
+      generic: 'e.g. specific milestone or terminal state of the project',
+    },
+  },
+  INITIATIVE_ONGOING_OUTPUT_MISSING: {
+    spine:
+      'Ongoing initiatives must have an ongoing output. What does this system continuously produce or maintain while running?',
+    examples: {
+      musician: 'e.g. $X per month in streaming and licensing revenue',
+      founder: 'e.g. 100+ paying users with Y% retention month-over-month',
+      writer: 'e.g. monthly newsletter to Z subscribers with content releases',
+      generic: 'e.g. specific output, metric, or service maintained ongoing',
+    },
+  },
+  INITIATIVE_PAIRING_MISMATCH: {
+    spine:
+      'Completion value and ongoing output must pair by boundary type. Terminating needs completion_value; Ongoing needs ongoing_output.',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
+  INITIATIVE_COMPLETION_VALUE_ONGOING_OUTPUT_MISMATCH: {
+    spine: 'This initiative is either a bounded project (with a completion value) OR an ongoing system (with ongoing output) — not both. Pick one for this initiative: is it what completes the project, or what it produces while running?',
+    examples: {
+      musician: "e.g. 'launch the album' (completion) or 'generate monthly revenue' (ongoing) — not both",
+      founder: "e.g. 'close Series A' (completion) or 'sustain 100 users' (ongoing) — not both",
+      writer: "e.g. 'sign agent representation' (completion) or 'publish monthly newsletter' (ongoing) — not both",
+      generic: "e.g. define whether it ends at a milestone (completion) or runs indefinitely (ongoing)",
     },
   },
 };

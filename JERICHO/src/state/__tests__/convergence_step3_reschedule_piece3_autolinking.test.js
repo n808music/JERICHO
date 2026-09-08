@@ -42,6 +42,9 @@ describe('Step 3 Reschedule Piece 3: Automatic Linking', () => {
         purpose: 'Test',
         classification: 'objective',
         doneWhen: 'Complete',
+        function: 'ops',
+        boundary_type: 'Terminating',
+        completion_value: 'Initiative complete'
       },
     });
 
@@ -51,7 +54,7 @@ describe('Step 3 Reschedule Piece 3: Automatic Linking', () => {
         id: 'proj-link',
         name: 'Project',
         owningEntityId: 'entity-link-src',
-        successMetric: 'Complete',
+        description: 'Complete',
         verificationSourceId: 'vs-link',
       },
     });

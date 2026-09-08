@@ -5,7 +5,31 @@ export function slugId(name) {
   return String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
-const CLASS_SEQUENCE = ['Entity', 'Initiative', 'Project', 'Deliverable', 'System'];
+/**
+ * Construct a node ID with class-specific prefix.
+ * @param {string} nodeClass - one of 'Entity', 'Initiative', 'Project', 'Deliverable', 'Artifact', 'System'
+ * @param {string} name - human-readable node name
+ * @returns {string} prefixed ID (e.g. 'deliverable-my-node' for Deliverable)
+ */
+export function nodeId(nodeClass, name) {
+  const slug = slugId(name);
+  switch (nodeClass) {
+    case 'Entity': return `entity-${slug}`;
+    case 'Initiative': return `initiative-${slug}`;
+    case 'Project': return `project-${slug}`;
+    case 'Deliverable': return `deliverable-${slug}`;
+    case 'System': return `system-${slug}`;
+    case 'Artifact': return slug; // Artifact uses bare slug
+    default: return slug;
+  }
+}
+
+// Declaration order. Initiative must precede Entity because Entity.foundation_initiative
+// is validated against declared initiativesById during intake. Artifact follows Deliverable
+// because an Artifact's producingProjectId is resolved through its parent Deliverable, which
+// must already be declared. Artifact was absent here until 2026-08-29, which silently skipped
+// every Artifact-class node in the fixture (122 of 304 in v2.0).
+const CLASS_SEQUENCE = ['Initiative', 'Entity', 'Project', 'Deliverable', 'Artifact', 'System'];
 const VERIFICATION_SOURCE_ID = 'vs-reference';
 
 // Some reference-matrix rows carry an abbreviated owner/produced_by string
@@ -32,7 +56,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
   // Full name -> id map (all classes) for parent_initiative / parent_project
   // references, which appear in the fixture with exact names.
   const idByName = new Map();
-  for (const n of nodes) idByName.set(n.name, slugId(n.name));
+  for (const n of nodes) {idByName.set(n.name, slugId(n.name));}
   const resolve = (nm) => (nm && idByName.has(nm) ? idByName.get(nm) : null);
 
   let state = buildBlankIdentityState({ nowISO });
@@ -41,16 +65,102 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
     state = computeDerivedState(state, action);
   };
 
+  // Apply class-specific prefix to node ids (aligns with builder schemes).
+  // Builder schemes: entity-${slug}, initiative-${slug}, project-${slug}, deliverable-${slug},
+  // system-${slug}; artifact uses bare slug (matches loader).
+  const getNodeIdForClass = (slug, nodeClass) => {
+    switch (nodeClass) {
+      case 'Entity': return `entity-${slug}`;
+      case 'Initiative': return `initiative-${slug}`;
+      case 'Project': return `project-${slug}`;
+      case 'Deliverable': return `deliverable-${slug}`;
+      case 'System': return `system-${slug}`;
+      case 'Artifact': return slug; // Artifact builder uses bare slug
+      default: return slug;
+    }
+  };
+
+  // Class-specific resolvers for parent references (knows the class from the context).
+  // These avoid collision issues because the reference field name implies the class.
+  const resolveInitiative = (nm) => {
+    const baseId = resolve(nm);
+    return baseId ? getNodeIdForClass(baseId, 'Initiative') : null;
+  };
+  const resolveProject = (nm) => {
+    const baseId = resolve(nm);
+    return baseId ? getNodeIdForClass(baseId, 'Project') : null;
+  };
+  const resolveDeliverable = (nm) => {
+    const baseId = resolve(nm);
+    return baseId ? getNodeIdForClass(baseId, 'Deliverable') : null;
+  };
+  const resolveSystem = (nm) => {
+    const baseId = resolve(nm);
+    return baseId ? getNodeIdForClass(baseId, 'System') : null;
+  };
+
+  // For edges/milestones where the class is unknown, look up the node to determine class.
+  // Cache the results to avoid repeated searches.
+  const nodesByName = new Map(nodes.map((n) => [n.name, n]));
+  const resolveGeneric = (nm) => {
+    const node = nodesByName.get(nm);
+    if (!node) {return null;}
+    const baseId = resolve(nm);
+    return baseId ? getNodeIdForClass(baseId, node.class) : null;
+  };
+
   // Owner / produced_by resolution: apply the exact alias, then require an
   // EXACT match against an already-declared entity. Nothing fuzzy — a name
   // that is not an alias and not a declared entity (e.g. "Cross-cutting")
   // resolves to null. Entities are declared before any referencing class, so
   // state.matrix.entitiesById is populated by the time this runs for owners.
+  // Entity IDs use type-prefix scheme (entity-${slug}) to align with builder.
   const resolveEntity = (nm) => {
-    if (!nm) return null;
+    if (!nm) {return null;}
     const canonical = ENTITY_ALIASES[nm] || nm;
-    const id = idByName.get(canonical);
-    return id && state.matrix?.entitiesById?.[id] ? id : null;
+    const baseId = idByName.get(canonical);
+    if (!baseId) {return null;}
+    const entityId = getNodeIdForClass(baseId, 'Entity');
+    return state.matrix?.entitiesById?.[entityId] ? entityId : null;
+  };
+
+  // Item 6: Buffer anchor resolution — grain-scoped precedence.
+  // Artifact names may refer to Artifacts (same grain), Deliverables (parent grain),
+  // Projects (ancestor grain), or Initiatives (meta-container). Search in precedence order:
+  // Artifact → Deliverable → Project → Initiative, first match wins.
+  const resolveBufferAnchor = (nm) => {
+    if (!nm) {return null;}
+    const trimmed = String(nm).trim();
+    const node = nodesByName.get(trimmed);
+    if (!node) {return null;}
+
+    // Only accept nodes in the allowed precedence classes
+    const precedence = ['Artifact', 'Deliverable', 'Project', 'Initiative'];
+    if (!precedence.includes(node.class)) {return null;}
+
+    const baseId = idByName.get(trimmed);
+    return baseId ? getNodeIdForClass(baseId, node.class) : null;
+  };
+
+  // Multi-value executing_entity resolution. The schema uses "; " (semicolon + space)
+  // as the separator for multi-value cells. Splits, trims, and resolves each entity name.
+  // Returns array of entity IDs. Empty array if no values resolve.
+  const resolveExecutingEntities = (fieldValue) => {
+    if (!fieldValue) {return [];}
+    const entityNames = String(fieldValue).split(';').map((s) => s.trim()).filter(Boolean);
+    return entityNames.map(resolveEntity).filter(Boolean);
+  };
+
+  // Foundation lane detection: structural, not name-based. A Foundation initiative
+  // owns projects with "Business Plan" in the name (one per Foundation lane).
+  // Per doctrine, Foundation lanes require neither completion_value nor ongoing_output.
+  const isFoundationLane = (initiativeName) => {
+    return nodes.some(
+      (n) =>
+        n.class === 'Project' &&
+        n.parent_initiative === initiativeName &&
+        String(n.name || '').includes('Business Plan')
+    );
   };
 
   // Single shared verification source so Project/Deliverable required refs resolve.
@@ -61,7 +171,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
 
   for (const cls of CLASS_SEQUENCE) {
     for (const n of nodes.filter((x) => x.class === cls)) {
-      const id = idByName.get(n.name);
+      const id = getNodeIdForClass(slugId(n.name), n.class);
       const common = {
         id,
         name: n.name,
@@ -79,6 +189,8 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             purpose: n.purpose || 'reference',
             formationState: n.legal_status || 'formed',
             statusEvidence: n.notes || 'reference',
+            // Step 5: Entity intake fields
+            foundation_initiative: resolveInitiative(n.foundation_initiative),
           },
         });
       } else if (cls === 'Initiative') {
@@ -88,9 +200,15 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             ...common,
             owningEntityId: resolveEntity(n.owner),
             purpose: n.objective || 'reference',
-            classification: 'objective',
             doneWhen: n.deadline || n.objective || 'reference',
             roleTags: Array.isArray(n.role_tags) ? n.role_tags.filter(Boolean) : [],
+            // Step 3: Initiative intake fields
+            function: n.function || null,
+            boundary_type: n.boundary_type || null,
+            completion_value: n.completion_value || null,
+            ongoing_output: n.ongoing_output || null,
+            // Foundation lane detection: structural marker for exception to completion_value rule
+            isFoundationLane: isFoundationLane(n.name),
           },
         });
       } else if (cls === 'Project') {
@@ -99,23 +217,74 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
           payload: {
             ...common,
             owningEntityId: resolveEntity(n.owner),
-            owningInitiativeId: resolve(n.parent_initiative),
-            successMetric: n.deliverable_summary || 'reference',
+            owningInitiativeId: resolveInitiative(n.parent_initiative),
+            description: n.deliverable_summary || 'reference',
             verificationSourceId: VERIFICATION_SOURCE_ID,
             targetDate: n.target_date || null,
+            terminalDate: n.terminal_date || n.target_date || null,
+            // Step 3: Project intake fields
+            executingEntityIds: resolveExecutingEntities(n.executing_entity),  // Multi-value: array
+            parent_initiative: resolveInitiative(n.parent_initiative),
+            boundary_type: n.boundary_type || null,
+            terminal_date: n.terminal_date || null,
           },
         });
       } else if (cls === 'Deliverable') {
+        // Was DECLARE_ARTIFACT until 2026-08-29: fixture Deliverables were filed
+        // into artifactsById, leaving deliverablesById empty. masterGridSelectors
+        // has always mapped the two slices to two distinct classes, so the loader
+        // was the single point of divergence.
+        //
+        // owningInitiativeId is required by declareMatrixDeliverable and has no
+        // fixture field of its own — a Deliverable inherits it from the Project
+        // that owns it, which is already declared (Project precedes Deliverable in
+        // CLASS_SEQUENCE). A Project with no resolved initiative yields null here,
+        // and the reducer rejects that Deliverable rather than inventing a parent.
+        const owningProjectId = resolveProject(n.parent_project);
+        const owningInitiativeId = owningProjectId
+          ? state.matrix?.projectsById?.[owningProjectId]?.owningInitiativeId || null
+          : null;
+        // Defect C: Route fixture Deliverables through v3 intake path
+        // v3 shape: parent_project (single), executing_entity (single or array), description, buffer_anchor, buffer_binding.
+        // All 63 fixture Deliverables have single executing_entity (no semicolons); loader passes as scalar string.
+        const parentProjectId = resolveProject(n.parent_project);
+        const executingEntityId = resolveEntity(n.executing_entity);  // Single entity (scalar, no semicolon split needed)
+
+        dispatch({
+          type: 'DECLARE_DELIVERABLE',
+          payload: {
+            ...common,
+            parent_project: parentProjectId,  // v3 field: resolved project ID
+            executing_entity: executingEntityId,  // v3 field: resolved single entity ID (scalar)
+            description: n.what_ships || null,  // v3 field name (was successCriteria in v2)
+            target_date: n.target_date || null,  // v3 field name (snake_case)
+            buffer_anchor: String(n.buffer_anchor || '').trim() || null,  // Defect B: Pass raw name; validation in second pass
+            buffer_binding: n.buffer_binding || null,       // Step 3: 'hard' | 'advisory' — must pair with buffer_anchor
+          },
+        });
+      } else if (cls === 'Artifact') {
+        // Step 1 (node-shape): Artifact now stores parentDeliverableIds (array) instead of
+        // producingProjectId (scalar). The fixture models Artifact -> Deliverable
+        // (parent_deliverable). E15 amendment will derive the producing project and phase
+        // from the parent Deliverable. In v2.0 every Artifact has parent_deliverable: null,
+        // so this resolves to an empty array and the reducer rejects all 122 — the correct,
+        // visible outcome for absent linkage. See docs/superpowers/specs/2026-08-29-bug-a-live-migration-spec.md
+        // (preconditions P4 and P7) for the fixture-authoring work that closes this.
+        const parentDeliverableId = resolveDeliverable(n.parent_deliverable);
         dispatch({
           type: 'DECLARE_ARTIFACT',
           payload: {
             ...common,
-            producingProjectId: resolve(n.parent_project),
+            parentDeliverableIds: parentDeliverableId ? [parentDeliverableId] : [],
             producedByEntityId: resolveEntity(n.produced_by),
             completionEvidence: n.what_ships || 'reference',
             verificationSourceId: VERIFICATION_SOURCE_ID,
             operatorAttestationMethod: 'operator',
             targetDate: n.target_date || null,
+            buffer_anchor: String(n.buffer_anchor || '').trim() || null,  // Defect B: Pass raw name; validation in second pass
+            buffer_binding: n.buffer_binding || null,       // Step 3: 'hard' | 'advisory'
+            // Step 3: Artifact intake fields
+            satisfaction_mode: n.satisfaction_mode || null,
           },
         });
       } else if (cls === 'System') {
@@ -123,14 +292,73 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
           type: 'DECLARE_SYSTEM',
           payload: {
             ...common,
-            owningEntityId: resolveEntity(n.owner),
-            cycle: n.mechanism || 'ongoing',
-            activationState: 'planned',
+            name: n.name || '',
+            owner: n.owner || '', // 'Cross-cutting' or entity name
+            mechanism: n.mechanism || '',
+            feeds_converges_into: n.feeds_converges_into || '',
           },
         });
       }
     }
   }
+
+  // Defect B: Pass 2 — Validate all buffer_anchors now that all nodes are declared.
+  // Iterate through artifacts and deliverables, resolve anchor names to IDs, validate resolution.
+  // Validation timing change: anchor resolution/validation now happens in pass 2 (after all nodes declared),
+  // not pass 1 (during DECLARE_*), eliminating forward-reference ordering hazards.
+  const validateBufferAnchors = () => {
+    // Validate Artifacts
+    for (const artifactId of Object.keys(state.matrix.artifactsById)) {
+      const artifact = state.matrix.artifactsById[artifactId];
+      if (!artifact.buffer_anchor) {
+        continue; // Skip nodes without anchors
+      }
+
+      // buffer_anchor is a name string; resolve to ID using grain-scoped precedence
+      const anchorName = artifact.buffer_anchor;
+      const anchorId = resolveBufferAnchor(anchorName);
+
+      if (!anchorId) {
+        // Anchor name does not resolve to any declared node
+        state.lastPlanError = {
+          code: 'ARTIFACT_BUFFER_ANCHOR_UNKNOWN',
+          reason: `Artifact buffer_anchor "${anchorName}" is not declared in any registry (Artifact, Deliverable, Project, or Initiative).`,
+          meta: { id: artifactId, bufferAnchor: anchorName },
+        };
+        return; // Stop on first validation failure
+      }
+
+      // Update artifact with resolved anchor ID
+      artifact.buffer_anchor = anchorId;
+    }
+
+    // Validate Deliverables (same process)
+    for (const deliverableId of Object.keys(state.matrix.deliverablesById)) {
+      const deliverable = state.matrix.deliverablesById[deliverableId];
+      if (!deliverable.buffer_anchor) {
+        continue; // Skip nodes without anchors
+      }
+
+      // buffer_anchor is a name string; resolve to ID using grain-scoped precedence
+      const anchorName = deliverable.buffer_anchor;
+      const anchorId = resolveBufferAnchor(anchorName);
+
+      if (!anchorId) {
+        // Anchor name does not resolve to any declared node
+        state.lastPlanError = {
+          code: 'DELIVERABLE_BUFFER_ANCHOR_UNKNOWN',
+          reason: `Deliverable buffer_anchor "${anchorName}" is not declared in any registry (Artifact, Deliverable, Project, or Initiative).`,
+          meta: { id: deliverableId, bufferAnchor: anchorName },
+        };
+        return; // Stop on first validation failure
+      }
+
+      // Update deliverable with resolved anchor ID
+      deliverable.buffer_anchor = anchorId;
+    }
+  };
+
+  validateBufferAnchors();
 
   // Attested edges: typed relational links → matrixLinksById; the named
   // convergence → milestonesById. from/to reference node names (resolved to ids).
@@ -145,7 +373,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
     if (e.type === 'converges') {
       // "from" is the milestone name; "to" is a semicolon list of lane node names.
       const laneNames = String(to || '').split(';').map((s) => s.trim()).filter(Boolean);
-      const laneIds = laneNames.map(resolve).filter(Boolean);
+      const laneIds = laneNames.map(resolveGeneric).filter(Boolean);
       // Derive the milestone date from the latest lane target_date (the anchor).
       const laneDates = laneNames
         .map((nm) => (nodes.find((n) => n.name === nm) || {}).target_date)
@@ -156,10 +384,11 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
         dispatch({ type: 'DECLARE_MILESTONE', payload: { id: `ms-${++msSeq}`, name: String(from || '').trim(), date, laneIds } });
       }
     } else {
-      const fromId = resolve(from);
-      const toId = resolve(to);
+      const fromId = resolveGeneric(from);
+      const toId = resolveGeneric(to);
       if (fromId && toId) {
-        dispatch({ type: 'DECLARE_MATRIX_LINK', payload: { id: `link-${++linkSeq}`, kind: e.type, fromId, toId } });
+        const targetDate = String(e.target_date ?? '').trim() || null;
+        dispatch({ type: 'DECLARE_MATRIX_LINK', payload: { id: `link-${++linkSeq}`, kind: e.type, fromId, toId, targetDate } });
       }
     }
   }

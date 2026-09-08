@@ -59,7 +59,6 @@ function midReprobeSavedState() {
                 purpose: 'Release tapes building the terminal album',
                 purposeFor: 'Grow from 40k to 100k listeners and establish label credibility',
                 purposeCompletion: '10k first-week streams with 1000+ unique listeners',
-                classification: 'objective',
                 // Now passes under the CURRENT validator (quantified metric evidence).
                 doneWhen: DONE_WHEN,
               },
@@ -107,7 +106,7 @@ describe('MatrixIntake — resume when restored slot now passes all gates', () =
     expect(Object.keys(store?.matrix?.initiativesById || {})).toHaveLength(0);
     // No restart at §2.
     expect(screen.queryByTestId('roster-input')).not.toBeInTheDocument();
-    // Back history rebuilt from the answered fields (owner, purpose, classification, etc).
+    // Back history rebuilt from the answered fields (owner, purpose, purposeFor, etc).
     expect(screen.getByTestId('intake-back')).toBeInTheDocument();
   }, 30000);
 
@@ -122,13 +121,17 @@ describe('MatrixIntake — resume when restored slot now passes all gates', () =
     // Wait for the doneWhen field to appear (may show NOT_VERIFIABLE reprobe first)
     await waitFor(() => expect(document.querySelector('textarea')).toBeTruthy());
 
-    // Back → classification question, prior pick active.
+    // Back → the previous answered field. Since Item 6 Phase 4 removed initiative
+    // classification, the field before doneWhen is purposeCompletion — a free-text
+    // field carrying its prior answer, not the old objective|constraint pickSet.
     await user.click(screen.getByTestId('intake-back'));
-    await waitFor(() => expect(document.querySelector('[data-testid="pickset-option"]')).toBeTruthy());
+    await waitFor(() => {
+      const prior = document.querySelector('textarea');
+      expect(prior).toBeTruthy();
+      expect(prior.value).toBeTruthy();
+    });
 
-    // Forward again: re-answer classification, then confirm doneWhen with Next.
-    const options = [...document.querySelectorAll('[data-testid="pickset-option"]')];
-    await user.click(options[0]);
+    // Forward again: Next re-confirms the prior answer, landing back on doneWhen.
     await user.click(screen.getByRole('button', { name: /^Next/i }));
     await waitFor(() => expect(document.querySelector('textarea')).toBeTruthy());
     const ta = document.querySelector('textarea');

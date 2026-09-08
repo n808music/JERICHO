@@ -51,7 +51,10 @@ export function availableBlockScopes(blocks = [], matrix = {}) {
   const entities = matrix.entitiesById || {};
   const initiatives = matrix.initiativesById || {};
   const projects = matrix.projectsById || {};
-  const artifacts = matrix.artifactsById || {};
+  // Deliverable scope labels resolve from deliverablesById, not artifactsById —
+  // the tally key is b.deliverableId. Corrected 2026-08-29 with the loader's
+  // Deliverable/Artifact dispatch fix.
+  const deliverables = matrix.deliverablesById || {};
   const systems = matrix.systemsById || {};
 
   const tally = (idOf) => {
@@ -73,7 +76,7 @@ export function availableBlockScopes(blocks = [], matrix = {}) {
     Entity: optionize(entityCounts, entities),
     Initiative: optionize(tally((b) => b.initiativeId), initiatives),
     Project: optionize(tally((b) => b.sourceProjectId), projects),
-    Deliverable: optionize(tally((b) => b.deliverableId), artifacts),
+    Deliverable: optionize(tally((b) => b.deliverableId), deliverables),
     // Every system surfaces (ruling: unowned Systems are their own explicit bucket — never
     // vanished, never attached to a guessed entity). Owned → count = owning entity's blocks;
     // unowned → count 0, flagged, same "absent is a legitimate answer" doctrine as residual phase.

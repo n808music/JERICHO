@@ -2,6 +2,7 @@ import { ENTITY_REPROBES } from './entityReprobes';
 import { INITIATIVE_REPROBES } from './initiativeReprobes';
 import { SYSTEM_REPROBES } from './systemReprobes';
 import { ARTIFACT_REPROBES } from './artifactReprobes';
+import { DELIVERABLE_REPROBES } from './deliverableReprobes';
 import { DEPENDENCY_REPROBES } from './dependencyReprobes';
 import { CONVERGENCE_REPROBES } from './convergenceReprobes';
 import { RESOURCE_REPROBES } from './resourceReprobes';
@@ -47,33 +48,23 @@ export const REPROBES = {
     pickSet: 'declaredEntities',
     examples: { musician: '', founder: '', writer: '', generic: '' },
   },
-  PROJECT_METRIC_MISSING: {
-    spine: 'How will you know this project succeeded? Name the measurable outcome.',
+  PROJECT_DESCRIPTION_MISSING: {
+    spine: 'What does this project produce or ship? Name the concrete deliverable.',
     examples: {
-      musician: 'e.g. 10,000 streams, 500 tickets sold',
-      founder: 'e.g. 100 paying users, $5k MRR',
-      writer: 'e.g. 3 full-manuscript requests',
-      generic: 'e.g. 50 signups, 4 reviews completed',
+      musician: 'e.g. the album "Romance Riot", the music video, the live performance',
+      founder: 'e.g. the beta launch, the pricing page, the landing site',
+      writer: 'e.g. the manuscript, the query letter, the published book',
+      generic: 'e.g. the report, the redesign, the campaign, the proposal',
     },
   },
-  PROJECT_METRIC_UNQUANTIFIED: {
+  PROJECT_VERIFICATION_LOCATION_MISSING: {
     spine:
-      'That needs a number or a clear finish line — give me the count, amount, or the event that declares it done.',
+      'Where will this deliverable live or be verifiable — the place you and others will go to see it when it exists?',
     examples: {
-      musician: "e.g. '10,000 streams' or 'signed by a label'",
-      founder: "e.g. '100 paying users' or 'launched in the App Store'",
-      writer: "e.g. '3 full-manuscript requests' or 'accepted by an agent'",
-      generic: "e.g. '50 signups' or 'approved by the client'",
-    },
-  },
-  PROJECT_SOURCE_MISSING: {
-    spine:
-      "Name the place you'll read that number from — the tool, app, or screen you'll open to check it.",
-    examples: {
-      musician: 'e.g. Spotify for Artists, DistroKid',
-      founder: 'e.g. Stripe, your bank dashboard',
-      writer: 'e.g. QueryTracker, KDP reports',
-      generic: 'e.g. Google Analytics, your CRM, your bank account',
+      musician: 'e.g. Spotify, Bandcamp, YouTube, a concert venue, your website',
+      founder: 'e.g. your domain, the App Store, ProductHunt, Stripe, your office',
+      writer: 'e.g. Amazon KDP, a publishing house, your agent portal, your website',
+      generic: 'e.g. your website, Google Drive, a client server, the project folder, a GitHub repo',
     },
   },
   // §5 phase attestation (Wave 2, Gate 1). Disclosure Standard: rule cited (residual-bucket
@@ -98,7 +89,7 @@ export const REPROBES = {
   PROJECT_LEGAL_FORMATION_MISSING: {
     spine:
       'Does this project require the owning entity to be legally formed (LLC, corporation, etc.) before work can proceed?',
-    pickSet: 'yesNoOptions',
+    pickSet: 'legalFormationPrerequisiteOptions',
     examples: { musician: '', founder: '', writer: '', generic: '' },
   },
   VERIFICATION_SOURCE_SOURCE_MISSING: {
@@ -131,10 +122,54 @@ export const REPROBES = {
       generic: 'e.g. Audience metrics, Bank balance, Application status',
     },
   },
+  // Step 3: Project intake fields
+  PROJECT_EXECUTING_ENTITY_MISSING: {
+    spine:
+      'Which entity is executing this project — who does the work and owns the timeline?',
+    pickSet: 'declaredEntities',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
+  PROJECT_PARENT_INITIATIVE_MISSING: {
+    spine:
+      'Which initiative does this project feed into or support? Pick the initiative it belongs to.',
+    pickSet: 'declaredInitiatives',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
+  PROJECT_BOUNDARY_TYPE_MISSING: {
+    spine:
+      'Does this project have a terminal end date (Terminating) or does it run indefinitely (Ongoing)?',
+    pickSet: 'boundaryTypeOptions',
+    examples: {
+      musician: "e.g. Terminating for 'ship the album', Ongoing for 'maintain the catalog'",
+      founder: "e.g. Terminating for 'beta launch', Ongoing for 'run the platform'",
+      writer: "e.g. Terminating for 'finish the manuscript', Ongoing for 'manage the brand'",
+      generic: "e.g. Terminating ends on a date, Ongoing runs indefinitely",
+    },
+  },
+  PROJECT_BOUNDARY_TYPE_INVALID: {
+    spine:
+      'Boundary type must be "Terminating" (has an end date) or "Ongoing" (runs indefinitely). Give me one of those.',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
+  PROJECT_TERMINAL_DATE_MISSING: {
+    spine:
+      'By what date must this terminating project be complete? Give me the terminal deadline.',
+    examples: {
+      musician: 'e.g. 2026-06-30 for album release deadline',
+      founder: 'e.g. 2026-01-15 for MVP launch date',
+      writer: 'e.g. 2026-03-31 for manuscript submission deadline',
+      generic: 'e.g. a specific future date the project must be done',
+    },
+  },
+  PROJECT_TERMINAL_DATE_NOT_FUTURE: {
+    spine: 'The terminal date must be in the future. Give me a date that has not arrived yet.',
+    examples: { musician: '', founder: '', writer: '', generic: '' },
+  },
   ...ENTITY_REPROBES,
   ...INITIATIVE_REPROBES,
   ...SYSTEM_REPROBES,
   ...ARTIFACT_REPROBES,
+  ...DELIVERABLE_REPROBES,
   ...DEPENDENCY_REPROBES,
   ...CONVERGENCE_REPROBES,
   ...RESOURCE_REPROBES,

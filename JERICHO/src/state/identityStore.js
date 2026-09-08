@@ -74,9 +74,8 @@ function buildDefaultSeedGoalArtifacts(todayDate) {
     deadlineISO: contractDeadline,
     success: [
       {
-        metricType: 'threshold',
-        metricName: 'revenue',
-        targetValue: 10000,
+        metricType: 'binary',
+        targetValue: true,
         validationMethod: 'user_attest',
       },
     ],
@@ -356,6 +355,88 @@ function buildRecoveredGoalArtifacts({ goalId, startDayKey, endDayKey, goalText,
       },
     },
   };
+}
+
+// Sibling key to `jericho-identity`: when that blob was last written locally.
+// The mount-time server pull compares this against the server's
+// `client_updated_at` so a stale server copy can never overwrite newer local
+// work. Kept as a sibling key rather than a field inside the blob so
+// buildPersistableIdentityState()'s shape (asserted by tests, and pushed to the
+// backend verbatim) is unchanged.
+//
+// MUST be declared ABOVE PRE_SEED_LOCAL_SNAPSHOT. That snapshot calls
+// readLocalUpdatedAt() during module evaluation; a `const` declared further down
+// the file is still in its temporal dead zone at that point, so the read throws
+// ReferenceError, readLocalUpdatedAt()'s own `catch` swallows it, and updatedAt
+// is unconditionally null in the browser. That silently disables the "server is
+// newer" branch of the mount pull (Date.parse(null) is NaN, so the comparison is
+// never `comparable`), leaving local-always-wins as the only reachable outcome.
+// Tests did not catch it: __recapturePreSeedSnapshotForTests() re-reads after
+// module evaluation has finished, which is past the dead zone.
+const IDENTITY_UPDATED_AT_KEY = 'jericho-identity-updated-at';
+
+// Sampled at MODULE LOAD, before seedState runs.
+//
+// buildInitialIdentityState() calls persistState(), which rewrites
+// `jericho-identity` AND re-stamps `jericho-identity-updated-at` to now. That
+// happens at IMPORT time — earlier than any render or effect — so a snapshot
+// taken later always sees a freshly stamped local blob and concludes local is
+// newer than the server.
+//
+// On 2026-08-26 that destroyed real data: local storage was cleared for a
+// recovery, the seed immediately wrote a blank stamped state, the mount pull
+// judged that blank state "newer" than the populated server row, and the
+// self-heal push overwrote 200KB of real work with an empty state.
+export const PRE_SEED_LOCAL_SNAPSHOT = {
+  updatedAt: readLocalUpdatedAt(),
+  hasProfile: Boolean(loadPersisted()),
+};
+
+// Build marker. Printed once per module load so the console can confirm WHICH
+// bundle is live before anyone runs a recovery command. Three separate attempts
+// on 2026-08-26 ran stale code after a browser hard-refresh, and each was only
+// discovered after the server row had already been overwritten. Suppressed under
+// jsdom so it does not spam the test suite.
+if (
+  typeof window !== 'undefined' &&
+  !String(globalThis?.navigator?.userAgent || '').includes('jsdom')
+) {
+  // eslint-disable-next-line no-console
+  console.log(
+    '[jericho] identityStore: push-gate build — PRE_SEED snapshot',
+    JSON.stringify(PRE_SEED_LOCAL_SNAPSHOT)
+  );
+}
+
+// Test seam. The snapshot is captured once per MODULE LOAD, which is correct in
+// the browser (one import per page load, before seedState) but means a test
+// process — which imports the module once and reuses it — captures it before any
+// test can install storage. Tests call this after seeding localStorage to model
+// a fresh page load. Never call it from application code: re-capturing after the
+// seed has run reintroduces the exact bug this snapshot exists to prevent.
+export function __recapturePreSeedSnapshotForTests() {
+  PRE_SEED_LOCAL_SNAPSHOT.updatedAt = readLocalUpdatedAt();
+  PRE_SEED_LOCAL_SNAPSHOT.hasProfile = Boolean(loadPersisted());
+}
+
+// Coarse "how much real content does this state carry" measure. Used as a
+// SAFETY FLOOR on the sync merge: timestamps alone are too fragile to gate a
+// destructive overwrite, because any bug that re-stamps local (see above) makes
+// local look authoritative. Content cannot be faked by a clock.
+export function stateContentWeight(s) {
+  if (!s || typeof s !== 'object') return 0;
+  const m = s.matrix || {};
+  const count = (o) => Object.keys(o || {}).length;
+  return (
+    count(m.entitiesById) +
+    count(m.initiativesById) +
+    count(m.projectsById) +
+    count(m.artifactsById) +
+    count(m.systemsById) +
+    count(s.intakeSessionByCycleId) +
+    count(s.cyclesById) +
+    count(s.goalsById)
+  );
 }
 
 const seedState = buildInitialIdentityState();
@@ -2131,7 +2212,10 @@ export function IdentityProvider({ children, initialState }) {
   // Explicit, user-triggered durable save to the backend. Returns the push result
   // ({ ok, status? } / { ok:false, error }) so the UI can show a visible status.
   const saveProgress = useCallback(
-    () => syncPush(buildPersistableIdentityState(stateRef.current)),
+    () =>
+      syncPush(buildPersistableIdentityState(stateRef.current), {
+        clientUpdatedAt: readLocalUpdatedAt() || new Date().toISOString(),
+      }),
     []
   );
 
@@ -2139,28 +2223,161 @@ export function IdentityProvider({ children, initialState }) {
     persistState(state);
   }, [state]);
 
-  // Pull from server on mount — restores state across browser resets and port changes
+  // Pull from server on mount — restores state across browser resets and port
+  // changes. LAST-WRITE-WINS, not server-always-wins: applying the server copy
+  // unconditionally silently regressed any client whose final debounced push
+  // never landed (sign-out inside the 1500ms window). Server state is applied
+  // ONLY when it is strictly newer than the local write stamp.
+  // Reconciliation state. `syncReconciledRef` gates EVERY push: nothing may be
+  // sent to the server until we know what the server already holds.
+  // `lastServerWeightRef` remembers how much content the server had, so a later
+  // push cannot silently shrink it.
+  const syncReconciledRef = React.useRef(false);
+  const lastServerWeightRef = React.useRef(0);
+  const canPushWithoutDataLoss = React.useCallback((candidate) => {
+    if (!syncReconciledRef.current) return false;
+    const w = stateContentWeight(candidate);
+    if (w === 0 && lastServerWeightRef.current > 0) return false;
+    return w >= lastServerWeightRef.current || lastServerWeightRef.current === 0;
+  }, []);
+
   React.useEffect(() => {
-    syncPull().then((serverState) => {
-      if (!serverState) {
+    syncPull().then((pulled) => {
+      if (!pulled?.state) {
+        // Nothing on the server (or the pull failed and returned null). Either
+        // way there is no richer copy to protect, so pushing is now safe.
+        syncReconciledRef.current = true;
+        lastServerWeightRef.current = 0;
         return;
       }
-      const hydrated = rehydratePersistedState(serverState);
-      if (hydrated) {
-        dispatch({ type: 'APPLY_NEXT_STATE', nextState: hydrated });
+      // We now KNOW what the server holds — that is what reconciliation means,
+      // regardless of which side wins below. Set before the early returns, or
+      // adopting the server copy would leave pushes gated off forever and the
+      // app would silently stop saving.
+      lastServerWeightRef.current = stateContentWeight(pulled.state);
+      syncReconciledRef.current = true;
+
+      // PRE-SEED snapshot, not live storage and not a render-time sample:
+      // persistState runs at module load inside buildInitialIdentityState(),
+      // which is earlier than both.
+      const localUpdatedAt = PRE_SEED_LOCAL_SNAPSHOT.updatedAt;
+      const localHasProfile = PRE_SEED_LOCAL_SNAPSHOT.hasProfile;
+      const serverAt = Date.parse(pulled.clientUpdatedAt || '');
+      const localAt = Date.parse(localUpdatedAt || '');
+
+      // No local profile at all (fresh browser / cleared storage) — the server
+      // copy is the only copy. This is the case the pull exists to serve.
+      if (!localHasProfile) {
+        const hydrated = rehydratePersistedState(pulled.state);
+        if (hydrated) dispatch({ type: 'APPLY_NEXT_STATE', nextState: hydrated });
+        return;
+      }
+
+      // CONTENT SAFETY FLOOR, checked before any timestamp comparison.
+      //
+      // A clock can be wrong; content cannot. If local carries nothing and the
+      // server carries something, the server wins no matter what the stamps say.
+      // This is the guard that would have prevented the 2026-08-26 loss: the
+      // seeded blank state was stamped `now` and looked authoritative, but its
+      // content weight was 0 against a server weight of 38.
+      const localWeight = stateContentWeight(stateRef.current);
+      const serverWeight = stateContentWeight(pulled.state);
+      if (localWeight === 0 && serverWeight > 0) {
+        const hydrated = rehydratePersistedState(pulled.state);
+        if (hydrated) dispatch({ type: 'APPLY_NEXT_STATE', nextState: hydrated });
+        return;
+      }
+
+      // Local exists but either side is unstamped/unparseable — refuse to
+      // clobber. Overwriting is the destructive direction, so ambiguity keeps
+      // local and heals the server instead.
+      const comparable = Number.isFinite(serverAt) && Number.isFinite(localAt);
+      if (comparable && serverAt > localAt) {
+        const hydrated = rehydratePersistedState(pulled.state);
+        if (hydrated) dispatch({ type: 'APPLY_NEXT_STATE', nextState: hydrated });
+        return;
+      }
+
+      // Local is newer or equal (or unknown): keep it. Push it up ONLY when doing
+      // so cannot destroy a richer server copy — a self-heal must never be able
+      // to act as a wipe.
+      if (localWeight >= serverWeight) {
+        syncPush(buildPersistableIdentityState(stateRef.current), {
+          clientUpdatedAt: localUpdatedAt || new Date().toISOString(),
+        });
       }
     });
   }, []);
 
-  // Debounced push to server on every state change
+  // Debounced push to server on every state change.
+  //
+  // The cleanup below CANNOT flush: it runs on every state change (that is what
+  // makes this a debounce), so flushing there would push on every keystroke —
+  // the full-horizon recompute cost this debounce exists to avoid. The flush
+  // lives in the unmount-only effect that follows.
   const syncPushTimerRef = React.useRef(null);
+  const pendingPushRef = React.useRef(false);
   React.useEffect(() => {
     clearTimeout(syncPushTimerRef.current);
+    pendingPushRef.current = true;
     syncPushTimerRef.current = setTimeout(() => {
-      syncPush(buildPersistableIdentityState(state));
+      // RECONCILIATION GATE. Until the mount pull has resolved we do not know
+      // what the server holds, so pushing is a blind overwrite. This debounced
+      // push previously had NO guard at all: if the pull was slow, failed, or
+      // returned after 1500ms, the freshly seeded blank state was pushed over a
+      // populated server row. The content floor in the pull handler could not
+      // help — it guards a different push path.
+      if (!syncReconciledRef.current) {
+        return; // stay pending; the next state change reschedules
+      }
+      if (!canPushWithoutDataLoss(state)) {
+        return;
+      }
+      pendingPushRef.current = false;
+      syncPush(buildPersistableIdentityState(state), {
+        clientUpdatedAt: readLocalUpdatedAt() || new Date().toISOString(),
+      });
     }, 1500);
     return () => clearTimeout(syncPushTimerRef.current);
   }, [state]);
+
+  // Flush a pending push that the debounce has not yet fired. Without this, a
+  // sign-out or tab close inside the 1500ms window cancelled the save outright
+  // — the answers reached localStorage but never the server, and the next
+  // sign-in pulled the older server copy over them.
+  const flushPendingSync = useCallback((options = {}) => {
+    if (!pendingPushRef.current) {
+      return null;
+    }
+    // Same gate as the debounced push: a flush is still a write, and writing
+    // before reconciliation is a blind overwrite.
+    if (!canPushWithoutDataLoss(stateRef.current)) {
+      return null;
+    }
+    clearTimeout(syncPushTimerRef.current);
+    pendingPushRef.current = false;
+    return syncPush(buildPersistableIdentityState(stateRef.current), {
+      clientUpdatedAt: readLocalUpdatedAt() || new Date().toISOString(),
+      keepalive: Boolean(options.keepalive),
+    });
+  }, []);
+  const flushPendingSyncRef = React.useRef(flushPendingSync);
+  flushPendingSyncRef.current = flushPendingSync;
+
+  React.useEffect(() => {
+    // pagehide covers tab close / navigation away, where a normal fetch would be
+    // cancelled — hence keepalive. Unmount covers sign-out tearing the provider down.
+    const onPageHide = () => flushPendingSyncRef.current({ keepalive: true });
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pagehide', onPageHide);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('pagehide', onPageHide);
+      }
+      flushPendingSyncRef.current({ keepalive: true });
+    };
+  }, []);
 
   const store = {
     ...state,
@@ -2251,6 +2468,7 @@ export function IdentityProvider({ children, initialState }) {
     matrixDispatch,
     respondConvergenceDetectionQuestion,
     saveProgress,
+    flushPendingSync,
     archiveAndCloneCycle,
     ...coreMissionContractActions,
   };
@@ -2331,6 +2549,17 @@ function loadPersisted() {
   }
 }
 
+export function readLocalUpdatedAt() {
+  if (typeof localStorage === 'undefined') {
+    return null;
+  }
+  try {
+    return localStorage.getItem(IDENTITY_UPDATED_AT_KEY);
+  } catch {
+    return null;
+  }
+}
+
 function persistState(state) {
   if (typeof localStorage === 'undefined') {
     return;
@@ -2338,6 +2567,7 @@ function persistState(state) {
   try {
     const persistableState = buildPersistableIdentityState(state);
     localStorage.setItem('jericho-identity', JSON.stringify(persistableState));
+    localStorage.setItem(IDENTITY_UPDATED_AT_KEY, new Date().toISOString());
   } catch {
     // ignore
   }

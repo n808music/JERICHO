@@ -49,6 +49,9 @@ describe('Step 3 Reschedule Piece 1: Pre-Population of Sources', () => {
         purpose: 'Test pre-population',
         classification: 'objective',
         doneWhen: 'All complete',
+        function: 'ops',
+        boundary_type: 'Terminating',
+        completion_value: 'Initiative complete'
       },
     });
 
@@ -59,7 +62,7 @@ describe('Step 3 Reschedule Piece 1: Pre-Population of Sources', () => {
         id: 'proj-prepop',
         name: 'Pre-Population Project',
         owningEntityId: 'entity-prepop',
-        successMetric: 'Complete',
+        description: 'Complete',
         verificationSourceId: 'vs-prepop',
       },
     });
@@ -267,6 +270,9 @@ describe('Step 3 Reschedule Piece 1: Pre-Population of Sources', () => {
         purpose: 'Test',
         classification: 'objective',
         doneWhen: 'Complete',
+        function: 'ops',
+        boundary_type: 'Terminating',
+        completion_value: 'Initiative complete'
       },
     });
 
@@ -276,7 +282,7 @@ describe('Step 3 Reschedule Piece 1: Pre-Population of Sources', () => {
         id: 'proj-distinguish',
         name: 'Project',
         owningEntityId: 'entity-distinguish',
-        successMetric: 'Complete',
+        description: 'Complete',
         verificationSourceId: 'vs-distinguish',
       },
     });

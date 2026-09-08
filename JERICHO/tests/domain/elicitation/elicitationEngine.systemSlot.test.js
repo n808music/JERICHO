@@ -7,6 +7,15 @@ import {
 } from '../../../src/domain/elicitation/elicitationEngine.js';
 import { SYSTEM_OWNER_ENTITY_LESS, SYSTEM_SLOT } from '../../../src/domain/elicitation/systemSlot.ts';
 
+// Step 4 (2026-09-05) replaced the System intake ladder. The slot now gates
+// name → owner → mechanism → feeds_converges_into. `cycle` became `mechanism`,
+// and `activationState` / `activationCondition` were removed outright — a
+// System carries no run-state field, so there is nothing to probe for.
+//
+// The operator answers `owner` with an entity id from systemOwnerOptions or
+// with the 'Cross-cutting' sentinel; the reducer resolves that to
+// owningEntityId (null for cross-cutting) at declaration time.
+
 function runSystemScript(script, opts = {}) {
   let state = opts.initialState || buildBlankIdentityState({});
   let engine = createElicitationEngine({
@@ -38,7 +47,7 @@ function runSystemScript(script, opts = {}) {
   return { state, probes, dispatchedActions };
 }
 
-// Two entities: one [system]-capable, one NOT — for role-tag filter proof.
+// Two entities: one [system]-capable, one NOT — for role-tag backfill proof.
 function buildMixedEntityState() {
   let state = buildBlankIdentityState({});
   // [system]-capable — should appear in systemOwnerOptions
@@ -53,7 +62,7 @@ function buildMixedEntityState() {
       statusEvidence: 'Operating across music, film, and broadcast verticals',
     },
   });
-  // NOT [system]-capable — must be ABSENT from systemOwnerOptions
+  // NOT [system]-capable — must STILL appear in systemOwnerOptions
   state = computeDerivedState(state, {
     type: 'DECLARE_ENTITY',
     payload: {
@@ -68,22 +77,20 @@ function buildMixedEntityState() {
   return state;
 }
 
-// Real Operation Endgame system: Release Pipeline (running, owned)
-const RELEASE_PIPELINE_SCRIPT = (owningEntityId) => [
+// Real Operation Endgame system: Release Pipeline (owned by an entity)
+const RELEASE_PIPELINE_SCRIPT = (owner) => [
   { name: 'release pipeline system' },
-  { owningEntityId },
-  { cycle: 'Create → Produce → Art and Metadata → Distribute → Promote → Analyze → repeat' },
-  { activationState: 'running' },
+  { owner },
+  { mechanism: 'Create → Produce → Art and Metadata → Distribute → Promote → Analyze → repeat' },
+  { feeds_converges_into: 'OFL 7 release schedule, distribution pipeline, audience funnel' },
 ];
 
-// Real Operation Endgame system: Audience Capture (missing, entity-less, with activationCondition).
-// activationCondition is optional — volunteered alongside activationState (same answer, merged
-// by the zero-model engine), so the gate can validate it before the slot completes.
+// Real Operation Endgame system: Audience Capture (cross-cutting, entity-less)
 const AUDIENCE_CAPTURE_SCRIPT = [
   { name: 'audience capture and activation system' },
-  { owningEntityId: SYSTEM_OWNER_ENTITY_LESS },
-  { cycle: 'Capture email or SMS → Nurture → Activate on each release → Measure → repeat' },
-  { activationState: 'missing', activationCondition: 'Email list infrastructure and a first release to activate against' },
+  { owner: SYSTEM_OWNER_ENTITY_LESS },
+  { mechanism: 'Capture email or SMS → Nurture → Activate on each release → Measure → repeat' },
+  { feeds_converges_into: 'OFL 7 release schedule, tour announcement cycle' },
 ];
 
 // ── 1. Structural: no done-when in the system slot ───────────────────────────
@@ -106,7 +113,7 @@ describe('Elicitation Engine — System slot: no done-when (structural absence)'
     expect(dispatchedActions.find((a) => a.type === 'DECLARE_SYSTEM')).toBeTruthy();
   });
 
-  it('CYCLE_MISSING (not DONEWHEN_MISSING) is what fails an incomplete system', () => {
+  it('MECHANISM_MISSING (not DONEWHEN_MISSING) is what fails an incomplete system', () => {
     let state = buildMixedEntityState();
     let engine = createElicitationEngine({
       goalType: 'musician',
@@ -116,16 +123,16 @@ describe('Elicitation Engine — System slot: no done-when (structural absence)'
     engine.openingStep();
     const answers = [
       { name: 'release pipeline system' },
-      { owningEntityId: 'ent-gs-corp' },
-      { cycle: '' },  // blank cycle — should fail
+      { owner: 'ent-gs-corp' },
+      { mechanism: '' },  // blank mechanism — should fail
     ];
     for (const answer of answers) {
       const r = engine.consumeAnswer(answer);
       engine = r.engine.refreshMatrix(state.matrix);
     }
     const step = engine.nextStep();
-    expect(step.probe.fieldName).toBe('cycle');
-    expect(step.probe.code).toBe('SYSTEM_CYCLE_MISSING');
+    expect(step.probe.fieldName).toBe('mechanism');
+    expect(step.probe.code).toBe('SYSTEM_MECHANISM_MISSING');
   });
 });
 
@@ -143,7 +150,7 @@ describe('Elicitation Engine — System slot: gate ladder', () => {
     expect(first.probe.code).toBe('SYSTEM_NAME_MISSING');
   });
 
-  it('drives the full gate sequence name→owner→cycle→activationState', () => {
+  it('drives the full gate sequence name→owner→mechanism→feeds_converges_into', () => {
     const state = buildMixedEntityState();
     const { probes } = runSystemScript(
       RELEASE_PIPELINE_SCRIPT('ent-gs-corp'),
@@ -151,9 +158,9 @@ describe('Elicitation Engine — System slot: gate ladder', () => {
     );
     expect(probes.map((p) => p.fieldName)).toEqual([
       'name',
-      'owningEntityId',
-      'cycle',
-      'activationState',
+      'owner',
+      'mechanism',
+      'feeds_converges_into',
     ]);
   });
 
@@ -172,6 +179,51 @@ describe('Elicitation Engine — System slot: gate ladder', () => {
     expect(step.probe.fieldName).toBe('name');
     expect(step.probe.code).toBe('SYSTEM_NAME_NOT_HOLDABLE');
   });
+
+  it('fires SYSTEM_FEEDS_MISSING when the downstream feed is left blank', () => {
+    let state = buildMixedEntityState();
+    let engine = createElicitationEngine({
+      goalType: 'musician',
+      matrixSnapshot: state.matrix,
+      scope: [SYSTEM_SLOT_ID],
+    });
+    engine.openingStep();
+    const answers = [
+      { name: 'release pipeline system' },
+      { owner: 'ent-gs-corp' },
+      { mechanism: 'Create → Produce → Distribute → repeat' },
+      { feeds_converges_into: '' },  // blank feed — should fail
+    ];
+    for (const answer of answers) {
+      const r = engine.consumeAnswer(answer);
+      engine = r.engine.refreshMatrix(state.matrix);
+    }
+    const step = engine.nextStep();
+    expect(step.probe.fieldName).toBe('feeds_converges_into');
+    expect(step.probe.code).toBe('SYSTEM_FEEDS_MISSING');
+  });
+
+  it('fires SYSTEM_MECHANISM_NOT_SUBSTANTIVE for a jargon shell', () => {
+    let state = buildMixedEntityState();
+    let engine = createElicitationEngine({
+      goalType: 'musician',
+      matrixSnapshot: state.matrix,
+      scope: [SYSTEM_SLOT_ID],
+    });
+    engine.openingStep();
+    const answers = [
+      { name: 'release pipeline system' },
+      { owner: 'ent-gs-corp' },
+      { mechanism: 'leverage synergies' },  // jargon, not a loop
+    ];
+    for (const answer of answers) {
+      const r = engine.consumeAnswer(answer);
+      engine = r.engine.refreshMatrix(state.matrix);
+    }
+    const step = engine.nextStep();
+    expect(step.probe.fieldName).toBe('mechanism');
+    expect(step.probe.code).toBe('SYSTEM_MECHANISM_NOT_SUBSTANTIVE');
+  });
 });
 
 // ── 3. Owner options (unfiltered, 2026-07-10) ────────────────────────────────
@@ -189,7 +241,7 @@ describe('Elicitation Engine — System slot: owner options (unfiltered)', () =>
     engine = result.engine.refreshMatrix(state.matrix);
     const step = engine.nextStep();
 
-    expect(step.probe.fieldName).toBe('owningEntityId');
+    expect(step.probe.fieldName).toBe('owner');
     expect(step.probe.pickSet?.kind).toBe('systemOwnerOptions');
 
     const ids = step.probe.pickSet.items.map((i) => i.id);
@@ -208,6 +260,14 @@ describe('Elicitation Engine — System slot: owner options (unfiltered)', () =>
     expect(ids).toHaveLength(3);
   });
 
+  // The sentinel's VALUE is load-bearing, not just its presence: declareSystem
+  // branches on `owner !== 'Cross-cutting'` by exact match, and the v3.0
+  // fixture carries that literal verbatim. A drifted sentinel would route
+  // every cross-cutting system into SYSTEM_OWNER_UNRESOLVED instead.
+  it('the cross-cutting sentinel is the exact literal the reducer matches', () => {
+    expect(SYSTEM_OWNER_ENTITY_LESS).toBe('Cross-cutting');
+  });
+
   it('declaring a system under an untagged owner backfills its [system] role tag', () => {
     let state = buildMixedEntityState();
     expect(state.matrix.entitiesById['ent-ofl-initiative'].roleTags).not.toContain('system');
@@ -216,9 +276,9 @@ describe('Elicitation Engine — System slot: owner options (unfiltered)', () =>
       payload: {
         id: 'system-backfill-proof',
         name: 'Backfill proof system',
-        owningEntityId: 'ent-ofl-initiative',
-        cycle: 'weekly',
-        activationState: 'planned',
+        owner: 'ent-ofl-initiative',
+        mechanism: 'Draft → review → publish → repeat',
+        feeds_converges_into: 'OFL 7 release schedule',
       },
     });
     expect(state.matrix.systemsById['system-backfill-proof']).toBeTruthy();
@@ -227,103 +287,27 @@ describe('Elicitation Engine — System slot: owner options (unfiltered)', () =>
   });
 });
 
-// ── 4. activationStateOptions pickSet ────────────────────────────────────────
-
-describe('Elicitation Engine — System slot: activationStateOptions pickSet', () => {
-  it('returns running, missing, planned with human-readable labels', () => {
-    const state = buildMixedEntityState();
-    let engine = createElicitationEngine({
-      goalType: 'musician',
-      matrixSnapshot: state.matrix,
-      scope: [SYSTEM_SLOT_ID],
-    });
-    engine.openingStep();
-    for (const answer of [
-      { name: 'release pipeline system' },
-      { owningEntityId: 'ent-gs-corp' },
-      { cycle: 'Create → Produce → Distribute → repeat' },
-    ]) {
-      const r = engine.consumeAnswer(answer);
-      engine = r.engine.refreshMatrix(state.matrix);
-    }
-    const step = engine.nextStep();
-    expect(step.probe.fieldName).toBe('activationState');
-    expect(step.probe.pickSet?.kind).toBe('activationStateOptions');
-    const items = step.probe.pickSet.items;
-    expect(items.map((i) => i.id)).toEqual(['running', 'missing', 'planned']);
-    expect(items.find((i) => i.id === 'running')?.label).toBeTruthy();
-    expect(items.find((i) => i.id === 'missing')?.label).toBeTruthy();
-    expect(items.find((i) => i.id === 'planned')?.label).toBeTruthy();
-  });
-});
-
-// ── 5. Optional activationCondition ──────────────────────────────────────────
-
-describe('Elicitation Engine — System slot: optional activationCondition', () => {
-  it('passes with no activationCondition (optional field absent)', () => {
-    const state = buildMixedEntityState();
-    const { dispatchedActions } = runSystemScript(
-      RELEASE_PIPELINE_SCRIPT('ent-gs-corp'),
-      { initialState: state }
-    );
-    const decl = dispatchedActions.find((a) => a.type === 'DECLARE_SYSTEM');
-    expect(decl).toBeTruthy();
-    expect(decl.payload.activationCondition).toBeUndefined();
-  });
-
-  it('passes with a substantive activationCondition and includes it in payload', () => {
-    const { dispatchedActions } = runSystemScript(AUDIENCE_CAPTURE_SCRIPT);
-    const decl = dispatchedActions.find((a) => a.type === 'DECLARE_SYSTEM');
-    expect(decl).toBeTruthy();
-    expect(decl.payload.activationCondition).toBe(
-      'Email list infrastructure and a first release to activate against'
-    );
-  });
-
-  it('fires SYSTEM_ACTIVATION_CONDITION_NOT_SUBSTANTIVE for a jargon shell', () => {
-    let state = buildBlankIdentityState({});
-    let engine = createElicitationEngine({
-      goalType: 'musician',
-      matrixSnapshot: state.matrix,
-      scope: [SYSTEM_SLOT_ID],
-    });
-    engine.openingStep();
-    // Volunteer jargon activationCondition in the same answer as activationState so the
-    // gate sees it before the slot completes (optional field, no presence gate).
-    const answers = [
-      { name: 'release pipeline system' },
-      { owningEntityId: SYSTEM_OWNER_ENTITY_LESS },
-      { cycle: 'Create → Produce → Distribute → repeat' },
-      { activationState: 'planned', activationCondition: 'leverage synergies' },
-    ];
-    for (const answer of answers) {
-      const r = engine.consumeAnswer(answer);
-      engine = r.engine.refreshMatrix(state.matrix);
-    }
-    const step = engine.nextStep();
-    expect(step.probe.fieldName).toBe('activationCondition');
-    expect(step.probe.code).toBe('SYSTEM_ACTIVATION_CONDITION_NOT_SUBSTANTIVE');
-  });
-});
-
-// ── 6. DECLARE_SYSTEM dispatch and matrix landing ─────────────────────────────
+// ── 4. DECLARE_SYSTEM dispatch and matrix landing ─────────────────────────────
 
 describe('Elicitation Engine — System slot: DECLARE_SYSTEM dispatch', () => {
   it('entity-less sentinel normalizes to owningEntityId: null', () => {
-    const { dispatchedActions } = runSystemScript(AUDIENCE_CAPTURE_SCRIPT);
+    const { state, dispatchedActions } = runSystemScript(AUDIENCE_CAPTURE_SCRIPT);
     const decl = dispatchedActions.find((a) => a.type === 'DECLARE_SYSTEM');
     expect(decl).toBeTruthy();
-    expect(decl.payload.owningEntityId).toBeNull();
+    // The payload carries the sentinel; the reducer resolves it to null.
+    expect(decl.payload.owner).toBe(SYSTEM_OWNER_ENTITY_LESS);
+    expect(state.matrix.systemsById[decl.payload.id].owningEntityId).toBeNull();
   });
 
-  it('named owner is preserved as-is in the payload', () => {
-    const state = buildMixedEntityState();
-    const { dispatchedActions } = runSystemScript(
+  it('named owner resolves to that entity id on the stored record', () => {
+    const initial = buildMixedEntityState();
+    const { state, dispatchedActions } = runSystemScript(
       RELEASE_PIPELINE_SCRIPT('ent-gs-corp'),
-      { initialState: state }
+      { initialState: initial }
     );
     const decl = dispatchedActions.find((a) => a.type === 'DECLARE_SYSTEM');
-    expect(decl.payload.owningEntityId).toBe('ent-gs-corp');
+    expect(decl.payload.owner).toBe('ent-gs-corp');
+    expect(state.matrix.systemsById[decl.payload.id].owningEntityId).toBe('ent-gs-corp');
   });
 
   it('system lands in matrix.systemsById with all required fields', () => {
@@ -334,13 +318,16 @@ describe('Elicitation Engine — System slot: DECLARE_SYSTEM dispatch', () => {
       expect.objectContaining({
         name: 'audience capture and activation system',
         owningEntityId: null,
-        cycle: 'Capture email or SMS → Nurture → Activate on each release → Measure → repeat',
-        activationState: 'missing',
-        activationCondition: 'Email list infrastructure and a first release to activate against',
+        mechanism: 'Capture email or SMS → Nurture → Activate on each release → Measure → repeat',
+        feeds_converges_into: 'OFL 7 release schedule; tour announcement cycle',
         source: 'operator_declared',
       })
     );
     // No doneWhen in the stored record — confirmed absent
     expect(systems[0].doneWhen).toBeUndefined();
+    // No run-state fields survive the Step 4 ladder
+    expect(systems[0].cycle).toBeUndefined();
+    expect(systems[0].activationState).toBeUndefined();
+    expect(systems[0].activationCondition).toBeUndefined();
   });
 });

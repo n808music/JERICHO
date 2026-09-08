@@ -1,0 +1,207 @@
+{
+  "baseline": {
+    "commit": "HEAD",
+    "commitMessage": "Entity-formation-gate-defect fix + current test state",
+    "timestamp": "2026-08-28T03:40:02.789Z",
+    "runDuration": "See test run log",
+    "metadata": {
+      "totalTests": 4457,
+      "failingCount": 47,
+      "passingCount": 4403,
+      "skippedCount": 7,
+      "filesFailed": 26,
+      "filesPassed": 627,
+      "filesTotal": 653
+    }
+  },
+  "failingTests": [
+    {
+      "file": "tests/state/autoAsanaPlan.distribution.spread.test.ts",
+      "testPath": "autoAsanaPlan deterministic day distribution > uses concrete session titles from action sequences instead of repeated parent action shells"
+    },
+    {
+      "file": "tests/state/autoAsanaPlan.distribution.spread.test.ts",
+      "testPath": "autoAsanaPlan deterministic day distribution > rewrites commercial family-shell action titles into operational block titles"
+    },
+    {
+      "file": "tests/state/autoAsanaPlan.distribution.spread.test.ts",
+      "testPath": "autoAsanaPlan deterministic day distribution > rewrites explicit session-plan family shells before rendering blocks"
+    },
+    {
+      "file": "tests/components/ZionDashboard.pos.afterAdmit.test.jsx",
+      "testPath": "ZionDashboard POS after admit > starts the first execution cycle directly from Structure when no active cycle exists"
+    },
+    {
+      "file": "src/state/__tests__/autoAsana.scheduler.v1_1.test.js",
+      "testPath": "autoAsana scheduler v1.1 > prefers deliverable titles over generic session titles when placing explicit session plans"
+    },
+    {
+      "file": "src/state/__tests__/autoAsana.scheduler.v1_1.test.js",
+      "testPath": "autoAsana scheduler v1.1 > prefers deliverable titles over generic action labels when expanding action sequences"
+    },
+    {
+      "file": "tests/state/schedule.generate.nonSilent.test.js",
+      "testPath": "schedule generation non-silent deterministic behavior > emits NO_ADMISSIBLE_PROPOSED_BLOCKS when generated blocks exist but all fail admission"
+    },
+    {
+      "file": "tests/state/jerichoLoop.creativeProduction.ep.e2e.test.ts",
+      "testPath": "jericho creative production ep loop e2e regression > generalizes the first complete loop from planning through execution evidence for an EP release"
+    },
+    {
+      "file": "tests/domain/elicitation/elicitationEngine.acceptance.test.js",
+      "testPath": "Elicitation Engine — Project slot (§9 worked trace, Law 2 proving ground) > runs the full §9 worked trace end-to-end and dispatches DECLARE_PROJECT"
+    },
+    {
+      "file": "tests/state/regulatedConsumable.energyGum.acceptance.test.ts",
+      "testPath": "regulated consumable energy gum founder acceptance > generates the Illinois white-label founder plan instead of a generic regulated consumable plan"
+    },
+    {
+      "file": "tests/state/masterPlanAtomicBlocks.test.js",
+      "testPath": "atomic block decomposition — product gate app store split > app store screenshots appear as a standalone block"
+    },
+    {
+      "file": "tests/state/masterPlanDepth.blockExpansion.test.js",
+      "testPath": "master-plan cadence density — active lanes generate recurring work > each active primary lane generates at least 2 cadence blocks per month for the first 3 months"
+    },
+    {
+      "file": "tests/state/gumGoal.liveParity.test.ts",
+      "testPath": "gum goal live/test parity > materializes a commercially continuous long-horizon schedule for the exact gum goal text"
+    },
+    {
+      "file": "tests/components/BlockDetailsPanel.hierarchyDisplay.test.jsx",
+      "testPath": "BlockDetailsPanel hierarchy display > resolves raw lane ids to canonical enterprise labels instead of showing Lane: Missing"
+    },
+    {
+      "file": "tests/components/BlockDetailsPanel.hierarchyDisplay.test.jsx",
+      "testPath": "BlockDetailsPanel hierarchy display > renders hard-anchor protection work with concrete explanation, validation work type, and completed artifact language"
+    },
+    {
+      "file": "tests/components/BlockDetailsPanel.hierarchyDisplay.test.jsx",
+      "testPath": "BlockDetailsPanel hierarchy display > shows explicit P1 justification for future-phase prerequisite governance work"
+    },
+    {
+      "file": "tests/state/dailyCheckIn.energyGum.acceptance.test.ts",
+      "testPath": "daily check-in energy gum acceptance > surfaces week-6 on-track manufacturer outreach state honestly"
+    },
+    {
+      "file": "src/state/__tests__/convergence_step3_forward_declaration.test.js",
+      "testPath": "Convergence Step 3: Forward Declaration > Step 3.1: Name Requirement > should accept convergence edge with name"
+    },
+    {
+      "file": "src/state/__tests__/convergence_step3_forward_declaration.test.js",
+      "testPath": "Convergence Step 3: Forward Declaration > Step 3.2: Dependency-Chain Exclusion (Hard Block) > should reject if two sources are sequentially dependent"
+    },
+    {
+      "file": "src/state/__tests__/convergence_step3_forward_declaration.test.js",
+      "testPath": "Convergence Step 3: Forward Declaration > Step 3.2: Dependency-Chain Exclusion (Hard Block) > should accept if sources are truly parallel (no sequential dependency)"
+    },
+    {
+      "file": "src/state/__tests__/convergence_step3_forward_declaration.test.js",
+      "testPath": "Convergence Step 3: Forward Declaration > Step 3.3: Deliverable Walkdown > should discover and store owned deliverables from sources"
+    },
+    {
+      "file": "src/state/__tests__/convergence_step3_forward_declaration.test.js",
+      "testPath": "Convergence Step 3: Forward Declaration > Step 3.4: TargetDate Assignment > should assign targetDate to discovered deliverables"
+    },
+    {
+      "file": "tests/state/jerichoLoop.gum.e2e.test.ts",
+      "testPath": "jericho gum loop e2e regression > freezes the first complete loop from initial feasibility through first execution evidence"
+    },
+    {
+      "file": "tests/components/MasterPlanTimeline.render.test.jsx",
+      "testPath": "MasterPlanTimeline rendering > renders lanes, anchors, milestones, and first-cycle preview from canonical master-plan state"
+    },
+    {
+      "file": "src/state/__tests__/convergence_step3_comprehensive.test.js",
+      "testPath": "Convergence Step 3: Comprehensive Multi-Part Test > walkdown discovers deliverables, name is editable, destination validation works"
+    },
+    {
+      "file": "src/state/__tests__/convergence_step3_e2e_walkdown.test.js",
+      "testPath": "Convergence Step 3: Real End-to-End Declaration > declares convergence edge with name and targetDate, validates sources correctly"
+    },
+    {
+      "file": "src/state/__tests__/convergence_step3_e2e_walkdown.test.js",
+      "testPath": "Convergence Step 3: Real End-to-End Declaration > hard-blocks convergence with sequential dependencies"
+    },
+    {
+      "file": "tests/state/podcast.fullPlan.apply.test.js",
+      "testPath": "podcast full-plan apply > commits the full generated proposal set across the horizon"
+    },
+    {
+      "file": "tests/state/masterPlanBlockDisplayProjection.test.js",
+      "testPath": "master-plan block display projection > attaches display titles to generated full-horizon blocks without changing canonical titles"
+    },
+    {
+      "file": "tests/state/masterPlanBlockDisplayProjection.test.js",
+      "testPath": "master-plan block display projection > calendar month projection retains display and detail fields for drill-down inspection"
+    },
+    {
+      "file": "tests/state/masterPlanBlockDisplayProjection.test.js",
+      "testPath": "master-plan block display projection > quality evaluation continues to trust canonical titles even if display titles are compressed further"
+    },
+    {
+      "file": "tests/domain/elicitation/elicitationEngine.projectPhaseFlow.test.js",
+      "testPath": "Elicitation Engine — §5 phase probe fires in the real flow and lands in the store > emits PROJECT_PHASE_UNATTESTED after the verification source, before dispatch"
+    },
+    {
+      "file": "tests/domain/elicitation/elicitationEngine.projectPhaseFlow.test.js",
+      "testPath": "Elicitation Engine — §5 phase probe fires in the real flow and lands in the store > shows the Disclosure-compliant, referent-bound phase copy at the probe"
+    },
+    {
+      "file": "tests/domain/elicitation/elicitationEngine.projectPhaseFlow.test.js",
+      "testPath": "Elicitation Engine — §5 phase probe fires in the real flow and lands in the store > writes the attested phase onto the node (read back from the store)"
+    },
+    {
+      "file": "tests/domain/elicitation/elicitationEngine.projectPhase.test.js",
+      "testPath": "project slot — phase attestation (the gap, before the fix) > elicits phase: phase is a captured field of the project slot"
+    },
+    {
+      "file": "tests/domain/elicitation/elicitationEngine.projectPhase.test.js",
+      "testPath": "project slot — phase attestation (the gap, before the fix) > has a phase-unattested gate that fires when phase is absent"
+    },
+    {
+      "file": "tests/domain/elicitation/elicitationEngine.projectPhase.test.js",
+      "testPath": "project slot — phase attestation (the gap, before the fix) > has a non-canonical phase gate (validated through the single classifyPhase, not a second validator)"
+    },
+    {
+      "file": "tests/domain/elicitation/elicitationEngine.projectPhase.test.js",
+      "testPath": "project slot — phase attestation (the gap, before the fix) > carries phase through to the DECLARE_PROJECT payload (canonical number)"
+    },
+    {
+      "file": "tests/domain/elicitation/elicitationEngine.projectPhase.test.js",
+      "testPath": "project slot — phase attestation (the gap, before the fix) > ships a Disclosure-compliant phase probe (beginning/middle/end spine)"
+    },
+    {
+      "file": "tests/domain/elicitation/elicitationEngine.projectPhase.test.js",
+      "testPath": "project slot — phase lands on the node end-to-end (real declare path) > an attested phase reaches node.phase via DECLARE_PROJECT (verified in the store)"
+    },
+    {
+      "file": "tests/domain/elicitation/elicitationEngine.projectPhase.test.js",
+      "testPath": "project slot — phase lands on the node end-to-end (real declare path) > an absent phase still stores null (residual bucket) — not fabricated"
+    },
+    {
+      "file": "tests/state/masterGrid.acceptance.test.jsx",
+      "testPath": "Master Grid acceptance > AC1: seed renders exactly 53 rows with 7/11/17/12/6"
+    },
+    {
+      "file": "tests/state/masterGrid.acceptance.test.jsx",
+      "testPath": "Master Grid acceptance > AC7: seed fidelity — every non-Initiative reference node phase is carried verbatim"
+    },
+    {
+      "file": "src/state/__tests__/suggestion.accept.idempotence.test.js",
+      "testPath": "suggestion accept idempotence > accepting the same suggestion twice creates one committed block"
+    },
+    {
+      "file": "tests/state/masterPlanFullHorizon.coverage.test.js",
+      "testPath": "master-plan full-horizon coverage audit > passes fullHorizonCovered when meaningful work reaches through May 2031"
+    },
+    {
+      "file": "tests/components/AppShell.onboardingToGoalAdmission.flow.test.jsx",
+      "testPath": "AppShell structure entry without an active cycle > lands in the review-mode Structure shell and offers starting a new cycle"
+    },
+    {
+      "file": "tests/components/AppShell.onboardingToGoalAdmission.flow.test.jsx",
+      "testPath": "AppShell structure entry without an active cycle > starts a new coherent profile in the true blank lifecycle state"
+    }
+  ]
+}

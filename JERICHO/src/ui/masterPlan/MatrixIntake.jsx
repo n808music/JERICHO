@@ -71,7 +71,6 @@ const PROBE_OVERRIDES = {
   needStatement:           'What does this person or role need to do their work? Be specific.',
   gapStatement:            'What\'s currently missing for this role? If nothing, say "none" or "not started".',
   activationState:         'Is this system currently live, actively being built, or just planned?',
-  classification:          'What type of initiative is this — building something, launching a campaign, operations, or something else?',
 };
 
 // Optional sections require a scoping question before entering (Rule 5)
@@ -163,7 +162,10 @@ function seedNodeEngine(matrix, slotId, name) {
 function SectionPill({ slotId }) {
   const meta = SLOT_META[slotId] || { label: slotId, section: '', color: '#71717a' };
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    // Rendered by every intake branch (probe, roster, loop-check, include-check),
+    // so it is the one marker that means "MatrixIntake is mounted" regardless of
+    // which screen a restored session lands on.
+    <div data-testid="intake-section-pill" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <span style={{
         fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
         color: meta.color, background: `${meta.color}18`, border: `1px solid ${meta.color}40`,
@@ -415,7 +417,7 @@ function ReadbackScreen({
               <span style={{ fontWeight: 700 }}>
                 {queuedCount} {rosterLabel || 'item'}{queuedCount > 1 ? 's' : ''} queued below.
               </span>{' '}
-              Now trim THIS record to its first deliverable: tap the successMetric and
+              Now trim THIS record to its first deliverable: tap the description and
               verificationSource chips underneath to re-enter each one, then confirm.
               Confirm is never blocked — it declares this record exactly as read back.
             </span>
@@ -754,9 +756,14 @@ function DoneScreen({ onAddMore }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
+export default function MatrixIntake({ onSurveyStarted, onComplete, resumeCycleId = null } = {}) {
   const store = useIdentityStore();
-  const activeCycleId = store.activeCycleId;
+  // The cycle this intake session belongs to. Normally the active cycle; when
+  // the caller is resuming an ORPHANED session (one whose cycle is no longer
+  // active) it passes that cycleId explicitly. Everything downstream — session
+  // read, session write, session clear — keys off this, so a resumed orphan
+  // reads and writes its own row rather than silently starting fresh.
+  const activeCycleId = resumeCycleId || store.activeCycleId;
   const activeCycle = activeCycleId ? store.cyclesById?.[activeCycleId] : null;
   const hasAdmittedGoal = Boolean(activeCycle?.goalContract);
 
@@ -1109,7 +1116,7 @@ export default function MatrixIntake({ onSurveyStarted, onComplete } = {}) {
         // transiently, but the restored engine's internal state doesn't carry
         // it — confirm/reopen would throw 'no readback pending' and every
         // button on the readback dies silently (2026-07-10: unresponsive
-        // successMetric chips after reload). finalizePending() returns the
+        // description chips after reload). finalizePending() returns the
         // engine WITH the readback registered; no dispatches fire because the
         // readback is precisely what gates them.
         let resumedEngine = eng;

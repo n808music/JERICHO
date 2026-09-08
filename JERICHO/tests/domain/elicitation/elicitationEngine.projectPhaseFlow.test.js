@@ -13,10 +13,10 @@ import { createElicitationEngine, PROJECT_SLOT_ID } from '../../../src/domain/el
 const ANSWER_BY_CODE = {
   PROJECT_NAME_MISSING: { name: 'Romance Riot' },
   PROJECT_OWNER_MISSING: { owningEntityId: 'ent-gs-corp' },
-  PROJECT_METRIC_MISSING: { successMetric: '10,000 streams' },
+  PROJECT_DESCRIPTION_MISSING: { description: '10,000 streams' },
   // The source answer carries `verificationSource` (the label) — this spawns the Section 1A
   // verification-source sub-slot with `source` pre-captured, so only its domain is asked next.
-  PROJECT_SOURCE_MISSING: { verificationSource: 'Spotify for Artists' },
+  PROJECT_VERIFICATION_LOCATION_MISSING: { verificationSource: 'Spotify for Artists' },
   VERIFICATION_SOURCE_SOURCE_MISSING: { source: 'Spotify for Artists' },
   VERIFICATION_SOURCE_DOMAIN_MISSING: { domain: 'streams' },
   PROJECT_PHASE_UNATTESTED: { phase: '2' },
@@ -69,7 +69,7 @@ function driveProjectSlot() {
 describe('Elicitation Engine — §5 phase probe fires in the real flow and lands in the store', () => {
   it('emits PROJECT_PHASE_UNATTESTED after the verification source, before dispatch', () => {
     const { probeCodes } = driveProjectSlot();
-    const sourceIdx = probeCodes.indexOf('PROJECT_SOURCE_MISSING');
+    const sourceIdx = probeCodes.indexOf('PROJECT_VERIFICATION_LOCATION_MISSING');
     const phaseIdx = probeCodes.indexOf('PROJECT_PHASE_UNATTESTED');
     expect(phaseIdx).toBeGreaterThan(-1);          // the probe fires
     expect(phaseIdx).toBeGreaterThan(sourceIdx);   // in the right order (after source)
