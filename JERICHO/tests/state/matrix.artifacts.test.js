@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { buildBlankIdentityState } from '../../src/state/identityStore.js';
 import { computeDerivedState } from '../../src/state/identityCompute.js';
 import { resolveBlockPlainLanguage } from '../../src/domain/product/resolveBlockPlainLanguage.js';
+import { seededDeliverableState } from '../../tests/helpers/seededDeliverableState.js';
 
 /**
  * MATRIX SECTION 6 — ARTIFACTS (physical outputs)
@@ -23,66 +23,6 @@ import { resolveBlockPlainLanguage } from '../../src/domain/product/resolveBlock
  * is set but does not resolve in artifactsById. Soft mode for empty registry.
  */
 
-function seededState() {
-  let state = buildBlankIdentityState({});
-  state = computeDerivedState(state, {
-    type: 'DECLARE_VERIFICATION_SOURCE',
-    payload: { id: 'src-archive', domain: 'Project archive', source: 'Project archive workspace' },
-  });
-  state = computeDerivedState(state, {
-    type: 'DECLARE_NODE',
-    payload: { id: 'node-gs-corp', name: 'Global State Corp.', roleTags: ['Business'] },
-  });
-  state = computeDerivedState(state, {
-    type: 'DECLARE_INITIATIVE',
-    payload: {
-      id: 'init-music-release',
-      name: 'Music Release Initiative',
-      owningEntityId: 'node-gs-corp',
-      purpose: 'Release Romance Riot album',
-      doneWhen: 'Album released on all platforms',
-        function: 'ops',
-        boundary_type: 'Terminating',
-        completion_value: 'Initiative complete'
-    },
-  });
-  state = computeDerivedState(state, {
-    type: 'DECLARE_PROJECT',
-    payload: {
-      id: 'project-romance-riot',
-      name: 'Romance Riot',
-      owningEntityId: 'node-gs-corp',
-      description: '≥10,000 first-week streams',
-      verificationSourceId: 'src-archive',
-      owningInitiativeId: 'init-music-release',
-    },
-  });
-  // Step 3: Add test deliverables for artifact parentDeliverableIds wiring
-  // NOTE: v3 intake format (2026-09-07): parent_project + executing_entity + target_date
-  state = computeDerivedState(state, {
-    type: 'DECLARE_DELIVERABLE',
-    payload: {
-      id: 'deliv-rr-recording',
-      name: 'Romance Riot recording sessions',
-      parent_project: 'project-romance-riot',
-      executing_entity: 'node-gs-corp',
-      target_date: '2026-08-15',
-      description: 'All 12 tracks recorded and mixed',
-    },
-  });
-  state = computeDerivedState(state, {
-    type: 'DECLARE_DELIVERABLE',
-    payload: {
-      id: 'deliv-rr-mastering',
-      name: 'Romance Riot mastering',
-      parent_project: 'project-romance-riot',
-      executing_entity: 'node-gs-corp',
-      target_date: '2026-08-25',
-      description: 'Master WAV files finalized',
-    },
-  });
-  return state;
-}
 
 const ARTIFACT_MASTER_WAV = {
   id: 'artifact-rr-master-wav',
@@ -96,7 +36,7 @@ const ARTIFACT_MASTER_WAV = {
 
 describe('MATRIX SECTION 6 — DECLARE / UPDATE / REMOVE ARTIFACT', () => {
   it('DECLARE_ARTIFACT adds an artifact when all required fields resolve', () => {
-    const initial = seededState();
+    const initial = seededDeliverableState();
     const next = computeDerivedState(initial, {
       type: 'DECLARE_ARTIFACT',
       payload: ARTIFACT_MASTER_WAV,
@@ -116,7 +56,7 @@ describe('MATRIX SECTION 6 — DECLARE / UPDATE / REMOVE ARTIFACT', () => {
   });
 
   it('DECLARE_ARTIFACT rejects payload missing completionEvidence', () => {
-    const initial = seededState();
+    const initial = seededDeliverableState();
     const broken = computeDerivedState(initial, {
       type: 'DECLARE_ARTIFACT',
       payload: { ...ARTIFACT_MASTER_WAV, completionEvidence: '' },
@@ -126,7 +66,7 @@ describe('MATRIX SECTION 6 — DECLARE / UPDATE / REMOVE ARTIFACT', () => {
   });
 
   it('DECLARE_ARTIFACT rejects payload missing operatorAttestationMethod', () => {
-    const initial = seededState();
+    const initial = seededDeliverableState();
     const broken = computeDerivedState(initial, {
       type: 'DECLARE_ARTIFACT',
       payload: { ...ARTIFACT_MASTER_WAV, operatorAttestationMethod: '' },
@@ -136,7 +76,7 @@ describe('MATRIX SECTION 6 — DECLARE / UPDATE / REMOVE ARTIFACT', () => {
   });
 
   it('DECLARE_ARTIFACT rejects payload whose producingProjectId is not in projectsById', () => {
-    const initial = seededState();
+    const initial = seededDeliverableState();
     const broken = computeDerivedState(initial, {
       type: 'DECLARE_ARTIFACT',
       payload: { ...ARTIFACT_MASTER_WAV, producingProjectId: 'project-ghost' },
@@ -146,7 +86,7 @@ describe('MATRIX SECTION 6 — DECLARE / UPDATE / REMOVE ARTIFACT', () => {
   });
 
   it('DECLARE_ARTIFACT rejects payload whose verificationSourceId is not in verificationSourcesById', () => {
-    const initial = seededState();
+    const initial = seededDeliverableState();
     const broken = computeDerivedState(initial, {
       type: 'DECLARE_ARTIFACT',
       payload: { ...ARTIFACT_MASTER_WAV, verificationSourceId: 'src-ghost' },
@@ -156,7 +96,7 @@ describe('MATRIX SECTION 6 — DECLARE / UPDATE / REMOVE ARTIFACT', () => {
   });
 
   it('UPDATE_ARTIFACT patches an existing artifact (cross-section invariants enforced)', () => {
-    const initial = seededState();
+    const initial = seededDeliverableState();
     const declared = computeDerivedState(initial, {
       type: 'DECLARE_ARTIFACT',
       payload: ARTIFACT_MASTER_WAV,
@@ -178,7 +118,7 @@ describe('MATRIX SECTION 6 — DECLARE / UPDATE / REMOVE ARTIFACT', () => {
   });
 
   it('REMOVE_ARTIFACT deletes an artifact by id', () => {
-    const initial = seededState();
+    const initial = seededDeliverableState();
     const declared = computeDerivedState(initial, {
       type: 'DECLARE_ARTIFACT',
       payload: ARTIFACT_MASTER_WAV,
