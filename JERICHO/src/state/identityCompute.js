@@ -243,20 +243,20 @@ export function stableHashObject(obj) {
  * @returns {Array<{ sourceIds: string[], targetDate: string }>}
  */
 export function detectConvergenceCandidates(matrix) {
-  if (!matrix || typeof matrix !== 'object') return [];
+  if (!matrix || typeof matrix !== 'object') {return [];}
 
   const targetDateById = {};
 
   Object.values(matrix.deliverablesById || {}).forEach((d) => {
-    if (d?.id && d.targetDate) targetDateById[d.id] = d.targetDate;
+    if (d?.id && d.targetDate) {targetDateById[d.id] = d.targetDate;}
   });
   Object.values(matrix.artifactsById || {}).forEach((a) => {
-    if (a?.id && a.targetDate) targetDateById[a.id] = a.targetDate;
+    if (a?.id && a.targetDate) {targetDateById[a.id] = a.targetDate;}
   });
 
   const byDate = {};
   Object.entries(targetDateById).forEach(([nodeId, targetDate]) => {
-    if (!byDate[targetDate]) byDate[targetDate] = [];
+    if (!byDate[targetDate]) {byDate[targetDate] = [];}
     byDate[targetDate].push(nodeId);
   });
 
@@ -264,7 +264,7 @@ export function detectConvergenceCandidates(matrix) {
   const clusters = [];
 
   Object.entries(byDate).forEach(([targetDate, nodeIds]) => {
-    if (!nodeIds || nodeIds.length < 2) return;
+    if (!nodeIds || nodeIds.length < 2) {return;}
 
     const sortedIds = [...nodeIds].sort();
 
@@ -317,7 +317,7 @@ export function detectConvergenceCandidates(matrix) {
 export function updateConvergenceDetectionState(state, candidates) {
   const draft = structuredClone ? structuredClone(state) : JSON.parse(JSON.stringify(state));
   const matrix = draft.matrix;
-  if (!matrix) return draft;
+  if (!matrix) {return draft;}
 
   const now = draft.appTime?.nowISO || new Date().toISOString();
   const existing = matrix.convergenceDetectionState || {
@@ -336,7 +336,7 @@ export function updateConvergenceDetectionState(state, candidates) {
   // Deliverable/Artifact AND still carry the same targetDate the
   // question was raised against.
   const validQuestions = (existing.pendingQuestions || []).filter((q) => {
-    if (!q || !Array.isArray(q.sourceIds) || q.sourceIds.length === 0) return false;
+    if (!q || !Array.isArray(q.sourceIds) || q.sourceIds.length === 0) {return false;}
     return q.sourceIds.every((id) => {
       const node = matrix.deliverablesById?.[id] || matrix.artifactsById?.[id];
       return node && node.targetDate === q.targetDate;
@@ -346,7 +346,7 @@ export function updateConvergenceDetectionState(state, candidates) {
   // Rebuild pending questions from the freshly detected candidate clusters.
   const newQuestions = [];
   (Array.isArray(candidates) ? candidates : []).forEach((cluster) => {
-    if (!cluster || !Array.isArray(cluster.sourceIds) || !cluster.targetDate) return;
+    if (!cluster || !Array.isArray(cluster.sourceIds) || !cluster.targetDate) {return;}
     const qId = generateQuestionId(cluster.sourceIds, cluster.targetDate);
     const alreadyAnswered = Boolean(answered[qId]);
     const alreadyPending = validQuestions.some((q) => q.id === qId) ||
@@ -368,9 +368,9 @@ export function updateConvergenceDetectionState(state, candidates) {
   // indefinitely once their superset peer exists.
   const validQuestionsDeduped = validQuestions.filter((vq1) => {
     const isSubsumed = validQuestions.some((vq2) => {
-      if (vq1.id === vq2.id) return false; // Skip self-comparison
-      if (vq1.targetDate !== vq2.targetDate) return false;
-      if (vq1.sourceIds.length >= vq2.sourceIds.length) return false;
+      if (vq1.id === vq2.id) {return false;} // Skip self-comparison
+      if (vq1.targetDate !== vq2.targetDate) {return false;}
+      if (vq1.sourceIds.length >= vq2.sourceIds.length) {return false;}
       // vq1's sourceIds must be a strict subset of vq2's
       return vq1.sourceIds.every((id) => vq2.sourceIds.includes(id));
     });
@@ -384,8 +384,8 @@ export function updateConvergenceDetectionState(state, candidates) {
   // cluster exists, then dc3 joins to form dc1+dc2+dc3 cluster).
   const prunedValidQuestions = validQuestionsDeduped.filter((vq) => {
     const isSubsumed = newQuestions.some((nq) => {
-      if (vq.targetDate !== nq.targetDate) return false;
-      if (vq.sourceIds.length >= nq.sourceIds.length) return false;
+      if (vq.targetDate !== nq.targetDate) {return false;}
+      if (vq.sourceIds.length >= nq.sourceIds.length) {return false;}
       // vq's sourceIds must be a strict subset of nq's
       return vq.sourceIds.every((id) => nq.sourceIds.includes(id));
     });
@@ -397,9 +397,9 @@ export function updateConvergenceDetectionState(state, candidates) {
   // (and independently of) the larger cluster containing it.
   const finalNewQuestions = newQuestions.filter((nq1) => {
     const isSubsumed = newQuestions.some((nq2) => {
-      if (nq1.id === nq2.id) return false; // Skip self-comparison
-      if (nq1.targetDate !== nq2.targetDate) return false;
-      if (nq1.sourceIds.length >= nq2.sourceIds.length) return false;
+      if (nq1.id === nq2.id) {return false;} // Skip self-comparison
+      if (nq1.targetDate !== nq2.targetDate) {return false;}
+      if (nq1.sourceIds.length >= nq2.sourceIds.length) {return false;}
       // nq1's sourceIds must be a strict subset of nq2's
       return nq1.sourceIds.every((id) => nq2.sourceIds.includes(id));
     });
@@ -433,7 +433,7 @@ export function updateConvergenceDetectionState(state, candidates) {
 export const _internal = { detectConvergenceCandidates };
 
 export function applyEnterpriseIdentityAudit(next) {
-  if (!next || typeof next !== 'object') return;
+  if (!next || typeof next !== 'object') {return;}
   const profile = next.profilesById?.[next.activeProfileId] || null;
   const activeMissionId = profile?.activeCoreMissionContractId || null;
   const contract = activeMissionId ? next.coreMissionContractsById?.[activeMissionId] || null : null;
@@ -500,7 +500,7 @@ const DEFAULT_PROFILE_LABEL = 'Local Profile';
 
 // Part D: Backfill confirmation provenance on all existing CONFIRMED nodes
 export function normalizeConfirmationProvenance(state) {
-  if (!state.matrix) return;
+  if (!state.matrix) {return;}
   const nodeArrays = [
     state.matrix.entitiesById,
     state.matrix.initiativesById,
@@ -511,7 +511,7 @@ export function normalizeConfirmationProvenance(state) {
     state.matrix.capacityById,
   ];
   for (const nodeMap of nodeArrays) {
-    if (!nodeMap || typeof nodeMap !== 'object') continue;
+    if (!nodeMap || typeof nodeMap !== 'object') {continue;}
     for (const node of Object.values(nodeMap)) {
       if (node && node.reviewStatus === 'CONFIRMED' && !node.confirmedAt) {
         node.confirmedAt = null;
@@ -617,7 +617,7 @@ export function computeDerivedState(state, action) {
         const matrix = next.matrix || {};
         for (const slice of ['entitiesById', 'initiativesById', 'projectsById', 'artifactsById', 'systemsById']) {
           const map = matrix[slice];
-          if (!map) continue;
+          if (!map) {continue;}
           for (const id of Object.keys(map)) {
             if (map[id] && map[id].reviewStatus === 'DRAFT') {
               map[id] = { ...map[id], reviewStatus: 'CONFIRMED' };
@@ -642,7 +642,7 @@ export function computeDerivedState(state, action) {
               'Intake marked complete while its in-flight session still held uncommitted answers; the session was preserved for resume rather than discarded.',
           };
         } else {
-          if (session) delete next.intakeSessionByCycleId[cycleId];
+          if (session) {delete next.intakeSessionByCycleId[cycleId];}
           next.intakeCommitWarning = null;
         }
       }
@@ -1253,20 +1253,11 @@ export function computeDerivedState(state, action) {
     case 'REMOVE_PROJECT':
       removeProject(next, action.payload || {});
       break;
-    case 'DECLARE_DELIVERABLE': {
-      // Dispatch to new intake path (parent_project + executing_entity) or legacy path (owningProjectId + owningInitiativeId)
-      const payload = action.payload || {};
-      if (payload.parent_project !== undefined || payload.executing_entity !== undefined) {
-        // New intake path (locked design v3, 2026-09-02)
-        declareDeliverable(next, payload);
-      } else {
-        // Legacy path (backward compatibility)
-        declareMatrixDeliverable(next, payload);
-      }
+    case 'DECLARE_DELIVERABLE':
+      declareDeliverable(next, action.payload || {});
       break;
-    }
     case 'REMOVE_DELIVERABLE':
-      removeMatrixDeliverable(next, action.payload || {});
+      removeDeliverable(next, action.payload || {});
       break;
     case 'DECLARE_ARTIFACT':
       declareArtifact(next, action.payload || {});
@@ -2563,9 +2554,9 @@ function buildAdmissionAuditIntakeText(state, cycleId = null) {
   ].filter(Boolean);
   return sources
     .flatMap((source) => {
-      if (typeof source === 'string') return [source];
-      if (Array.isArray(source)) return source;
-      if (source && typeof source === 'object') return Object.values(source);
+      if (typeof source === 'string') {return [source];}
+      if (Array.isArray(source)) {return source;}
+      if (source && typeof source === 'object') {return Object.values(source);}
       return [];
     })
     .map((value) => (typeof value === 'string' ? value : JSON.stringify(value)))
@@ -2629,13 +2620,13 @@ function normalizeStableWorkType(value, fallback = 'Execution') {
   if (!normalized) {
     return fallback;
   }
-  if (normalized === 'validation') return 'Validation';
-  if (normalized === 'review') return 'Review';
-  if (normalized === 'readiness') return 'Readiness';
-  if (normalized === 'gate') return 'Gate';
-  if (normalized === 'monitoring' || normalized === 'audit') return 'Monitoring';
-  if (normalized === 'planning') return 'Planning';
-  if (normalized === 'execution' || normalized === 'action') return 'Execution';
+  if (normalized === 'validation') {return 'Validation';}
+  if (normalized === 'review') {return 'Review';}
+  if (normalized === 'readiness') {return 'Readiness';}
+  if (normalized === 'gate') {return 'Gate';}
+  if (normalized === 'monitoring' || normalized === 'audit') {return 'Monitoring';}
+  if (normalized === 'planning') {return 'Planning';}
+  if (normalized === 'execution' || normalized === 'action') {return 'Execution';}
   return String(value || '').trim() || fallback;
 }
 
@@ -2881,10 +2872,10 @@ function enforceExecutionStartBoundary(state) {
   const activeCycleId = state.activeCycleId || null;
   const activeCycle = activeCycleId ? (state.cyclesById?.[activeCycleId] || null) : null;
   const executionStartDayKey = activeCycle?.executionStartDayKey || null;
-  if (!executionStartDayKey) return;
+  if (!executionStartDayKey) {return;}
   const isEvidenced = (blockId) => {
     const id = String(blockId || '').trim();
-    if (!id) return false;
+    if (!id) {return false;}
     return (state.executionEvents || []).some((e) => {
       const eid = String(e?.blockId || '').trim();
       const kind = String(e?.kind || '').trim().toLowerCase();
@@ -3065,7 +3056,7 @@ function ensureDeliverablesStore(state) {
 // pattern. See src/domain/masterGrid/capacityFromLegacy.js for the pure seeding logic and
 // docs/superpowers/specs/2026-07-13-unified-schedule-generation-design.md §7.3.
 function ensureCapacitySeed(state) {
-  if (!state.matrix) return;
+  if (!state.matrix) {return;}
   const cycle = getActiveCycle(state);
   const seeded = seedCapacityFromLegacyConstraints({
     matrix: state.matrix,
@@ -3073,7 +3064,7 @@ function ensureCapacitySeed(state) {
     availabilityPolicyWorkWindows: state.availabilityPolicy?.workWindows || null,
     strategyConstraints: cycle?.strategy?.constraints || null,
   });
-  if (!seeded) return;
+  if (!seeded) {return;}
   if (!state.matrix.capacityById) {
     state.matrix.capacityById = {};
   }
@@ -3086,9 +3077,9 @@ function ensureCapacitySeed(state) {
 // missing row or an already-CONFIRMED row is a no-op.
 function confirmCapacity(state, payload = {}) {
   const id = payload?.id || null;
-  if (!id || !state.matrix?.capacityById) return;
+  if (!id || !state.matrix?.capacityById) {return;}
   const row = state.matrix.capacityById[id];
-  if (!row || row.reviewStatus === 'CONFIRMED') return;
+  if (!row || row.reviewStatus === 'CONFIRMED') {return;}
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
   state.matrix.capacityById[id] = {
     ...row,
@@ -6471,13 +6462,13 @@ function titleStartsWithActionVerb(text) {
 function lowercaseUnlessInitialism(text) {
   const str = String(text || '');
   const m = str.match(/^(\S+)/);
-  if (!m) return str;
+  if (!m) {return str;}
   const firstWord = m[1];
   const isInitialism =
     firstWord.length >= 2 &&
     firstWord === firstWord.toUpperCase() &&
     firstWord !== firstWord.toLowerCase();
-  if (isInitialism) return str;
+  if (isInitialism) {return str;}
   return str.charAt(0).toLowerCase() + str.slice(1);
 }
 
@@ -6592,8 +6583,8 @@ function actionizeMasterPlanCandidateTitle(candidate = {}) {
 // Guards against OLD plans created before normalizeMilestoneTitle was applied at intake time.
 function safeBlockTitle(rawTitle, lane) {
   const t = String(rawTitle || '').trim();
-  if (/^drop$/i.test(t)) return `Release ${lane?.title || 'project'}`;
-  if (/^launch$/i.test(t)) return `Launch ${lane?.title || 'product'}`;
+  if (/^drop$/i.test(t)) {return `Release ${lane?.title || 'project'}`;}
+  if (/^launch$/i.test(t)) {return `Launch ${lane?.title || 'product'}`;}
   return t;
 }
 
@@ -6609,7 +6600,7 @@ function tryDecomposeNumericRangeCandidate(candidate) {
     const base = parenMatch[1].replace(/\s*\bbatch\b\s*/i, ' ').replace(/\s+/g, ' ').trim();
     const start = parseInt(parenMatch[2], 10);
     const end = parseInt(parenMatch[3], 10);
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || end - start > 9) return null;
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || end - start > 9) {return null;}
     return Array.from({ length: end - start + 1 }, (_, i) => {
       const n = start + i;
       return {
@@ -6627,7 +6618,7 @@ function tryDecomposeNumericRangeCandidate(candidate) {
     const start = parseInt(inlineMatch[2], 10);
     const end = parseInt(inlineMatch[3], 10);
     const post = inlineMatch[4].trim();
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || end - start > 9) return null;
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || end - start > 9) {return null;}
     return Array.from({ length: end - start + 1 }, (_, i) => {
       const n = start + i;
       const atomicTitle = [`${pre} episode ${n}`, post].filter(Boolean).join(' ').trim();
@@ -6728,11 +6719,11 @@ function buildLaneCadenceCandidates(lanes, todayDayKey, windowEndDayKey, timeZon
   for (const lane of activeLanes) {
     const domain = String(lane?.domain || '').trim().toLowerCase();
     const templates = LANE_RECURRING_WORK[domain] || [];
-    if (templates.length === 0) continue;
+    if (templates.length === 0) {continue;}
     const laneLabel = lane.title || `${domain} work`;
     const laneId = lane.id;
     const startDate = addDays(todayDayKey, 7, timeZone);
-    if (!startDate || startDate > windowEndDayKey) continue;
+    if (!startDate || startDate > windowEndDayKey) {continue;}
     let cursor = startDate;
     let templateIdx = 0;
     while (cursor && cursor <= windowEndDayKey) {
@@ -7983,7 +7974,7 @@ function applyLongHorizonCalendarBlocks(state) {
   const allForecastBlocks = [];
   for (const phase of phaseModel.phases) {
     // Skip phases that start entirely beyond the selected horizon
-    if (horizonEndForMode && phase.startBoundary > horizonEndForMode) continue;
+    if (horizonEndForMode && phase.startBoundary > horizonEndForMode) {continue;}
     const blocks = deriveForecastBlocks({
       plan, phase, horizonEndDayKey: horizonEndForMode, cycleEndDayKey,
     });
@@ -8118,7 +8109,7 @@ function applyLongHorizonCalendarBlocks(state) {
 
     // Check phase-specific issues
     for (const phase of phaseModel.phases) {
-      if (horizonEndForMode < phase.startBoundary) continue; // Phase not in scope
+      if (horizonEndForMode < phase.startBoundary) {continue;} // Phase not in scope
       const phaseBlocks = (fullHorizonScheduleBlocks || []).filter(b => b.phaseLabel === phase.label);
       if (phaseBlocks.length === 0) {
         coverageFailureReasonCodes.push(`PHASE_EXISTS_WITHOUT_SCHEDULED_WORK:${phase.label}`);
@@ -8138,7 +8129,7 @@ function applyLongHorizonCalendarBlocks(state) {
     });
     state.fullHorizonScheduleBlocks = projectedForecastBlocks;
     state.calendarDisplayBlocks = suppressTodayForecastForFreshCycle ? [] : projectedForecastBlocks;
-    if (!IS_PRODUCTION) console.warn('Full-horizon expansion failed:', err && err.message);
+    if (!IS_PRODUCTION) {console.warn('Full-horizon expansion failed:', err && err.message);}
     coverageFailureReasonCodes.push('FULL_HORIZON_SCHEDULE_EXPANSION_MISSING');
     
     // Still check allForecastBlocks for P2/P3 presence
@@ -8216,14 +8207,14 @@ function applyExecutionCorrection(state) {
   const executionCorrectionByGoal = {};
   const goalIds = Object.keys(state.goalPolicyByGoalId || {});
   goalIds.forEach((goalId) => {
-    if (!goalId) return;
+    if (!goalId) {return;}
     const cycle = resolveCycleForGoal(state, goalId);
     const executionEvents = getCanonicalExecutionEventsForCycleGoal(state, cycle?.id || null, goalId);
     const externalEvidenceEvents = getCanonicalExternalEvidenceEventsForCycleGoal(state, cycle?.id || null, goalId);
     const planMutationEvents = (Array.isArray(state.planMutationEvents) ? state.planMutationEvents : []).filter((event) => {
-      if (!event?.blockId) return false;
-      if (goalId && event?.goalId && event.goalId !== goalId) return false;
-      if (cycle?.id && event?.cycleId && event.cycleId !== cycle.id) return false;
+      if (!event?.blockId) {return false;}
+      if (goalId && event?.goalId && event.goalId !== goalId) {return false;}
+      if (cycle?.id && event?.cycleId && event.cycleId !== cycle.id) {return false;}
       return true;
     });
     const canonicalActions = getCanonicalCycleActions(cycle);
@@ -8250,9 +8241,9 @@ function applySystemShotClock(state) {
     const executionContract = cycle?.goalContract || state.goalExecutionContract || null;
     const executionEvents = getCanonicalExecutionEventsForCycleGoal(state, cycle?.id || null, goalId);
     const blocks = getAllBlocks(state).filter((block) => {
-      if (!block?.id) return false;
-      if (goalId && block?.goalId && block.goalId !== goalId) return false;
-      if (cycle?.id && block?.cycleId && block.cycleId !== cycle.id) return false;
+      if (!block?.id) {return false;}
+      if (goalId && block?.goalId && block.goalId !== goalId) {return false;}
+      if (cycle?.id && block?.cycleId && block.cycleId !== cycle.id) {return false;}
       return true;
     });
     systemShotClockByGoal[goalId] = deriveSystemShotClock({
@@ -10396,7 +10387,7 @@ function dayKeyUTC(iso) {
 }
 
 export function getBlockDayKey(block) {
-  if (!block) return null;
+  if (!block) {return null;}
   const localizedFromStart = dayKeyFromISO(block?.start || block?.startISO || '', APP_TIME_ZONE);
   if (localizedFromStart) {
     return localizedFromStart;
@@ -12174,7 +12165,7 @@ function deleteCycle(state, cycleId) {
     const survivingBlocks = {};
     if (state.blockStore?.blocks) {
       Object.entries(state.blockStore.blocks).forEach(([id, block]) => {
-        if (block) survivingBlocks[id] = block;
+        if (block) {survivingBlocks[id] = block;}
       });
     }
     clearActiveCycleSessionState(state);
@@ -14218,7 +14209,7 @@ function rebaseSchedule(state, payload = {}) {
       if (dayKey && dayKey >= executionStartDayKey) {
         const startMin = parseHHMMToMinutes(String((block?.startISO || block?.start || '').slice(11, 16) || '09:00'));
         const durationMinutes = Math.max(1, Number(block?.durationMinutes || 30));
-        if (!occupiedByDayKey.has(dayKey)) occupiedByDayKey.set(dayKey, []);
+        if (!occupiedByDayKey.has(dayKey)) {occupiedByDayKey.set(dayKey, []);}
         occupiedByDayKey.get(dayKey).push({ startMin, endMin: startMin + durationMinutes });
         dailyCounts.set(dayKey, (dailyCounts.get(dayKey) || 0) + 1);
         const weekKey = weekKeyForDay(dayKey);
@@ -14282,7 +14273,7 @@ function rebaseSchedule(state, payload = {}) {
       status: String(block?.status || '').trim().toLowerCase() === 'completed' ? 'completed' : 'planned',
     };
     rebasedBlocks.push(rebased);
-    if (!occupiedByDayKey.has(slot.dayKey)) occupiedByDayKey.set(slot.dayKey, []);
+    if (!occupiedByDayKey.has(slot.dayKey)) {occupiedByDayKey.set(slot.dayKey, []);}
     occupiedByDayKey.get(slot.dayKey).push({
       startMin: slot.startMin,
       endMin: slot.startMin + Math.max(1, Number(block?.durationMinutes || 30)),
@@ -16065,7 +16056,7 @@ function applyNextSuggestion(state) {
 // ─────────────────────────────────────────────────────────────────────────
 
 function ensureMatrixSlot(state) {
-  if (!state || typeof state !== 'object') return;
+  if (!state || typeof state !== 'object') {return;}
   if (!state.matrix || typeof state.matrix !== 'object') {
     state.matrix = {
       verificationSourcesById: {},
@@ -16096,21 +16087,21 @@ function ensureMatrixSlot(state) {
     };
     return;
   }
-  if (!state.matrix.verificationSourcesById) state.matrix.verificationSourcesById = {};
-  if (!state.matrix.entitiesById) state.matrix.entitiesById = {};
-  if (!state.matrix.initiativesById) state.matrix.initiativesById = {};
-  if (!state.matrix.systemsById) state.matrix.systemsById = {};
-  if (!state.matrix.projectsById) state.matrix.projectsById = {};
-  if (!state.matrix.deliverablesById) state.matrix.deliverablesById = {};
-  if (!state.matrix.artifactsById) state.matrix.artifactsById = {};
-  if (!state.matrix.dependenciesById) state.matrix.dependenciesById = {};
-  if (!state.matrix.convergenceEdgesById) state.matrix.convergenceEdgesById = {};
-  if (!state.matrix.matrixLinksById) state.matrix.matrixLinksById = {};
-  if (!state.matrix.milestonesById) state.matrix.milestonesById = {};
-  if (!state.matrix.resourceProfilesById) state.matrix.resourceProfilesById = {};
-  if (!state.matrix.capacityById) state.matrix.capacityById = {};
-  if (!('bindingConstraint' in state.matrix)) state.matrix.bindingConstraint = null;
-  if (!state.matrix.bootstrap) state.matrix.bootstrap = { candidates: [], selectedNodeId: null };
+  if (!state.matrix.verificationSourcesById) {state.matrix.verificationSourcesById = {};}
+  if (!state.matrix.entitiesById) {state.matrix.entitiesById = {};}
+  if (!state.matrix.initiativesById) {state.matrix.initiativesById = {};}
+  if (!state.matrix.systemsById) {state.matrix.systemsById = {};}
+  if (!state.matrix.projectsById) {state.matrix.projectsById = {};}
+  if (!state.matrix.deliverablesById) {state.matrix.deliverablesById = {};}
+  if (!state.matrix.artifactsById) {state.matrix.artifactsById = {};}
+  if (!state.matrix.dependenciesById) {state.matrix.dependenciesById = {};}
+  if (!state.matrix.convergenceEdgesById) {state.matrix.convergenceEdgesById = {};}
+  if (!state.matrix.matrixLinksById) {state.matrix.matrixLinksById = {};}
+  if (!state.matrix.milestonesById) {state.matrix.milestonesById = {};}
+  if (!state.matrix.resourceProfilesById) {state.matrix.resourceProfilesById = {};}
+  if (!state.matrix.capacityById) {state.matrix.capacityById = {};}
+  if (!('bindingConstraint' in state.matrix)) {state.matrix.bindingConstraint = null;}
+  if (!state.matrix.bootstrap) {state.matrix.bootstrap = { candidates: [], selectedNodeId: null };}
   if (!state.matrix.convergenceDetectionState) {
     state.matrix.convergenceDetectionState = {
       pendingQuestions: [],
@@ -16151,20 +16142,20 @@ function declareVerificationSource(state, payload = {}) {
 function updateVerificationSource(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
-  if (!id) return;
+  if (!id) {return;}
   const existing = state.matrix.verificationSourcesById[id];
-  if (!existing) return;
+  if (!existing) {return;}
   const patch = {};
-  if (payload.domain !== undefined) patch.domain = String(payload.domain || '').trim();
-  if (payload.source !== undefined) patch.source = String(payload.source || '').trim();
-  if (payload.notes !== undefined) patch.notes = String(payload.notes || '').trim() || null;
+  if (payload.domain !== undefined) {patch.domain = String(payload.domain || '').trim();}
+  if (payload.source !== undefined) {patch.source = String(payload.source || '').trim();}
+  if (payload.notes !== undefined) {patch.notes = String(payload.notes || '').trim() || null;}
   state.matrix.verificationSourcesById[id] = { ...existing, ...patch };
 }
 
 function removeVerificationSource(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
-  if (!id) return;
+  if (!id) {return;}
   delete state.matrix.verificationSourcesById[id];
 }
 
@@ -16216,25 +16207,25 @@ function declareNode(state, payload = {}) {
 function updateNode(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
-  if (!id) return;
+  if (!id) {return;}
   const existing = state.matrix.entitiesById[id];
-  if (!existing) return;
+  if (!existing) {return;}
   const patch = {};
-  if (payload.name !== undefined) patch.name = String(payload.name || '').trim();
-  if (payload.purpose !== undefined) patch.purpose = String(payload.purpose || '').trim() || null;
+  if (payload.name !== undefined) {patch.name = String(payload.name || '').trim();}
+  if (payload.purpose !== undefined) {patch.purpose = String(payload.purpose || '').trim() || null;}
   if (payload.currentStatus !== undefined)
-    patch.currentStatus = String(payload.currentStatus || '').trim() || null;
+    {patch.currentStatus = String(payload.currentStatus || '').trim() || null;}
   if (payload.desiredFutureState !== undefined)
-    patch.desiredFutureState = String(payload.desiredFutureState || '').trim() || null;
-  if (Array.isArray(payload.roleTags)) patch.roleTags = payload.roleTags.filter(Boolean);
-  if (payload.notes !== undefined) patch.notes = String(payload.notes || '').trim() || null;
+    {patch.desiredFutureState = String(payload.desiredFutureState || '').trim() || null;}
+  if (Array.isArray(payload.roleTags)) {patch.roleTags = payload.roleTags.filter(Boolean);}
+  if (payload.notes !== undefined) {patch.notes = String(payload.notes || '').trim() || null;}
   state.matrix.entitiesById[id] = { ...existing, ...patch };
 }
 
 function removeNode(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
-  if (!id) return;
+  if (!id) {return;}
   delete state.matrix.entitiesById[id];
 }
 
@@ -16287,7 +16278,7 @@ function seedCanonicalEntities(state, payload = {}) {
     const id = canonicalNodeIdFromDisplayName(entity.displayName);
     // Non-destructive — preserve operator-declared values if a node with
     // this id already exists.
-    if (state.matrix.entitiesById[id]) return;
+    if (state.matrix.entitiesById[id]) {return;}
     state.matrix.entitiesById[id] = {
       id,
       name: entity.displayName,
@@ -16388,7 +16379,7 @@ function declareEntity(state, payload = {}) {
     // Step 5: Entity intake fields
     foundation_initiative: foundationInitiative,
   };
-  if (payload?.doneWhen) entry.doneWhen = String(payload.doneWhen).trim();
+  if (payload?.doneWhen) {entry.doneWhen = String(payload.doneWhen).trim();}
   state.matrix.entitiesById[id] = entry;
 }
 
@@ -16439,8 +16430,11 @@ function declareInitiative(state, payload = {}) {
   }
 
   // Validate completion_value XOR ongoing_output pairing
+  // Foundation lanes (structural detection: own "Business Plan" projects) are exempt
+  // from the completion_value requirement per doctrine.
+  const isFoundationLane = payload.isFoundationLane || false;
   if (boundaryType === 'Terminating') {
-    if (!completionValue) {
+    if (!completionValue && !isFoundationLane) {
       state.lastPlanError = {
         code: 'INITIATIVE_COMPLETION_VALUE_MISSING',
         reason: 'Initiative with boundary_type "Terminating" requires completion_value.',
@@ -16499,9 +16493,9 @@ function declareInitiative(state, payload = {}) {
   // §2 under-tag must not leave the matrix internally inconsistent.
   for (const ownerId of owningEntityIds) {
     const owner = state.matrix.entitiesById?.[ownerId];
-    if (!owner) continue;
+    if (!owner) {continue;}
     const tags = Array.isArray(owner.roleTags) ? owner.roleTags : [];
-    if (!tags.includes('initiative')) owner.roleTags = [...tags, 'initiative'];
+    if (!tags.includes('initiative')) {owner.roleTags = [...tags, 'initiative'];}
   }
   state.matrix.initiativesById[id] = {
     id,
@@ -16673,7 +16667,7 @@ function declareSystem(state, payload = {}) {
     const ownerEntity = state.matrix.entitiesById?.[owningEntityId];
     if (ownerEntity) {
       const tags = Array.isArray(ownerEntity.roleTags) ? ownerEntity.roleTags : [];
-      if (!tags.includes('system')) ownerEntity.roleTags = [...tags, 'system'];
+      if (!tags.includes('system')) {ownerEntity.roleTags = [...tags, 'system'];}
     }
   }
 
@@ -16706,6 +16700,11 @@ function declareSystem(state, payload = {}) {
 //  path that fills these in later — every project ships its attestation
 //  pair at declaration time or it is rejected.
 // ─────────────────────────────────────────────────────────────────────────
+
+// Boundary Type doctrine: an Ongoing project has no terminal date, and records that
+// absence as this literal rather than as an empty cell — an empty cell is indistinguishable
+// from a missing declaration, which the intake ladder must keep rejecting.
+const ONGOING_TERMINAL_DATE = 'Ongoing';
 
 function declareProject(state, payload = {}) {
   ensureMatrixSlot(state);
@@ -16741,28 +16740,36 @@ function declareProject(state, payload = {}) {
   }
 
   // Step 3: Validate new project intake fields
-  const executingEntity = String(payload?.executing_entity || '').trim();
+  // executingEntityIds is an array (multi-value); legacy scalar executing_entity supported for compatibility
+  let executingEntityIds = Array.isArray(payload?.executingEntityIds) ? payload.executingEntityIds : [];
+  const legacyExecutingEntity = String(payload?.executing_entity || '').trim();
+  if (legacyExecutingEntity && executingEntityIds.length === 0) {
+    executingEntityIds = [legacyExecutingEntity];
+  }
+
   const parentInitiative = String(payload?.parent_initiative || '').trim();
   const boundaryTypeInput = String(payload?.boundary_type || '').trim();
   const terminalDate = String(payload?.terminal_date || '').trim();
 
-  if (!executingEntity || !parentInitiative || !boundaryTypeInput || !terminalDate) {
+  if (executingEntityIds.length === 0 || !parentInitiative || !boundaryTypeInput || !terminalDate) {
     state.lastPlanError = {
       code: 'PROJECT_INTAKE_INCOMPLETE',
-      reason: 'Project intake requires executing_entity, parent_initiative, boundary_type, and terminal_date.',
-      meta: { id, hasExecutingEntity: Boolean(executingEntity), hasParentInitiative: Boolean(parentInitiative), hasBoundaryType: Boolean(boundaryTypeInput), hasTerminalDate: Boolean(terminalDate) },
+      reason: 'Project intake requires executingEntityIds (non-empty array), parent_initiative, boundary_type, and terminal_date.',
+      meta: { id, hasExecutingEntities: executingEntityIds.length > 0, hasParentInitiative: Boolean(parentInitiative), hasBoundaryType: Boolean(boundaryTypeInput), hasTerminalDate: Boolean(terminalDate) },
     };
     return;
   }
 
-  // Validate executing_entity exists
-  if (!state.matrix.entitiesById[executingEntity]) {
-    state.lastPlanError = {
-      code: 'PROJECT_EXECUTING_ENTITY_UNKNOWN',
-      reason: `Project executing_entity "${executingEntity}" is not declared in matrix.entitiesById.`,
-      meta: { id, executingEntity },
-    };
-    return;
+  // Validate all executing entities exist
+  for (const entityId of executingEntityIds) {
+    if (!state.matrix.entitiesById[entityId]) {
+      state.lastPlanError = {
+        code: 'PROJECT_EXECUTING_ENTITY_UNKNOWN',
+        reason: `Project executing entity "${entityId}" is not declared in matrix.entitiesById.`,
+        meta: { id, executingEntityId: entityId },
+      };
+      return;
+    }
   }
 
   // Validate parent_initiative exists
@@ -16786,23 +16793,47 @@ function declareProject(state, payload = {}) {
     return;
   }
 
-  // Validate terminal_date is valid ISO date and in future
-  const dateObj = new Date(terminalDate);
-  if (isNaN(dateObj.getTime())) {
-    state.lastPlanError = {
-      code: 'PROJECT_TERMINAL_DATE_INVALID',
-      reason: `Project terminal_date "${terminalDate}" is not a valid ISO date (YYYY-MM-DD).`,
-      meta: { id, terminalDate },
-    };
-    return;
-  }
-  if (dateObj <= new Date()) {
-    state.lastPlanError = {
-      code: 'PROJECT_TERMINAL_DATE_NOT_FUTURE',
-      reason: `Project terminal_date "${terminalDate}" must be in the future.`,
-      meta: { id, terminalDate },
-    };
-    return;
+  // Validate terminal_date against boundary_type. Boundary Type doctrine: a Terminating
+  // project carries a Terminal Date; an Ongoing project carries the literal "Ongoing",
+  // because it has no terminal date by definition. Requiring a parseable date for both
+  // rejected every Ongoing project in the reference matrix. The two forms are checked
+  // against each other so neither can be entered under the wrong boundary_type.
+  const isOngoing = boundaryTypeInput === 'Ongoing';
+  if (isOngoing) {
+    if (terminalDate !== ONGOING_TERMINAL_DATE) {
+      state.lastPlanError = {
+        code: 'PROJECT_TERMINAL_DATE_INVALID',
+        reason: `Project boundary_type "Ongoing" requires terminal_date "${ONGOING_TERMINAL_DATE}", got "${terminalDate}".`,
+        meta: { id, terminalDate, boundaryTypeInput },
+      };
+      return;
+    }
+  } else {
+    if (terminalDate === ONGOING_TERMINAL_DATE) {
+      state.lastPlanError = {
+        code: 'PROJECT_TERMINAL_DATE_INVALID',
+        reason: `Project boundary_type "Terminating" requires a dated terminal_date, got "${ONGOING_TERMINAL_DATE}".`,
+        meta: { id, terminalDate, boundaryTypeInput },
+      };
+      return;
+    }
+    const dateObj = new Date(terminalDate);
+    if (isNaN(dateObj.getTime())) {
+      state.lastPlanError = {
+        code: 'PROJECT_TERMINAL_DATE_INVALID',
+        reason: `Project terminal_date "${terminalDate}" is not a valid ISO date (YYYY-MM-DD).`,
+        meta: { id, terminalDate },
+      };
+      return;
+    }
+    if (dateObj <= new Date()) {
+      state.lastPlanError = {
+        code: 'PROJECT_TERMINAL_DATE_NOT_FUTURE',
+        reason: `Project terminal_date "${terminalDate}" must be in the future.`,
+        meta: { id, terminalDate },
+      };
+      return;
+    }
   }
 
   // Layer 2: Uniqueness assertion at mint time
@@ -16818,8 +16849,7 @@ function declareProject(state, payload = {}) {
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
   const requiresLegalFormation = payload?.requiresLegalFormation !== undefined ? Boolean(payload.requiresLegalFormation) : false;
 
-  // Task 1: Compute phaseAnchor from terminalDate
-  const isOngoing = boundaryTypeInput === 'Ongoing';
+  // Task 1: Compute phaseAnchor from terminalDate (isOngoing computed above, at validation)
   // phaseAnchor: if terminating, use terminalDate; if ongoing, use nearest milestone (deferred for now)
   const phaseAnchor = !isOngoing ? terminalDate : null;
 
@@ -16838,8 +16868,8 @@ function declareProject(state, payload = {}) {
     verificationSourceId,
     evidenceProduced: String(payload?.evidenceProduced || '').trim() || null,
     notes: String(payload?.notes || '').trim() || null,
-    // Step 3: Project intake fields
-    executing_entity: executingEntity,
+    // Step 3: Project intake fields (multi-value executingEntityIds)
+    executingEntityIds,
     parent_initiative: parentInitiative,
     // No stored `phase` (E15 Sites 1/4, 2026-08-23): Phase(Project) is computed from phaseAnchor
     // by computeSpineWindowPhase(), never stored or hand-fed. Phase 2a removed intake's phase
@@ -16858,9 +16888,9 @@ function declareProject(state, payload = {}) {
 function updateProject(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
-  if (!id) return;
+  if (!id) {return;}
   const existing = state.matrix.projectsById[id];
-  if (!existing) return;
+  if (!existing) {return;}
   // Enforce cross-section integrity on patched fields BEFORE writing.
   if (payload.owningEntityId !== undefined) {
     const nextOwner = String(payload.owningEntityId || '').trim();
@@ -16885,27 +16915,27 @@ function updateProject(state, payload = {}) {
     }
   }
   const patch = {};
-  if (payload.name !== undefined) patch.name = String(payload.name || '').trim();
-  if (payload.owningEntityId !== undefined) patch.owningEntityId = String(payload.owningEntityId).trim();
+  if (payload.name !== undefined) {patch.name = String(payload.name || '').trim();}
+  if (payload.owningEntityId !== undefined) {patch.owningEntityId = String(payload.owningEntityId).trim();}
   if (payload.owningInitiativeId !== undefined)
-    patch.owningInitiativeId = String(payload.owningInitiativeId || '').trim() || null;
-  if (payload.status !== undefined) patch.status = String(payload.status || '').trim() || null;
+    {patch.owningInitiativeId = String(payload.owningInitiativeId || '').trim() || null;}
+  if (payload.status !== undefined) {patch.status = String(payload.status || '').trim() || null;}
   if (payload.desiredOutcome !== undefined)
-    patch.desiredOutcome = String(payload.desiredOutcome || '').trim() || null;
-  if (payload.targetDate !== undefined) patch.targetDate = String(payload.targetDate || '').trim() || null;
-  if (payload.description !== undefined) patch.description = String(payload.description || '').trim();
+    {patch.desiredOutcome = String(payload.desiredOutcome || '').trim() || null;}
+  if (payload.targetDate !== undefined) {patch.targetDate = String(payload.targetDate || '').trim() || null;}
+  if (payload.description !== undefined) {patch.description = String(payload.description || '').trim();}
   if (payload.verificationSourceId !== undefined)
-    patch.verificationSourceId = String(payload.verificationSourceId).trim();
+    {patch.verificationSourceId = String(payload.verificationSourceId).trim();}
   if (payload.evidenceProduced !== undefined)
-    patch.evidenceProduced = String(payload.evidenceProduced || '').trim() || null;
-  if (payload.notes !== undefined) patch.notes = String(payload.notes || '').trim() || null;
+    {patch.evidenceProduced = String(payload.evidenceProduced || '').trim() || null;}
+  if (payload.notes !== undefined) {patch.notes = String(payload.notes || '').trim() || null;}
   state.matrix.projectsById[id] = { ...existing, ...patch };
 }
 
 function removeProject(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
-  if (!id) return;
+  if (!id) {return;}
   delete state.matrix.projectsById[id];
 }
 
@@ -16916,8 +16946,8 @@ function removeProject(state, payload = {}) {
 // ─────────────────────────────────────────────────────────────────────────
 
 function computeLegalFormationBarriers(state) {
-  if (!state?.matrix) return;
-  if (!state.matrix.entitiesById || !state.matrix.projectsById) return;
+  if (!state?.matrix) {return;}
+  if (!state.matrix.entitiesById || !state.matrix.projectsById) {return;}
 
   state.matrix.barriersById = state.matrix.barriersById || {};
 
@@ -16934,19 +16964,19 @@ function computeLegalFormationBarriers(state) {
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
 
   for (const [entityId, entity] of Object.entries(entities)) {
-    if (!entity) continue;
+    if (!entity) {continue;}
     // Skip formed entities
-    if (entity.legallyFormed === true) continue;
+    if (entity.legallyFormed === true) {continue;}
     // Skip incomplete entities (must have name to emit a barrier message)
-    if (!entity.name) continue;
+    if (!entity.name) {continue;}
 
     // Find all projects owned by this entity that require legal formation
     for (const [projectId, project] of Object.entries(projects)) {
-      if (!project) continue;
-      if (project.owningEntityId !== entityId) continue;
-      if (project.requiresLegalFormation !== true) continue;
+      if (!project) {continue;}
+      if (project.owningEntityId !== entityId) {continue;}
+      if (project.requiresLegalFormation !== true) {continue;}
       // Skip incomplete projects (must have name to emit a barrier message)
-      if (!project.name) continue;
+      if (!project.name) {continue;}
 
       // Barrier found: unformed entity owns a project that requires formation
       const barrierId = `barrier-legal-${entityId}-${projectId}`;
@@ -16973,64 +17003,10 @@ function computeLegalFormationBarriers(state) {
 //  to aggregate Demand for urgency ranking (Task 2).
 // ─────────────────────────────────────────────────────────────────────────
 
-function declareMatrixDeliverable(state, payload = {}) {
+function removeDeliverable(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
-  const name = String(payload?.name || '').trim();
-  const owningProjectId = String(payload?.owningProjectId || '').trim();
-  const owningInitiativeId = String(payload?.owningInitiativeId || '').trim();
-  if (!id || !name || !owningProjectId || !owningInitiativeId) {
-    state.lastPlanError = {
-      code: 'DELIVERABLE_INVALID',
-      reason:
-        'Deliverable requires id, name, owningProjectId, and owningInitiativeId.',
-      meta: {
-        id,
-        hasName: Boolean(name),
-        hasProject: Boolean(owningProjectId),
-        hasInitiative: Boolean(owningInitiativeId),
-      },
-    };
-    return;
-  }
-  if (!state.matrix.projectsById[owningProjectId]) {
-    state.lastPlanError = {
-      code: 'DELIVERABLE_OWNING_PROJECT_UNKNOWN',
-      reason: `Deliverable owningProjectId "${owningProjectId}" is not declared in matrix.projectsById. Declare the project first.`,
-      meta: { id, owningProjectId },
-    };
-    return;
-  }
-  if (!state.matrix.initiativesById[owningInitiativeId]) {
-    state.lastPlanError = {
-      code: 'DELIVERABLE_OWNING_INITIATIVE_UNKNOWN',
-      reason: `Deliverable owningInitiativeId "${owningInitiativeId}" is not declared in matrix.initiativesById. Declare the initiative first.`,
-      meta: { id, owningInitiativeId },
-    };
-    return;
-  }
-  const nowISO = new Date().toISOString();
-  state.matrix.deliverablesById[id] = {
-    id,
-    name,
-    owningProjectId,
-    owningInitiativeId,
-    // No stored `phase` (E16 amended doctrine, 2026-08-23): Deliverables pure-copy their parent
-    // PROJECT's computed Phase at read time. A stored value here has no legitimate producer.
-    successCriteria: String(payload?.successCriteria || '').trim() || null,
-    targetDate: String(payload?.targetDate || '').trim() || null,
-    reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
-    declaredAtISO: nowISO,
-    confirmedAt: payload?.confirmedAt || null,
-    confirmedBy: String(payload?.confirmedBy || '').trim() || null,
-    confirmationSource: String(payload?.confirmationSource || '').trim() || null,
-  };
-}
-
-function removeMatrixDeliverable(state, payload = {}) {
-  ensureMatrixSlot(state);
-  const id = String(payload?.id || '').trim();
-  if (!id) return;
+  if (!id) {return;}
   delete state.matrix.deliverablesById[id];
 }
 
@@ -17112,6 +17088,27 @@ function declareDeliverable(state, payload = {}) {
     return;
   }
 
+  // Item 6: Validate buffer_anchor resolves to a declared node when present.
+  // Mirrors declareArtifact: guard on by default, batch loaders opt out with
+  // deferBufferAnchorValidation and revalidate in pass 2. See declareArtifact for rationale.
+  const bufferAnchorRef = String(payload?.buffer_anchor || '').trim() || null;
+  if (bufferAnchorRef && payload?.deferBufferAnchorValidation !== true) {
+    const anchorExists =
+      state.matrix.artifactsById[bufferAnchorRef] ||
+      state.matrix.deliverablesById[bufferAnchorRef] ||
+      state.matrix.projectsById[bufferAnchorRef] ||
+      state.matrix.initiativesById[bufferAnchorRef];
+
+    if (!anchorExists) {
+      state.lastPlanError = {
+        code: 'DELIVERABLE_BUFFER_ANCHOR_UNKNOWN',
+        reason: `Deliverable buffer_anchor "${bufferAnchorRef}" is not declared in any registry (Artifact, Deliverable, Project, or Initiative).`,
+        meta: { id, bufferAnchor: bufferAnchorRef },
+      };
+      return;
+    }
+  }
+
   // Layer 2: Uniqueness assertion at mint time
   if (state.matrix.deliverablesById[id]) {
     state.lastPlanError = {
@@ -17125,15 +17122,16 @@ function declareDeliverable(state, payload = {}) {
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
 
   // Create the Deliverable node with all intake fields
+  // NOTE: Payload keys are fixture vocabulary (snake_case). Stored state normalizes to camelCase.
   state.matrix.deliverablesById[id] = {
     id,
     name,
-    parent_project,
-    executing_entity,
-    target_date,
+    owningProjectId: parent_project,      // resolved id, key restored to camelCase
+    targetDate: target_date,               // the 209-read fix: this field drives rollups, phase, floor rule, convergence
+    executingEntityId: executing_entity,   // resolved id
     description: payload?.description ?? null,
-    buffer_anchor: payload?.buffer_anchor ?? null,
-    buffer_binding: payload?.buffer_binding ?? null,
+    bufferAnchor: payload?.buffer_anchor ?? null,      // new field, deliberately camelCase for parity
+    bufferBinding: payload?.buffer_binding ?? null,    // new field, deliberately camelCase for parity
     // Phase: never stored (E15 doctrine, 2026-08-23). Computed at read time from parent Project.
     // depends_on: never intake fields (edge-structured, handled via edge builder).
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
@@ -17276,9 +17274,13 @@ function declareArtifact(state, payload = {}) {
     return;
   }
 
-  // Validate targetDate is future
+  // Get nowISO early for date validation
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+
+  // Validate targetDate is future (relative to injected nowISO, not wall clock)
   const targetDateObj = new Date(targetDate);
-  if (isNaN(targetDateObj.getTime()) || targetDateObj <= new Date()) {
+  const nowDate = new Date(nowISO);
+  if (isNaN(targetDateObj.getTime()) || targetDateObj <= nowDate) {
     state.lastPlanError = {
       code: 'ARTIFACT_TARGET_DATE_INVALID',
       reason: `Artifact targetDate must be a valid future ISO date, got "${targetDate}".`,
@@ -17301,9 +17303,15 @@ function declareArtifact(state, payload = {}) {
     return;
   }
 
-  // Item 6: Validate buffer_anchor resolves to a declared node when present
+  // Item 6: Validate buffer_anchor resolves to a declared node when present.
   // Search across registries in grain-scoped precedence order.
-  if (bufferAnchor) {
+  //
+  // Defect B (two-pass): a batch loader cannot distinguish a forward reference from an
+  // unresolvable one during pass 1, so it opts out with deferBufferAnchorValidation and
+  // revalidates in pass 2 once every node exists. Any caller WITHOUT that flag has no
+  // later pass — the anchor resolves now or never — so the guard stays on by default.
+  // Forgetting the flag yields the guard, not a hole.
+  if (bufferAnchor && payload?.deferBufferAnchorValidation !== true) {
     const anchorExists =
       state.matrix.artifactsById[bufferAnchor] ||
       state.matrix.deliverablesById[bufferAnchor] ||
@@ -17330,7 +17338,6 @@ function declareArtifact(state, payload = {}) {
     return;
   }
 
-  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
   // Step 1 (node-shape): parentDeliverableIds from payload or derived from loader path.
   // producingProjectId is kept for compat but nulled (E15 amendment will derive it from parent Deliverable).
   state.matrix.artifactsById[id] = {
@@ -17347,8 +17354,8 @@ function declareArtifact(state, payload = {}) {
     // No stored `phase` (E16 amended doctrine, 2026-08-23): Artifacts pure-copy their parent
     // PROJECT's computed Phase at read time. A stored value here has no legitimate producer.
     targetDate: String(payload?.targetDate || '').trim() || null,
-    buffer_anchor: String(payload?.buffer_anchor || '').trim() || null,     // Step 3: optional parent deliverable for buffer computation
-    buffer_binding: String(payload?.buffer_binding || '').trim() || null,   // Step 3: 'hard' | 'advisory' — must pair with buffer_anchor
+    bufferAnchor: String(payload?.buffer_anchor || '').trim() || null,     // Step 3: optional parent deliverable for buffer computation
+    bufferBinding: String(payload?.buffer_binding || '').trim() || null,   // Step 3: 'hard' | 'advisory' — must pair with bufferAnchor
     // Step 3: Artifact intake fields
     satisfaction_mode: satisfactionMode,
     roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],
@@ -17363,9 +17370,9 @@ function declareArtifact(state, payload = {}) {
 function updateArtifact(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
-  if (!id) return;
+  if (!id) {return;}
   const existing = state.matrix.artifactsById[id];
-  if (!existing) return;
+  if (!existing) {return;}
 
   // Step 1 (node-shape): Handle new parentDeliverableIds field
   if (Array.isArray(payload.parentDeliverableIds)) {
@@ -17416,24 +17423,24 @@ function updateArtifact(state, payload = {}) {
     }
   }
   const patch = {};
-  if (payload.name !== undefined) patch.name = String(payload.name || '').trim();
+  if (payload.name !== undefined) {patch.name = String(payload.name || '').trim();}
   if (Array.isArray(payload.parentDeliverableIds))
-    patch.parentDeliverableIds = payload.parentDeliverableIds.map((id) => String(id || '').trim()).filter(Boolean);
-  if (payload.producingProjectId !== undefined) patch.producingProjectId = String(payload.producingProjectId).trim();
+    {patch.parentDeliverableIds = payload.parentDeliverableIds.map((id) => String(id || '').trim()).filter(Boolean);}
+  if (payload.producingProjectId !== undefined) {patch.producingProjectId = String(payload.producingProjectId).trim();}
   if (Array.isArray(payload.consumingProjectIds))
-    patch.consumingProjectIds = payload.consumingProjectIds.map((cid) => String(cid || '').trim()).filter(Boolean);
-  if (payload.completionEvidence !== undefined) patch.completionEvidence = String(payload.completionEvidence || '').trim();
-  if (payload.verificationSourceId !== undefined) patch.verificationSourceId = String(payload.verificationSourceId).trim();
+    {patch.consumingProjectIds = payload.consumingProjectIds.map((cid) => String(cid || '').trim()).filter(Boolean);}
+  if (payload.completionEvidence !== undefined) {patch.completionEvidence = String(payload.completionEvidence || '').trim();}
+  if (payload.verificationSourceId !== undefined) {patch.verificationSourceId = String(payload.verificationSourceId).trim();}
   if (payload.operatorAttestationMethod !== undefined)
-    patch.operatorAttestationMethod = String(payload.operatorAttestationMethod || '').trim();
-  if (payload.notes !== undefined) patch.notes = String(payload.notes || '').trim() || null;
+    {patch.operatorAttestationMethod = String(payload.operatorAttestationMethod || '').trim();}
+  if (payload.notes !== undefined) {patch.notes = String(payload.notes || '').trim() || null;}
   state.matrix.artifactsById[id] = { ...existing, ...patch };
 }
 
 function removeArtifact(state, payload = {}) {
   ensureMatrixSlot(state);
   const id = String(payload?.id || '').trim();
-  if (!id) return;
+  if (!id) {return;}
   delete state.matrix.artifactsById[id];
 }
 
@@ -17444,8 +17451,8 @@ function reachesDependency(from, to, edges) {
   const queue = [from];
   while (queue.length > 0) {
     const current = queue.shift();
-    if (current === to) return true;
-    if (visited.has(current)) continue;
+    if (current === to) {return true;}
+    if (visited.has(current)) {continue;}
     visited.add(current);
     for (const edge of edges) {
       if (edge.downstreamId === current) {
@@ -17571,12 +17578,12 @@ function validateSourcesNotSequentiallyDependent(sourceIds = [], dependenciesByI
 
     while (queue.length > 0) {
       const current = queue.shift();
-      if (visited.has(current)) continue;
+      if (visited.has(current)) {continue;}
       visited.add(current);
 
       // Find all dependencies where 'current' is upstream
       for (const dep of Object.values(dependenciesById || {})) {
-        if (!dep) continue;
+        if (!dep) {continue;}
         if (dep.upstreamId === current && dep.downstreamId && !visited.has(dep.downstreamId)) {
           queue.push(dep.downstreamId);
           reachable.push(dep.downstreamId);
@@ -17586,7 +17593,7 @@ function validateSourcesNotSequentiallyDependent(sourceIds = [], dependenciesByI
 
     // Check if any other source is reachable from this one (sequential dependency)
     for (const otherSourceId of sourceIds) {
-      if (otherSourceId === sourceId) continue;
+      if (otherSourceId === sourceId) {continue;}
       if (reachable.includes(otherSourceId)) {
         return {
           isSequential: true,
@@ -18260,12 +18267,18 @@ function declareMatrixLink(state, payload = {}) {
   const kind = String(payload?.kind || '').trim();
   const fromId = String(payload?.fromId || '').trim();
   const toId = String(payload?.toId || '').trim();
+  const targetDate = String(payload?.targetDate ?? '').trim() || null;
   if (!id || !kind || !fromId || !toId) {
     state.lastPlanError = { code: 'MATRIX_LINK_INVALID', reason: 'Matrix link requires id, kind, fromId, toId.', meta: { id, kind, fromId, toId } };
     return;
   }
+  // Validate targetDate format (ISO YYYY-MM-DD) if provided
+  if (targetDate && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+    state.lastPlanError = { code: 'MATRIX_LINK_TARGET_DATE_INVALID', reason: 'Matrix link targetDate must be ISO format (YYYY-MM-DD) or null.', meta: { id, targetDate } };
+    return;
+  }
   state.matrix.matrixLinksById[id] = {
-    id, kind, fromId, toId,
+    id, kind, fromId, toId, targetDate,
     declaredAtISO: state?.appTime?.nowISO || new Date().toISOString(),
   };
 }

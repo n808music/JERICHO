@@ -24,11 +24,12 @@ export function nodeId(nodeClass, name) {
   }
 }
 
-// Declaration order. Artifact follows Deliverable because an Artifact's
-// producingProjectId is resolved through its parent Deliverable, which must
-// already be declared. Artifact was absent here until 2026-08-29, which silently
-// skipped every Artifact-class node in the fixture (122 of 304 in v2.0).
-const CLASS_SEQUENCE = ['Entity', 'Initiative', 'Project', 'Deliverable', 'Artifact', 'System'];
+// Declaration order. Initiative must precede Entity because Entity.foundation_initiative
+// is validated against declared initiativesById during intake. Artifact follows Deliverable
+// because an Artifact's producingProjectId is resolved through its parent Deliverable, which
+// must already be declared. Artifact was absent here until 2026-08-29, which silently skipped
+// every Artifact-class node in the fixture (122 of 304 in v2.0).
+const CLASS_SEQUENCE = ['Initiative', 'Entity', 'Project', 'Deliverable', 'Artifact', 'System'];
 const VERIFICATION_SOURCE_ID = 'vs-reference';
 
 // Some reference-matrix rows carry an abbreviated owner/produced_by string
@@ -49,13 +50,40 @@ const ENTITY_ALIASES = { 'Global State Corp.': 'Global State Corporation' };
  * referenced ids already exist by the time they're referenced. Never
  * rewrites a fixture node's `name`.
  */
+/**
+ * Defect B reconciliation invariant: pass 1 defers N buffer_anchor validations, so pass 2 must
+ * account for all N. Returns a lastPlanError-shaped object when it did not, else null.
+ *
+ * Exported as a pure function deliberately. Inlined in pass 2 this check was UNREACHABLE —
+ * every loop path either records the entry or returns early, and the early return happens
+ * before the check runs. An unreachable guard cannot be tested except vacuously, which is the
+ * failure mode this whole exercise exists to kill. As a pure function it is directly testable
+ * and mutation-provable, and it stays correct if a future refactor introduces a path that
+ * skips entries.
+ */
+export function reconcileDeferredAnchors(deferred, processed) {
+  if (processed.size === deferred.length) {
+    return null;
+  }
+  const outstanding = deferred.filter((entry) => !processed.has(entry));
+  return {
+    code: 'BUFFER_ANCHOR_DEFERRAL_UNRECONCILED',
+    reason: `Pass 1 deferred ${deferred.length} buffer_anchor validation(s) but pass 2 reconciled only ${processed.size}. Deferred anchors must all be revalidated.`,
+    meta: {
+      deferred: deferred.length,
+      reconciled: processed.size,
+      outstanding: outstanding.slice(0, 10).map((e) => ({ kind: e.kind, id: e.id, anchorName: e.anchorName })),
+    },
+  };
+}
+
 export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString() } = {}) {
   const nodes = fixture.nodes || [];
 
   // Full name -> id map (all classes) for parent_initiative / parent_project
   // references, which appear in the fixture with exact names.
   const idByName = new Map();
-  for (const n of nodes) idByName.set(n.name, slugId(n.name));
+  for (const n of nodes) {idByName.set(n.name, slugId(n.name));}
   const resolve = (nm) => (nm && idByName.has(nm) ? idByName.get(nm) : null);
 
   let state = buildBlankIdentityState({ nowISO });
@@ -103,7 +131,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
   const nodesByName = new Map(nodes.map((n) => [n.name, n]));
   const resolveGeneric = (nm) => {
     const node = nodesByName.get(nm);
-    if (!node) return null;
+    if (!node) {return null;}
     const baseId = resolve(nm);
     return baseId ? getNodeIdForClass(baseId, node.class) : null;
   };
@@ -115,10 +143,10 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
   // state.matrix.entitiesById is populated by the time this runs for owners.
   // Entity IDs use type-prefix scheme (entity-${slug}) to align with builder.
   const resolveEntity = (nm) => {
-    if (!nm) return null;
+    if (!nm) {return null;}
     const canonical = ENTITY_ALIASES[nm] || nm;
     const baseId = idByName.get(canonical);
-    if (!baseId) return null;
+    if (!baseId) {return null;}
     const entityId = getNodeIdForClass(baseId, 'Entity');
     return state.matrix?.entitiesById?.[entityId] ? entityId : null;
   };
@@ -127,19 +155,39 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
   // Artifact names may refer to Artifacts (same grain), Deliverables (parent grain),
   // Projects (ancestor grain), or Initiatives (meta-container). Search in precedence order:
   // Artifact → Deliverable → Project → Initiative, first match wins.
-  const nodesByName = new Map(nodes.map((n) => [n.name, n]));
   const resolveBufferAnchor = (nm) => {
-    if (!nm) return null;
+    if (!nm) {return null;}
     const trimmed = String(nm).trim();
     const node = nodesByName.get(trimmed);
-    if (!node) return null;
+    if (!node) {return null;}
 
     // Only accept nodes in the allowed precedence classes
     const precedence = ['Artifact', 'Deliverable', 'Project', 'Initiative'];
-    if (!precedence.includes(node.class)) return null;
+    if (!precedence.includes(node.class)) {return null;}
 
     const baseId = idByName.get(trimmed);
     return baseId ? getNodeIdForClass(baseId, node.class) : null;
+  };
+
+  // Multi-value executing_entity resolution. The schema uses "; " (semicolon + space)
+  // as the separator for multi-value cells. Splits, trims, and resolves each entity name.
+  // Returns array of entity IDs. Empty array if no values resolve.
+  const resolveExecutingEntities = (fieldValue) => {
+    if (!fieldValue) {return [];}
+    const entityNames = String(fieldValue).split(';').map((s) => s.trim()).filter(Boolean);
+    return entityNames.map(resolveEntity).filter(Boolean);
+  };
+
+  // Foundation lane detection: structural, not name-based. A Foundation initiative
+  // owns projects with "Business Plan" in the name (one per Foundation lane).
+  // Per doctrine, Foundation lanes require neither completion_value nor ongoing_output.
+  const isFoundationLane = (initiativeName) => {
+    return nodes.some(
+      (n) =>
+        n.class === 'Project' &&
+        n.parent_initiative === initiativeName &&
+        String(n.name || '').includes('Business Plan')
+    );
   };
 
   // Single shared verification source so Project/Deliverable required refs resolve.
@@ -147,6 +195,12 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
     type: 'DECLARE_VERIFICATION_SOURCE',
     payload: { id: VERIFICATION_SOURCE_ID, domain: 'reference', source: 'operator_attestation' },
   });
+
+  // Defect B: every pass-1 dispatch that defers buffer_anchor validation records itself here,
+  // so pass 2 can prove it revalidated ALL of them. Without this ledger, an early return or a
+  // skipped pass 2 would silently turn the deferral flag into a permanent bypass — trading a
+  // missing guard for a skippable one, which is harder to spot.
+  const deferredAnchors = [];
 
   for (const cls of CLASS_SEQUENCE) {
     for (const n of nodes.filter((x) => x.class === cls)) {
@@ -186,6 +240,8 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             boundary_type: n.boundary_type || null,
             completion_value: n.completion_value || null,
             ongoing_output: n.ongoing_output || null,
+            // Foundation lane detection: structural marker for exception to completion_value rule
+            isFoundationLane: isFoundationLane(n.name),
           },
         });
       } else if (cls === 'Project') {
@@ -200,7 +256,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             targetDate: n.target_date || null,
             terminalDate: n.terminal_date || n.target_date || null,
             // Step 3: Project intake fields
-            executing_entity: resolveEntity(n.executing_entity),
+            executingEntityIds: resolveExecutingEntities(n.executing_entity),  // Multi-value: array
             parent_initiative: resolveInitiative(n.parent_initiative),
             boundary_type: n.boundary_type || null,
             terminal_date: n.terminal_date || null,
@@ -221,16 +277,29 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
         const owningInitiativeId = owningProjectId
           ? state.matrix?.projectsById?.[owningProjectId]?.owningInitiativeId || null
           : null;
+        // Defect C: Route fixture Deliverables through v3 intake path
+        // v3 shape: parent_project (single), executing_entity (single or array), description, buffer_anchor, buffer_binding.
+        // All 63 fixture Deliverables have single executing_entity (no semicolons); loader passes as scalar string.
+        const parentProjectId = resolveProject(n.parent_project);
+        const executingEntityId = resolveEntity(n.executing_entity);  // Single entity (scalar, no semicolon split needed)
+
+        const deliverableAnchorName = String(n.buffer_anchor || '').trim() || null;
         dispatch({
           type: 'DECLARE_DELIVERABLE',
           payload: {
             ...common,
-            owningProjectId,
-            owningInitiativeId,
-            successCriteria: n.what_ships || null,
-            targetDate: n.target_date || null,
+            parent_project: parentProjectId,  // v3 field: resolved project ID
+            executing_entity: executingEntityId,  // v3 field: resolved single entity ID (scalar)
+            description: n.what_ships || null,  // v3 field name (was successCriteria in v2)
+            target_date: n.target_date || null,  // v3 field name (snake_case)
+            buffer_anchor: deliverableAnchorName,  // Defect B: raw name; resolved+validated in pass 2
+            buffer_binding: n.buffer_binding || null,       // Step 3: 'hard' | 'advisory' — must pair with buffer_anchor
+            deferBufferAnchorValidation: true,  // Defect B: forward refs legal in pass 1; pass 2 revalidates
           },
         });
+        if (deliverableAnchorName) {
+          deferredAnchors.push({ kind: 'Deliverable', id, anchorName: deliverableAnchorName });
+        }
       } else if (cls === 'Artifact') {
         // Step 1 (node-shape): Artifact now stores parentDeliverableIds (array) instead of
         // producingProjectId (scalar). The fixture models Artifact -> Deliverable
@@ -240,6 +309,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
         // visible outcome for absent linkage. See docs/superpowers/specs/2026-08-29-bug-a-live-migration-spec.md
         // (preconditions P4 and P7) for the fixture-authoring work that closes this.
         const parentDeliverableId = resolveDeliverable(n.parent_deliverable);
+        const artifactAnchorName = String(n.buffer_anchor || '').trim() || null;
         dispatch({
           type: 'DECLARE_ARTIFACT',
           payload: {
@@ -250,12 +320,16 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             verificationSourceId: VERIFICATION_SOURCE_ID,
             operatorAttestationMethod: 'operator',
             targetDate: n.target_date || null,
-            buffer_anchor: resolveBufferAnchor(n.buffer_anchor),  // Item 6: resolve name → grain-scoped ID
+            buffer_anchor: artifactAnchorName,  // Defect B: raw name; resolved+validated in pass 2
             buffer_binding: n.buffer_binding || null,       // Step 3: 'hard' | 'advisory'
+            deferBufferAnchorValidation: true,  // Defect B: forward refs legal in pass 1; pass 2 revalidates
             // Step 3: Artifact intake fields
             satisfaction_mode: n.satisfaction_mode || null,
           },
         });
+        if (artifactAnchorName) {
+          deferredAnchors.push({ kind: 'Artifact', id, anchorName: artifactAnchorName });
+        }
       } else if (cls === 'System') {
         dispatch({
           type: 'DECLARE_SYSTEM',
@@ -270,6 +344,64 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
       }
     }
   }
+
+  // Defect B: Pass 2 — Validate all buffer_anchors now that all nodes are declared.
+  // Iterate through artifacts and deliverables, resolve anchor names to IDs, validate resolution.
+  // Validation timing change: anchor resolution/validation now happens in pass 2 (after all nodes declared),
+  // not pass 1 (during DECLARE_*), eliminating forward-reference ordering hazards.
+  // Driven by the deferredAnchors ledger rather than by scanning the registries. Scanning
+  // cannot tell "no anchor" from "anchor under a key I did not look at" — which is exactly how
+  // the previous version silently skipped every Deliverable: it read `deliverable.buffer_anchor`
+  // while 71e95e9 had normalized Deliverable storage to `bufferAnchor`, so the guard was dead
+  // code. The ledger records what pass 1 actually deferred, so nothing can be missed by
+  // looking in the wrong place.
+  // Both classes store the resolved anchor under `bufferAnchor`. This used to be a per-class
+  // key map, which existed only to paper over Artifact storing snake_case while Deliverable
+  // stored camelCase — the asymmetry that let the Deliverable loop read a key that was never
+  // there. With storage uniform, the map is unnecessary and the class of bug is gone.
+  const STORAGE_KEY = 'bufferAnchor';
+
+  const validateBufferAnchors = () => {
+    const processed = new Set();
+
+    for (const entry of deferredAnchors) {
+      const { kind, id, anchorName } = entry;
+      const registry = kind === 'Artifact' ? state.matrix.artifactsById : state.matrix.deliverablesById;
+      const node = registry[id];
+
+      if (!node) {
+        // Node was rejected in pass 1 by an unrelated guard, so nothing was stored to validate.
+        // Reconciled: there is no deferred value left outstanding.
+        processed.add(entry);
+        continue;
+      }
+
+      const anchorId = resolveBufferAnchor(anchorName);
+      if (!anchorId) {
+        state.lastPlanError = {
+          code: kind === 'Artifact'
+            ? 'ARTIFACT_BUFFER_ANCHOR_UNKNOWN'
+            : 'DELIVERABLE_BUFFER_ANCHOR_UNKNOWN',
+          reason: `${kind} buffer_anchor "${anchorName}" is not declared in any registry (Artifact, Deliverable, Project, or Initiative).`,
+          meta: { id, bufferAnchor: anchorName },
+        };
+        return; // Stop on first validation failure (loud failure at the source)
+      }
+
+      node[STORAGE_KEY] = anchorId;
+      processed.add(entry);
+    }
+
+    // Reconciliation: pass 1 deferred N anchors, so pass 2 must have accounted for all N.
+    // Without this, a future refactor that introduces a skip path turns the deferral flag into
+    // a permanent bypass — a guard that is skippable rather than merely missing.
+    const reconciliationError = reconcileDeferredAnchors(deferredAnchors, processed);
+    if (reconciliationError) {
+      state.lastPlanError = reconciliationError;
+    }
+  };
+
+  validateBufferAnchors();
 
   // Attested edges: typed relational links → matrixLinksById; the named
   // convergence → milestonesById. from/to reference node names (resolved to ids).
@@ -298,7 +430,8 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
       const fromId = resolveGeneric(from);
       const toId = resolveGeneric(to);
       if (fromId && toId) {
-        dispatch({ type: 'DECLARE_MATRIX_LINK', payload: { id: `link-${++linkSeq}`, kind: e.type, fromId, toId } });
+        const targetDate = String(e.target_date ?? '').trim() || null;
+        dispatch({ type: 'DECLARE_MATRIX_LINK', payload: { id: `link-${++linkSeq}`, kind: e.type, fromId, toId, targetDate } });
       }
     }
   }

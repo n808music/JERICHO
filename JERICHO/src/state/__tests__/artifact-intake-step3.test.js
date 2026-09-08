@@ -233,8 +233,8 @@ describe('Artifact Intake Step 3: reducer enforcement', () => {
     it('accepts an artifact with neither buffer field — buffers are optional', () => {
       declare({});
       expect(state.lastPlanError).toBeFalsy();
-      expect(state.matrix.artifactsById['artifact-test'].buffer_anchor).toBeNull();
-      expect(state.matrix.artifactsById['artifact-test'].buffer_binding).toBeNull();
+      expect(state.matrix.artifactsById['artifact-test'].bufferAnchor).toBeNull();
+      expect(state.matrix.artifactsById['artifact-test'].bufferBinding).toBeNull();
     });
 
     it('accepts an artifact with both buffer fields', () => {
