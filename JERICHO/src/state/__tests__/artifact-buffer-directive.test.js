@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { buildBlankIdentityState } from '../identityStore.js';
 import { computeDerivedState } from '../identityCompute.js';
+import { ARTIFACT_REPROBES } from '../../domain/elicitation/artifactReprobes.ts';
+import { reconcileDeferredAnchors } from '../../domain/masterGrid/loadReferenceMatrix.js';
 
 describe('Artifact Buffer Directive (Item 6): Buffer anchor resolution & validation', () => {
   let state;
@@ -214,6 +216,89 @@ describe('Artifact Buffer Directive (Item 6): Buffer anchor resolution & validat
       expect(artifact?.buffer_anchor).toBeNull();
       expect(artifact?.buffer_binding).toBeNull();
     });
+
+    it('Honours deferBufferAnchorValidation for batch loaders (opt-out, not default)', () => {
+      // Batch loaders legitimately declare forward references in pass 1 and revalidate in
+      // pass 2. The opt-out must be explicit; omitting it must yield the guard (see the
+      // rejection test above), so that a caller who forgets gets a rejection, not a hole.
+      state = computeDerivedState(state, {
+        type: 'DECLARE_ARTIFACT',
+        payload: {
+          id: 'artifact-deferred-anchor',
+          name: 'Artifact Deferred Anchor',
+          parentDeliverableIds: ['deliverable-anchor'],
+          producedByEntityId: 'entity-producer',
+          completionEvidence: 'test',
+          verificationSourceId: 'vs-test',
+          operatorAttestationMethod: 'test',
+          targetDate: '2026-11-20',
+          satisfaction_mode: 'AND',
+          buffer_anchor: 'not-yet-declared',
+          buffer_binding: 'hard',
+          deferBufferAnchorValidation: true,
+        },
+      });
+      expect(state.lastPlanError).toBeNull();
+      expect(state.matrix.artifactsById['artifact-deferred-anchor']).toBeDefined();
+    });
+  });
+
+  describe('Validation: DELIVERABLE_BUFFER_ANCHOR_UNKNOWN', () => {
+    it('Rejects buffer_anchor that does not resolve to any declared node', () => {
+      state = computeDerivedState(state, {
+        type: 'DECLARE_DELIVERABLE',
+        payload: {
+          id: 'deliverable-bad-anchor',
+          name: 'Deliverable Bad Anchor',
+          parent_project: 'project-anchor',
+          executing_entity: 'entity-producer',
+          description: 'test',
+          target_date: '2026-11-30',
+          buffer_anchor: 'nonexistent-node',
+          buffer_binding: 'hard',
+        },
+      });
+      expect(state.lastPlanError?.code).toBe('DELIVERABLE_BUFFER_ANCHOR_UNKNOWN');
+      expect(state.matrix.deliverablesById['deliverable-bad-anchor']).toBeUndefined();
+    });
+
+    it('Accepts buffer_anchor that resolves to a declared node', () => {
+      state = computeDerivedState(state, {
+        type: 'DECLARE_DELIVERABLE',
+        payload: {
+          id: 'deliverable-good-anchor',
+          name: 'Deliverable Good Anchor',
+          parent_project: 'project-anchor',
+          executing_entity: 'entity-producer',
+          description: 'test',
+          target_date: '2026-11-30',
+          buffer_anchor: 'project-anchor',
+          buffer_binding: 'hard',
+        },
+      });
+      expect(state.lastPlanError).toBeNull();
+      // Deliverable storage normalized to camelCase by 71e95e9 — the key pass 2 must also use.
+      expect(state.matrix.deliverablesById['deliverable-good-anchor']?.bufferAnchor).toBe('project-anchor');
+    });
+
+    it('Honours deferBufferAnchorValidation for batch loaders', () => {
+      state = computeDerivedState(state, {
+        type: 'DECLARE_DELIVERABLE',
+        payload: {
+          id: 'deliverable-deferred-anchor',
+          name: 'Deliverable Deferred Anchor',
+          parent_project: 'project-anchor',
+          executing_entity: 'entity-producer',
+          description: 'test',
+          target_date: '2026-11-30',
+          buffer_anchor: 'not-yet-declared',
+          buffer_binding: 'hard',
+          deferBufferAnchorValidation: true,
+        },
+      });
+      expect(state.lastPlanError).toBeNull();
+      expect(state.matrix.deliverablesById['deliverable-deferred-anchor']).toBeDefined();
+    });
   });
 
   describe('Field storage verification', () => {
@@ -281,11 +366,55 @@ describe('Artifact Buffer Directive (Item 6): Buffer anchor resolution & validat
     });
   });
 
+  describe('Validation: BUFFER_ANCHOR_DEFERRAL_UNRECONCILED', () => {
+    // Guards the guard. deferBufferAnchorValidation is a deliberate hole in the reducer's
+    // default protection; this invariant is what stops that hole becoming permanent if pass 2
+    // ever fails to revalidate what pass 1 deferred.
+    const entry = (id) => ({ kind: 'Artifact', id, anchorName: 'anchor-' + id });
+
+    it('Returns null when pass 2 reconciled every deferred anchor', () => {
+      const a = entry('a');
+      const b = entry('b');
+      expect(reconcileDeferredAnchors([a, b], new Set([a, b]))).toBeNull();
+    });
+
+    it('Returns null when nothing was deferred', () => {
+      expect(reconcileDeferredAnchors([], new Set())).toBeNull();
+    });
+
+    it('Rejects when pass 2 left a deferred anchor unvalidated', () => {
+      const a = entry('a');
+      const b = entry('b');
+      const err = reconcileDeferredAnchors([a, b], new Set([a])); // b never revalidated
+
+      expect(err?.code).toBe('BUFFER_ANCHOR_DEFERRAL_UNRECONCILED');
+      expect(err.meta.deferred).toBe(2);
+      expect(err.meta.reconciled).toBe(1);
+      expect(err.meta.outstanding).toEqual([{ kind: 'Artifact', id: 'b', anchorName: 'anchor-b' }]);
+    });
+
+    it('Names every outstanding anchor, not just the first', () => {
+      const a = entry('a');
+      const b = entry('b');
+      const c = entry('c');
+      const err = reconcileDeferredAnchors([a, b, c], new Set([a]));
+
+      expect(err?.code).toBe('BUFFER_ANCHOR_DEFERRAL_UNRECONCILED');
+      expect(err.meta.outstanding.map((e) => e.id)).toEqual(['b', 'c']);
+    });
+  });
+
   describe('Reprobe authorization', () => {
     it('ARTIFACT_BUFFER_ANCHOR_UNKNOWN reprobe is authorized', () => {
-      // This guard test verifies the reprobe exists in artifactReprobes.ts
-      // The actual reprobe spine and pickSet are tested at the UI layer
-      expect(true).toBe(true); // Reprobe exists; tested by fixture load
+      // Previously `expect(true).toBe(true)` — a false green sitting beside the test that
+      // caught a real regression. Assert what the comment always claimed: the reprobe is
+      // registered, and carries the spine + pickSet the UI layer needs to recover from
+      // the rejection this gate emits.
+      const reprobe = ARTIFACT_REPROBES.ARTIFACT_BUFFER_ANCHOR_UNKNOWN;
+      expect(reprobe).toBeDefined();
+      expect(typeof reprobe.spine).toBe('string');
+      expect(reprobe.spine.length).toBeGreaterThan(0);
+      expect(reprobe.pickSet).toBe('allDeclaredNodeOptions');
     });
   });
 });

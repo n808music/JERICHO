@@ -50,6 +50,33 @@ const ENTITY_ALIASES = { 'Global State Corp.': 'Global State Corporation' };
  * referenced ids already exist by the time they're referenced. Never
  * rewrites a fixture node's `name`.
  */
+/**
+ * Defect B reconciliation invariant: pass 1 defers N buffer_anchor validations, so pass 2 must
+ * account for all N. Returns a lastPlanError-shaped object when it did not, else null.
+ *
+ * Exported as a pure function deliberately. Inlined in pass 2 this check was UNREACHABLE —
+ * every loop path either records the entry or returns early, and the early return happens
+ * before the check runs. An unreachable guard cannot be tested except vacuously, which is the
+ * failure mode this whole exercise exists to kill. As a pure function it is directly testable
+ * and mutation-provable, and it stays correct if a future refactor introduces a path that
+ * skips entries.
+ */
+export function reconcileDeferredAnchors(deferred, processed) {
+  if (processed.size === deferred.length) {
+    return null;
+  }
+  const outstanding = deferred.filter((entry) => !processed.has(entry));
+  return {
+    code: 'BUFFER_ANCHOR_DEFERRAL_UNRECONCILED',
+    reason: `Pass 1 deferred ${deferred.length} buffer_anchor validation(s) but pass 2 reconciled only ${processed.size}. Deferred anchors must all be revalidated.`,
+    meta: {
+      deferred: deferred.length,
+      reconciled: processed.size,
+      outstanding: outstanding.slice(0, 10).map((e) => ({ kind: e.kind, id: e.id, anchorName: e.anchorName })),
+    },
+  };
+}
+
 export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString() } = {}) {
   const nodes = fixture.nodes || [];
 
@@ -169,6 +196,12 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
     payload: { id: VERIFICATION_SOURCE_ID, domain: 'reference', source: 'operator_attestation' },
   });
 
+  // Defect B: every pass-1 dispatch that defers buffer_anchor validation records itself here,
+  // so pass 2 can prove it revalidated ALL of them. Without this ledger, an early return or a
+  // skipped pass 2 would silently turn the deferral flag into a permanent bypass — trading a
+  // missing guard for a skippable one, which is harder to spot.
+  const deferredAnchors = [];
+
   for (const cls of CLASS_SEQUENCE) {
     for (const n of nodes.filter((x) => x.class === cls)) {
       const id = getNodeIdForClass(slugId(n.name), n.class);
@@ -250,6 +283,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
         const parentProjectId = resolveProject(n.parent_project);
         const executingEntityId = resolveEntity(n.executing_entity);  // Single entity (scalar, no semicolon split needed)
 
+        const deliverableAnchorName = String(n.buffer_anchor || '').trim() || null;
         dispatch({
           type: 'DECLARE_DELIVERABLE',
           payload: {
@@ -258,10 +292,14 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             executing_entity: executingEntityId,  // v3 field: resolved single entity ID (scalar)
             description: n.what_ships || null,  // v3 field name (was successCriteria in v2)
             target_date: n.target_date || null,  // v3 field name (snake_case)
-            buffer_anchor: String(n.buffer_anchor || '').trim() || null,  // Defect B: Pass raw name; validation in second pass
+            buffer_anchor: deliverableAnchorName,  // Defect B: raw name; resolved+validated in pass 2
             buffer_binding: n.buffer_binding || null,       // Step 3: 'hard' | 'advisory' — must pair with buffer_anchor
+            deferBufferAnchorValidation: true,  // Defect B: forward refs legal in pass 1; pass 2 revalidates
           },
         });
+        if (deliverableAnchorName) {
+          deferredAnchors.push({ kind: 'Deliverable', id, anchorName: deliverableAnchorName });
+        }
       } else if (cls === 'Artifact') {
         // Step 1 (node-shape): Artifact now stores parentDeliverableIds (array) instead of
         // producingProjectId (scalar). The fixture models Artifact -> Deliverable
@@ -271,6 +309,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
         // visible outcome for absent linkage. See docs/superpowers/specs/2026-08-29-bug-a-live-migration-spec.md
         // (preconditions P4 and P7) for the fixture-authoring work that closes this.
         const parentDeliverableId = resolveDeliverable(n.parent_deliverable);
+        const artifactAnchorName = String(n.buffer_anchor || '').trim() || null;
         dispatch({
           type: 'DECLARE_ARTIFACT',
           payload: {
@@ -281,12 +320,16 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             verificationSourceId: VERIFICATION_SOURCE_ID,
             operatorAttestationMethod: 'operator',
             targetDate: n.target_date || null,
-            buffer_anchor: String(n.buffer_anchor || '').trim() || null,  // Defect B: Pass raw name; validation in second pass
+            buffer_anchor: artifactAnchorName,  // Defect B: raw name; resolved+validated in pass 2
             buffer_binding: n.buffer_binding || null,       // Step 3: 'hard' | 'advisory'
+            deferBufferAnchorValidation: true,  // Defect B: forward refs legal in pass 1; pass 2 revalidates
             // Step 3: Artifact intake fields
             satisfaction_mode: n.satisfaction_mode || null,
           },
         });
+        if (artifactAnchorName) {
+          deferredAnchors.push({ kind: 'Artifact', id, anchorName: artifactAnchorName });
+        }
       } else if (cls === 'System') {
         dispatch({
           type: 'DECLARE_SYSTEM',
@@ -306,55 +349,51 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
   // Iterate through artifacts and deliverables, resolve anchor names to IDs, validate resolution.
   // Validation timing change: anchor resolution/validation now happens in pass 2 (after all nodes declared),
   // not pass 1 (during DECLARE_*), eliminating forward-reference ordering hazards.
+  // Driven by the deferredAnchors ledger rather than by scanning the registries. Scanning
+  // cannot tell "no anchor" from "anchor under a key I did not look at" — which is exactly how
+  // the previous version silently skipped every Deliverable: it read `deliverable.buffer_anchor`
+  // while 71e95e9 had normalized Deliverable storage to `bufferAnchor`, so the guard was dead
+  // code. The ledger records what pass 1 actually deferred, so nothing can be missed by
+  // looking in the wrong place.
+  const STORAGE_KEY = { Artifact: 'buffer_anchor', Deliverable: 'bufferAnchor' };
+
   const validateBufferAnchors = () => {
-    // Validate Artifacts
-    for (const artifactId of Object.keys(state.matrix.artifactsById)) {
-      const artifact = state.matrix.artifactsById[artifactId];
-      if (!artifact.buffer_anchor) {
-        continue; // Skip nodes without anchors
+    const processed = new Set();
+
+    for (const entry of deferredAnchors) {
+      const { kind, id, anchorName } = entry;
+      const registry = kind === 'Artifact' ? state.matrix.artifactsById : state.matrix.deliverablesById;
+      const node = registry[id];
+
+      if (!node) {
+        // Node was rejected in pass 1 by an unrelated guard, so nothing was stored to validate.
+        // Reconciled: there is no deferred value left outstanding.
+        processed.add(entry);
+        continue;
       }
 
-      // buffer_anchor is a name string; resolve to ID using grain-scoped precedence
-      const anchorName = artifact.buffer_anchor;
       const anchorId = resolveBufferAnchor(anchorName);
-
       if (!anchorId) {
-        // Anchor name does not resolve to any declared node
         state.lastPlanError = {
-          code: 'ARTIFACT_BUFFER_ANCHOR_UNKNOWN',
-          reason: `Artifact buffer_anchor "${anchorName}" is not declared in any registry (Artifact, Deliverable, Project, or Initiative).`,
-          meta: { id: artifactId, bufferAnchor: anchorName },
+          code: kind === 'Artifact'
+            ? 'ARTIFACT_BUFFER_ANCHOR_UNKNOWN'
+            : 'DELIVERABLE_BUFFER_ANCHOR_UNKNOWN',
+          reason: `${kind} buffer_anchor "${anchorName}" is not declared in any registry (Artifact, Deliverable, Project, or Initiative).`,
+          meta: { id, bufferAnchor: anchorName },
         };
-        return; // Stop on first validation failure
+        return; // Stop on first validation failure (loud failure at the source)
       }
 
-      // Update artifact with resolved anchor ID
-      artifact.buffer_anchor = anchorId;
+      node[STORAGE_KEY[kind]] = anchorId;
+      processed.add(entry);
     }
 
-    // Validate Deliverables (same process)
-    for (const deliverableId of Object.keys(state.matrix.deliverablesById)) {
-      const deliverable = state.matrix.deliverablesById[deliverableId];
-      if (!deliverable.buffer_anchor) {
-        continue; // Skip nodes without anchors
-      }
-
-      // buffer_anchor is a name string; resolve to ID using grain-scoped precedence
-      const anchorName = deliverable.buffer_anchor;
-      const anchorId = resolveBufferAnchor(anchorName);
-
-      if (!anchorId) {
-        // Anchor name does not resolve to any declared node
-        state.lastPlanError = {
-          code: 'DELIVERABLE_BUFFER_ANCHOR_UNKNOWN',
-          reason: `Deliverable buffer_anchor "${anchorName}" is not declared in any registry (Artifact, Deliverable, Project, or Initiative).`,
-          meta: { id: deliverableId, bufferAnchor: anchorName },
-        };
-        return; // Stop on first validation failure
-      }
-
-      // Update deliverable with resolved anchor ID
-      deliverable.buffer_anchor = anchorId;
+    // Reconciliation: pass 1 deferred N anchors, so pass 2 must have accounted for all N.
+    // Without this, a future refactor that introduces a skip path turns the deferral flag into
+    // a permanent bypass — a guard that is skippable rather than merely missing.
+    const reconciliationError = reconcileDeferredAnchors(deferredAnchors, processed);
+    if (reconciliationError) {
+      state.lastPlanError = reconciliationError;
     }
   };
 

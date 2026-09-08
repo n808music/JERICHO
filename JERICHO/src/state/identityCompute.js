@@ -17088,6 +17088,27 @@ function declareDeliverable(state, payload = {}) {
     return;
   }
 
+  // Item 6: Validate buffer_anchor resolves to a declared node when present.
+  // Mirrors declareArtifact: guard on by default, batch loaders opt out with
+  // deferBufferAnchorValidation and revalidate in pass 2. See declareArtifact for rationale.
+  const bufferAnchorRef = String(payload?.buffer_anchor || '').trim() || null;
+  if (bufferAnchorRef && payload?.deferBufferAnchorValidation !== true) {
+    const anchorExists =
+      state.matrix.artifactsById[bufferAnchorRef] ||
+      state.matrix.deliverablesById[bufferAnchorRef] ||
+      state.matrix.projectsById[bufferAnchorRef] ||
+      state.matrix.initiativesById[bufferAnchorRef];
+
+    if (!anchorExists) {
+      state.lastPlanError = {
+        code: 'DELIVERABLE_BUFFER_ANCHOR_UNKNOWN',
+        reason: `Deliverable buffer_anchor "${bufferAnchorRef}" is not declared in any registry (Artifact, Deliverable, Project, or Initiative).`,
+        meta: { id, bufferAnchor: bufferAnchorRef },
+      };
+      return;
+    }
+  }
+
   // Layer 2: Uniqueness assertion at mint time
   if (state.matrix.deliverablesById[id]) {
     state.lastPlanError = {
@@ -17282,11 +17303,30 @@ function declareArtifact(state, payload = {}) {
     return;
   }
 
-  // Item 6: Defect B — buffer_anchor validation deferred to pass 2
-  // Pass 1 accepts buffer_anchor as raw name string (may not resolve yet due to declaration order).
-  // Pass 2 (after all nodes declared) validates that buffer_anchor resolves to a node in
-  // grain-scoped precedence (Artifact → Deliverable → Project → Initiative).
-  // This two-pass approach eliminates forward-reference ordering hazards.
+  // Item 6: Validate buffer_anchor resolves to a declared node when present.
+  // Search across registries in grain-scoped precedence order.
+  //
+  // Defect B (two-pass): a batch loader cannot distinguish a forward reference from an
+  // unresolvable one during pass 1, so it opts out with deferBufferAnchorValidation and
+  // revalidates in pass 2 once every node exists. Any caller WITHOUT that flag has no
+  // later pass — the anchor resolves now or never — so the guard stays on by default.
+  // Forgetting the flag yields the guard, not a hole.
+  if (bufferAnchor && payload?.deferBufferAnchorValidation !== true) {
+    const anchorExists =
+      state.matrix.artifactsById[bufferAnchor] ||
+      state.matrix.deliverablesById[bufferAnchor] ||
+      state.matrix.projectsById[bufferAnchor] ||
+      state.matrix.initiativesById[bufferAnchor];
+
+    if (!anchorExists) {
+      state.lastPlanError = {
+        code: 'ARTIFACT_BUFFER_ANCHOR_UNKNOWN',
+        reason: `Artifact buffer_anchor "${bufferAnchor}" is not declared in any registry (Artifact, Deliverable, Project, or Initiative).`,
+        meta: { id, bufferAnchor },
+      };
+      return;
+    }
+  }
 
   // Layer 2: Uniqueness assertion at mint time
   if (state.matrix.artifactsById[id]) {
