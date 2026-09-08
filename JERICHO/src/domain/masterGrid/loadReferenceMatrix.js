@@ -244,14 +244,20 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
         const owningInitiativeId = owningProjectId
           ? state.matrix?.projectsById?.[owningProjectId]?.owningInitiativeId || null
           : null;
+        // Defect C: Route fixture Deliverables through v3 intake path
+        // v3 shape: parent_project (single), executing_entity (single or array), description, buffer_anchor, buffer_binding.
+        // All 63 fixture Deliverables have single executing_entity (no semicolons); loader passes as scalar string.
+        const parentProjectId = resolveProject(n.parent_project);
+        const executingEntityId = resolveEntity(n.executing_entity);  // Single entity (scalar, no semicolon split needed)
+
         dispatch({
           type: 'DECLARE_DELIVERABLE',
           payload: {
             ...common,
-            owningProjectId,
-            owningInitiativeId,
-            successCriteria: n.what_ships || null,
-            targetDate: n.target_date || null,
+            parent_project: parentProjectId,  // v3 field: resolved project ID
+            executing_entity: executingEntityId,  // v3 field: resolved single entity ID (scalar)
+            description: n.what_ships || null,  // v3 field name (was successCriteria in v2)
+            target_date: n.target_date || null,  // v3 field name (snake_case)
             buffer_anchor: String(n.buffer_anchor || '').trim() || null,  // Defect B: Pass raw name; validation in second pass
             buffer_binding: n.buffer_binding || null,       // Step 3: 'hard' | 'advisory' — must pair with buffer_anchor
           },
