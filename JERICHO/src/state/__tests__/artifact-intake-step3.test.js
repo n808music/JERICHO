@@ -30,28 +30,10 @@ describe('Artifact Intake Step 3: reducer enforcement', () => {
       type: 'DECLARE_VERIFICATION_SOURCE',
       payload: { id: 'vs-test', domain: 'test', source: 'unit_test' },
     });
-    state = computeDerivedState(state, {
-      type: 'DECLARE_ENTITY',
-      payload: {
-        id: 'entity-owner',
-        name: 'Owner Entity',
-        roleTags: ['owner'],
-        purpose: 'test',
-        formationState: 'formed',
-        statusEvidence: 'test',
-      },
-    });
-    state = computeDerivedState(state, {
-      type: 'DECLARE_ENTITY',
-      payload: {
-        id: 'entity-executor',
-        name: 'Executor Entity',
-        roleTags: ['executor'],
-        purpose: 'test',
-        formationState: 'formed',
-        statusEvidence: 'test',
-      },
-    });
+    // Initiative is declared before the Entities because Entity intake (Step 5)
+    // requires foundation_initiative to resolve to an already-declared Initiative.
+    // The reverse order is safe: declareInitiative treats owningEntityId as
+    // explicitly nullable and does not validate it against the registry.
     state = computeDerivedState(state, {
       type: 'DECLARE_INITIATIVE',
       payload: {
@@ -66,6 +48,30 @@ describe('Artifact Intake Step 3: reducer enforcement', () => {
       },
     });
     state = computeDerivedState(state, {
+      type: 'DECLARE_ENTITY',
+      payload: {
+        id: 'entity-owner',
+        name: 'Owner Entity',
+        roleTags: ['owner'],
+        purpose: 'test',
+        formationState: 'formed',
+        statusEvidence: 'test',
+        foundation_initiative: 'initiative-test',
+      },
+    });
+    state = computeDerivedState(state, {
+      type: 'DECLARE_ENTITY',
+      payload: {
+        id: 'entity-executor',
+        name: 'Executor Entity',
+        roleTags: ['executor'],
+        purpose: 'test',
+        formationState: 'formed',
+        statusEvidence: 'test',
+        foundation_initiative: 'initiative-test',
+      },
+    });
+    state = computeDerivedState(state, {
       type: 'DECLARE_PROJECT',
       payload: {
         id: 'project-test',
@@ -77,6 +83,20 @@ describe('Artifact Intake Step 3: reducer enforcement', () => {
         parent_initiative: 'initiative-test',
         boundary_type: 'Terminating',
         terminal_date: '2026-12-31',
+      },
+    });
+    // The buffer tests below anchor to 'deliv-mastering'. Item 6 requires a
+    // buffer_anchor to resolve to a declared node, so the anchor target has to
+    // exist or every one of those artifacts is correctly rejected.
+    state = computeDerivedState(state, {
+      type: 'DECLARE_DELIVERABLE',
+      payload: {
+        id: 'deliv-mastering',
+        name: 'Mastering Deliverable',
+        parent_project: 'project-test',
+        executing_entity: 'entity-executor',
+        description: 'test',
+        target_date: '2026-11-30',
       },
     });
   };
@@ -241,8 +261,8 @@ describe('Artifact Intake Step 3: reducer enforcement', () => {
       declare({ buffer_anchor: 'deliv-mastering', buffer_binding: 'hard' });
       expect(state.lastPlanError).toBeFalsy();
       expect(state.matrix.artifactsById['artifact-test']).toMatchObject({
-        buffer_anchor: 'deliv-mastering',
-        buffer_binding: 'hard',
+        bufferAnchor: 'deliv-mastering',
+        bufferBinding: 'hard',
       });
     });
 
@@ -306,8 +326,8 @@ describe('Artifact Intake Step 3: reducer enforcement', () => {
       expect(state.matrix.artifactsById['artifact-test']).toMatchObject({
         satisfaction_mode: 'AND',
         targetDate: '2099-06-30',
-        buffer_anchor: 'deliv-mastering',
-        buffer_binding: 'advisory',
+        bufferAnchor: 'deliv-mastering',
+        bufferBinding: 'advisory',
       });
     });
   });
