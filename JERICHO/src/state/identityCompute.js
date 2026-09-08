@@ -17164,15 +17164,16 @@ function declareDeliverable(state, payload = {}) {
   const nowISO = state?.appTime?.nowISO || new Date().toISOString();
 
   // Create the Deliverable node with all intake fields
+  // NOTE: Payload keys are fixture vocabulary (snake_case). Stored state normalizes to camelCase.
   state.matrix.deliverablesById[id] = {
     id,
     name,
-    parent_project,
-    executing_entity,
-    target_date,
+    owningProjectId: parent_project,      // resolved id, key restored to camelCase
+    targetDate: target_date,               // the 209-read fix: this field drives rollups, phase, floor rule, convergence
+    executingEntityId: executing_entity,   // resolved id
     description: payload?.description ?? null,
-    buffer_anchor: payload?.buffer_anchor ?? null,
-    buffer_binding: payload?.buffer_binding ?? null,
+    bufferAnchor: payload?.buffer_anchor ?? null,      // new field, deliberately camelCase for parity
+    bufferBinding: payload?.buffer_binding ?? null,    // new field, deliberately camelCase for parity
     // Phase: never stored (E15 doctrine, 2026-08-23). Computed at read time from parent Project.
     // depends_on: never intake fields (edge-structured, handled via edge builder).
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
