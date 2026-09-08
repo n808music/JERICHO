@@ -252,6 +252,8 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             owningInitiativeId,
             successCriteria: n.what_ships || null,
             targetDate: n.target_date || null,
+            buffer_anchor: String(n.buffer_anchor || '').trim() || null,  // Defect B: Pass raw name; validation in second pass
+            buffer_binding: n.buffer_binding || null,       // Step 3: 'hard' | 'advisory' — must pair with buffer_anchor
           },
         });
       } else if (cls === 'Artifact') {
@@ -273,7 +275,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             verificationSourceId: VERIFICATION_SOURCE_ID,
             operatorAttestationMethod: 'operator',
             targetDate: n.target_date || null,
-            buffer_anchor: resolveBufferAnchor(n.buffer_anchor),  // Item 6: resolve name → grain-scoped ID
+            buffer_anchor: String(n.buffer_anchor || '').trim() || null,  // Defect B: Pass raw name; validation in second pass
             buffer_binding: n.buffer_binding || null,       // Step 3: 'hard' | 'advisory'
             // Step 3: Artifact intake fields
             satisfaction_mode: n.satisfaction_mode || null,
@@ -293,6 +295,64 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
       }
     }
   }
+
+  // Defect B: Pass 2 — Validate all buffer_anchors now that all nodes are declared.
+  // Iterate through artifacts and deliverables, resolve anchor names to IDs, validate resolution.
+  // Validation timing change: anchor resolution/validation now happens in pass 2 (after all nodes declared),
+  // not pass 1 (during DECLARE_*), eliminating forward-reference ordering hazards.
+  const validateBufferAnchors = () => {
+    // Validate Artifacts
+    for (const artifactId of Object.keys(state.matrix.artifactsById)) {
+      const artifact = state.matrix.artifactsById[artifactId];
+      if (!artifact.buffer_anchor) {
+        continue; // Skip nodes without anchors
+      }
+
+      // buffer_anchor is a name string; resolve to ID using grain-scoped precedence
+      const anchorName = artifact.buffer_anchor;
+      const anchorId = resolveBufferAnchor(anchorName);
+
+      if (!anchorId) {
+        // Anchor name does not resolve to any declared node
+        state.lastPlanError = {
+          code: 'ARTIFACT_BUFFER_ANCHOR_UNKNOWN',
+          reason: `Artifact buffer_anchor "${anchorName}" is not declared in any registry (Artifact, Deliverable, Project, or Initiative).`,
+          meta: { id: artifactId, bufferAnchor: anchorName },
+        };
+        return; // Stop on first validation failure
+      }
+
+      // Update artifact with resolved anchor ID
+      artifact.buffer_anchor = anchorId;
+    }
+
+    // Validate Deliverables (same process)
+    for (const deliverableId of Object.keys(state.matrix.deliverablesById)) {
+      const deliverable = state.matrix.deliverablesById[deliverableId];
+      if (!deliverable.buffer_anchor) {
+        continue; // Skip nodes without anchors
+      }
+
+      // buffer_anchor is a name string; resolve to ID using grain-scoped precedence
+      const anchorName = deliverable.buffer_anchor;
+      const anchorId = resolveBufferAnchor(anchorName);
+
+      if (!anchorId) {
+        // Anchor name does not resolve to any declared node
+        state.lastPlanError = {
+          code: 'DELIVERABLE_BUFFER_ANCHOR_UNKNOWN',
+          reason: `Deliverable buffer_anchor "${anchorName}" is not declared in any registry (Artifact, Deliverable, Project, or Initiative).`,
+          meta: { id: deliverableId, bufferAnchor: anchorName },
+        };
+        return; // Stop on first validation failure
+      }
+
+      // Update deliverable with resolved anchor ID
+      deliverable.buffer_anchor = anchorId;
+    }
+  };
+
+  validateBufferAnchors();
 
   // Attested edges: typed relational links → matrixLinksById; the named
   // convergence → milestonesById. from/to reference node names (resolved to ids).

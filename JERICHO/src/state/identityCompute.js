@@ -17315,9 +17315,13 @@ function declareArtifact(state, payload = {}) {
     return;
   }
 
-  // Validate targetDate is future
+  // Get nowISO early for date validation
+  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
+
+  // Validate targetDate is future (relative to injected nowISO, not wall clock)
   const targetDateObj = new Date(targetDate);
-  if (isNaN(targetDateObj.getTime()) || targetDateObj <= new Date()) {
+  const nowDate = new Date(nowISO);
+  if (isNaN(targetDateObj.getTime()) || targetDateObj <= nowDate) {
     state.lastPlanError = {
       code: 'ARTIFACT_TARGET_DATE_INVALID',
       reason: `Artifact targetDate must be a valid future ISO date, got "${targetDate}".`,
@@ -17340,24 +17344,11 @@ function declareArtifact(state, payload = {}) {
     return;
   }
 
-  // Item 6: Validate buffer_anchor resolves to a declared node when present
-  // Search across registries in grain-scoped precedence order.
-  if (bufferAnchor) {
-    const anchorExists =
-      state.matrix.artifactsById[bufferAnchor] ||
-      state.matrix.deliverablesById[bufferAnchor] ||
-      state.matrix.projectsById[bufferAnchor] ||
-      state.matrix.initiativesById[bufferAnchor];
-
-    if (!anchorExists) {
-      state.lastPlanError = {
-        code: 'ARTIFACT_BUFFER_ANCHOR_UNKNOWN',
-        reason: `Artifact buffer_anchor "${bufferAnchor}" is not declared in any registry (Artifact, Deliverable, Project, or Initiative).`,
-        meta: { id, bufferAnchor },
-      };
-      return;
-    }
-  }
+  // Item 6: Defect B — buffer_anchor validation deferred to pass 2
+  // Pass 1 accepts buffer_anchor as raw name string (may not resolve yet due to declaration order).
+  // Pass 2 (after all nodes declared) validates that buffer_anchor resolves to a node in
+  // grain-scoped precedence (Artifact → Deliverable → Project → Initiative).
+  // This two-pass approach eliminates forward-reference ordering hazards.
 
   // Layer 2: Uniqueness assertion at mint time
   if (state.matrix.artifactsById[id]) {
@@ -17369,7 +17360,6 @@ function declareArtifact(state, payload = {}) {
     return;
   }
 
-  const nowISO = state?.appTime?.nowISO || new Date().toISOString();
   // Step 1 (node-shape): parentDeliverableIds from payload or derived from loader path.
   // producingProjectId is kept for compat but nulled (E15 amendment will derive it from parent Deliverable).
   state.matrix.artifactsById[id] = {
