@@ -355,7 +355,11 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
   // while 71e95e9 had normalized Deliverable storage to `bufferAnchor`, so the guard was dead
   // code. The ledger records what pass 1 actually deferred, so nothing can be missed by
   // looking in the wrong place.
-  const STORAGE_KEY = { Artifact: 'buffer_anchor', Deliverable: 'bufferAnchor' };
+  // Both classes store the resolved anchor under `bufferAnchor`. This used to be a per-class
+  // key map, which existed only to paper over Artifact storing snake_case while Deliverable
+  // stored camelCase — the asymmetry that let the Deliverable loop read a key that was never
+  // there. With storage uniform, the map is unnecessary and the class of bug is gone.
+  const STORAGE_KEY = 'bufferAnchor';
 
   const validateBufferAnchors = () => {
     const processed = new Set();
@@ -384,7 +388,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
         return; // Stop on first validation failure (loud failure at the source)
       }
 
-      node[STORAGE_KEY[kind]] = anchorId;
+      node[STORAGE_KEY] = anchorId;
       processed.add(entry);
     }
 

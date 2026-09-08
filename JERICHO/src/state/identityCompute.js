@@ -17354,8 +17354,8 @@ function declareArtifact(state, payload = {}) {
     // No stored `phase` (E16 amended doctrine, 2026-08-23): Artifacts pure-copy their parent
     // PROJECT's computed Phase at read time. A stored value here has no legitimate producer.
     targetDate: String(payload?.targetDate || '').trim() || null,
-    buffer_anchor: String(payload?.buffer_anchor || '').trim() || null,     // Step 3: optional parent deliverable for buffer computation
-    buffer_binding: String(payload?.buffer_binding || '').trim() || null,   // Step 3: 'hard' | 'advisory' — must pair with buffer_anchor
+    bufferAnchor: String(payload?.buffer_anchor || '').trim() || null,     // Step 3: optional parent deliverable for buffer computation
+    bufferBinding: String(payload?.buffer_binding || '').trim() || null,   // Step 3: 'hard' | 'advisory' — must pair with bufferAnchor
     // Step 3: Artifact intake fields
     satisfaction_mode: satisfactionMode,
     roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],

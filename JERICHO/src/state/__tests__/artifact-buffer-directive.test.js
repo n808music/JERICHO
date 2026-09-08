@@ -105,7 +105,7 @@ describe('Artifact Buffer Directive (Item 6): Buffer anchor resolution & validat
       });
       expect(state.lastPlanError).toBeNull();
       const artifact = state.matrix.artifactsById['artifact-uses-artifact-anchor'];
-      expect(artifact?.buffer_anchor).toBe('artifact-anchor');
+      expect(artifact?.bufferAnchor).toBe('artifact-anchor');
     });
 
     it('Resolves when buffer_anchor matches a declared Deliverable', () => {
@@ -126,7 +126,7 @@ describe('Artifact Buffer Directive (Item 6): Buffer anchor resolution & validat
         },
       });
       expect(state.lastPlanError).toBeNull();
-      expect(state.matrix.artifactsById['artifact-uses-deliverable-anchor'].buffer_anchor).toBe('deliverable-anchor');
+      expect(state.matrix.artifactsById['artifact-uses-deliverable-anchor'].bufferAnchor).toBe('deliverable-anchor');
     });
 
     it('Resolves when buffer_anchor matches a declared Project', () => {
@@ -147,7 +147,7 @@ describe('Artifact Buffer Directive (Item 6): Buffer anchor resolution & validat
         },
       });
       expect(state.lastPlanError).toBeNull();
-      expect(state.matrix.artifactsById['artifact-uses-project-anchor'].buffer_anchor).toBe('project-anchor');
+      expect(state.matrix.artifactsById['artifact-uses-project-anchor'].bufferAnchor).toBe('project-anchor');
     });
 
     it('Resolves when buffer_anchor matches a declared Initiative', () => {
@@ -168,7 +168,7 @@ describe('Artifact Buffer Directive (Item 6): Buffer anchor resolution & validat
         },
       });
       expect(state.lastPlanError).toBeNull();
-      expect(state.matrix.artifactsById['artifact-uses-initiative-anchor'].buffer_anchor).toBe('initiative-anchor');
+      expect(state.matrix.artifactsById['artifact-uses-initiative-anchor'].bufferAnchor).toBe('initiative-anchor');
     });
   });
 
@@ -213,8 +213,8 @@ describe('Artifact Buffer Directive (Item 6): Buffer anchor resolution & validat
       });
       expect(state.lastPlanError).toBeNull();
       const artifact = state.matrix.artifactsById['artifact-no-buffer'];
-      expect(artifact?.buffer_anchor).toBeNull();
-      expect(artifact?.buffer_binding).toBeNull();
+      expect(artifact?.bufferAnchor).toBeNull();
+      expect(artifact?.bufferBinding).toBeNull();
     });
 
     it('Honours deferBufferAnchorValidation for batch loaders (opt-out, not default)', () => {
@@ -321,8 +321,8 @@ describe('Artifact Buffer Directive (Item 6): Buffer anchor resolution & validat
       });
       expect(state.lastPlanError).toBeNull();
       const artifact = state.matrix.artifactsById['artifact-stored'];
-      expect(artifact.buffer_anchor).toBe('project-anchor');
-      expect(artifact.buffer_binding).toBe('hard');
+      expect(artifact.bufferAnchor).toBe('project-anchor');
+      expect(artifact.bufferBinding).toBe('hard');
     });
 
     it('Stores both binding types: hard and advisory', () => {
@@ -343,7 +343,7 @@ describe('Artifact Buffer Directive (Item 6): Buffer anchor resolution & validat
           buffer_binding: 'hard',
         },
       });
-      expect(state.matrix.artifactsById['artifact-hard-binding'].buffer_binding).toBe('hard');
+      expect(state.matrix.artifactsById['artifact-hard-binding'].bufferBinding).toBe('hard');
 
       // Advisory binding
       state = computeDerivedState(state, {
@@ -362,7 +362,7 @@ describe('Artifact Buffer Directive (Item 6): Buffer anchor resolution & validat
           buffer_binding: 'advisory',
         },
       });
-      expect(state.matrix.artifactsById['artifact-advisory-binding'].buffer_binding).toBe('advisory');
+      expect(state.matrix.artifactsById['artifact-advisory-binding'].bufferBinding).toBe('advisory');
     });
   });
 
