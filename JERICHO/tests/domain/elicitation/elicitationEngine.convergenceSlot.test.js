@@ -14,20 +14,13 @@ import { probeFor } from '../../../src/domain/elicitation/reprobes.js';
 function buildBaseState() {
   let state = buildBlankIdentityState({});
   state = computeDerivedState(state, {
-    type: 'DECLARE_ENTITY',
-    payload: {
-      id: 'ent-1',
-      name: 'Global State Solutions',
-      roleTags: ['business'],
-      purpose: 'Testing',
-      formationState: 'functioning',
-      statusEvidence: 'Active and operating',
-    },
-  });
-  state = computeDerivedState(state, {
     type: 'DECLARE_VERIFICATION_SOURCE',
     payload: { id: 'vs-1', source: 'TestSource', domain: 'Testing' },
   });
+  // Initiative precedes Entity: Entity intake (Step 5) requires
+  // foundation_initiative to resolve to an already-declared Initiative.
+  // owningEntityId here is explicitly nullable and unvalidated, so the forward
+  // reference to ent-1 is safe.
   state = computeDerivedState(state, {
     type: 'DECLARE_INITIATIVE',
     payload: {
@@ -40,6 +33,18 @@ function buildBaseState() {
       function: 'core_operations',
       boundary_type: 'Terminating',
       completion_value: 'Initiative complete',
+    },
+  });
+  state = computeDerivedState(state, {
+    type: 'DECLARE_ENTITY',
+    payload: {
+      id: 'ent-1',
+      name: 'Global State Solutions',
+      roleTags: ['business'],
+      purpose: 'Testing',
+      formationState: 'functioning',
+      statusEvidence: 'Active and operating',
+      foundation_initiative: 'init-1',
     },
   });
   state = computeDerivedState(state, {
