@@ -1,0 +1,146 @@
+{
+  "note": "Rows added to reference_matrix_v3_0.json in the working tree before Phase 0, recovered prior to git checkout. UNCOMMITTED — no git object holds these.",
+  "recovered_at": "2026-09-09T16:56:07.833Z",
+  "head_sha": "20406ecb1f0cabb62610e4cff608dfcd6f232302",
+  "intended_additions_count": 13,
+  "intended_additions": [
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 2 — Release",
+      "parent_deliverable": "State of Control pt. 2",
+      "satisfaction_mode": "AND",
+      "target_date": "2027-07-13",
+      "what_ships": "Episode/chapter publicly released across declared channels — publish confirmation"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 3 — Release",
+      "parent_deliverable": "State of Control pt. 3",
+      "satisfaction_mode": "AND",
+      "target_date": "2027-10-28",
+      "what_ships": "Episode/chapter publicly released across declared channels — publish confirmation"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 4 — Release",
+      "parent_deliverable": "State of Control pt. 4",
+      "satisfaction_mode": "AND",
+      "target_date": "2028-02-11",
+      "what_ships": "Episode/chapter publicly released across declared channels — publish confirmation"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 5 — Release",
+      "parent_deliverable": "State of Control pt. 5",
+      "satisfaction_mode": "AND",
+      "target_date": "2028-05-29",
+      "what_ships": "Episode/chapter publicly released across declared channels — publish confirmation"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 1 — Release",
+      "parent_deliverable": "The Imaginary CEO — Season 1",
+      "satisfaction_mode": "AND",
+      "target_date": "2027-06-16",
+      "what_ships": "Episode/season publicly released across declared channels — publish confirmation"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 2 — Release",
+      "parent_deliverable": "The Imaginary CEO — Season 2",
+      "satisfaction_mode": "AND",
+      "target_date": "2027-09-30",
+      "what_ships": "Episode/season publicly released across declared channels — publish confirmation"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 3 — Release",
+      "parent_deliverable": "The Imaginary CEO — Season 3",
+      "satisfaction_mode": "AND",
+      "target_date": "2028-01-14",
+      "what_ships": "Episode/season publicly released across declared channels — publish confirmation"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 4 — Release",
+      "parent_deliverable": "The Imaginary CEO — Season 4",
+      "satisfaction_mode": "AND",
+      "target_date": "2028-05-02",
+      "what_ships": "Episode/season publicly released across declared channels — publish confirmation"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 5 — Release",
+      "parent_deliverable": "The Imaginary CEO — Season 5",
+      "satisfaction_mode": "AND",
+      "target_date": "2028-11-01",
+      "what_ships": "Episode/season publicly released across declared channels — publish confirmation"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 6 — Release",
+      "parent_deliverable": "The Imaginary CEO — Season 6",
+      "satisfaction_mode": "AND",
+      "target_date": "2029-05-02",
+      "what_ships": "Episode/season publicly released across declared channels — publish confirmation"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 7 — Release",
+      "parent_deliverable": "The Imaginary CEO — Season 7",
+      "satisfaction_mode": "AND",
+      "target_date": "2029-11-01",
+      "what_ships": "Episode/season publicly released across declared channels — publish confirmation"
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 8 — Release",
+      "parent_deliverable": "The Imaginary CEO — Season 8",
+      "satisfaction_mode": "AND",
+      "target_date": "2032-05-17",
+      "what_ships": "Episode/season publicly released across declared channels — publish confirmation"
+    },
+    {
+      "class": "Artifact",
+      "name": "Desiree — Release",
+      "parent_deliverable": "Desiree — Feature Film",
+      "satisfaction_mode": "AND",
+      "target_date": "2032-05-17",
+      "what_ships": "Feature film publicly released across declared channels — publish confirmation"
+    }
+  ],
+  "defective_fourteenth_row": {
+    "reason": "Duplicate name of existing HEAD artifact at index 170. Both slug to id upload-verified-live-i-am-the-state; this row is rejected at load with ARTIFACT_DUPLICATE_ID (identityCompute.js:17332). Breaks the <Deliverable> — Release naming pattern of the other 13.",
+    "artifact_index": 187,
+    "row": {
+      "class": "Artifact",
+      "name": "Upload Verified Live (I Am The State)",
+      "parent_deliverable": "I Am The State — Terminal Album",
+      "satisfaction_mode": "AND",
+      "target_date": "2032-04-21",
+      "what_ships": "Final album uploaded and verified live on platforms — upload confirmation"
+    }
+  },
+  "cleared_completion_values": [
+    {
+      "name": "Our Fearless Leader: 7 Seals",
+      "completion_value": "All 7 tapes shipped, with a proven, built audience."
+    },
+    {
+      "name": "State of Control",
+      "completion_value": "5 short films uploaded to YouTube."
+    },
+    {
+      "name": "The Imaginary CEO",
+      "completion_value": "Season 8 airs covering I Am The State and is published to the Global State YouTube channel."
+    },
+    {
+      "name": "Seeds of Destruction",
+      "completion_value": "Album trilogy and Max Clout short-film trilogy both shipped."
+    },
+    {
+      "name": "I Am The State",
+      "completion_value": "Terminal album released; Desiree feature film released; arc complete."
+    }
+  ]
+}

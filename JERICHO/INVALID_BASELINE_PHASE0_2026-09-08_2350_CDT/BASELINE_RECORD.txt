@@ -1,0 +1,124 @@
+###########################################################################
+# INVALIDATED 2026-09-09. DO NOT USE THE ANCHOR BELOW.
+#
+# This capture ran against a MUTATED working tree. tests/fixtures/
+# reference_matrix_v3_0.json was uncommitted-modified at capture time,
+# already carrying the fixture halves of Phase 2a and 2c:
+#   - Artifact rows 175 -> 189
+#   - completion_value cleared on all 5 Initiatives that carry one
+# The 61-file anchor, the 59/2 live/dead split and the 4627 total below
+# all describe that mutated tree, not HEAD 20406ec.
+#
+# Retained as the record of a capture that was published and found wrong.
+# The corrections documented below (empty-file vacuous diff, unanchored
+# FAIL pattern, dropped Errors bucket) remain accurate and are why the
+# capture script was rewritten. The NUMBERS are not usable.
+#
+# The uncommitted mutation was recovered before revert to:
+#   /Users/jamesdotson/vscode/JERICHO_RECOVERED_fixture_mutation.json
+###########################################################################
+
+Phase 0 Baseline Capture — CORRECTED 2026-09-09
+HEAD SHA: 20406ecb1f0cabb62610e4cff608dfcd6f232302
+
+Runs began 2026-09-08 23:50:36 local, ended 2026-09-09 00:04:44 local.
+(The original directory name was UTC-stamped, which is why it read 04-50-35
+against logs saying 23:50. Directory renamed to local start time.)
+
+
+## CORRECTION NOTICE — the first record was vacuous
+
+The original BASELINE_RECORD.txt asserted "✓ File sets identical" while
+reporting 0 failing files and 0 collection-dead files for both runs. The
+extraction had produced empty files; `diff` on two empty files passed, and
+the script reported that vacuous pass as verification.
+
+Root cause of the failed extraction: the FAIL pattern was unanchored, and
+this suite prints the literal string "FAIL" inside test *content*
+(e.g. "gives: 'creates synergy' → FAIL"). Extraction must anchor on
+`^ *FAIL +<path>`.
+
+Every number below is derived from run1_full.log / run2_full.log, which
+were captured in full. The console summary is not the source for anything.
+
+
+## ANCHOR (both runs, measured)
+
+  Failing files:            61     (identical set, symmetric difference EMPTY)
+  ├─ live-failing:          59
+  └─ collection-dead:        2     (identical set in both runs)
+
+  Collection-dead files:
+    tests/domain/elicitation/projectSlot.requiresLegalFormation.unit.test.js
+    tests/state/masterPlanFullHorizon.expression.test.js
+      (masterPlanFullHorizon fails to resolve import
+       "../../src/diagnostics/fullHorizonTruthAudit.js")
+
+  Full file list: run1_files.txt / run2_files.txt (verified identical)
+
+
+## THE 60-vs-61 DISCREPANCY — resolved, NOT a revival
+
+  run1:  Test Files  60 failed | 601 passed (662)
+              Tests  167 failed | 4450 passed | 7 skipped (4627)
+             Errors  3 errors
+  run2:  Test Files  61 failed | 601 passed (662)
+              Tests  167 failed | 4453 passed | 7 skipped (4627)
+
+Both runs carry 61 files with anchored FAIL lines. Run 1's summary said 60
+because one file was bucketed as an ERROR, not a FAILURE.
+
+All 3 of run 1's errors are the same infrastructure fault:
+  Error: [vitest-worker]: Timeout calling "onTaskUpdate"
+all originating in tests/components/MasterPlanTimeline.render.test.jsx
+
+The file RAN in both runs and appears in both FAIL lists with the identical
+failing test. Three of its results never reached the main process, so vitest
+could not classify the file and it fell out of the Test Files tally:
+  - 3 tests short:  167+4450+7 = 4624  vs vitest's own printed total 4627
+  - 1 file short:   60+601     =  661  vs printed total 662
+Run 1 took 463s vs run 2's 380s — consistent with reporter RPC contention.
+
+=> This is reporter-transport flakiness, not a file entering or leaving the
+   run. The 61-file set is STABLE. Do not read it as a revival.
+
+Arithmetic note: vitest's Errors bucket only prints when non-zero. Summing
+failed+passed+skipped WITHOUT it makes run 1 look 3 tests short of run 2 and
+falsely implies the runs executed different sets. Both totals are 4627.
+
+
+## TEST-COUNT RECONCILIATION vs last clean baseline
+
+  83d88fb frozen-tree baseline:  207 failed / 4405 passed / 7 skipped (4619)
+  20406ec this capture:          167 failed / 4450 passed / 7 skipped (4627)
+  Delta: +8 tests
+
+  Accounted in full by commit 6a1c729 (Defect B):
+    artifact-buffer-directive.test.js   9 -> 17 tests  (+8)
+    artifact-intake-step3.test.js      25 -> 25        (setup repair only)
+    elicitationEngine.convergenceSlot  31 -> 31        (setup repair only)
+
+  OPEN: a figure of 4617 has been cited elsewhere for the same anchor. The
+  memory record says 4619. Reconciliation above assumes 4619. If 4617 is
+  correct, 2 tests remain unexplained. Settle before Phase 6 relies on it.
+
+
+## FILES
+
+  run1_files.txt / run2_files.txt          61 failing files each (identical)
+  run1_dead_files.txt / run2_dead_files.txt 2 collection-dead each (identical)
+  flaky_files.txt                          reporter-transport flake
+  run1_files.ORIGINAL_FROM_TMP.txt         recovered from /tmp; set-identical
+                                           to derived run1 (provenance record)
+  run1_full.log / run2_full.log            raw stdout, source of all numbers
+
+
+## PHASE 6 COMPARISON RULE
+
+Compare against the 61-file SET, not the count.
+  - file in Phase 6 but not in run{1,2}_files.txt   -> REGRESSION
+  - file in run{1,2}_files.txt but not in Phase 6   -> FIX (or non-report:
+                                                       check the Errors bucket)
+  - change within the 2 collection-dead files       -> REVIVAL, not a fix
+MasterPlanTimeline.render.test.jsx may report as an Error rather than a
+Failure under load. That is not movement.

@@ -1,0 +1,84 @@
+Phase 0 Baseline Capture
+Timestamp: 2026-09-09_1157_CDT  (local time)
+HEAD SHA: 20406ecb1f0cabb62610e4cff608dfcd6f232302
+
+File Set Comparison:
+FLAKY FILES DETECTED (present in one run, absent in the other):
+tests/state/fullHorizon.computeMemo.test.js
+
+Failing files (Run 1): 61
+Failing files (Run 2): 60
+
+  live-failing   (Run 1): 59
+  live-failing   (Run 2): 58
+  collection-dead (Run 1): 2
+  collection-dead (Run 2): 2
+
+Run 1 totals:
+ Test Files  60 failed | 601 passed (662)
+      Tests  166 failed | 4451 passed | 7 skipped (4627)
+     Errors  4 errors
+
+Run 2 totals:
+ Test Files  60 failed | 602 passed (662)
+      Tests  165 failed | 4455 passed | 7 skipped (4627)
+
+Phase 6 comparison rule -- compare against the SET, not the count:
+  - in Phase 6, not in run{1,2}_files.txt  -> REGRESSION
+  - in run{1,2}_files.txt, not in Phase 6  -> FIX, or a non-report:
+                                              check the Errors bucket first
+  - movement within *_dead_files.txt       -> REVIVAL, not a fix
+
+  - BASELINE_PHASE0_2026-09-09_1157_CDT/run1_files.txt
+  - BASELINE_PHASE0_2026-09-09_1157_CDT/run2_files.txt
+
+
+## ANCHOR — read this, not the two file lists above
+
+run2's set is a STRICT SUBSET of run1's. Symmetric difference is exactly
+one file, present in run1 and absent in run2:
+
+    tests/state/fullHorizon.computeMemo.test.js
+
+  Failing test: "full-horizon derivation is memoized at enterprise scale >
+  recomputes derived state well under the freeze threshold for an unrelated
+  mutation" -- a wall-clock threshold assertion. run1 445s / run2 427s. It
+  fails under load and passes otherwise. Treat as FLAKY, not as movement.
+
+THE ANCHOR IS THE 60-FILE INTERSECTION (= run2_files.txt exactly):
+
+    60 failing files = 58 live-failing + 2 collection-dead
+
+  Collection-dead (identical in both runs):
+    tests/domain/elicitation/projectSlot.requiresLegalFormation.unit.test.js
+    tests/state/masterPlanFullHorizon.expression.test.js
+
+Why run2 is the authoritative list: run2 reported COMPLETELY
+(60 failed + 602 passed = 662 of 662). run1 did not -- 60 + 601 = 661, one
+file short, with 4 unhandled errors all originating in
+tests/components/MasterPlanTimeline.render.test.jsx (vitest-worker
+"Timeout calling onTaskUpdate"). That file IS present in both derived lists;
+run1 merely failed to classify it, so run1's summary says 60 while its
+anchored FAIL lines yield 61.
+
+Errors-bucket caveat: the Errors count is a count of unhandled error EVENTS,
+not of lost tests. run1 here shows 4 errors while failed+passed+skipped
+(4624) is 3 short of the printed total (4627). Do not equate the two.
+The printed (4627) is the authority for what was collected.
+
+Test-count note: 4627 collected in BOTH runs, and identical to the totals
+from the invalidated mutated-tree capture. Fixture rows are not tests;
+reverting the fixture changed what assertions see (167 -> 166 -> 165 failing
+tests), not what got collected.
+
+## PHASE 6 RULE (supersedes the block above)
+
+Compare against run2_files.txt (60 entries).
+  - in Phase 6, not in the 60          -> REGRESSION
+  - in the 60, not in Phase 6          -> FIX, unless the file failed to
+                                          report (check Errors bucket first)
+  - movement in the 2 dead files       -> REVIVAL, not a fix
+  - fullHorizon.computeMemo.test.js    -> KNOWN FLAKE. Not a regression when
+                                          present, not a fix when absent.
+  - MasterPlanTimeline.render.test.jsx -> may report as an Error rather than
+                                          a Failure under load. Not movement.
