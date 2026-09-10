@@ -182,23 +182,46 @@ exercises the load path; the four mutation tests exercise the reducer. That
 is the stronger of the two signals, and they are not redundant.
 
 Under the gated sequence the loader accepts the five Initiatives, line 13
-holds at 29, and execution reaches line 20. Therefore:
+holds at 29, and execution reaches line 20.
 
-    FAIL at matrix.referenceSeed.test.js:20   (artifactsById 175 -> 188)
-        -> EXPECTED SIGNAL. The gate worked; the artifact count moved.
+REQUIRED, NOT OPTIONAL: the commit that adds the artifact rows to
+tests/fixtures/reference_matrix_v3_0.json MUST also move the expected count
+to 188 in the SAME commit. Three occurrences, all in
+tests/state/matrix.referenceSeed.test.js:
+
+    line 11  comment  "... / 63 Deliverable / 175 Artifact / 10 System."
+    line 18  comment  "and all 175 Artifacts are valid and loaded ..."
+    line 20  ASSERT   expect(Object.keys(m.artifactsById)).toHaveLength(175);
+
+Do not split these across two commits. Splitting them means green signals
+failure for however long the gap lasts, and it leaves referenceSeed sitting
+red until someone gets around to updating a constant -- which is how an
+assertion quietly stops being checked. Fixture rows and expected count are
+one change.
+
+With that done, the readings are:
+
+    file GREEN
+        -> EXPECTED OUTCOME. Both halves worked: the gate admitted the five
+           Initiatives (line 13 held at 29) AND 188 artifact rows landed.
+           referenceSeed stays out of the failing set; no REGRESSION.
+
+    FAIL at matrix.referenceSeed.test.js:20   (artifactsById != 188)
+        -> WRONG COUNT LANDED. The gate worked and execution reached line 20,
+           but the artifact rows are off. Read the received number: it says
+           how many were admitted. Loader/fixture problem, not the gate.
 
     FAIL at matrix.referenceSeed.test.js:13   (initiativesById 29 -> 24)
-        -> PROOF PHASE X DID NOT WORK. Same shape as the mutated tree.
-           Not an artifact-count result at all: line 20 never executed.
+        -> PHASE X GATE FAILED. Same shape as the mutated tree. Not an
+           artifact-count result at all: line 20 never executed.
 
-    file green
-        -> the artifact rows did not land. Check the loader, not the gate.
+Green is the expected outcome and red is red. No inversion to remember.
 
-Both failures make the file go red and both read as REGRESSION against the
-60. The line number is what separates the intended result from the gate
-failing, so record it, not just file-level movement. The same applies to
-lines 12, 14 and 15 (Entity 7 / Project 59 / System 10) -- any of them firing
-is upstream short-circuit, never the artifact assertion.
+Either failure makes the file go red and reads as REGRESSION against the 60,
+so the LINE NUMBER is what discriminates -- record it, not just file-level
+movement. Lines 12, 14 and 15 (Entity 7 / Project 59 / System 10) behave like
+line 13: any of them firing is an upstream short-circuit, never the artifact
+assertion.
 
 ## ADDENDUM 2026-09-09 — what the mutation actually moved
 
