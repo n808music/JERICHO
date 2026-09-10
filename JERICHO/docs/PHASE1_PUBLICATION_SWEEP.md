@@ -89,26 +89,28 @@ that carries no Release artifact in v3.0. It is another instance of the gap the 
 in a class (music-shaped) that Phase 1 did not audit. That is a parallel ticket independent of
 the 13 film-shaped units and the two non-companion shorts.
 
-### GH-2 — Keying the gate on the literal name "Release" breaks 13 non-film units.
+### GH-2 — The gate declares and satisfies publication asymmetrically.
 
 `PUBLICATION_RULE.md` scopes itself to "any **film-shaped or episodic** deliverable with a
-public release requirement," but the pseudocode gate tests for "a Release artifact." Those do
-not describe the same set. Thirteen publication-bearing deliverables outside the film-shaped 19
-express publication under other names:
+public release requirement." The gate currently:
 
-| Unit(s) | Publication artifact |
-|---|---|
-| 6 × `— Artwork & Packaging` (Romance Riot, Painkillers, Coronation, Savior, Sacrifice, SoD 1–3, IATS — 9 rows) | `Upload Verified Live (X)`, `Release Packaging (X)`, `Post-Release Rollout Complete (X)` |
-| **Help Yourself Broadcast — Batch 1 (5 episodes)** | `Published (5 episodes live)` |
-| The Jericho System — 1.0 Public Launch | `Launch Announcement Live`, `Public App Release Live` |
-| F8 Energy GUM — Product Launch | `GUM — Product Available for Purchase` |
-| Marketing Flywheel — Capture Layer Live | `Pre-Save / Platform-Follow / App-Signup Capture Live` |
+1. Declares publication is required (implicitly, by trying to find it)
+2. Checks for satisfaction by matching artifact name to the pattern "Release"
 
-**Help Yourself Broadcast is the sharp case.** It is *episodic* — squarely inside the rule's
-own stated scope — it has a real publication event, and its artifact is named `Published`, not
-`Release`. A gate matching on "Release" raises `PUBLICATION_REQUIRED_MISSING` against a unit
-whose publication is already falsifiable. The gate must key on publication *semantics*, or its
-scope sentence must be narrowed to film-shaped only. Deciding which is a prerequisite to 2a.
+These are separate concerns. Declaring *requirement* and identifying *satisfaction* need separate
+mechanisms. Help Yourself Broadcast — Batch 1 (episodic, inside the rule's stated scope) has a
+real publication event named `Published`, not `Release`. The gate would raise `PUBLICATION_REQUIRED_MISSING`
+against a unit whose publication is already falsifiable.
+
+**Ticket scope: three pieces, settled in order.**
+
+1. Add `publication_required: boolean` field to Deliverable. Declares that publication is required.
+2. Add a way to identify which artifact satisfies the requirement. Candidates: extend `satisfaction_mode` on
+   Artifact, or a new field. Name-matching breaks when lanes use different terminology (Help Yourself
+   Broadcast uses `Published`; film lanes use `Release`; music uses `Upload Verified Live`).
+3. **Backfill all 19 units.** Using the Phase 1 sweep definition (any unit carrying Shoot/Pre-Production/Edit Complete),
+   set `publication_required: true` and configure satisfaction. The definition is the only non-name-based
+   way to populate it. Write it now, while the sweep output is fresh.
 
 ### GH-3 — The defective 14th row's premise is false, not just its id.
 
