@@ -24,23 +24,19 @@ isn't a check, it's a scheduled failure.
 
 | # | publication_required | artifact count | Status | Notes |
 |---|---|---|---|---|
-| **1a** | true | ≥1 (one publication) | ✓ VALID | Intent satisfied. Deliverable is publication-ready. |
-| **1b** | true | ≥2 (multiple publications) | ✓ VALID | Staged release. Legal. Date selection handled separately. |
+| **1** | true | ≥1 | ✓ VALID | Intent satisfied. Deliverable is publication-ready. |
 | **2** | true | 0 | ✗ INVALID | **This is the 13 missing-Release units.** Gate catches them here. |
 | **3** | false | ≥1 | ✗ SCHEMA VIOLATION | Artifact marked publication but deliverable doesn't require it. Error. |
 | **4** | false | 0 | ✓ VALID | Non-publication unit, no artifact marked for it. Correct. |
-
-**Case 1b (staged release) decision:** Multiple publication artifacts are legal. A staged
-release can have two publication events. Gate reads: `if publication_required && artifacts.filter(a.publication_artifact).length === 0 → error`.
-
-**Case 1b consequence:** The publication rule's max() needs a single date. Which artifact
-anchors it? This is a separate decision (e.g., "earliest", "latest", "explicit ordering").
-Record this decision in the publication rule pseudocode before implementation.
 
 **Case 3 decision:** An artifact marked `publication_artifact: true` on `publication_required: false`
 is a schema violation. Error, not allowed. Mutation test: set `publication_required: false` on
 Max Clout 1 (which has a Release artifact marked `publication_artifact: true`), load, expect
 `SCHEMA_VIOLATION` error.
+
+**Multi-artifact note (staged release):** Currently hypothetical (no data). Write logic in
+publication rule pseudocode as a conditional. Gate checks only for presence (length ≥ 1), not
+count. When a real staged release appears, rule applies: use earliest artifact date.
 
 ### Implementation: The Gate
 
@@ -106,12 +102,20 @@ Two test cases surface the design decisions:
 
 ---
 
-## Open decisions
+## Decision: Publication date anchor for staged releases
 
-**Publication date selection (Case 1b):** When a deliverable has multiple `publication_artifact`
-artifacts (staged release), which one anchors the date for the publication rule's max() function?
-Options: earliest, latest, explicit ordering field. Decide and record in publication rule pseudocode
-before gate implementation.
+**When a deliverable has multiple `publication_artifact` artifacts:** use **earliest**.
+
+Reasoning: Publication is when the thing becomes public, which is the first artifact. Latest would
+let slow-rolling releases push the anchor by months while work is already visible. Explicit ordering
+adds a new field and a new failure mode (unfilled). **Earliest is stable under later additions:**
+add a second publication artifact after the fact and the date does not move, which is the property
+you want for a field other lanes offset from.
+
+**Current state:** This case is hypothetical. Six publication artifacts exist, each with one
+deliverable. Write the logic in publication rule pseudocode as a conditional: "if ever occurs,
+use earliest". Do not implement in gate code. Same exposure as the offset table: written before
+data existed. When a real staged release shows up, the rule is ready.
 
 ---
 
