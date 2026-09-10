@@ -70,28 +70,24 @@ deliverables missing a Release artifact, by a definition derived independently o
 
 ---
 
-## 3. Gate hits — these stop Phase 2a
+## 3. Gate hits status
 
-### GH-1 — The inventory is 19, not 17. Two units were never audited.
+### GH-1 — RESOLVED
 
-`docs/PUBLICATION_RULE.md` § Coverage audit enumerates Max Clout (3), State of Control (5),
-The Imaginary CEO (8), Desiree (1) = **17**. The fixture holds **19**. Unlisted:
+`docs/PUBLICATION_RULE.md` enumerates 17 publication-companions: Max Clout (3), State of
+Control (5), The Imaginary CEO (8), Desiree (1). The fixture holds 19 film-shaped deliverables,
+including D8 N8 and BLACKMAN. Both carry the full `[CPSER]` production chain and Release
+artifacts.
 
-| Unit | Project | Artifacts |
-|---|---|---|
-| **D8 N8** | Our Fearless Leader 3: Romance Riot — Rollout & Assets | Script, Pre-Production, Shoot, Edit/Post, **Release** (2027-01-31) |
-| **BLACKMAN** | Our Fearless Leader 3: Romance Riot — Rollout & Assets | Script, Pre-Production, Shoot, Edit/Post, **Release** (2027-02-14) |
+**Resolution:** No `companion_content` edge exists for either unit in `canonical_edges`. The
+publication offset rule applies only to declared companions. Without the edge, the offset logic
+does not apply, and both units use their own production terminals as release dates. The offset
+table is correctly sized for the 17 companions it describes.
 
-Both carry the full `[CPSER]` chain — they are film-shaped by any reading, and their Release
-artifacts use the identical `what_ships` wording as the Max Clout lane ("Content publicly
-released across declared channels").
-
-**Why this stops Phase 2a rather than being a note.** They add **zero rows** — they already
-have Releases. But `PUBLICATION_RULE.md` defines lane offsets for exactly three lanes (Max
-Clout +14d, State of Control +6wk, The Imaginary CEO 4–6d). There is **no lane for the OFL
-rollout-asset units**. The moment `publication_required` is enforced at load time, these two
-rows enter a gate that has no rule to evaluate them against. The audit that produced the 17
-did not see them, so the offset table cannot be assumed complete either.
+**Separate ticket, out of scope:** Romance Riot album (2026-10-24) is a music-shaped deliverable
+that carries no Release artifact in v3.0. It is another instance of the gap the sweep found, but
+in a class (music-shaped) that Phase 1 did not audit. That is a parallel ticket independent of
+the 13 film-shaped units and the two non-companion shorts.
 
 ### GH-2 — Keying the gate on the literal name "Release" breaks 13 non-film units.
 
@@ -154,18 +150,21 @@ false negative for this sweep. Flagged as a separate data-quality item, out of s
 
 - `PUBLICATION_RULE.md` § Coverage audit cites **`reference_matrix_v3_1.json`**. No such file
   exists; the fixture in the repository and under test is `reference_matrix_v3_0.json`.
-- `PUBLICATION_RULE.md` § Coverage audit total inventory: **17 → 19** (GH-1).
 - `COMPLETION_STATED_IN_MUTATIONS.md` § Fixture changes applied: "Release artifacts added: 14"
-  — 13 are Release artifacts; the 14th is an `Upload Verified Live` for a gap that is not open
-  (GH-3).
+  — 13 are Release artifacts; the 14th is an `Upload Verified Live` for a gap that is not open.
+  This row should be dropped, not re-added. (Resolves GH-3.)
 
 ---
 
 ## 6. Verdict
 
-**The 13 is confirmed exact and Phase 6's row-count arithmetic (175 → 188) stands.**
+**The 13 is confirmed exact and Phase 6's row-count arithmetic (175 → 188) stands. Inventory
+reconciles end-to-end: 19 film-shaped, 6 with Release, 13 without. The 6 split as 17 companions
+(Max Clout, SoC, TIC, Desiree) plus 2 non-companions (D8 N8, BLACKMAN).**
 
-Phase 2a is **held** on GH-1 and GH-2 — the first because the offset table has no rule for two
-units the audit never saw, the second because the gate's match criterion and its stated scope
-disagree, and the disagreement lands on a real unit. GH-3 removes a row rather than adding one
-and does not change the 188.
+Phase 2a is **held** on **GH-2 only**. GH-1 resolved (no companion edge, offset logic doesn't
+apply). GH-3 resolved (row drops, already in recovery file enumeration). The gate blocking Phase 2a
+is GH-2: the publication gate must key on semantics, not artifact name, and the scope must
+reconcile its rule sentence ("film-shaped or episodic") with its implementation (currently matches
+only "Release" artifact name, falsely raising errors for episodic units whose publication uses
+other names).
