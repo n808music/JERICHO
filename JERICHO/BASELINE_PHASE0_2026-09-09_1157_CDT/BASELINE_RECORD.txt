@@ -83,6 +83,39 @@ Compare against run2_files.txt (60 entries).
   - MasterPlanTimeline.render.test.jsx -> may report as an Error rather than
                                           a Failure under load. Not movement.
 
+## ADDENDUM 2026-09-09 — THE ANCHOR IS 60 CORE + 1 NAMED FLAKE
+
+Stated unambiguously, because an unnamed one-file discrepancy between two
+runs is what voided the previous capture. Measured membership of
+tests/state/fullHorizon.computeMemo.test.js across all four derived lists:
+
+    CLEAN  run1  (61 files)   PRESENT   run1_full.log:62960
+                              ❯ (2 tests | 1 failed) 65697ms
+                              FAIL at fullHorizon.computeMemo.test.js:31:21
+    CLEAN  run2  (60 files)   absent    run2_full.log:63028
+                              ✓ (2 tests) 64245ms
+    INVALID run1 (61 files)   absent
+    INVALID run2 (61 files)   absent
+
+Clean run1 vs clean run2:
+    in run1 only:   tests/state/fullHorizon.computeMemo.test.js
+    in run2 only:   (none)
+    intersection:   60 files  == run2_files.txt exactly
+
+THE ANCHOR IS 60 CORE FILES (= run2_files.txt) = 58 live + 2 collection-dead,
+PLUS ONE NAMED FLAKE, fullHorizon.computeMemo.test.js, which appeared in
+CLEAN RUN 1 ONLY (1 of the 4 captures taken across both trees).
+
+The parity check DID come back clean. The symmetric difference between the
+two clean runs is non-empty but is exactly one file, that file is identified,
+its failing test is identified (a wall-clock threshold assertion at :31:21,
+run1 445s vs run2 427s), and its behavior is characterized across four runs.
+That is a named flake, not a discrepancy. Anything unnamed voids the anchor.
+
+The earlier "Set-level, INVALID run1 vs CLEAN run1 (61 files each)" line in
+the mutation-footprint addendum below is corrected in place: the two 61s are
+not the same 61.
+
 ## ADDENDUM 2026-09-09 — the four errors, named (supersedes lines 56-62)
 
 The claim above that all 4 of run1's unhandled errors originate in
@@ -136,17 +169,45 @@ upstream. The 5 missing Initiatives are exactly the 5 rows whose
 completion_value the mutation cleared (see RECOVERED_fixture_mutation.json
 "cleared_completion_values"): they are rejected at Initiative intake.
 
-Consequence for Phase 6: a prediction phrased as "the artifact count
-assertion fires at 175 -> 188" is only reachable if Entity(7), Initiative(29),
-Project(59) and System(10) all still match. Any upstream count drift
-short-circuits it, and the observed failure will name a different line.
-Predict the FILE going red, not the specific assertion.
+Consequence for Phase 6 -- READ THE LINE NUMBER, THE PREDICTION IS TWO-SIDED.
+
+The mutated tree was a natural experiment. It ran 2c's data against a loader
+that could not yet read the new column, and that is exactly the state the
+Phase X gate exists to prevent: five Initiatives rejected at intake, line 13
+firing at 24 instead of 29. The failure mode the gate was argued for is now
+demonstrated rather than argued, and this file is where it showed up.
+
+So matrix.referenceSeed.test.js is an INTEGRATION CANARY for the gate. It
+exercises the load path; the four mutation tests exercise the reducer. That
+is the stronger of the two signals, and they are not redundant.
+
+Under the gated sequence the loader accepts the five Initiatives, line 13
+holds at 29, and execution reaches line 20. Therefore:
+
+    FAIL at matrix.referenceSeed.test.js:20   (artifactsById 175 -> 188)
+        -> EXPECTED SIGNAL. The gate worked; the artifact count moved.
+
+    FAIL at matrix.referenceSeed.test.js:13   (initiativesById 29 -> 24)
+        -> PROOF PHASE X DID NOT WORK. Same shape as the mutated tree.
+           Not an artifact-count result at all: line 20 never executed.
+
+    file green
+        -> the artifact rows did not land. Check the loader, not the gate.
+
+Both failures make the file go red and both read as REGRESSION against the
+60. The line number is what separates the intended result from the gate
+failing, so record it, not just file-level movement. The same applies to
+lines 12, 14 and 15 (Entity 7 / Project 59 / System 10) -- any of them firing
+is upstream short-circuit, never the artifact assertion.
 
 ## ADDENDUM 2026-09-09 — what the mutation actually moved
 
-Set-level, INVALID run1 vs CLEAN run1 (61 files each):
-    only in mutated:  tests/state/matrix.referenceSeed.test.js
-    only in clean:    tests/state/fullHorizon.computeMemo.test.js  (known flake)
+Set-level, INVALID run1 (61 files) vs CLEAN run1 (61 files). NOTE: these are
+not the same 61 -- the mutated 61 carries referenceSeed and not the flake,
+the clean 61 carries the flake and not referenceSeed. Both sit against the
+same 60-file core:
+    only in mutated:  tests/state/matrix.referenceSeed.test.js   (real)
+    only in clean:    tests/state/fullHorizon.computeMemo.test.js (named flake)
 
 Totals: mutated 167 failed / 4450 passed / 3 errors
         clean   166 failed / 4451 passed / 4 errors
