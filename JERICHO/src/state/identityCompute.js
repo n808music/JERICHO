@@ -17132,6 +17132,7 @@ function declareDeliverable(state, payload = {}) {
     description: payload?.description ?? null,
     bufferAnchor: payload?.buffer_anchor ?? null,      // new field, deliberately camelCase for parity
     bufferBinding: payload?.buffer_binding ?? null,    // new field, deliberately camelCase for parity
+    publication_required: payload?.publication_required === true,  // GH-2: boolean gate field
     // Phase: never stored (E15 doctrine, 2026-08-23). Computed at read time from parent Project.
     // depends_on: never intake fields (edge-structured, handled via edge builder).
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
@@ -17358,6 +17359,7 @@ function declareArtifact(state, payload = {}) {
     bufferBinding: String(payload?.buffer_binding || '').trim() || null,   // Step 3: 'hard' | 'advisory' — must pair with bufferAnchor
     // Step 3: Artifact intake fields
     satisfaction_mode: satisfactionMode,
+    publication_artifact: payload?.publication_artifact === true,          // GH-2: boolean gate field
     roleTags: Array.isArray(payload?.roleTags) ? payload.roleTags.filter(Boolean) : [],
     reviewStatus: ['CONFIRMED', 'NEEDS_REVIEW', 'DRAFT'].includes(payload?.reviewStatus) ? payload.reviewStatus : 'DRAFT',
     declaredAtISO: nowISO,

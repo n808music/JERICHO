@@ -269,7 +269,7 @@
       "name": "The Imaginary CEO",
       "owner": "Global State Productions",
       "objective": "Advertises the Jericho system by dramatizing its real use.",
-      "deadline": "2032-03-15",
+      "deadline": "2032-05-17",
       "function": "Produces a scripted reality/documentary series following the execution of the enterprise's initiatives.",
       "completion_value": "Season 8 airs covering I Am The State and is published to the Global State YouTube channel.",
       "boundary_type": "Terminating"
@@ -917,7 +917,7 @@
       "parent_project": "State of Control — Our Fearless Leader 4",
       "executing_entity": "Global State Productions",
       "what_ships": "Chapter 2 — mad scientist serial killer",
-      "target_date": "2027-06-01",
+      "target_date": "2027-07-22",
       "buffer_anchor": "Painkillers — tape/album",
       "buffer_binding": "advisory",
       "publication_required": true
@@ -936,7 +936,7 @@
       "parent_project": "State of Control — Our Fearless Leader 5",
       "executing_entity": "Global State Productions",
       "what_ships": "Chapter 3 — mad scientist serial killer",
-      "target_date": "2027-09-16",
+      "target_date": "2027-11-05",
       "buffer_anchor": "Coronation — tape/album",
       "buffer_binding": "advisory",
       "publication_required": true
@@ -955,7 +955,7 @@
       "parent_project": "State of Control — Our Fearless Leader 6",
       "executing_entity": "Global State Productions",
       "what_ships": "Chapter 4 — mad scientist serial killer",
-      "target_date": "2027-12-31",
+      "target_date": "2028-02-20",
       "buffer_anchor": "Savior — tape/album",
       "buffer_binding": "advisory",
       "publication_required": true
@@ -974,7 +974,7 @@
       "parent_project": "State of Control — Our Fearless Leader 7",
       "executing_entity": "Global State Productions",
       "what_ships": "Finale — mad scientist serial killer, closes the series",
-      "target_date": "2028-04-17",
+      "target_date": "2028-06-08",
       "buffer_anchor": "Sacrifice — tape/album",
       "buffer_binding": "advisory",
       "publication_required": true
@@ -1154,7 +1154,7 @@
       "parent_project": "The Imaginary CEO — Season 8",
       "executing_entity": "Global State Productions",
       "what_ships": "Documentary coverage, series finale",
-      "target_date": "2032-03-15",
+      "target_date": "2032-05-17",
       "buffer_anchor": "I Am The State — Terminal Album",
       "buffer_binding": "advisory",
       "publication_required": true
@@ -3027,6 +3027,149 @@
       "owner": "F8 Energy Company",
       "mechanism": "Formulate product → produce → distribute → sell",
       "feeds_converges_into": "F8 Energy GUM Production; future F8 product lines"
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 2 — Release",
+      "parent_deliverable": "State of Control pt. 2",
+      "satisfaction_mode": "AND",
+      "target_date": "2027-07-22",
+      "what_ships": "Episode/chapter publicly released across declared channels — publish confirmation",
+      "buffer_anchor": "Post-Release Rollout Complete (Painkillers)",
+      "buffer_binding": "advisory",
+      "publication_artifact": true
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 3 — Release",
+      "parent_deliverable": "State of Control pt. 3",
+      "satisfaction_mode": "AND",
+      "target_date": "2027-11-05",
+      "what_ships": "Episode/chapter publicly released across declared channels — publish confirmation",
+      "buffer_anchor": "Post-Release Rollout Complete (Coronation)",
+      "buffer_binding": "advisory",
+      "publication_artifact": true
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 4 — Release",
+      "parent_deliverable": "State of Control pt. 4",
+      "satisfaction_mode": "AND",
+      "target_date": "2028-02-20",
+      "what_ships": "Episode/chapter publicly released across declared channels — publish confirmation",
+      "buffer_anchor": "Post-Release Rollout Complete (Savior)",
+      "buffer_binding": "advisory",
+      "publication_artifact": true
+    },
+    {
+      "class": "Artifact",
+      "name": "State of Control pt. 5 — Release",
+      "parent_deliverable": "State of Control pt. 5",
+      "satisfaction_mode": "AND",
+      "target_date": "2028-06-08",
+      "what_ships": "Episode/chapter publicly released across declared channels — publish confirmation",
+      "buffer_anchor": "Post-Release Rollout Complete (Sacrifice)",
+      "buffer_binding": "advisory",
+      "publication_artifact": true
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 1 — Release",
+      "parent_deliverable": "The Imaginary CEO — Season 1",
+      "satisfaction_mode": "AND",
+      "target_date": "2027-06-16",
+      "what_ships": "Episode/season publicly released across declared channels — publish confirmation",
+      "buffer_anchor": null,
+      "buffer_binding": null,
+      "publication_artifact": true
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 2 — Release",
+      "parent_deliverable": "The Imaginary CEO — Season 2",
+      "satisfaction_mode": "AND",
+      "target_date": "2027-09-30",
+      "what_ships": "Episode/season publicly released across declared channels — publish confirmation",
+      "buffer_anchor": null,
+      "buffer_binding": null,
+      "publication_artifact": true
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 3 — Release",
+      "parent_deliverable": "The Imaginary CEO — Season 3",
+      "satisfaction_mode": "AND",
+      "target_date": "2028-01-14",
+      "what_ships": "Episode/season publicly released across declared channels — publish confirmation",
+      "buffer_anchor": null,
+      "buffer_binding": null,
+      "publication_artifact": true
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 4 — Release",
+      "parent_deliverable": "The Imaginary CEO — Season 4",
+      "satisfaction_mode": "AND",
+      "target_date": "2028-05-02",
+      "what_ships": "Episode/season publicly released across declared channels — publish confirmation",
+      "buffer_anchor": null,
+      "buffer_binding": null,
+      "publication_artifact": true
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 5 — Release",
+      "parent_deliverable": "The Imaginary CEO — Season 5",
+      "satisfaction_mode": "AND",
+      "target_date": "2028-11-01",
+      "what_ships": "Episode/season publicly released across declared channels — publish confirmation",
+      "buffer_anchor": null,
+      "buffer_binding": null,
+      "publication_artifact": true
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 6 — Release",
+      "parent_deliverable": "The Imaginary CEO — Season 6",
+      "satisfaction_mode": "AND",
+      "target_date": "2029-05-02",
+      "what_ships": "Episode/season publicly released across declared channels — publish confirmation",
+      "buffer_anchor": null,
+      "buffer_binding": null,
+      "publication_artifact": true
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 7 — Release",
+      "parent_deliverable": "The Imaginary CEO — Season 7",
+      "satisfaction_mode": "AND",
+      "target_date": "2029-11-01",
+      "what_ships": "Episode/season publicly released across declared channels — publish confirmation",
+      "buffer_anchor": null,
+      "buffer_binding": null,
+      "publication_artifact": true
+    },
+    {
+      "class": "Artifact",
+      "name": "The Imaginary CEO — Season 8 — Release",
+      "parent_deliverable": "The Imaginary CEO — Season 8",
+      "satisfaction_mode": "AND",
+      "target_date": "2032-05-17",
+      "what_ships": "Episode/season publicly released across declared channels — publish confirmation",
+      "buffer_anchor": null,
+      "buffer_binding": null,
+      "publication_artifact": true
+    },
+    {
+      "class": "Artifact",
+      "name": "Desiree — Release",
+      "parent_deliverable": "Desiree — Feature Film",
+      "satisfaction_mode": "AND",
+      "target_date": "2032-06-30",
+      "what_ships": "Feature film publicly released across declared channels — publish confirmation",
+      "buffer_anchor": null,
+      "buffer_binding": null,
+      "publication_artifact": true
     }
   ],
   "canonical_edges": [

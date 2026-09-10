@@ -15,9 +15,9 @@ describe('loadReferenceMatrix', () => {
     expect(Object.keys(m.systemsById)).toHaveLength(10);
 
     // v3.0 includes full Deliverable and Artifact migration: all 63 Deliverables
-    // and all 175 Artifacts are valid and loaded with proper parent linkages.
+    // and all 188 Artifacts (175 original + 13 publication-required Release artifacts).
     expect(Object.keys(m.deliverablesById)).toHaveLength(63);
-    expect(Object.keys(m.artifactsById)).toHaveLength(175);
+    expect(Object.keys(m.artifactsById)).toHaveLength(188);
   });
 
   // The invariant under test is that loadReferenceMatrix NEVER rewrites a node's name —
@@ -92,5 +92,56 @@ describe('loadReferenceMatrix', () => {
         }
       }
     }
+  });
+
+  // GH-2: Publication gate mutation tests
+  it('passes publication gate when all 19 publication_required deliverables have Release artifacts', () => {
+    const m = loadReferenceMatrix(fixture, { nowISO: '2026-08-28T00:00:00Z' });
+    // v3.0 fixture is complete: 19 deliverables have publication_required: true,
+    // each has at least one Release artifact marked publication_artifact: true.
+    expect(m.lastPlanError).toBe(null);
+  });
+
+  it('detects Case 2 violation: publication_required: true with no Release artifact', () => {
+    // Mutate fixture: remove the State of Control pt. 2 — Release artifact
+    const mutated = JSON.parse(JSON.stringify(fixture));
+    mutated.nodes = mutated.nodes.filter((n) => n.name !== 'State of Control pt. 2 — Release');
+
+    const m = loadReferenceMatrix(mutated, { nowISO: '2026-08-28T00:00:00Z' });
+    expect(m.lastPlanError?.code).toBe('PUBLICATION_REQUIRED_MISSING');
+    expect(m.lastPlanError?.reason).toContain('State of Control pt. 2');
+    expect(m.lastPlanError?.reason).toContain('publication required but no artifact marked');
+  });
+
+  it('detects Case 3 violation: publication_artifact marked on deliverable with publication_required: false', () => {
+    // Mutate fixture: set publication_required: false on Max Clout 1,
+    // which has Max Clout 1 — Release artifact marked publication_artifact: true
+    const mutated = JSON.parse(JSON.stringify(fixture));
+    const maxClout1 = mutated.nodes.find((n) => n.name === 'Max Clout 1' && n.class === 'Deliverable');
+    if (maxClout1) {
+      maxClout1.publication_required = false;
+    }
+
+    const m = loadReferenceMatrix(mutated, { nowISO: '2026-08-28T00:00:00Z' });
+    expect(m.lastPlanError?.code).toBe('PUBLICATION_REQUIRED_MISSING');
+    expect(m.lastPlanError?.reason).toContain('Max Clout 1');
+    expect(m.lastPlanError?.reason).toContain('publication_artifact marked but publication_required is false');
+  });
+
+  it('collects all violations in a sorted, readable list for diffing across runs', () => {
+    // Mutate fixture: remove 3 Release artifacts
+    const mutated = JSON.parse(JSON.stringify(fixture));
+    mutated.nodes = mutated.nodes.filter(
+      (n) => !['State of Control pt. 2 — Release', 'State of Control pt. 3 — Release', 'The Imaginary CEO — Season 1 — Release'].includes(n.name)
+    );
+
+    const m = loadReferenceMatrix(mutated, { nowISO: '2026-08-28T00:00:00Z' });
+    expect(m.lastPlanError?.code).toBe('PUBLICATION_REQUIRED_MISSING');
+    const reason = m.lastPlanError?.reason || '';
+    // First line is the count message; violations are sorted for diffing
+    expect(reason).toContain('3 publication violations');
+    expect(reason).toContain('State of Control pt. 2');
+    expect(reason).toContain('State of Control pt. 3');
+    expect(reason).toContain('The Imaginary CEO — Season 1');
   });
 });

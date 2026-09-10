@@ -295,6 +295,7 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             buffer_anchor: deliverableAnchorName,  // Defect B: raw name; resolved+validated in pass 2
             buffer_binding: n.buffer_binding || null,       // Step 3: 'hard' | 'advisory' — must pair with buffer_anchor
             deferBufferAnchorValidation: true,  // Defect B: forward refs legal in pass 1; pass 2 revalidates
+            publication_required: n.publication_required === true,  // GH-2: boolean flag
           },
         });
         if (deliverableAnchorName) {
@@ -325,6 +326,8 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             deferBufferAnchorValidation: true,  // Defect B: forward refs legal in pass 1; pass 2 revalidates
             // Step 3: Artifact intake fields
             satisfaction_mode: n.satisfaction_mode || null,
+            // GH-2: Publication gate field
+            publication_artifact: n.publication_artifact === true,
           },
         });
         if (artifactAnchorName) {
@@ -402,6 +405,49 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
   };
 
   validateBufferAnchors();
+
+  // GH-2: Publication gate — sweep-time validation
+  // Checks that every Deliverable with publication_required: true has at least one
+  // Artifact with publication_artifact: true pointing to it. Also validates schema:
+  // no Artifact may mark publication_artifact: true on a Deliverable with
+  // publication_required: false.
+  const validatePublicationRequirements = () => {
+    const violations = [];
+
+    const deliverablesById = state.matrix?.deliverablesById || {};
+    const artifactsById = state.matrix?.artifactsById || {};
+
+    // For each deliverable, check publication requirements
+    for (const dId of Object.keys(deliverablesById)) {
+      const deliv = deliverablesById[dId];
+      // Parse as boolean, not truthy check (fixture exports boolean true/false)
+      const isRequired = deliv.publication_required === true;
+
+      // Find all artifacts where this deliverable is a parent
+      const pubArtifacts = Object.values(artifactsById).filter((a) => {
+        const parents = Array.isArray(a.parentDeliverableIds) ? a.parentDeliverableIds : [];
+        return parents.includes(dId) && a.publication_artifact === true;
+      });
+
+      if (isRequired && pubArtifacts.length === 0) {
+        // Case 2: publication required but no artifact marked
+        violations.push(`${deliv.name}: publication required but no artifact marked publication_artifact`);
+      } else if (!isRequired && pubArtifacts.length > 0) {
+        // Case 3: schema violation — artifact marked but deliverable doesn't require it
+        violations.push(`${deliv.name}: publication_artifact marked but publication_required is false`);
+      }
+    }
+
+    if (violations.length > 0) {
+      const sorted = violations.sort();
+      state.lastPlanError = {
+        code: 'PUBLICATION_REQUIRED_MISSING',
+        reason: `${sorted.length} publication violations:\n${sorted.join('\n')}`,
+      };
+    }
+  };
+
+  validatePublicationRequirements();
 
   // Attested edges: typed relational links → matrixLinksById; the named
   // convergence → milestonesById. from/to reference node names (resolved to ids).
