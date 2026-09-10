@@ -259,7 +259,7 @@
       "name": "State of Control",
       "owner": "Global State Productions",
       "objective": "Gives the campaign its own operational identity, separate from Our Fearless Leader's music-focused venture.",
-      "deadline": "2028-04-17",
+      "deadline": "2028-06-08",
       "function": "Produces the ongoing State of Control visual series, paired with each Our Fearless Leader tape release.",
       "completion_value": "5 short films uploaded to YouTube.",
       "boundary_type": "Terminating"
@@ -591,7 +591,7 @@
       "executing_entity": "Global State Productions",
       "parent_initiative": "State of Control",
       "boundary_type": "Terminating",
-      "terminal_date": "2027-06-01"
+      "terminal_date": "2027-07-22"
     },
     {
       "class": "Project",
@@ -600,7 +600,7 @@
       "executing_entity": "Global State Productions",
       "parent_initiative": "State of Control",
       "boundary_type": "Terminating",
-      "terminal_date": "2027-09-16"
+      "terminal_date": "2027-11-05"
     },
     {
       "class": "Project",
@@ -609,7 +609,7 @@
       "executing_entity": "Global State Productions",
       "parent_initiative": "State of Control",
       "boundary_type": "Terminating",
-      "terminal_date": "2027-12-31"
+      "terminal_date": "2028-02-20"
     },
     {
       "class": "Project",
@@ -618,7 +618,7 @@
       "executing_entity": "Global State Productions",
       "parent_initiative": "State of Control",
       "boundary_type": "Terminating",
-      "terminal_date": "2028-04-17"
+      "terminal_date": "2028-06-08"
     },
     {
       "class": "Project",
@@ -690,7 +690,7 @@
       "executing_entity": "Global State Productions",
       "parent_initiative": "The Imaginary CEO",
       "boundary_type": "Terminating",
-      "terminal_date": "2032-03-15"
+      "terminal_date": "2032-05-17"
     },
     {
       "class": "Project",
