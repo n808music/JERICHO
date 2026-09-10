@@ -82,3 +82,77 @@ Compare against run2_files.txt (60 entries).
                                           present, not a fix when absent.
   - MasterPlanTimeline.render.test.jsx -> may report as an Error rather than
                                           a Failure under load. Not movement.
+
+## ADDENDUM 2026-09-09 — the four errors, named (supersedes lines 56-62)
+
+The claim above that all 4 of run1's unhandled errors originate in
+MasterPlanTimeline.render.test.jsx is true for 3 of them, not 4.
+run1_full.log:68698-68760, verbatim structure:
+
+  #1  "Unhandled Rejection"  Timeout calling "onTaskUpdate"
+      originated in tests/components/MasterPlanTimeline.render.test.jsx
+      latest test: "does not show Unassigned label for full-horizon blocks
+                    that have lane assignments"
+  #2  "Unhandled Rejection"  Timeout calling "onTaskUpdate"
+      originated in tests/components/MasterPlanTimeline.render.test.jsx
+      latest test: "does not render constraint hash in normal Plan UI"
+  #3  "Unhandled Rejection"  Timeout calling "onTaskUpdate"
+      originated in tests/components/MasterPlanTimeline.render.test.jsx
+      NO "latest test" line -- fired after the file's last test was documented
+  #4  "Unhandled Error"      Timeout calling "onTaskUpdate"
+      NO origin line at all. Not bound to any test file.
+
+#4 is the one that is not a lost test result. Different header
+("Unhandled Error", not "Unhandled Rejection"), no file attribution: it is
+the reporter/RPC layer timing out after the worker had already lost the file
+association. Same root cause as #1-#3, but it never corresponded to a test.
+
+This is why 4 errors sat against a 3-result shortfall (4624 reported vs 4627
+collected). The arithmetic is not a coincidence: 3 attributed errors, 3
+missing results, 1 unattributed error. When applying the Errors-bucket rule,
+read the header and look for the "This error originated in" line -- an entry
+lacking one is infrastructure noise, not a test that vanished.
+
+## ADDENDUM 2026-09-09 — matrix.referenceSeed and the Phase 6 signal
+
+matrix.referenceSeed.test.js is NOT in the 60. It is GREEN on the clean tree:
+  run1_full.log:61840   ✓ (4 tests) 102931ms
+  run2_full.log:61933   ✓ (4 tests)  97200ms
+
+So the Phase 6 assertion is live, not noise inside an existing failure.
+A Phase 6 change that moves the artifact count makes this file go ✓ -> FAIL,
+and under the rule above that reads as REGRESSION (in Phase 6, not in the 60).
+
+BUT the predicted assertion is not the one that fires. Measured on the
+mutated tree (INVALID capture, both runs, e.g. run1_full.log:67603):
+
+    FAIL ... > declares all nodes ... with proper breakdown
+    AssertionError: expected [ ...(24) ] to have a length of 29
+    at tests/state/matrix.referenceSeed.test.js:13:44   <- initiativesById
+
+Line 13 asserts initiativesById === 29. It threw at 24. The artifact
+assertion is line 20. It was never evaluated -- the test aborts five lines
+upstream. The 5 missing Initiatives are exactly the 5 rows whose
+completion_value the mutation cleared (see RECOVERED_fixture_mutation.json
+"cleared_completion_values"): they are rejected at Initiative intake.
+
+Consequence for Phase 6: a prediction phrased as "the artifact count
+assertion fires at 175 -> 188" is only reachable if Entity(7), Initiative(29),
+Project(59) and System(10) all still match. Any upstream count drift
+short-circuits it, and the observed failure will name a different line.
+Predict the FILE going red, not the specific assertion.
+
+## ADDENDUM 2026-09-09 — what the mutation actually moved
+
+Set-level, INVALID run1 vs CLEAN run1 (61 files each):
+    only in mutated:  tests/state/matrix.referenceSeed.test.js
+    only in clean:    tests/state/fullHorizon.computeMemo.test.js  (known flake)
+
+Totals: mutated 167 failed / 4450 passed / 3 errors
+        clean   166 failed / 4451 passed / 4 errors
+
+The net -1 test is a composite: -2 from referenceSeed (2 of its 4 tests
+failed on the mutated tree, 0 on the clean tree) and +1 from the computeMemo
+flake. The mutation's real test-visible footprint is ONE FILE and TWO TESTS,
+and that file is precisely the Phase 6 target. Do not read the net count as
+"the mutation moved almost nothing" -- the flake masked half of it.
