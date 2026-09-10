@@ -104,13 +104,22 @@ against a unit whose publication is already falsifiable.
 
 **Ticket scope: three pieces, settled in order.**
 
-1. Add `publication_required: boolean` field to Deliverable. Declares that publication is required.
+1. Add `publication_required: boolean` field to **all 63 Deliverables** (not just 19). A boolean
+   present on only some rows makes absence ambiguous — "publication not required" vs. "not filled in."
+   This is the same principle that makes Completion Stated In total across all 29 Initiatives.
+   Film-shaped = true, everything else = false. Every row carries the field, so blank is always an error.
+
 2. Add a way to identify which artifact satisfies the requirement. Candidates: extend `satisfaction_mode` on
    Artifact, or a new field. Name-matching breaks when lanes use different terminology (Help Yourself
    Broadcast uses `Published`; film lanes use `Release`; music uses `Upload Verified Live`).
-3. **Backfill all 19 units.** Using the Phase 1 sweep definition (any unit carrying Shoot/Pre-Production/Edit Complete),
+
+3. **Backfill film-shaped 19 units.** Using the Phase 1 sweep definition (any unit carrying Shoot/Pre-Production/Edit Complete),
    set `publication_required: true` and configure satisfaction. The definition is the only non-name-based
    way to populate it. Write it now, while the sweep output is fresh.
+   
+   **Consequence:** When music-shaped deliverables are audited separately (Romance Riot and siblings), the edit
+   is flipping existing false values to true rather than adding a field to rows that didn't have one — a
+   much smaller and more visible edit.
 
 ### GH-3 — The defective 14th row's premise is false, not just its id.
 
@@ -164,9 +173,8 @@ false negative for this sweep. Flagged as a separate data-quality item, out of s
 reconciles end-to-end: 19 film-shaped, 6 with Release, 13 without. The 6 split as 17 companions
 (Max Clout, SoC, TIC, Desiree) plus 2 non-companions (D8 N8, BLACKMAN).**
 
-Phase 2a is **held** on **GH-2 only**. GH-1 resolved (no companion edge, offset logic doesn't
-apply). GH-3 resolved (row drops, already in recovery file enumeration). The gate blocking Phase 2a
-is GH-2: the publication gate must key on semantics, not artifact name, and the scope must
-reconcile its rule sentence ("film-shaped or episodic") with its implementation (currently matches
-only "Release" artifact name, falsely raising errors for episodic units whose publication uses
-other names).
+**Phase 2a is blocked on GH-2.** GH-1 resolved (no companion edge, offset logic doesn't apply).
+GH-3 resolved (row drops, already in recovery file). GH-2 is open and scoped: add `publication_required`
+to all 63 Deliverables (film-shaped true, others false), separate the satisfaction mechanism from
+name-matching, backfill film-shaped 19 from Phase 1 definition. Phase 2a cannot proceed until
+GH-2 is implemented.
