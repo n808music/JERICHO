@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { loadReferenceMatrix, nodeId } from '../../src/domain/masterGrid/loadReferenceMatrix.js';
 
-const fixture = JSON.parse(fs.readFileSync(path.resolve('tests/fixtures/reference_matrix_v3_0.json'), 'utf8'));
+const fixture = JSON.parse(fs.readFileSync(path.resolve('tests/fixtures/reference_matrix_v3_1.json'), 'utf8'));
 
 describe('loadReferenceMatrix', () => {
   it('declares all nodes from the corrected matrix v3.0 with proper breakdown', () => {

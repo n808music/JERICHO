@@ -58,7 +58,8 @@
       "objective": "Gives Global State Solutions a defined operational identity.",
       "deadline": "2026-09-29",
       "function": "Establishes Global State Solutions' own business plan and brand identity.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "Children"
     },
     {
       "class": "Initiative",
@@ -67,7 +68,8 @@
       "objective": "Gives Help Yourself Broadcast a defined operational identity as its own audience-facing venture.",
       "deadline": "2026-09-22",
       "function": "Establishes Help Yourself Broadcast's own business plan and brand identity, distinct from Global State Productions' general identity.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "Children"
     },
     {
       "class": "Initiative",
@@ -77,7 +79,8 @@
       "deadline": "Ongoing",
       "function": "Produces and airs a recurring podcast broadcast.",
       "ongoing_output": "Recurring episode output; sustained audience engagement feeding the flywheel indefinitely.",
-      "boundary_type": "Ongoing"
+      "boundary_type": "Ongoing",
+      "completion_stated_in": "Does Not Complete"
     },
     {
       "class": "Initiative",
@@ -86,7 +89,8 @@
       "objective": "Gives Global State Corporation a defined operational identity separate from Our Fearless Leader, Seeds of Destruction, and I Am The State outputs.",
       "deadline": "2026-09-23",
       "function": "Establishes Global State Corporation's own business plan and brand identity, distinct from any single release.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "Children"
     },
     {
       "class": "Initiative",
@@ -95,7 +99,8 @@
       "objective": "Gives State of Control a defined operational identity as its own standing venture.",
       "deadline": "2026-09-23",
       "function": "Establishes State of Control's own business plan and brand identity, distinct from Our Fearless Leader's Foundation coverage.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "Children"
     },
     {
       "class": "Initiative",
@@ -105,7 +110,8 @@
       "deadline": "Ongoing",
       "function": "Orchestrates the multi-lane master plan system across all enterprise lanes; runs the execution engine the enterprise operates on.",
       "ongoing_output": "Runs live plan generation and priority ranking for every lane; sustains subscription/licensing revenue tied to the system once operational.",
-      "boundary_type": "Ongoing"
+      "boundary_type": "Ongoing",
+      "completion_stated_in": "Does Not Complete"
     },
     {
       "class": "Initiative",
@@ -114,7 +120,8 @@
       "objective": "Gives Global State Productions a defined operational identity separate from Help Yourself Broadcast and The Imaginary CEO outputs.",
       "deadline": "2026-10-02",
       "function": "Establishes Global State Productions' own business plan and brand identity, distinct from any single production.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "Children"
     },
     {
       "class": "Initiative",
@@ -123,7 +130,8 @@
       "objective": "Gives Global State Systems a defined operational identity separate from The Jericho System output.",
       "deadline": "2026-10-05",
       "function": "Establishes Global State Systems' own business plan and brand identity, distinct from The Jericho System's output.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "Children"
     },
     {
       "class": "Initiative",
@@ -132,7 +140,8 @@
       "objective": "Gives Global State Holdings a defined operational identity.",
       "deadline": "2026-10-08",
       "function": "Establishes Global State Holdings' own business plan and brand identity, distinct from any single property.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "Children"
     },
     {
       "class": "Initiative",
@@ -141,7 +150,8 @@
       "objective": "Gives the flywheel a defined operational identity as Global State Solutions' first owned product function.",
       "deadline": "2026-10-09",
       "function": "Establishes the flywheel's own business plan and brand identity, distinct from Global State Solutions' general identity.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "Children"
     },
     {
       "class": "Initiative",
@@ -150,7 +160,8 @@
       "objective": "Gives Global State Academy a defined operational identity.",
       "deadline": "2026-10-11",
       "function": "Establishes Global State Academy's own business plan and brand identity, separate from any single building.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "Children"
     },
     {
       "class": "Initiative",
@@ -159,7 +170,8 @@
       "objective": "Gives F8 Energy Company a defined operational identity.",
       "deadline": "2026-10-14",
       "function": "Establishes F8 Energy Company's own business plan and brand identity.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "Children"
     },
     {
       "class": "Initiative",
@@ -169,7 +181,8 @@
       "deadline": "Ongoing",
       "function": "Acquires and restores property along 79th Street, starting with the First Building, from 79th and Stony Island to Exchange.",
       "ongoing_output": "Ongoing property holdings and physical infrastructure supporting HQ and Academy operations indefinitely.",
-      "boundary_type": "Ongoing"
+      "boundary_type": "Ongoing",
+      "completion_stated_in": "Does Not Complete"
     },
     {
       "class": "Initiative",
@@ -178,7 +191,8 @@
       "objective": "Gives the building its own defined strategy as Global State Academy's first physical venture.",
       "deadline": "2026-10-26",
       "function": "Establishes First Academy Building's own business plan, distinct from Global State Academy's general identity.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "Children"
     },
     {
       "class": "Initiative",
@@ -187,7 +201,8 @@
       "objective": "Gives the tape series its own defined strategy as Global State Corporation's first real venture.",
       "deadline": "2026-10-30",
       "function": "Establishes Our Fearless Leader: 7 Seals' own business plan, distinct from Global State Corporation's general identity.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "Children"
     },
     {
       "class": "Initiative",
@@ -196,7 +211,8 @@
       "objective": "Gives the series its own defined strategy as an audience-facing venture.",
       "deadline": "2026-11-03",
       "function": "Establishes The Imaginary CEO's own business plan, distinct from Global State Productions' general identity.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "Children"
     },
     {
       "class": "Initiative",
@@ -205,7 +221,8 @@
       "objective": "Gives the trilogy its own defined strategy for its higher-complexity era.",
       "deadline": "2026-11-03",
       "function": "Establishes Seeds of Destruction's own business plan, distinct from Global State Corporation's general identity.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "Children"
     },
     {
       "class": "Initiative",
@@ -215,7 +232,8 @@
       "deadline": "Ongoing",
       "function": "Builds and operates cross-venture audience-capture infrastructure (pre-save, platform follow, app signup).",
       "ongoing_output": "Continuous audience capture feeding the financial funnel indefinitely.",
-      "boundary_type": "Ongoing"
+      "boundary_type": "Ongoing",
+      "completion_stated_in": "Does Not Complete"
     },
     {
       "class": "Initiative",
@@ -225,7 +243,8 @@
       "deadline": "2028-05-25",
       "function": "Produces and releases the Our Fearless Leader tape series (tapes 1-7).",
       "completion_value": "All 7 tapes shipped, with a proven, built audience.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "This Row"
     },
     {
       "class": "Initiative",
@@ -234,7 +253,8 @@
       "objective": "Gives the terminal album its own defined strategy as the closing chapter of the enterprise's arc.",
       "deadline": "2026-11-10",
       "function": "Establishes I Am The State's own business plan and brand identity, distinct from Global State Corporation's general identity.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "Children"
     },
     {
       "class": "Initiative",
@@ -243,7 +263,8 @@
       "objective": "Gives GUM its own defined strategy as F8's first product venture.",
       "deadline": "2026-11-20",
       "function": "Establishes GUM's own business plan, distinct from F8 Energy Company's general identity.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "Children"
     },
     {
       "class": "Initiative",
@@ -252,7 +273,8 @@
       "objective": "Gives the feature film its own defined strategy as the terminal arc's visual capstone.",
       "deadline": "2026-11-20",
       "function": "Establishes Desiree's own business plan, distinct from Global State Productions' general identity.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "Children"
     },
     {
       "class": "Initiative",
@@ -262,7 +284,8 @@
       "deadline": "2028-06-08",
       "function": "Produces the ongoing State of Control visual series, paired with each Our Fearless Leader tape release.",
       "completion_value": "5 short films uploaded to YouTube.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "This Row"
     },
     {
       "class": "Initiative",
@@ -272,7 +295,8 @@
       "deadline": "2032-05-17",
       "function": "Produces a scripted reality/documentary series following the execution of the enterprise's initiatives.",
       "completion_value": "Season 8 airs covering I Am The State and is published to the Global State YouTube channel.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "This Row"
     },
     {
       "class": "Initiative",
@@ -282,7 +306,8 @@
       "deadline": "2029-11-23",
       "function": "Produces the Seeds of Destruction album trilogy alongside the Max Clout short-film trilogy.",
       "completion_value": "Album trilogy and Max Clout short-film trilogy both shipped.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "This Row"
     },
     {
       "class": "Initiative",
@@ -292,7 +317,8 @@
       "deadline": "Ongoing",
       "function": "Produces the energy gum product line and manages its business operations.",
       "ongoing_output": "Operational production-to-distribution chain for consumable energy products.",
-      "boundary_type": "Ongoing"
+      "boundary_type": "Ongoing",
+      "completion_stated_in": "Does Not Complete"
     },
     {
       "class": "Initiative",
@@ -302,7 +328,8 @@
       "deadline": "Ongoing",
       "function": "Secures the 79th and Essex property as the site for the Academy's first physical campus and Global State Solutions headquarters.",
       "ongoing_output": "Real estate property and education business revenue.",
-      "boundary_type": "Ongoing"
+      "boundary_type": "Ongoing",
+      "completion_stated_in": "Does Not Complete"
     },
     {
       "class": "Initiative",
@@ -311,7 +338,8 @@
       "objective": "Gives the acquisition its own defined strategy as Global State Holdings' first real-estate deal.",
       "deadline": "2026-10-22",
       "function": "Establishes 79th Street's own business plan, distinct from Global State Holdings' general identity.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "Children"
     },
     {
       "class": "Initiative",
@@ -321,7 +349,8 @@
       "deadline": "2032-06-30",
       "function": "Produces the terminal album and the Desiree feature film closing the enterprise's creative arc.",
       "completion_value": "Terminal album released; Desiree feature film released; arc complete.",
-      "boundary_type": "Terminating"
+      "boundary_type": "Terminating",
+      "completion_stated_in": "This Row"
     },
     {
       "class": "Project",
