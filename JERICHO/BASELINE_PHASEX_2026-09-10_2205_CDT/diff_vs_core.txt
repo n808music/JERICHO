@@ -1,5 +1,5 @@
 Diff vs core -- BASELINE_PHASEX_2026-09-10_2205_CDT
-Generated 2026-09-11 14:10 CDT
+Generated 2026-09-11 14:13 CDT
 
 Core comparator: BASELINE_CORE_SET.txt (61 files)
 Roster:          BASELINE_FLAKE_ROSTER.tsv (5 files)
@@ -12,6 +12,19 @@ STATE_TOGGLE files (explicit, not inferred):
 ==============================================================
 READING AID -- roster subtracted
 ==============================================================
+
+THE ROSTER IS A LOWER BOUND. A file is admitted to it only by being
+observed to move WITHIN a capture -- run 1 vs run 2 of the same frozen
+tree. That is the only comparison that separates nondeterminism from
+code change, but it can only see a file that flaked during a two-run
+capture. A file that flakes rarely enough to have surfaced once in
+fourteen runs is indistinguishable from a stable one until it moves.
+
+So a first-time appearance is reported MOVEMENT, and that is the
+correct default -- treat it as real until an isolated re-run and a
+named mechanism say otherwise. But it should not be a surprise: two
+of the five current roster members were first observations in the
+PREPUSH capture, absent from all twelve prior runs. Expect a sixth.
 
 RUN 1
   failing here, not in core  (candidate regression):
@@ -42,3 +55,16 @@ RUN 1 vs RUN 2  (within-capture; the only comparison that isolates
 nondeterminism from code change)
   run2 only: tests/state/fullHorizon.computeMemo.test.js
 
+--------------------------------------------------------------
+IF YOU GREP THE RAW LOGS BY HAND, USE grep -a
+--------------------------------------------------------------
+run1_full.log and run2_full.log contain bytes that make grep treat
+them as binary. Without -a it suppresses matching output entirely and
+returns NOTHING -- not an error, not a warning, an empty result that
+reads exactly like absence. Measured: a pattern that sed found in these
+logs returned empty from grep on the same file.
+
+This is the pattern-match trap in its nastiest form. The usual case is
+a populated result answering a question you did not ask; this one is a
+null result answering no question at all. Every grep in this script and
+in BASELINE_PHASEX_CAPTURE.sh carries -a for this reason.
