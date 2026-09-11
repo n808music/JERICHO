@@ -16456,13 +16456,26 @@ function declareInitiative(state, payload = {}) {
         };
         return;
       }
-      if (!completionValue) {
-        state.lastPlanError = {
-          code: 'INITIATIVE_COMPLETION_VALUE_MISSING',
-          reason: 'Initiative with boundary_type "Terminating" and completion_stated_in "' + completionStatedIn + '" requires completion_value.',
-          meta: { id },
-        };
-        return;
+      // Children: completes when children complete → completion_value must be blank
+      // This Row: completes when this row completes → completion_value required
+      if (completionStatedIn === 'Children') {
+        if (completionValue) {
+          state.lastPlanError = {
+            code: 'INITIATIVE_COMPLETION_VALUE_FORBIDDEN',
+            reason: 'Initiative with completion_stated_in "Children" completes when children complete; completion_value must be blank.',
+            meta: { id },
+          };
+          return;
+        }
+      } else if (completionStatedIn === 'This Row') {
+        if (!completionValue) {
+          state.lastPlanError = {
+            code: 'INITIATIVE_COMPLETION_VALUE_MISSING',
+            reason: 'Initiative with completion_stated_in "This Row" requires completion_value.',
+            meta: { id },
+          };
+          return;
+        }
       }
       if (ongoingOutput) {
         state.lastPlanError = {
