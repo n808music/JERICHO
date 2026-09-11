@@ -114,6 +114,82 @@ if [ "$CORE_N" -eq 0 ]; then
         "core file as fixed. That is a parse failure wearing a result's clothes."
 fi
 
+# ------------------------------------------------- core-vs-capture provenance
+#
+# NOT a guard. Comparing a capture against an older core is often exactly what
+# you want. But a stale core is the one way this instrument degrades toward a
+# PLAUSIBLE WRONG ANSWER instead of a visible error -- drift reads as movement,
+# and the reader investigates the code instead of the comparator. Everything
+# else here fails loudly; this one fails convincingly. So the provenance is
+# stated on every diff, whether or not the shas differ, and the reader always
+# knows what they are comparing against rather than assuming freshness.
+
+CORE_SHA=$(grep -a -m1 '^# *core-frozen-at:' "$CORE_FILE" | sed -E 's/^# *core-frozen-at: *//; s/[[:space:]]*$//' || true)
+CAPTURE_SHA=$(grep -a -m1 '^HEAD SHA:' "$CAPTURE_DIR/BASELINE_RECORD.txt" 2>/dev/null | awk '{print $3}' || true)
+[ -z "$CAPTURE_SHA" ] && CAPTURE_SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
+
+provenance_line() {
+  if [ -z "$CORE_SHA" ]; then
+    echo "  core frozen at: UNRECORDED -- $CORE_FILE has no '# core-frozen-at:' line."
+    echo "    You cannot tell whether this comparison is fresh or years stale."
+    echo "    Add the line when you re-freeze; until then read every difference"
+    echo "    below as possibly comparator drift rather than code movement."
+    return 0
+  fi
+  echo "  core frozen at: $CORE_SHA"
+  if [ -z "$CAPTURE_SHA" ]; then
+    echo "  capture at:     UNKNOWN (no 'HEAD SHA:' in BASELINE_RECORD.txt, and"
+    echo "                  git rev-parse gave nothing). Distance not computable."
+    return 0
+  fi
+  echo "  capture at:     $CAPTURE_SHA"
+  if [ "$CORE_SHA" = "$CAPTURE_SHA" ]; then
+    echo "  distance:       same commit -- core and capture are the same tree."
+    return 0
+  fi
+  # Symmetric distance. `git rev-list --count A..B` counts only commits
+  # reachable from B and not A, so a capture taken BEFORE the core was frozen
+  # reports 0 -- which reads as "no drift" for the stalest possible comparison.
+  # Measured: the X2205 capture (75b95fc) sits 4 commits behind the core
+  # (4ed453d) and `core..capture` returned 0. Use --left-right on a three-dot
+  # range, which reports both sides.
+  local lr behind ahead
+  if ! lr=$(git rev-list --left-right --count "$CORE_SHA"..."$CAPTURE_SHA" 2>/dev/null); then
+    echo "  distance:       NOT COMPUTABLE -- one of these commits is not in this"
+    echo "                  repo (shallow clone, or the sha was rewritten). Treat"
+    echo "                  the comparison as of unknown freshness."
+    return 0
+  fi
+  behind=$(printf '%s' "$lr" | awk '{print $1}')
+  ahead=$(printf '%s' "$lr" | awk '{print $2}')
+  echo "  distance:       capture is $ahead commit(s) ahead of the core and" \
+       "$behind behind"
+  if [ "$behind" -gt 0 ]; then
+    echo "                  CAPTURE PREDATES THE CORE. You are comparing an older"
+    echo "                  run against a newer comparator; differences below can"
+    echo "                  be the core's own later state, not this run's."
+  fi
+
+  # A raw count is alarming without context: commits that only touch the
+  # baseline record cannot move a test result. Count the ones that could.
+  # NB: `set -o pipefail` is on, and `grep -v` returns 1 on empty input, which
+  # fails the whole pipeline and -- under set -e -- kills the script mid-write.
+  # That is how this function died the first time it met an empty range.
+  local prod
+  prod=$( { git log --format='%H' --name-only "$CORE_SHA...$CAPTURE_SHA" 2>/dev/null || true; } \
+          | grep -vE '^(BASELINE_|[0-9a-f]{40}$|$)' | wc -l | tr -d ' ' ) || prod=""
+  if [ -z "$prod" ]; then
+    echo "                  (product-change count unavailable)"
+  elif [ "$prod" -eq 0 ]; then
+    echo "                  no file outside BASELINE_*/ changed in that range --"
+    echo "                  no product change between core and capture."
+  else
+    echo "                  $prod file change(s) outside BASELINE_*/ in that range."
+    echo "                  A difference below may be comparator drift rather than"
+    echo "                  movement. Re-freeze the core before concluding."
+  fi
+}
+
 # ----------------------------- GUARD 3: toggle-file state must be determinable
 #
 # Three states, each detected by a POSITIVE signal. Absence from the failing
@@ -190,6 +266,9 @@ if [ -n "$INDETERMINATE" ]; then
         "against the raw log before any count from this capture is quoted."
 fi
 
+echo "END-OF-TOGGLE-STATE -- if this line is missing the file was truncated" \
+  >> "$CAPTURE_DIR/toggle_state.txt"
+
 # ------------------------------------------------------- exclusion manifest
 
 {
@@ -205,6 +284,7 @@ fi
     printf "  %s\n    kind:      %s\n    mechanism: %s\n    evidence:  %s\n\n", $1, $2, $3, $4
   }'
   echo "Roster size: $ROSTER_N files"
+  echo "END-OF-MANIFEST -- if this line is missing the file was truncated"
 } > "$CAPTURE_DIR/exclusion_manifest.txt"
 
 # ------------------------------------------------------------------- the diff
@@ -240,8 +320,11 @@ emit_side() {
   echo "Roster:          $ROSTER_FILE ($ROSTER_N files)"
   echo "Observed:        run1 $(wc -l < "$RUN1" | tr -d ' ') files, run2 $(wc -l < "$RUN2" | tr -d ' ') files"
   echo ""
+  echo "WHAT YOU ARE COMPARING AGAINST"
+  provenance_line
+  echo ""
   echo "STATE_TOGGLE files (explicit, not inferred):"
-  grep -v '^#' "$CAPTURE_DIR/toggle_state.txt" | grep . | sed 's/^/  /'
+  grep -v '^#' "$CAPTURE_DIR/toggle_state.txt" | grep -v '^END-OF-' | grep . | sed 's/^/  /'
   echo ""
   if [ -n "$TOGGLE_CHANGED" ]; then
     echo "  *** STATE CHANGED BETWEEN RUNS ***"
@@ -334,6 +417,39 @@ emit_side() {
   echo "null result answering no question at all. Every grep in this script and"
   echo "in BASELINE_PHASEX_CAPTURE.sh carries -a for this reason."
 } > "$CAPTURE_DIR/diff_vs_core.txt"
+
+echo "END-OF-DIFF -- if this line is missing the file was truncated" >> "$CAPTURE_DIR/diff_vs_core.txt"
+
+# ---------------------------------------------- end-marker self-check
+#
+# The durable lesson from the set -e episode: five guards fired correctly and
+# the exit code was 0 while this script was silently truncating its own output
+# mid-write. Input validation cannot reach that -- guards check what goes in,
+# not that the program reached its own end, and a half-written file looks
+# merely short rather than wrong.
+#
+# So every generated artifact ends with a marker, and we assert on it here.
+# Cheap enough to apply to every generated artifact in this campaign, not just
+# this one.
+
+check_end_marker() {
+  local f="$1" marker="$2"
+  [ -f "$f" ] || abort "generated artifact missing entirely: $f"
+  if [ "$(tail -1 "$f")" != "$marker" ]; then
+    abort "generated artifact is TRUNCATED: $f" \
+          "Expected last line: $marker" \
+          "Actual last line:   $(tail -1 "$f")" \
+          "" \
+          "The script did not reach its own end. Exit code and input guards" \
+          "cannot detect this -- a half-written file reads as merely short." \
+          "Do not use this diff. Most likely cause: a command returning" \
+          "non-zero under 'set -e' mid-write (see the header note)."
+  fi
+}
+
+check_end_marker "$CAPTURE_DIR/diff_vs_core.txt" "END-OF-DIFF -- if this line is missing the file was truncated"
+check_end_marker "$CAPTURE_DIR/exclusion_manifest.txt" "END-OF-MANIFEST -- if this line is missing the file was truncated"
+check_end_marker "$CAPTURE_DIR/toggle_state.txt" "END-OF-TOGGLE-STATE -- if this line is missing the file was truncated"
 
 echo ""
 echo "=== Exclusion manifest + diff ==="
