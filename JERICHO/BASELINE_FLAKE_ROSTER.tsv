@@ -1,0 +1,25 @@
+# Baseline flake roster -- machine-readable source of truth for BASELINE_DIFF.sh
+#
+# Every row was derived from the raw run logs on baseline/phasex-record, not
+# from recollection. Full evidence with pasted log lines: BASELINE_FLAKE_ROSTER.md
+#
+# A row here does NOT mean "ignore this file". It means: when this file moves,
+# the diff labels the movement KNOWN FLAKE instead of MOVEMENT, and the raw
+# unsubtracted lists still carry it. Subtraction is a reading aid, never a
+# replacement for the evidence.
+#
+# kind:
+#   FILE_SET      enters/leaves the failing-FILE set between runs of one capture
+#   STATE_TOGGLE  stays in the failing-FILE set but moves live-failing <-> collection-dead;
+#                 moves failing-FILE count and failing-TEST total in opposite directions
+#   ERROR_BUCKET  stably failing; intermittently emits unhandled errors that cost the
+#                 run its test classification for this file. Does not move the file set.
+#
+# columns: path <TAB> kind <TAB> mechanism <TAB> evidence
+#
+path	kind	mechanism	evidence
+tests/state/fullHorizon.computeMemo.test.js	FILE_SET	wall-clock assertion at :31:21 -- perCall expected < 300ms, measured 306.5447742000004ms	BASELINE_PHASE0_2026-09-09_1157_CDT/run1_full.log:67146
+tests/components/workWindows.advisoryConstraints.saveAndPersist.test.jsx	FILE_SET	per-test 5000ms timeout exceeded under full-suite load; same test completes in 874ms in the sibling run	BASELINE_PHASEX_PREPUSH_2026-09-11_1300_CDT/run2_full.log:67111
+tests/system/perf.revalidation.lock.test.ts	FILE_SET	wall-clock assertion at :47:42 -- rebuildPreviewMs expected < 75000, measured 84667; 20750ms in the sibling run	BASELINE_PHASEX_PREPUSH_2026-09-11_1300_CDT/run2_full.log:67116
+tests/components/AppShell.onboardingToGoalAdmission.flow.test.jsx	STATE_TOGGLE	[vitest-worker] Timeout calling "fetch" for /src/ui/masterPlan/TimelineGrid.jsx -- the worker loses the file association and it fails to COLLECT, so its 2 tests are never collected	BASELINE_PHASEX_GATE_STORAGE_2026-09-11_1208_CDT/run2_full.log:62525
+tests/components/MasterPlanTimeline.render.test.jsx	ERROR_BUCKET	[vitest-worker] Timeout calling "onTaskUpdate" -- unhandled rejections attributed to this file land in the Errors bucket; run1 of the 09-09 capture then summarised 60 failing files while its own anchored FAIL lines yield 61	BASELINE_PHASE0_2026-09-09_1157_CDT/run1_full.log:68703
