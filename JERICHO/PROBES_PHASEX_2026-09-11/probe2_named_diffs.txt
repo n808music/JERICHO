@@ -1,0 +1,56 @@
+
+ RUN  v1.6.1 /Users/jamesdotson/vscode/JERICHO/JERICHO
+
+(node:37637) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | warnMirrorUsage (/Users/jamesdotson/vscode/JERICHO/JERICHO/src/state/cycleSelectors.js:178:11)
+[jericho:sot] contract-mirror-present { reason: 'canonical present alongside mirror' }
+
+stdout | tests/state/diagnostic.test.js > diagnostic probe > A. isolated gate dispatch -- which code does the gate write?
+
+--- unmutated row, isolated ---
+lastPlanError: null
+initiativesById: 1
+
+--- Children + completion_value, isolated ---
+lastPlanError: {"code":"INITIATIVE_COMPLETION_VALUE_FORBIDDEN","reason":"Initiative with completion_stated_in \"Children\" completes when children complete; completion_value must be blank.","meta":{"id":"initiative-probe"}}
+initiativesById: 0
+
+stdout | tests/state/diagnostic.test.js > diagnostic probe > B. full load -- named diffs, control vs mutated
+
+=== CONTROL (clean fixture) ===
+  entitiesById: 7
+  initiativesById: 29
+  projectsById: 59
+  deliverablesById: 63
+  artifactsById: 188
+  systemsById: 10
+lastPlanError: null
+
+mutating: Global State Solutions Foundation
+
+=== MUTATION 1 (Children + completion_value) ===
+  entitiesById: 6
+  initiativesById: 28
+  projectsById: 56
+  deliverablesById: 60
+  artifactsById: 181
+  systemsById: 8
+lastPlanError: {"code":"SYSTEM_OWNER_UNRESOLVED","reason":"System owner \"Global State Solutions\" does not resolve to a known entity.","meta":{"id":"system-execution-feedback-system","name":"Execution Feedback System","owner":"Global State Solutions"}}
+
+=== NAMED DIFFS (present in CONTROL, absent in MUTATION) ===
+  entitiesById dropped 1: ["entity-global-state-solutions"]
+  initiativesById dropped 1: ["initiative-global-state-solutions-foundation"]
+  projectsById dropped 3: ["project-global-state-solutions-business-plan","project-marketing-flywheel-business-plan","project-marketing-flywheel-capture-layer-build"]
+  deliverablesById dropped 3: ["deliverable-global-state-solutions-business-plan","deliverable-marketing-flywheel-business-plan","deliverable-marketing-flywheel-capture-layer-live"]
+  artifactsById dropped 7: ["global-state-solutions-one-page-business-plan-document","marketing-flywheel-one-page-business-plan-document","global-state-solutions-full-business-plan-file","pre-save-capture-live","platform-follow-capture-live","app-signup-capture-live","marketing-flywheel-full-business-plan-file"]
+  systemsById dropped 2: ["system-financial-funnel-system","system-execution-feedback-system"]
+
+ ✓ tests/state/diagnostic.test.js > diagnostic probe > A. isolated gate dispatch -- which code does the gate write?
+ ✓ tests/state/diagnostic.test.js > diagnostic probe > B. full load -- named diffs, control vs mutated 8106ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  11:39:13
+   Duration  10.84s (transform 1.08s, setup 65ms, collect 1.63s, tests 8.12s, environment 340ms, prepare 124ms)
+

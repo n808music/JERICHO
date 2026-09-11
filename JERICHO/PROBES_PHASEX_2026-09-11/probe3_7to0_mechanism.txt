@@ -1,0 +1,27 @@
+
+ RUN  v1.6.1 /Users/jamesdotson/vscode/JERICHO/JERICHO
+
+(node:37799) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | warnMirrorUsage (/Users/jamesdotson/vscode/JERICHO/JERICHO/src/state/cycleSelectors.js:178:11)
+[jericho:sot] contract-mirror-present { reason: 'canonical present alongside mirror' }
+
+stdout | tests/state/diagnostic.test.js > 7->0 mechanism > drops all 18 Children rows -- the pre-fix drop-set
+forced rejection on 18 Children rows
+
+=== ALL 18 FOUNDATION ROWS DROPPED ===
+  entitiesById: 0
+  initiativesById: 11
+  projectsById: 0
+  deliverablesById: 0
+  artifactsById: 0
+  systemsById: 1
+lastPlanError: {"code":"SYSTEM_OWNER_UNRESOLVED","reason":"System owner \"F8 Energy Company\" does not resolve to a known entity.","meta":{"id":"system-consumer-products-syste
+
+ ✓ tests/state/diagnostic.test.js > 7->0 mechanism > drops all 18 Children rows -- the pre-fix drop-set 2657ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  11:39:41
+   Duration  5.41s (transform 1.12s, setup 64ms, collect 1.65s, tests 2.66s, environment 291ms, prepare 122ms)
+
