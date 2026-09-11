@@ -1,0 +1,28 @@
+Phase X Baseline Capture
+Timestamp: 2026-09-11_1208_CDT  (local time)
+HEAD SHA: 75b95fc842e34dd959d34ab43591f2a8b66b9ca2
+
+File Set Comparison:
+File sets identical -- verified over 61 non-empty entries per run.
+
+Failing files (Run 1): 61
+Failing files (Run 2): 61
+
+  live-failing   (Run 1): 59
+  live-failing   (Run 2): 58
+  collection-dead (Run 1): 2
+  collection-dead (Run 2): 3
+
+Run 1 totals:
+ Test Files  61 failed | 602 passed (663)
+      Tests  169 failed | 4461 passed | 7 skipped (4637)
+
+Run 2 totals:
+ Test Files  61 failed | 602 passed (663)
+      Tests  167 failed | 4461 passed | 7 skipped (4635)
+
+Phase X diff rule -- compare against Phase 1b:
+  - in Phase 1b, not in Phase X  -> REGRESSION
+  - in Phase X, not in Phase 1b  -> NEW FAILURE
+  - BASELINE_PHASEX_GATE_STORAGE_2026-09-11_1208_CDT/run1_files.txt
+  - BASELINE_PHASEX_GATE_STORAGE_2026-09-11_1208_CDT/run2_files.txt

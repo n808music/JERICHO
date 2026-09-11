@@ -1,0 +1,2 @@
+tests/domain/elicitation/projectSlot.requiresLegalFormation.unit.test.js
+tests/state/masterPlanFullHorizon.expression.test.js
