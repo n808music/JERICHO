@@ -20,6 +20,26 @@ describe('loadReferenceMatrix', () => {
     expect(Object.keys(m.artifactsById)).toHaveLength(188);
   });
 
+  // Projects carry terminal_date, NOT target_date: 0 of 59 Project rows have a
+  // target_date key, all 59 have terminal_date, and only Deliverable (63) and
+  // Artifact (188) rows carry target_date. That distinction is easy to lose because
+  // the loader used to build BOTH a targetDate and a terminalDate key onto the
+  // Project payload, and both looked live. Neither was, for Projects.
+  //
+  // terminal_date is the one that matters here: declareProject validates it against
+  // boundary_type (Ongoing requires the sentinel, Terminating requires a real future
+  // date) and persists it. Guarded by an exact count so a fixture that stopped
+  // carrying the field would fail loudly rather than pass over an empty list.
+  it('persists terminal_date on every Project', () => {
+    const m = loadReferenceMatrix(fixture, { nowISO: '2026-08-28T00:00:00Z' }).matrix;
+    const rows = fixture.nodes.filter((n) => n.class === 'Project' && n.terminal_date);
+    expect(rows).toHaveLength(59);
+    const missing = rows
+      .map((n) => nodeId('Project', n.name))
+      .filter((id) => m.projectsById[id] && !m.projectsById[id].terminal_date);
+    expect(missing).toEqual([]);
+  });
+
   // The invariant under test is that loadReferenceMatrix NEVER rewrites a node's name —
   // whatever it declares, it declares verbatim. Scoped to declared nodes: a node the
   // reducer rejected for missing required fields is a declaration gap (asserted by count

@@ -3,6 +3,10 @@ coverage
 .DS_Store
 dist
 *.log
+# Baseline captures are evidence, not noise. Every failing-set diff is derived
+# from the raw run logs, and the *.log rule above silently dropped them while
+# keeping the derived lists -- leaving a comparator no one could re-verify.
+!**/BASELINE_*/*.log
 .worktrees
 venv/
 __pycache__/
