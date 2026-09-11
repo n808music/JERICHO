@@ -1,0 +1,45 @@
+Diff vs core -- BASELINE_PHASEX_PREPUSH_2026-09-11_1300_CDT
+Generated 2026-09-11 14:10 CDT
+
+Core comparator: BASELINE_CORE_SET.txt (61 files)
+Roster:          BASELINE_FLAKE_ROSTER.tsv (5 files)
+Observed:        run1 61 files, run2 63 files
+
+STATE_TOGGLE files (explicit, not inferred):
+  run1_state[tests/components/AppShell.onboardingToGoalAdmission.flow.test.jsx]=live-failing
+  run2_state[tests/components/AppShell.onboardingToGoalAdmission.flow.test.jsx]=live-failing
+
+==============================================================
+READING AID -- roster subtracted
+==============================================================
+
+RUN 1
+  failing here, not in core  (candidate regression):
+    (none)
+  in core, not failing here  (candidate fix):
+    (none)
+
+RUN 2
+  failing here, not in core  (candidate regression):
+    KNOWN FLAKE  tests/components/workWindows.advisoryConstraints.saveAndPersist.test.jsx
+    KNOWN FLAKE  tests/system/perf.revalidation.lock.test.ts
+  in core, not failing here  (candidate fix):
+    (none)
+
+==============================================================
+RAW -- unsubtracted comm output. This is the evidence.
+The section above is a reading aid and never replaces it.
+==============================================================
+
+RUN 1 vs core
+  (identical -- symmetric difference is empty over 61 and 61 non-empty entries)
+
+RUN 2 vs core
+  run2 only: tests/components/workWindows.advisoryConstraints.saveAndPersist.test.jsx
+  run2 only: tests/system/perf.revalidation.lock.test.ts
+
+RUN 1 vs RUN 2  (within-capture; the only comparison that isolates
+nondeterminism from code change)
+  run2 only: tests/components/workWindows.advisoryConstraints.saveAndPersist.test.jsx
+  run2 only: tests/system/perf.revalidation.lock.test.ts
+

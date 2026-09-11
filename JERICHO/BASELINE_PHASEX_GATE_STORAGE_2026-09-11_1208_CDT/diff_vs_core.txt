@@ -1,0 +1,52 @@
+Diff vs core -- BASELINE_PHASEX_GATE_STORAGE_2026-09-11_1208_CDT
+Generated 2026-09-11 14:10 CDT
+
+Core comparator: BASELINE_CORE_SET.txt (61 files)
+Roster:          BASELINE_FLAKE_ROSTER.tsv (5 files)
+Observed:        run1 61 files, run2 61 files
+
+STATE_TOGGLE files (explicit, not inferred):
+  run1_state[tests/components/AppShell.onboardingToGoalAdmission.flow.test.jsx]=live-failing
+  run2_state[tests/components/AppShell.onboardingToGoalAdmission.flow.test.jsx]=collection-dead
+
+  *** STATE CHANGED BETWEEN RUNS ***
+    tests/components/AppShell.onboardingToGoalAdmission.flow.test.jsx: run1=live-failing -> run2=collection-dead
+
+  A live-failing <-> collection-dead move changes the failing-TEST total
+  and the COLLECTED total without changing the failing-FILE set. The file
+  set comparisons below are therefore NOT comparable to the test counts
+  for this capture. Reconcile against the per-run totals:
+    run1:  Test Files 61 failed | 602 passed (663)| Tests 169 failed | 4461 passed | 7 skipped (4637)|
+    run2:  Test Files 61 failed | 602 passed (663)| Tests 167 failed | 4461 passed | 7 skipped (4635)|
+
+==============================================================
+READING AID -- roster subtracted
+==============================================================
+
+RUN 1
+  failing here, not in core  (candidate regression):
+    (none)
+  in core, not failing here  (candidate fix):
+    (none)
+
+RUN 2
+  failing here, not in core  (candidate regression):
+    (none)
+  in core, not failing here  (candidate fix):
+    (none)
+
+==============================================================
+RAW -- unsubtracted comm output. This is the evidence.
+The section above is a reading aid and never replaces it.
+==============================================================
+
+RUN 1 vs core
+  (identical -- symmetric difference is empty over 61 and 61 non-empty entries)
+
+RUN 2 vs core
+  (identical -- symmetric difference is empty over 61 and 61 non-empty entries)
+
+RUN 1 vs RUN 2  (within-capture; the only comparison that isolates
+nondeterminism from code change)
+  (identical -- symmetric difference is empty over 61 and 61 non-empty entries)
+

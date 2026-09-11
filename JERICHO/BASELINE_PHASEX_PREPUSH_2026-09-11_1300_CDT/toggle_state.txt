@@ -1,0 +1,14 @@
+# State of each STATE_TOGGLE roster file, per run.
+# Recorded as an explicit field. Do NOT infer this from the file lists:
+# a live-failing -> collection-dead move leaves the failing-FILE set
+# unchanged while the failing-TEST total drops, so the file-set diff is
+# empty and silent at exactly the moment the counts stop meaning the same
+# thing. Measured example, BASELINE_PHASEX_GATE_STORAGE_2026-09-11_1208_CDT:
+#   run1 collected 4637, 169 failing tests, 61 failing files, Failed Suites 2
+#   run2 collected 4635, 167 failing tests, 61 failing files, Failed Suites 3
+# Same 61 files. Two tests gone. flaky_files.txt was empty.
+#
+# states: live-failing | collection-dead | passing
+
+run1_state[tests/components/AppShell.onboardingToGoalAdmission.flow.test.jsx]=live-failing
+run2_state[tests/components/AppShell.onboardingToGoalAdmission.flow.test.jsx]=live-failing
