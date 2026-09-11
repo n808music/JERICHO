@@ -261,6 +261,33 @@ Note the Errors bucket is a count of unhandled error *events*, not of lost
 tests. 09-09 run 1 shows 4 errors while failed+passed+skipped (4624) is 3 short
 of the printed total (4627).
 
+### Consequence for the 60-file anchor
+
+This reclassification changes how the 09-09 anchor should be read, and the
+change is worth stating plainly because it cuts the other way from the rest of
+this document.
+
+The anchor was recorded as "60 core + 1 named flake", where the named flake is
+`fullHorizon.computeMemo` and the 60-vs-61 discrepancy in run 1 was attributed
+to the run being incomplete. That attribution is correct, but it is not
+nondeterminism in the *suite*. It is this file's reporter timing out.
+
+So the anchor has **a known mechanism for reading 60 or 61 that is not a flake
+in the set-membership sense**: `MasterPlanTimeline.render.test.jsx` is failing
+in both cases, and the only thing that varies is whether the reporter managed
+to classify it before the RPC gave up. The file is in `run1_files.txt` and
+`run2_files.txt` both times — the derived lists were right and the printed
+banner was wrong.
+
+Practical rule: when a capture's `Test Files N failed` banner disagrees with
+the count of anchored FAIL lines, check this file's Errors-bucket count before
+reaching for any other explanation. A banner/derived-list disagreement of
+exactly one, with a non-zero Errors count, is this and not a set change.
+
+This is a reporting defect with its own handling, not a flake to be subtracted.
+It stays on the roster because the thing it perturbs is real, under a kind that
+says it never moves the set.
+
 ---
 
 ## What is not on the roster, and why
@@ -270,6 +297,43 @@ of the printed total (4627).
 **all 14 runs**, both states stable. They are part of the core set, not flakes.
 Their failures are deterministic: an unresolved import and a `gate.detect` on
 undefined, respectively (`GATE_STORAGE/run2_full.log:62529`, `:62541`).
+
+## The roster is a lower bound
+
+A file is admitted only by being observed to move **within** a capture. That is
+the right admission rule — it is the only comparison that separates
+nondeterminism from code change — but it has a blind spot it cannot see past:
+it can only catch a file that flaked during a two-run capture. A file that
+flakes rarely enough not to have surfaced in fourteen runs is, on this
+evidence, indistinguishable from a stable one.
+
+Two of the five current members are proof of the rate: `workWindows` and
+`perf.revalidation.lock` were **first observations** in the PREPUSH capture,
+absent from all twelve prior runs. On that base rate a sixth is likely, not
+hypothetical.
+
+So a first-time appearance is reported MOVEMENT. That is the correct default —
+treat it as real until an isolated re-run and a named mechanism say otherwise,
+which is exactly how those two were established (3/3 green isolated, plus a
+cause). But it should not arrive as a surprise, which is why
+`BASELINE_DIFF.sh` prints this caveat above every KNOWN FLAKE listing rather
+than leaving it in this file.
+
+Novelty is not evidence of culpability, and it is not evidence of innocence
+either.
+
+## A note on grepping these logs
+
+`grep` treats `run1_full.log` / `run2_full.log` as binary and suppresses
+matching output entirely unless given `-a`. It returns an empty result — not an
+error — which reads exactly like absence. Measured during this work: a pattern
+that `sed` located in one of these logs came back empty from `grep` on the same
+file, three probes in a row.
+
+Every grep in `BASELINE_DIFF.sh` and `BASELINE_PHASEX_CAPTURE.sh` carries `-a`.
+Hand-greps do not, unless you remember. This is the pattern-match trap in its
+least visible form: the standing rule is that a match establishes presence and
+never absence, and this is the case where the *null* is the lie.
 
 ## Mechanisms not established
 
