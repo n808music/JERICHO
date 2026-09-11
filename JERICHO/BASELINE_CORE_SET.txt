@@ -1,5 +1,18 @@
 # Core failing-file comparator for BASELINE_DIFF.sh
 #
+# core-frozen-at: 4ed453d6f9ff8e32581fa6dd7cea69e8c29520d0
+#
+# ^ Machine-readable. BASELINE_DIFF.sh reads that line and prints, on EVERY
+# diff, how far the capture under examination sits from the commit this core
+# was frozen at. It is not a guard -- comparing against an older core is often
+# exactly what you want -- but a stale core is the one degradation in this
+# instrument that produces a PLAUSIBLE WRONG ANSWER rather than a visible
+# error: drift looks identical to real movement, and the reader's natural
+# response is to investigate the code rather than the comparator. So the fact
+# is printed unconditionally, whether or not the shas differ.
+#
+# When you re-freeze this file, update that line in the same commit.
+#
 # Provenance: the intersection of run1_files.txt and run2_files.txt from
 # BASELINE_PHASEX_PREPUSH_2026-09-11_1300_CDT -- the most recent capture, taken
 # on a frozen tree at the head of phasex-completion-stated-in-gate.
