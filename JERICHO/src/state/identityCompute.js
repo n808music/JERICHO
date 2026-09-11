@@ -16609,6 +16609,11 @@ function declareInitiative(state, payload = {}) {
     boundary_type: boundaryType,
     completion_value: completionValue || null,
     ongoing_output: ongoingOutput || null,
+    // Phase X: persisted so the completion condition is READABLE downstream. This is
+    // the replacement for the deleted isFoundationLane() name-sniff. Validating the
+    // column without storing it removes the workaround and supplies nothing in its
+    // place -- a field that is populated, checked once, and never readable again.
+    completion_stated_in: completionStatedIn,
   };
 }
 

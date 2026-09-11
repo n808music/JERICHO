@@ -93,4 +93,19 @@ describe('Phase X: completion_stated_in validation mutations', () => {
     expect(m.lastPlanError).toBeNull();
     expect(Object.keys(m.matrix?.initiativesById || {})).toHaveLength(29);
   });
+
+  // Phase X deleted isFoundationLane(), a name-based structural sniff, and named this
+  // column as its replacement. A column that is validated but not persisted removes
+  // the workaround and supplies nothing readable in its place. Asserting the full
+  // distribution rather than "at least one" so a partial loss cannot pass.
+  it('persists completion_stated_in so the condition is readable downstream', () => {
+    const m = loadReferenceMatrix(fixture, { nowISO: '2026-08-28T00:00:00Z' });
+    expect(m.lastPlanError).toBeNull();
+    const counts = {};
+    for (const init of Object.values(m.matrix?.initiativesById || {})) {
+      const k = String(init.completion_stated_in);
+      counts[k] = (counts[k] ?? 0) + 1;
+    }
+    expect(counts).toEqual({ 'Children': 18, 'This Row': 5, 'Does Not Complete': 6 });
+  });
 });
