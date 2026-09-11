@@ -18,6 +18,26 @@
 #
 # The subtraction is a READING AID. diff_vs_core.txt always carries the raw
 # unsubtracted comm output as well; nothing is ever only summarised.
+#
+# ---------------------------------------------------------------------------
+# COUNTER-TEST EVERY GUARD, DO NOT ONLY MUTATION-TEST IT.
+#
+# Mutation-testing asks "does the guard fire when it should?" Counter-testing
+# asks "does it stay quiet when it should?" -- and it is the second question
+# that found the one real bug in this script.
+#
+# Guard 3 (toggle state) was mutation-tested and fired correctly. The
+# counter-test -- same capture, plus a real " ✓ <path>" line so the state
+# resolves to "passing" -- exited 1 anyway. Cause: raw_comm ended with
+# `[ -n "$only_r" ] && echo ...`, which returns 1 when the test is false, and
+# under `set -e` that killed the script mid-write, TRUNCATING diff_vs_core.txt
+# at exactly the moment one side of a comm was empty -- the common case. The
+# earlier runs had passed only on which side happened to be empty.
+#
+# That is the vacuous-pass shape, inside the script written to prevent vacuous
+# passes, and no guard here caught it. Guards check their inputs; they do not
+# check that the script reaches its own end. The counter-test does.
+# ---------------------------------------------------------------------------
 
 set -euo pipefail
 
@@ -243,6 +263,19 @@ emit_side() {
   echo "READING AID -- roster subtracted"
   echo "=============================================================="
   echo ""
+  echo "THE ROSTER IS A LOWER BOUND. A file is admitted to it only by being"
+  echo "observed to move WITHIN a capture -- run 1 vs run 2 of the same frozen"
+  echo "tree. That is the only comparison that separates nondeterminism from"
+  echo "code change, but it can only see a file that flaked during a two-run"
+  echo "capture. A file that flakes rarely enough to have surfaced once in"
+  echo "fourteen runs is indistinguishable from a stable one until it moves."
+  echo ""
+  echo "So a first-time appearance is reported MOVEMENT, and that is the"
+  echo "correct default -- treat it as real until an isolated re-run and a"
+  echo "named mechanism say otherwise. But it should not be a surprise: two"
+  echo "of the five current roster members were first observations in the"
+  echo "PREPUSH capture, absent from all twelve prior runs. Expect a sixth."
+  echo ""
   for n in 1 2; do
     rf="$RUN1"; [ "$n" = 2 ] && rf="$RUN2"
     APPEARED=$(mktemp); DISAPPEARED=$(mktemp)
@@ -287,6 +320,19 @@ emit_side() {
   echo "nondeterminism from code change)"
   raw_comm "$RUN1" "$RUN2" "run1" "run2"
   echo ""
+  echo "--------------------------------------------------------------"
+  echo "IF YOU GREP THE RAW LOGS BY HAND, USE grep -a"
+  echo "--------------------------------------------------------------"
+  echo "run1_full.log and run2_full.log contain bytes that make grep treat"
+  echo "them as binary. Without -a it suppresses matching output entirely and"
+  echo "returns NOTHING -- not an error, not a warning, an empty result that"
+  echo "reads exactly like absence. Measured: a pattern that sed found in these"
+  echo "logs returned empty from grep on the same file."
+  echo ""
+  echo "This is the pattern-match trap in its nastiest form. The usual case is"
+  echo "a populated result answering a question you did not ask; this one is a"
+  echo "null result answering no question at all. Every grep in this script and"
+  echo "in BASELINE_PHASEX_CAPTURE.sh carries -a for this reason."
 } > "$CAPTURE_DIR/diff_vs_core.txt"
 
 echo ""
