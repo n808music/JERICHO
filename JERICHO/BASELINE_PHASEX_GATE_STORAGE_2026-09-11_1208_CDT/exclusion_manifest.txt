@@ -1,5 +1,5 @@
 Exclusion manifest -- BASELINE_PHASEX_GATE_STORAGE_2026-09-11_1208_CDT
-Generated 2026-09-11 14:13 CDT from BASELINE_FLAKE_ROSTER.tsv
+Generated 2026-09-11 14:17 CDT from BASELINE_FLAKE_ROSTER.tsv
 
 These files are known to move between runs of an unchanged tree. When one
 of them appears in a set difference below, the difference is labelled
@@ -32,3 +32,4 @@ from committed run logs; see BASELINE_FLAKE_ROSTER.md for the raw lines.
     evidence:  BASELINE_PHASE0_2026-09-09_1157_CDT/run1_full.log:68703
 
 Roster size: 5 files
+END-OF-MANIFEST -- if this line is missing the file was truncated

@@ -1,9 +1,14 @@
 Diff vs core -- BASELINE_PHASEX_PREPUSH_2026-09-11_1300_CDT
-Generated 2026-09-11 14:13 CDT
+Generated 2026-09-11 14:17 CDT
 
 Core comparator: BASELINE_CORE_SET.txt (61 files)
 Roster:          BASELINE_FLAKE_ROSTER.tsv (5 files)
 Observed:        run1 61 files, run2 63 files
+
+WHAT YOU ARE COMPARING AGAINST
+  core frozen at: 4ed453d6f9ff8e32581fa6dd7cea69e8c29520d0
+  capture at:     4ed453d6f9ff8e32581fa6dd7cea69e8c29520d0
+  distance:       same commit -- core and capture are the same tree.
 
 STATE_TOGGLE files (explicit, not inferred):
   run1_state[tests/components/AppShell.onboardingToGoalAdmission.flow.test.jsx]=live-failing
@@ -69,3 +74,4 @@ This is the pattern-match trap in its nastiest form. The usual case is
 a populated result answering a question you did not ask; this one is a
 null result answering no question at all. Every grep in this script and
 in BASELINE_PHASEX_CAPTURE.sh carries -a for this reason.
+END-OF-DIFF -- if this line is missing the file was truncated

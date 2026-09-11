@@ -12,3 +12,4 @@
 
 run1_state[tests/components/AppShell.onboardingToGoalAdmission.flow.test.jsx]=live-failing
 run2_state[tests/components/AppShell.onboardingToGoalAdmission.flow.test.jsx]=live-failing
+END-OF-TOGGLE-STATE -- if this line is missing the file was truncated
