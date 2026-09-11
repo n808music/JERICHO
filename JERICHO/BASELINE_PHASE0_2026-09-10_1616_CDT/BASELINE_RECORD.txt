@@ -1,0 +1,33 @@
+Phase 0 Baseline Capture
+Timestamp: 2026-09-10_1616_CDT  (local time)
+HEAD SHA: d187a4202e25fefb3b80984eaaa3829fd1b2453e
+
+File Set Comparison:
+FLAKY FILES DETECTED (present in one run, absent in the other):
+	tests/state/fullHorizon.computeMemo.test.js
+
+Failing files (Run 1): 60
+Failing files (Run 2): 61
+
+  live-failing   (Run 1): 58
+  live-failing   (Run 2): 59
+  collection-dead (Run 1): 2
+  collection-dead (Run 2): 2
+
+Run 1 totals:
+ Test Files  59 failed | 602 passed (662)
+      Tests  165 failed | 4456 passed | 7 skipped (4631)
+     Errors  3 errors
+
+Run 2 totals:
+ Test Files  61 failed | 601 passed (662)
+      Tests  166 failed | 4458 passed | 7 skipped (4631)
+
+Phase 6 comparison rule -- compare against the SET, not the count:
+  - in Phase 6, not in run{1,2}_files.txt  -> REGRESSION
+  - in run{1,2}_files.txt, not in Phase 6  -> FIX, or a non-report:
+                                              check the Errors bucket first
+  - movement within *_dead_files.txt       -> REVIVAL, not a fix
+
+  - BASELINE_PHASE0_2026-09-10_1616_CDT/run1_files.txt
+  - BASELINE_PHASE0_2026-09-10_1616_CDT/run2_files.txt

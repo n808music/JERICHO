@@ -16430,11 +16430,77 @@ function declareInitiative(state, payload = {}) {
   }
 
   // Validate completion_value XOR ongoing_output pairing
-  // Foundation lanes (structural detection: own "Business Plan" projects) are exempt
-  // from the completion_value requirement per doctrine.
-  const isFoundationLane = payload.isFoundationLane || false;
-  if (boundaryType === 'Terminating') {
-    if (!completionValue && !isFoundationLane) {
+  // Phase X: completion_stated_in specifies which statement (Children/This Row/Does Not Complete) applies.
+  // Gate applies only when completion_stated_in is provided (fixture data).
+  // For test-created initiatives without completion_stated_in, fall back to basic validation.
+  const completionStatedIn = payload.completion_stated_in || null;
+  const validStatements = new Set(['Children', 'This Row', 'Does Not Complete']);
+
+  if (completionStatedIn) {
+    // Strict validation when completion_stated_in is provided
+    if (!validStatements.has(completionStatedIn)) {
+      state.lastPlanError = {
+        code: 'INITIATIVE_COMPLETION_STATED_IN_INVALID',
+        reason: `Initiative completion_stated_in must be one of: ${Array.from(validStatements).join(', ')}. Got: "${completionStatedIn}".`,
+        meta: { id },
+      };
+      return;
+    }
+
+    if (boundaryType === 'Terminating') {
+      if (completionStatedIn === 'Does Not Complete') {
+        state.lastPlanError = {
+          code: 'INITIATIVE_BOUNDARY_TYPE_MISMATCH',
+          reason: 'Initiative with completion_stated_in "Does Not Complete" must have boundary_type "Ongoing".',
+          meta: { id },
+        };
+        return;
+      }
+      if (!completionValue) {
+        state.lastPlanError = {
+          code: 'INITIATIVE_COMPLETION_VALUE_MISSING',
+          reason: 'Initiative with boundary_type "Terminating" and completion_stated_in "' + completionStatedIn + '" requires completion_value.',
+          meta: { id },
+        };
+        return;
+      }
+      if (ongoingOutput) {
+        state.lastPlanError = {
+          code: 'INITIATIVE_ONGOING_OUTPUT_FORBIDDEN',
+          reason: 'Initiative with boundary_type "Terminating" cannot have ongoing_output.',
+          meta: { id },
+        };
+        return;
+      }
+    } else if (boundaryType === 'Ongoing') {
+      if (completionStatedIn !== 'Does Not Complete') {
+        state.lastPlanError = {
+          code: 'INITIATIVE_BOUNDARY_TYPE_MISMATCH',
+          reason: 'Initiative with boundary_type "Ongoing" must have completion_stated_in "Does Not Complete".',
+          meta: { id },
+        };
+        return;
+      }
+      if (!ongoingOutput) {
+        state.lastPlanError = {
+          code: 'INITIATIVE_ONGOING_OUTPUT_MISSING',
+          reason: 'Initiative with boundary_type "Ongoing" and completion_stated_in "Does Not Complete" requires ongoing_output.',
+          meta: { id },
+        };
+        return;
+      }
+      if (completionValue) {
+        state.lastPlanError = {
+          code: 'INITIATIVE_COMPLETION_VALUE_FORBIDDEN',
+          reason: 'Initiative with boundary_type "Ongoing" cannot have completion_value.',
+          meta: { id },
+        };
+        return;
+      }
+    }
+  } else if (boundaryType === 'Terminating') {
+    // Legacy path: no completion_stated_in (test-created), basic validation only
+    if (!completionValue) {
       state.lastPlanError = {
         code: 'INITIATIVE_COMPLETION_VALUE_MISSING',
         reason: 'Initiative with boundary_type "Terminating" requires completion_value.',
@@ -16451,6 +16517,7 @@ function declareInitiative(state, payload = {}) {
       return;
     }
   } else if (boundaryType === 'Ongoing') {
+    // Legacy path: no completion_stated_in (test-created), basic validation only
     if (!ongoingOutput) {
       state.lastPlanError = {
         code: 'INITIATIVE_ONGOING_OUTPUT_MISSING',

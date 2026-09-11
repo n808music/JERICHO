@@ -178,17 +178,9 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
     return entityNames.map(resolveEntity).filter(Boolean);
   };
 
-  // Foundation lane detection: structural, not name-based. A Foundation initiative
-  // owns projects with "Business Plan" in the name (one per Foundation lane).
-  // Per doctrine, Foundation lanes require neither completion_value nor ongoing_output.
-  const isFoundationLane = (initiativeName) => {
-    return nodes.some(
-      (n) =>
-        n.class === 'Project' &&
-        n.parent_initiative === initiativeName &&
-        String(n.name || '').includes('Business Plan')
-    );
-  };
+  // Completion stated in: column that specifies which statement (Children, This Row, Does Not Complete)
+  // applies to this Terminating or Ongoing row. Loaded as-is from fixture; validation happens in reducer.
+  const COMPLETION_STATED_IN_VALUES = new Set(['Children', 'This Row', 'Does Not Complete']);
 
   // Single shared verification source so Project/Deliverable required refs resolve.
   dispatch({
@@ -240,8 +232,8 @@ export function loadReferenceMatrix(fixture, { nowISO = new Date().toISOString()
             boundary_type: n.boundary_type || null,
             completion_value: n.completion_value || null,
             ongoing_output: n.ongoing_output || null,
-            // Foundation lane detection: structural marker for exception to completion_value rule
-            isFoundationLane: isFoundationLane(n.name),
+            // Phase X: completion_stated_in column read and validated by reducer
+            completion_stated_in: n.completion_stated_in || null,
           },
         });
       } else if (cls === 'Project') {
