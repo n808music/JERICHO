@@ -124,9 +124,34 @@ Phase X diff rule -- compare against Phase 1b:
   - in Phase X, not in Phase 1b  -> NEW FAILURE
   - $BASELINE_DIR/run1_files.txt
   - $BASELINE_DIR/run2_files.txt
+
+Flake-aware reading of the above (see BASELINE_FLAKE_ROSTER.md):
+  - $BASELINE_DIR/exclusion_manifest.txt  roster + observed mechanisms
+  - $BASELINE_DIR/toggle_state.txt        STATE_TOGGLE state per run, explicit
+  - $BASELINE_DIR/diff_vs_core.txt        KNOWN FLAKE vs MOVEMENT, plus raw
+
+A difference naming a roster file is a KNOWN FLAKE. A difference naming
+anything else is MOVEMENT. The raw unsubtracted lists above are unchanged
+and remain the evidence; the subtraction is only a reading aid.
 EOF
 
 echo ""
 cat "$BASELINE_DIR/BASELINE_RECORD.txt"
+
+# Flake-aware diff. Aborts (non-zero) if the roster is empty, the core
+# comparator is missing or unparseable, or a STATE_TOGGLE file's state cannot
+# be determined -- same treatment as the empty-list guard above, and for the
+# same reason: a comparison that cannot be read must not look like a clean one.
+echo ""
+echo "=== Flake-aware diff ==="
+if [ -x ./BASELINE_DIFF.sh ]; then
+  ./BASELINE_DIFF.sh "$BASELINE_DIR"
+else
+  echo "ABORT: ./BASELINE_DIFF.sh is missing or not executable."
+  echo "The raw capture above is intact, but no flake-aware diff was produced."
+  echo "Do not read the file sets as a clean comparison without it."
+  exit 1
+fi
+
 echo ""
 echo "Baseline captured to: $BASELINE_DIR/"
